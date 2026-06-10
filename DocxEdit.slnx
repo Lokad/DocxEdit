@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DocxEdit.Cli/DocxEdit.Cli.csproj" />
+    <Project Path="src/DocxEdit/DocxEdit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DocxEdit.OfficeTests/DocxEdit.OfficeTests.csproj" />
+    <Project Path="tests/DocxEdit.Tests/DocxEdit.Tests.csproj" />
+  </Folder>
+</Solution>
