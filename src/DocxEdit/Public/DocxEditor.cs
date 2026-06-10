@@ -149,11 +149,21 @@ public sealed class DocxEditor
         }
 
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        if (package is null)
+        {
+            return new DocxCheckResult
+            {
+                Success = false,
+                Diagnostics = diagnostics
+            };
+        }
+
+        PatchExecutionResult execution = DocxPatchEngine.Check(package, patch, cancellationToken);
         return new DocxCheckResult
         {
-            Success = package is not null && diagnostics.All(d => d.Severity != DocxSeverity.Error),
-            Diagnostics = diagnostics,
-            Operations = patch.Operations.Select(operation => new DocxPatchOperationReport(operation.Index, operation.OperationName, operation.Fields.GetValueOrDefault("target"), true, [])).ToArray()
+            Success = execution.Success,
+            Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
+            Operations = execution.Reports
         };
     }
 
@@ -185,6 +195,17 @@ public sealed class DocxEditor
             return new DocxApplyResult { Success = false, Diagnostics = diagnostics };
         }
 
+        PatchExecutionResult execution = DocxPatchEngine.Apply(package, patch, cancellationToken);
+        if (!execution.Success)
+        {
+            return new DocxApplyResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
+                Operations = execution.Reports
+            };
+        }
+
         package.Save(output, cancellationToken);
         if (!options.LeaveOutputOpen)
         {
@@ -194,8 +215,8 @@ public sealed class DocxEditor
         return new DocxApplyResult
         {
             Success = diagnostics.All(d => d.Severity != DocxSeverity.Error),
-            Diagnostics = diagnostics,
-            Operations = patch.Operations.Select(operation => new DocxPatchOperationReport(operation.Index, operation.OperationName, operation.Fields.GetValueOrDefault("target"), true, [])).ToArray()
+            Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
+            Operations = execution.Reports
         };
     }
 

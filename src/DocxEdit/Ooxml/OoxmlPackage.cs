@@ -170,6 +170,17 @@ internal sealed class OoxmlPackage
         }
     }
 
+    internal void ReplacePartBytes(string partName, byte[] bytes)
+    {
+        string normalized = OoxmlPath.NormalizePartName(partName);
+        if (!parts.TryGetValue(normalized, out OoxmlPart? part))
+        {
+            throw new InvalidDataException($"OOXML part '{normalized}' does not exist.");
+        }
+
+        parts[normalized] = part with { Bytes = bytes };
+    }
+
     internal static IReadOnlyList<OoxmlRelationship> ParseRelationships(
         Stream stream,
         string sourcePartName,
