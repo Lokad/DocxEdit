@@ -1,4 +1,6 @@
 using DocxEdit.Ooxml;
+using DocxEdit.Model;
+using DocxEdit.Rendering;
 
 namespace DocxEdit;
 
@@ -12,12 +14,17 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxReadOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
         return new DocxReadResult
         {
             Success = package is not null,
             Diagnostics = diagnostics,
             PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
-            MainDocumentPartName = package?.MainDocumentPartName
+            MainDocumentPartName = package?.MainDocumentPartName,
+            Text = TextRenderers.RenderRead(model),
+            Paragraphs = model.Paragraphs,
+            Tables = model.Tables,
+            Images = model.Images
         };
     }
 
@@ -29,12 +36,14 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxOutlineOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
         return new DocxOutlineResult
         {
             Success = package is not null,
             Diagnostics = diagnostics,
             PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
-            MainDocumentPartName = package?.MainDocumentPartName
+            MainDocumentPartName = package?.MainDocumentPartName,
+            Lines = TextRenderers.RenderOutline(model)
         };
     }
 
@@ -48,11 +57,13 @@ public sealed class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         options ??= new DocxFindOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
         return new DocxFindResult
         {
             Success = package is not null,
             Diagnostics = diagnostics,
-            Query = query
+            Query = query,
+            Matches = TextRenderers.Find(model, query)
         };
     }
 
@@ -66,11 +77,13 @@ public sealed class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
         options ??= new DocxDumpOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
         return new DocxDumpResult
         {
             Success = package is not null,
             Diagnostics = diagnostics,
-            TargetId = targetId
+            TargetId = targetId,
+            Text = TextRenderers.Dump(model, targetId)
         };
     }
 
@@ -97,14 +110,12 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxMediaOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
         return new DocxMediaResult
         {
             Success = package is not null,
             Diagnostics = diagnostics,
-            Images = package?.Parts.Values
-                .Where(part => part.Name.StartsWith("/word/media/", StringComparison.OrdinalIgnoreCase))
-                .Select((part, index) => new DocxImageInfo($"M.I{index + 1:0000}", part.Name, part.ContentType, part.Bytes.Length))
-                .ToArray() ?? []
+            Images = model.Images
         };
     }
 
@@ -250,4 +261,3 @@ public sealed class DocxEditor
         return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
     }
 }
-

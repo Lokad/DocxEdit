@@ -10,12 +10,17 @@ public sealed record DocxReadResult : DocxOperationResult
 {
     public IReadOnlyList<string> PartNames { get; init; } = [];
     public string? MainDocumentPartName { get; init; }
+    public string Text { get; init; } = string.Empty;
+    public IReadOnlyList<DocxParagraphInfo> Paragraphs { get; init; } = [];
+    public IReadOnlyList<DocxTableInfo> Tables { get; init; } = [];
+    public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
 }
 
 public sealed record DocxOutlineResult : DocxOperationResult
 {
     public IReadOnlyList<string> PartNames { get; init; } = [];
     public string? MainDocumentPartName { get; init; }
+    public IReadOnlyList<string> Lines { get; init; } = [];
 }
 
 public sealed record DocxFindResult : DocxOperationResult
@@ -61,3 +66,24 @@ public sealed record DocxStyleInfo(string StyleId, string Name, string Type, boo
 
 public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength);
 
+public sealed record DocxParagraphInfo(
+    string Id,
+    string Story,
+    string Text,
+    int? HeadingLevel,
+    IReadOnlyList<DocxRunInfo> Runs);
+
+public sealed record DocxRunInfo(string Text);
+
+public sealed record DocxTableInfo(
+    string Id,
+    string Story,
+    int RowCount,
+    int ColumnCount,
+    IReadOnlyList<DocxTableCellInfo> Cells);
+
+public sealed record DocxTableCellInfo(
+    string Id,
+    int RowIndex,
+    int ColumnIndex,
+    string Text);
