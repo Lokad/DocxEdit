@@ -491,7 +491,8 @@ internal static class DocxPatchEngine
         string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(paragraphTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
         package.AddPart(imagePartName, contentType!, bytes);
         package.AddRelationship(paragraphTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(paragraphTarget.PartName, imagePartName));
-        XElement imageParagraph = CreateInlineImageParagraph(relationshipId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
+        int docPrId = AllocateDrawingDocPrId(paragraphTarget.Document);
+        XElement imageParagraph = CreateInlineImageParagraph(relationshipId, docPrId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
         paragraphTarget.Paragraph.AddAfterSelf(imageParagraph);
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
@@ -542,7 +543,27 @@ internal static class DocxPatchEngine
             : normalizedTarget.TrimStart('/');
     }
 
-    private static XElement CreateInlineImageParagraph(string relationshipId, long widthEmus, long heightEmus, string alt)
+    private static int AllocateDrawingDocPrId(XDocument document)
+    {
+        var existing = new HashSet<int>();
+        foreach (XElement docPr in document.Descendants(OoxmlNs.Wp + "docPr"))
+        {
+            if (int.TryParse((string?)docPr.Attribute("id"), out int id) && id > 0)
+            {
+                existing.Add(id);
+            }
+        }
+
+        for (int id = 1; ; id++)
+        {
+            if (!existing.Contains(id))
+            {
+                return id;
+            }
+        }
+    }
+
+    private static XElement CreateInlineImageParagraph(string relationshipId, int docPrId, long widthEmus, long heightEmus, string alt)
     {
         return new XElement(
             OoxmlNs.W + "p",
@@ -553,7 +574,7 @@ internal static class DocxPatchEngine
                     new XElement(
                         OoxmlNs.Wp + "inline",
                         new XElement(OoxmlNs.Wp + "extent", new XAttribute("cx", widthEmus), new XAttribute("cy", heightEmus)),
-                        new XElement(OoxmlNs.Wp + "docPr", new XAttribute("id", "1"), new XAttribute("name", "Picture"), new XAttribute("descr", alt)),
+                        new XElement(OoxmlNs.Wp + "docPr", new XAttribute("id", docPrId), new XAttribute("name", $"Picture {docPrId}"), new XAttribute("descr", alt)),
                         new XElement(
                             OoxmlNs.A + "graphic",
                             new XElement(

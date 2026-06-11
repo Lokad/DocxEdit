@@ -1107,6 +1107,31 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyInsertImageAfterAllocatesUniqueDocPrId()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", "new-png", null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            width 1in
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<wp:docPr id=\"1\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<wp:docPr id=\"2\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertImageAfterTwiceRefreshesContentTypesAndRelationships()
     {
         using MemoryStream input = CreateDocx("Intro");
