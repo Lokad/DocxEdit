@@ -235,6 +235,40 @@ internal sealed class OoxmlPackage
         ReplacePartBytes(relationshipPartName, output.ToArray());
     }
 
+    internal void RemoveRelationship(string sourcePartName, string relationshipId)
+    {
+        string relationshipPartName = OoxmlPath.GetRelationshipPartName(sourcePartName);
+        if (!parts.TryGetValue(relationshipPartName, out OoxmlPart? relationshipPart))
+        {
+            return;
+        }
+
+        using Stream stream = relationshipPart.OpenRead();
+        XDocument document = SafeXml.Load(stream);
+        foreach (XElement relationship in document.Root?.Elements(OoxmlNs.Rel + "Relationship")
+            .Where(element => string.Equals((string?)element.Attribute("Id"), relationshipId, StringComparison.Ordinal))
+            .ToArray() ?? [])
+        {
+            relationship.Remove();
+        }
+
+        using var output = new MemoryStream();
+        document.Save(output, SaveOptions.DisableFormatting);
+        ReplacePartBytes(relationshipPartName, output.ToArray());
+    }
+
+    internal void RemovePart(string partName)
+    {
+        string normalized = OoxmlPath.NormalizePartName(partName);
+        if (!parts.Remove(normalized))
+        {
+            return;
+        }
+
+        touchedPartNames.Remove(normalized);
+        RemoveContentTypeOverride(normalized);
+    }
+
     private void AddContentTypeOverride(string partName, string contentType)
     {
         using Stream stream = ContentTypesPart.OpenRead();
@@ -250,6 +284,25 @@ internal sealed class OoxmlPackage
                 OoxmlNs.Ct + "Override",
                 new XAttribute("PartName", partName),
                 new XAttribute("ContentType", contentType)));
+        }
+
+        using var output = new MemoryStream();
+        document.Save(output, SaveOptions.DisableFormatting);
+        ReplacePartBytes("/[Content_Types].xml", output.ToArray());
+    }
+
+    private void RemoveContentTypeOverride(string partName)
+    {
+        using Stream stream = ContentTypesPart.OpenRead();
+        XDocument document = SafeXml.Load(stream);
+        XElement root = document.Root
+            ?? throw new InvalidDataException("Content types part has no XML root.");
+        foreach (XElement element in root
+            .Elements(OoxmlNs.Ct + "Override")
+            .Where(element => string.Equals((string?)element.Attribute("PartName"), partName, StringComparison.OrdinalIgnoreCase))
+            .ToArray())
+        {
+            element.Remove();
         }
 
         using var output = new MemoryStream();

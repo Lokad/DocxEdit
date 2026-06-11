@@ -1045,6 +1045,12 @@ public static class PatchApplyTests
         Assert.Single(read.Paragraphs);
         output.Position = 0;
         Assert.DoesNotContain("<w:drawing>", ReadDocumentXml(output), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.False(EntryExists(output, "word/media/image1.png"));
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.DoesNotContain("rImage", relationships, StringComparison.Ordinal);
+        Assert.DoesNotContain("media/image1.png", relationships, StringComparison.Ordinal);
     }
 
     [Fact]

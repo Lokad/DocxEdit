@@ -687,8 +687,43 @@ internal static class DocxPatchEngine
         }
 
         drawing.Remove();
+        if (!UsesRelationship(imageTarget.Document, imageTarget.RelationshipId))
+        {
+            package.RemoveRelationship(package.MainDocumentPartName!, imageTarget.RelationshipId);
+            if (!AnyRelationshipTargetsPart(package, imageTarget.Part.Name, cancellationToken))
+            {
+                package.RemovePart(imageTarget.Part.Name);
+            }
+        }
+
         SaveMainDocument(package, imageTarget.Document);
         return [];
+    }
+
+    private static bool UsesRelationship(XDocument document, string relationshipId)
+    {
+        return document
+            .Descendants(OoxmlNs.A + "blip")
+            .Any(blip => string.Equals((string?)blip.Attribute(OoxmlNs.R + "embed"), relationshipId, StringComparison.Ordinal));
+    }
+
+    private static bool AnyRelationshipTargetsPart(OoxmlPackage package, string partName, CancellationToken cancellationToken)
+    {
+        foreach (OoxmlPart relationshipPart in package.Parts.Values.Where(part => part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)))
+        {
+            string sourcePartName = GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+            foreach (OoxmlRelationship relationship in package.GetRelationships(sourcePartName, cancellationToken))
+            {
+                if (!relationship.IsExternal &&
+                    relationship.ResolvedTarget is not null &&
+                    string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetSectionColumns(
