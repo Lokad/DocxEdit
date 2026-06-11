@@ -58,7 +58,7 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit read input.docx [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit read input.docx [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
@@ -66,6 +66,7 @@ internal static class ProgramMain
         {
             IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
             IncludeAllStories = options.Flags.Contains("--all-stories"),
+            TextView = options.TextView,
             MaxText = options.MaxText ?? 4_000
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
@@ -113,13 +114,14 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 2)
         {
-            return InvalidUsage("Usage: docxedit find input.docx \"text\" [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxFindResult result = new DocxEditor().Find(input, options.Positionals[1], new DocxFindOptions
         {
             IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+            TextView = options.TextView,
             MaxText = options.MaxText ?? 4_000
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
@@ -142,13 +144,14 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1 || options.Id is null)
         {
-            return InvalidUsage("Usage: docxedit dump input.docx --id M.P0001 [--runs] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxDumpResult result = new DocxEditor().Dump(input, options.Id, new DocxDumpOptions
         {
             IncludeRuns = options.Flags.Contains("--runs"),
+            TextView = options.TextView,
             MaxText = options.MaxText ?? 4_000
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
@@ -425,7 +428,7 @@ internal static class ProgramMain
               help patch Show the .docxpatch syntax with examples
 
             Examples:
-              docxedit read report.docx
+              docxedit read report.docx [--view final|original|markup]
               docxedit dump report.docx --id M.P0004 --runs
               docxedit media report.docx --extract media
               docxedit changes report.docx
@@ -464,7 +467,7 @@ internal static class ProgramMain
             asset chart.png
             end
 
-            Selectors may use explicit IDs, heading:"Text", heading:2:"Text", or text:"contained text" for paragraph targets.
+            Selectors may use explicit IDs, heading:"Text", heading:2:"Text", text:"contained text", bookmark:"Name", or content-control:"TagOrAlias" for paragraph targets.
             The expect-hash feature is unsupported and is rejected. Some parsed fields, such as preserve-size and caption, are not implemented yet.
             """);
     }
@@ -485,6 +488,7 @@ internal static class ProgramMain
         TrackChangesMode TrackChanges,
         string? Author,
         DateTimeOffset? TimestampUtc,
+        DocxTextView TextView,
         string? Error)
     {
         public static ParsedOptions Parse(string[] args)
@@ -504,6 +508,7 @@ internal static class ProgramMain
             TrackChangesMode trackChanges = TrackChangesMode.Off;
             string? author = null;
             DateTimeOffset? timestampUtc = null;
+            DocxTextView textView = DocxTextView.Final;
 
             for (int i = 1; i < args.Length; i++)
             {
@@ -570,6 +575,18 @@ internal static class ProgramMain
                         }
 
                         break;
+                    case "--view":
+                        if (!TryReadValue(args, ref i, out string? textViewValue))
+                        {
+                            return WithError(command, "Missing value for --view.");
+                        }
+
+                        if (!TryParseTextView(textViewValue!, out textView))
+                        {
+                            return WithError(command, "Invalid value for --view. Expected final, original, or markup.");
+                        }
+
+                        break;
                     case "--author":
                         if (!TryReadValue(args, ref i, out author))
                         {
@@ -616,7 +633,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, trackChanges, author, timestampUtc, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, trackChanges, author, timestampUtc, textView, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -633,7 +650,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, TrackChangesMode.Off, null, null, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)
@@ -648,6 +665,25 @@ internal static class ProgramMain
                 _ => TrackChangesMode.Off
             };
             return normalized is "off" or "preserve" or "suggest" or "require";
+        }
+
+        private static bool TryParseTextView(string value, out DocxTextView textView)
+        {
+            switch (value.ToLowerInvariant())
+            {
+                case "final":
+                    textView = DocxTextView.Final;
+                    return true;
+                case "original":
+                    textView = DocxTextView.Original;
+                    return true;
+                case "markup":
+                    textView = DocxTextView.Markup;
+                    return true;
+                default:
+                    textView = DocxTextView.Final;
+                    return false;
+            }
         }
     }
 }

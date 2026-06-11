@@ -144,6 +144,20 @@ public static class CliTests
         Assert.DoesNotContain("Deleted", result.Output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CliReadSupportsOriginalTrackedChangeView()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "changes.docx");
+        CreateDocxWithTrackedChanges(input);
+
+        CliResult result = RunCli("read", input, "--view", "original");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("Deleted", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Inserted", result.Output, StringComparison.Ordinal);
+    }
+
     private static CliResult RunCli(params string[] args)
     {
         string repoRoot = FindRepoRoot();

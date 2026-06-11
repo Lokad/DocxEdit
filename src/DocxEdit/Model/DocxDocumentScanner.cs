@@ -8,6 +8,7 @@ internal static class DocxDocumentScanner
     public static DocxDocumentModel Scan(
         OoxmlPackage package,
         bool includeHeadersFooters = false,
+        DocxTextView textView = DocxTextView.Final,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -20,7 +21,7 @@ internal static class DocxDocumentScanner
         var tables = new List<DocxTableInfo>();
         var images = new List<DocxImageInfo>();
         var sections = new List<DocxSectionInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", paragraphs, tables, images, sections, cancellationToken);
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, paragraphs, tables, images, sections, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -33,7 +34,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", paragraphs, tables, images, sections, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, paragraphs, tables, images, sections, cancellationToken);
                 }
             }
 
@@ -45,7 +46,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", paragraphs, tables, images, sections, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, paragraphs, tables, images, sections, cancellationToken);
                 }
             }
         }
@@ -58,6 +59,7 @@ internal static class DocxDocumentScanner
         string partName,
         string idPrefix,
         string story,
+        DocxTextView textView,
         List<DocxParagraphInfo> paragraphs,
         List<DocxTableInfo> tables,
         List<DocxImageInfo> images,
@@ -86,12 +88,12 @@ internal static class DocxDocumentScanner
             XElement? sectionProperties = null;
             if (block.Name == OoxmlNs.W + "p")
             {
-                paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, package, relationships, images, idPrefix, ref imageIndex));
+                paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, textView, package, relationships, images, idPrefix, ref imageIndex));
                 sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
             }
             else if (block.Name == OoxmlNs.W + "tbl")
             {
-                tables.Add(ReadTable(block, $"{idPrefix}.T{tableIndex++:0000}", story, package, relationships, images, idPrefix, ref imageIndex));
+                tables.Add(ReadTable(block, $"{idPrefix}.T{tableIndex++:0000}", story, textView, package, relationships, images, idPrefix, ref imageIndex));
             }
             else if (block.Name == OoxmlNs.W + "sectPr")
             {
@@ -109,6 +111,7 @@ internal static class DocxDocumentScanner
         XElement paragraph,
         string id,
         string story,
+        DocxTextView textView,
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
@@ -117,7 +120,7 @@ internal static class DocxDocumentScanner
     {
         var runs = paragraph
             .Elements(OoxmlNs.W + "r")
-            .Select(run => new DocxRunInfo(ReadVisibleText(run)))
+            .Select(run => new DocxRunInfo(ReadText(run, textView)))
             .Where(run => run.Text.Length != 0)
             .ToArray();
         foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
@@ -128,7 +131,7 @@ internal static class DocxDocumentScanner
         return new DocxParagraphInfo(
             id,
             story,
-            ReadVisibleText(paragraph),
+            ReadText(paragraph, textView),
             ReadHeadingLevel(paragraph),
             ReadListInfo(paragraph),
             runs);
@@ -138,6 +141,7 @@ internal static class DocxDocumentScanner
         XElement table,
         string id,
         string story,
+        DocxTextView textView,
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
@@ -162,7 +166,7 @@ internal static class DocxDocumentScanner
                     $"{id}.R{rowIndex:00}.C{columnIndex:00}",
                     rowIndex,
                     columnIndex,
-                    ReadVisibleText(cell),
+                    ReadText(cell, textView),
                     columnSpan,
                     ReadCellVerticalMerge(cell),
                     cell.Elements(OoxmlNs.W + "tbl").Any()));
@@ -176,31 +180,62 @@ internal static class DocxDocumentScanner
         return new DocxTableInfo(id, story, rowIndex - 1, maxColumns, cells);
     }
 
-    private static string ReadVisibleText(XElement container)
+    private static string ReadText(XElement container, DocxTextView textView)
     {
         var buffer = new List<string>();
         foreach (XElement element in container.Descendants())
         {
-            if (IsInsideDeletedRevision(element))
+            if (!ShouldIncludeTextElement(element, textView))
             {
                 continue;
             }
 
-            if (element.Name == OoxmlNs.W + "t")
+            if (element.Name == OoxmlNs.W + "t" || element.Name == OoxmlNs.W + "delText")
             {
-                buffer.Add(element.Value);
+                buffer.Add(ApplyMarkupTextView(element, element.Value, textView));
             }
             else if (element.Name == OoxmlNs.W + "tab")
             {
-                buffer.Add("\t");
+                buffer.Add(ApplyMarkupTextView(element, "\t", textView));
             }
             else if (element.Name == OoxmlNs.W + "br")
             {
-                buffer.Add("\n");
+                buffer.Add(ApplyMarkupTextView(element, "\n", textView));
             }
         }
 
         return string.Concat(buffer);
+    }
+
+    private static bool ShouldIncludeTextElement(XElement element, DocxTextView textView)
+    {
+        return textView switch
+        {
+            DocxTextView.Final => !IsInsideDeletedRevision(element),
+            DocxTextView.Original => !IsInsideInsertedRevision(element),
+            DocxTextView.Markup => true,
+            _ => !IsInsideDeletedRevision(element)
+        };
+    }
+
+    private static string ApplyMarkupTextView(XElement element, string text, DocxTextView textView)
+    {
+        if (textView != DocxTextView.Markup)
+        {
+            return text;
+        }
+
+        if (IsInsideInsertedRevision(element))
+        {
+            return $"[+{text}+]";
+        }
+
+        if (IsInsideDeletedRevision(element))
+        {
+            return $"[-{text}-]";
+        }
+
+        return text;
     }
 
     private static int ReadCellColumnSpan(XElement cell)
@@ -229,6 +264,12 @@ internal static class DocxDocumentScanner
     {
         return element.Ancestors(OoxmlNs.W + "del").Any() ||
             element.Ancestors(OoxmlNs.W + "moveFrom").Any();
+    }
+
+    private static bool IsInsideInsertedRevision(XElement element)
+    {
+        return element.Ancestors(OoxmlNs.W + "ins").Any() ||
+            element.Ancestors(OoxmlNs.W + "moveTo").Any();
     }
 
     private static int? ReadHeadingLevel(XElement paragraph)

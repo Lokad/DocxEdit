@@ -320,6 +320,24 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadCanSwitchTrackedChangeTextViews()
+    {
+        using MemoryStream finalStream = CreateDocxWithBody(TrackedChangeBodyXml);
+        using MemoryStream originalStream = CreateDocxWithBody(TrackedChangeBodyXml);
+        using MemoryStream markupStream = CreateDocxWithBody(TrackedChangeBodyXml);
+        var editor = new DocxEditor();
+
+        DocxReadResult final = editor.Read(finalStream);
+        DocxReadResult original = editor.Read(originalStream, new DocxReadOptions { TextView = DocxTextView.Original });
+        DocxReadResult markup = editor.Read(markupStream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal("Before Inserted After", Assert.Single(final.Paragraphs).Text);
+        Assert.Equal("Before Deleted After", Assert.Single(original.Paragraphs).Text);
+        Assert.Contains("[+Inserted +]", Assert.Single(markup.Paragraphs).Text, StringComparison.Ordinal);
+        Assert.Contains("[-Deleted -]", Assert.Single(markup.Paragraphs).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ReadWarnsWhenTrackedChangeMarkupIsOnlyPartiallyModeled()
     {
         using MemoryStream stream = CreateDocxWithBody("""
@@ -480,9 +498,22 @@ public static class ReadApiTests
             Assert.False(string.IsNullOrWhiteSpace(diagnostic.Feature));
             Assert.False(string.IsNullOrWhiteSpace(diagnostic.Fallback));
         });
-        Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1001" && diagnostic.Fallback == "final-view");
+        Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1001" && diagnostic.Fallback == "selected-text-view");
         Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1008" && diagnostic.Fallback == "omit-from-editable-images");
     }
+
+    private const string TrackedChangeBodyXml = """
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:ins w:id="1" w:author="Alice">
+                        <w:r><w:t>Inserted </w:t></w:r>
+                      </w:ins>
+                      <w:del w:id="2" w:author="Bob">
+                        <w:r><w:delText>Deleted </w:delText></w:r>
+                      </w:del>
+                      <w:r><w:t>After</w:t></w:r>
+                    </w:p>
+            """;
 
     private static MemoryStream CreateDocx()
     {

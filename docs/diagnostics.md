@@ -23,7 +23,7 @@ Common read-model warning features include `tracked-changes`, `hyperlink`, `fiel
 `equation`, `shape`, `alt-chunk`, and `section-flow`.
 
 `W10xx` read-model warnings include `PartName`, `Story`, `Feature`, and `Fallback` metadata.
-Fallback values describe the behavior used by the reader, such as `final-view`, `plain-text`,
+Fallback values describe the behavior used by the reader, such as `selected-text-view`, `plain-text`,
 `preserve-only`, `omit-from-editable-images`, or `basic-section-model`.
 
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.

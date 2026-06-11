@@ -4,6 +4,7 @@ public sealed class DocxReadOptions
 {
     public bool IncludeHeadersFooters { get; init; }
     public bool IncludeAllStories { get; init; }
+    public DocxTextView TextView { get; init; } = DocxTextView.Final;
     public int MaxText { get; init; } = 4_000;
     public int MaxZipEntries { get; init; } = 10_000;
     public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
@@ -23,6 +24,7 @@ public sealed class DocxOutlineOptions
 public sealed class DocxFindOptions
 {
     public bool IncludeHeadersFooters { get; init; }
+    public DocxTextView TextView { get; init; } = DocxTextView.Final;
     public int MaxText { get; init; } = 4_000;
     public int MaxZipEntries { get; init; } = 10_000;
     public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
@@ -33,6 +35,7 @@ public sealed class DocxFindOptions
 public sealed class DocxDumpOptions
 {
     public bool IncludeRuns { get; init; }
+    public DocxTextView TextView { get; init; } = DocxTextView.Final;
     public int MaxText { get; init; } = 4_000;
     public int MaxZipEntries { get; init; } = 10_000;
     public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
@@ -93,4 +96,11 @@ public enum TrackChangesMode
     Preserve,
     Suggest,
     Require
+}
+
+public enum DocxTextView
+{
+    Final,
+    Original,
+    Markup
 }

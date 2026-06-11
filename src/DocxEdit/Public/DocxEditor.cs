@@ -24,7 +24,7 @@ public sealed class DocxEditor
             };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxReadResult
             {
@@ -64,7 +64,7 @@ public sealed class DocxEditor
             return new DocxOutlineResult { Success = false, Diagnostics = diagnostics };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken: cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxOutlineResult
             {
@@ -102,7 +102,7 @@ public sealed class DocxEditor
             return new DocxFindResult { Success = false, Diagnostics = diagnostics, Query = query };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxFindResult
             {
@@ -136,7 +136,7 @@ public sealed class DocxEditor
             return new DocxDumpResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, textView: options.TextView, cancellationToken: cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxDumpResult
             {

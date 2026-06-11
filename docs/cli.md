@@ -8,15 +8,16 @@ dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
 
 ## Read And Explore
 
-- `read input.docx [--headers-footers] [--all-stories] [--max-text N] [--json] [--diagnostics path] [--strict]`
+- `read input.docx [--headers-footers] [--all-stories] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `outline input.docx [--headers-footers] [--json] [--diagnostics path] [--strict]`
-- `find input.docx "text" [--headers-footers] [--max-text N] [--json] [--diagnostics path] [--strict]`
-- `dump input.docx --id M.P0001 [--runs] [--max-text N] [--json] [--diagnostics path] [--strict]`
+- `find input.docx "text" [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
+- `dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `styles input.docx [--json] [--diagnostics path] [--strict]`
 - `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
 - `changes input.docx [--json] [--diagnostics path] [--strict]`
 
 `changes` lists existing tracked-change markup without printing revision text. It reports counts, IDs, type, story, part, target, revision metadata, text length, and child element count.
+Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 
 ## Patch
 

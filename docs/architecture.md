@@ -8,7 +8,7 @@ DocxEdit is organized around a small dependency-free library plus a CLI harness.
 
 ## Model Layer
 
-Scanners build focused read models for paragraphs, tables, cells, images, sections, styles, and existing tracked-change markup. Text reads use a final-view approximation: inserted text is visible, deleted and move-from text is skipped.
+Scanners build focused read models for paragraphs, tables, cells, images, sections, styles, and existing tracked-change markup. Text reads support final, original, and lightweight markup views for tracked inserted/deleted text.
 
 ## Patch Layer
 

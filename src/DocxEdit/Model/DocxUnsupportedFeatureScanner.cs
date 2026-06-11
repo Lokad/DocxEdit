@@ -82,7 +82,7 @@ internal static class DocxUnsupportedFeatureScanner
 
         using Stream stream = part.OpenRead();
         XDocument document = SafeXml.Load(stream, cancellationToken);
-        AddWarningIfAny(diagnostics, "W1001", "tracked-changes", "final-view", CountAny(document, RevisionElements), partName, story, "Tracked-change markup is present; read output uses a final-view approximation. Use the changes command for markup metadata.");
+        AddWarningIfAny(diagnostics, "W1001", "tracked-changes", "selected-text-view", CountAny(document, RevisionElements), partName, story, "Tracked-change markup is present; read text can use final, original, or lightweight markup views. Use the changes command for markup metadata.");
         AddWarningIfAny(diagnostics, "W1002", "hyperlink", "plain-text", Count(document, OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are preserved as text but are not modeled as link metadata.");
         AddWarningIfAny(diagnostics, "W1003", "field", "plain-text", CountAny(document, [OoxmlNs.W + "fldSimple", OoxmlNs.W + "fldChar", OoxmlNs.W + "instrText"]), partName, story, "Fields are preserved as text but are not modeled as field metadata.");
         AddWarningIfAny(diagnostics, "W1004", "comment", "preserve-only", CountAny(document, [OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", OoxmlNs.W + "commentReference"]), partName, story, "Comment anchors are preserved but comments are not modeled.");
