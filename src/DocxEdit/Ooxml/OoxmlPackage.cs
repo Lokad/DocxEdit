@@ -6,6 +6,7 @@ namespace DocxEdit.Ooxml;
 internal sealed class OoxmlPackage
 {
     private readonly Dictionary<string, OoxmlPart> parts;
+    private readonly HashSet<string> touchedPartNames = new(StringComparer.OrdinalIgnoreCase);
 
     private OoxmlPackage(Dictionary<string, OoxmlPart> parts, string? mainDocumentPartName)
     {
@@ -14,6 +15,7 @@ internal sealed class OoxmlPackage
     }
 
     public IReadOnlyDictionary<string, OoxmlPart> Parts => parts;
+    public IReadOnlyCollection<string> TouchedPartNames => touchedPartNames;
     public OoxmlPart ContentTypesPart => parts["/[Content_Types].xml"];
     public string? MainDocumentPartName { get; }
 
@@ -185,6 +187,7 @@ internal sealed class OoxmlPackage
         }
 
         parts[normalized] = part with { Bytes = bytes };
+        touchedPartNames.Add(normalized);
     }
 
     internal void AddPart(string partName, string contentType, byte[] bytes)
@@ -196,6 +199,7 @@ internal sealed class OoxmlPackage
         }
 
         parts[normalized] = new OoxmlPart(normalized, normalized.TrimStart('/'), contentType, bytes);
+        touchedPartNames.Add(normalized);
         AddContentTypeOverride(normalized, contentType);
     }
 

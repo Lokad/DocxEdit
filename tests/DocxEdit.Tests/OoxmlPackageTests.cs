@@ -237,6 +237,28 @@ public static class OoxmlPackageTests
     }
 
     [Fact]
+    public static void ApplyValidatesTouchedDocumentPartsBeforeSave()
+    {
+        using MemoryStream stream = CreateMinimalDocx();
+        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions());
+        package.ReplacePartBytes(
+            "/word/document.xml",
+            Encoding.UTF8.GetBytes("""
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
+                """));
+        var patch = new DocxPatch(true, 1, [], []);
+
+        PatchExecutionResult result = DocxPatchEngine.Apply(package, patch, new DocxEditOptions());
+
+        Assert.False(result.Success);
+        Assert.Contains(package.TouchedPartNames, partName => partName == "/word/document.xml");
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9001" &&
+            diagnostic.PartName == "/word/document.xml" &&
+            diagnostic.Message.Contains("w:body", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void PublicReadReturnsDiagnosticForInvalidPackage()
     {
         using var stream = new MemoryStream("not a zip"u8.ToArray());

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using DocxEdit.Model;
 using DocxEdit.Ooxml;
@@ -112,6 +113,11 @@ internal static class DocxPatchEngine
                 operation.Fields.GetValueOrDefault("target"),
                 operationSuccess,
                 operationDiagnostics));
+        }
+
+        if (apply && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+        {
+            diagnostics.AddRange(ValidateEditedPackage(package, cancellationToken));
         }
 
         return new PatchExecutionResult(diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error), diagnostics, reports);
@@ -2023,6 +2029,146 @@ internal static class DocxPatchEngine
 
         diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4204", $"Field '{fieldName}' must be true or false.", operation));
         return null;
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ValidateEditedPackage(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        foreach (string partName in package.TouchedPartNames.Order(StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                diagnostics.Add(PostEditValidationDiagnostic(partName, $"Touched part '{partName}' is missing."));
+                continue;
+            }
+
+            if (!ShouldValidateTouchedPart(part))
+            {
+                continue;
+            }
+
+            try
+            {
+                using Stream stream = part.OpenRead();
+                XDocument document = SafeXml.Load(stream, cancellationToken);
+                ValidateTouchedPartRoot(package, part, document, diagnostics, cancellationToken);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or XmlException)
+            {
+                diagnostics.Add(PostEditValidationDiagnostic(part.Name, ex.Message));
+            }
+        }
+
+        return diagnostics;
+    }
+
+    private static bool ShouldValidateTouchedPart(OoxmlPart part)
+    {
+        return string.Equals(part.Name, "/[Content_Types].xml", StringComparison.OrdinalIgnoreCase) ||
+            part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase) ||
+            part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(part.ContentType, OoxmlContentTypeNames.Xml, StringComparison.OrdinalIgnoreCase) ||
+            part.ContentType?.EndsWith("+xml", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static void ValidateTouchedPartRoot(
+        OoxmlPackage package,
+        OoxmlPart part,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        XElement root = document.Root
+            ?? throw new InvalidDataException("XML part has no root element.");
+
+        if (string.Equals(part.Name, "/[Content_Types].xml", StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.Ct + "Types", diagnostics);
+            return;
+        }
+
+        if (part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.Rel + "Relationships", diagnostics);
+            ValidateRelationshipTargets(package, part, diagnostics, cancellationToken);
+            return;
+        }
+
+        if (string.Equals(part.Name, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.W + "document", diagnostics);
+            if (root.Element(OoxmlNs.W + "body") is null)
+            {
+                diagnostics.Add(PostEditValidationDiagnostic(part.Name, "Main document part is missing w:body."));
+            }
+
+            return;
+        }
+
+        if (string.Equals(part.ContentType, "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml", StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.W + "hdr", diagnostics);
+            return;
+        }
+
+        if (string.Equals(part.ContentType, "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml", StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.W + "ftr", diagnostics);
+        }
+    }
+
+    private static void RequireRoot(OoxmlPart part, XElement root, XName expectedRoot, List<DocxDiagnostic> diagnostics)
+    {
+        if (root.Name != expectedRoot)
+        {
+            diagnostics.Add(PostEditValidationDiagnostic(part.Name, $"Expected root element '{expectedRoot.LocalName}', found '{root.Name.LocalName}'."));
+        }
+    }
+
+    private static void ValidateRelationshipTargets(
+        OoxmlPackage package,
+        OoxmlPart relationshipPart,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        string sourcePartName = GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+        using Stream stream = relationshipPart.OpenRead();
+        foreach (OoxmlRelationship relationship in OoxmlPackage.ParseRelationships(stream, sourcePartName, cancellationToken))
+        {
+            if (!relationship.IsExternal &&
+                relationship.ResolvedTarget is not null &&
+                package.GetPart(relationship.ResolvedTarget) is null)
+            {
+                diagnostics.Add(PostEditValidationDiagnostic(relationshipPart.Name, $"Relationship '{relationship.Id}' targets missing part '{relationship.ResolvedTarget}'."));
+            }
+        }
+    }
+
+    private static string GetSourcePartNameFromRelationshipPartName(string relationshipPartName)
+    {
+        string normalized = OoxmlPath.NormalizePartName(relationshipPartName);
+        if (normalized == "/_rels/.rels")
+        {
+            return "/";
+        }
+
+        const string relationshipMarker = "/_rels/";
+        int markerIndex = normalized.LastIndexOf(relationshipMarker, StringComparison.Ordinal);
+        if (markerIndex < 0 || !normalized.EndsWith(".rels", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Invalid relationship part name '{relationshipPartName}'.");
+        }
+
+        string directory = normalized[..markerIndex];
+        string fileName = normalized[(markerIndex + relationshipMarker.Length)..^".rels".Length];
+        return OoxmlPath.NormalizePartName($"{directory}/{fileName}");
+    }
+
+    private static DocxDiagnostic PostEditValidationDiagnostic(string partName, string message)
+    {
+        return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Post-edit validation failed for {partName}: {message}", PartName: partName);
     }
 
     private static XDocument LoadMainDocument(
