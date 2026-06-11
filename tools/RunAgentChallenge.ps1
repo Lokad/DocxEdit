@@ -340,7 +340,7 @@ function New-ChallengePrompt([object] $Manifest, [string] $RunDirectory, [string
     [void] $lines.Add('- `powershell -NoProfile -ExecutionPolicy Bypass -File .\docxedit.ps1 changes .\input.docx --json`')
     [void] $lines.Add('- `powershell -NoProfile -ExecutionPolicy Bypass -File .\docxedit.ps1 read .\input.docx --headers-footers --view markup --max-text 200`')
     [void] $lines.Add('- `powershell -NoProfile -ExecutionPolicy Bypass -File .\docxedit.ps1 check .\input.docx .\edits.docxpatch --json --report .\check-report.json`')
-    [void] $lines.Add('- `powershell -NoProfile -ExecutionPolicy Bypass -File .\docxedit.ps1 apply .\input.docx .\edits.docxpatch -o .\edited.docx --json --report .\apply-report.json`')
+    [void] $lines.Add('- `powershell -NoProfile -ExecutionPolicy Bypass -File .\docxedit.ps1 apply .\input.docx .\edits.docxpatch --output .\edited.docx --json --report .\apply-report.json`')
     [void] $lines.Add("")
     [void] $lines.Add("Task:")
     foreach ($item in $task) {
