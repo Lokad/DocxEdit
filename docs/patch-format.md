@@ -24,6 +24,7 @@ Explicit IDs remain the most stable selectors:
 - `M.P0001`: main paragraph
 - `H001.P0001` / `F001.P0001`: header/footer paragraph
 - `M.T0001`, `M.T0001.R02`, `M.T0001.R02.C03`: table, row, cell
+- `H001.T0001` / `F001.T0001`: header/footer table block for block insertion/deletion
 - `M.I0001`: inline main-document image
 - `M.S0001`: main-document section
 
@@ -57,4 +58,6 @@ including nearby paragraph text.
 - `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
 - `set-section-orientation`: `target`, `orientation`, optional `expect-columns`, `expect-orientation`
 
-Parsed but not fully implemented fields include `preserve-size`, `caption`, edit author, and edit timestamp. `expect-hash` is rejected.
+Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used as block insertion/deletion anchors.
+
+Parsed but not fully implemented fields include `preserve-size` and `caption`. `expect-hash` is rejected.

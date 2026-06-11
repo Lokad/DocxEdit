@@ -990,6 +990,41 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyBlockOperationsCanEditHeaderAndFooterStories()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooter("Header text", "Footer text");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target H001.P0001
+            text Header detail
+            end
+
+            op insert-after
+            target F001.P0001
+            text Footer detail
+            end
+
+            op delete-block
+            target F001.P0001
+            expect-text Footer text
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "Header text");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0002" && paragraph.Text == "Header detail");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Footer detail");
+        Assert.DoesNotContain(read.Paragraphs, paragraph => paragraph.Story == "footer[1]" && paragraph.Text == "Footer text");
+    }
+
+    [Fact]
     public static void ApplySetCellPreservesCellPropertiesAndDoesNotMutateInput()
     {
         using MemoryStream input = CreateDocxWithBody("""

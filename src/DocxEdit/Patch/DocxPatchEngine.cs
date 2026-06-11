@@ -315,14 +315,13 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? targetBlock = ResolveMainBlock(body, operation, target!, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
         }
 
-        if (targetBlock is null)
+        if (blockTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
@@ -335,14 +334,14 @@ internal static class DocxPatchEngine
         XElement paragraph = CreateSimpleParagraph(text!, style);
         if (insertAfter)
         {
-            targetBlock.AddAfterSelf(paragraph);
+            blockTarget.Block.AddAfterSelf(paragraph);
         }
         else
         {
-            targetBlock.AddBeforeSelf(paragraph);
+            blockTarget.Block.AddBeforeSelf(paragraph);
         }
 
-        SaveMainDocument(package, document);
+        SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
         return [];
     }
 
@@ -360,21 +359,20 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? targetBlock = ResolveMainBlock(body, operation, target!, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
         }
 
-        if (targetBlock is null)
+        if (blockTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
         if (expected is not null)
         {
-            string current = ReadVisibleText(targetBlock);
+            string current = ReadVisibleText(blockTarget.Block);
             if (!string.Equals(current, expected, StringComparison.Ordinal))
             {
                 return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
@@ -386,8 +384,8 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        targetBlock.Remove();
-        SaveMainDocument(package, document);
+        blockTarget.Block.Remove();
+        SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
         return [];
     }
 
@@ -1718,6 +1716,75 @@ internal static class DocxPatchEngine
         return ResolveMainParagraphElementBySelector(body, selector!, operation, out diagnostics);
     }
 
+    private static BlockTarget? ResolveBlockTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
+        {
+            diagnostics = [diagnostic!];
+            return null;
+        }
+
+        if (selector is not ExplicitIdTargetSelector)
+        {
+            if (package.MainDocumentPartName is null)
+            {
+                return null;
+            }
+
+            XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
+            XElement? selectedBlock = ResolveMainBlock(mainBody, operation, target, out diagnostics);
+            return selectedBlock is null
+                ? null
+                : new BlockTarget(package.MainDocumentPartName, mainDocument, selectedBlock);
+        }
+
+        if (TryParseMainParagraphTarget(target, out int mainParagraphOrdinal))
+        {
+            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+            XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
+            return paragraph is null || package.MainDocumentPartName is null
+                ? null
+                : new BlockTarget(package.MainDocumentPartName, document, paragraph);
+        }
+
+        if (TryParseMainTableTarget(target, out int mainTableOrdinal))
+        {
+            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+            XElement? table = FindTable(body, mainTableOrdinal);
+            return table is null || package.MainDocumentPartName is null
+                ? null
+                : new BlockTarget(package.MainDocumentPartName, document, table);
+        }
+
+        if (TryParseStoryParagraphTarget(target, 'H', out int headerOrdinal, out int headerParagraphOrdinal))
+        {
+            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Header, headerOrdinal, OoxmlNs.W + "p", headerParagraphOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
+        {
+            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Footer, footerOrdinal, OoxmlNs.W + "p", footerParagraphOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryTableTarget(target, 'H', out headerOrdinal, out int headerTableOrdinal))
+        {
+            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Header, headerOrdinal, OoxmlNs.W + "tbl", headerTableOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryTableTarget(target, 'F', out footerOrdinal, out int footerTableOrdinal))
+        {
+            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Footer, footerOrdinal, OoxmlNs.W + "tbl", footerTableOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
     private static ParagraphTarget? ResolveParagraphTarget(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -2115,6 +2182,53 @@ internal static class DocxPatchEngine
 
         return int.TryParse(target[1..4], out storyOrdinal) &&
             int.TryParse(target[6..], out paragraphOrdinal);
+    }
+
+    private static bool TryParseStoryTableTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int tableOrdinal)
+    {
+        storyOrdinal = 0;
+        tableOrdinal = 0;
+        if (target.Length != 11 ||
+            target[0] != storyPrefix ||
+            target[4..7] != ".T")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[7..], out tableOrdinal);
+    }
+
+    private static BlockTarget? ResolveRelatedStoryBlockTarget(
+        OoxmlPackage package,
+        string relationshipType,
+        int storyOrdinal,
+        XName blockName,
+        int blockOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null || storyOrdinal < 1 || blockOrdinal < 1)
+        {
+            return null;
+        }
+
+        OoxmlRelationship? relationship = package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == relationshipType && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .ElementAtOrDefault(storyOrdinal - 1);
+        if (relationship?.ResolvedTarget is null)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, relationship.ResolvedTarget, cancellationToken, out XElement root);
+        XElement? block = root.Elements(blockName).ElementAtOrDefault(blockOrdinal - 1);
+        return block is null ? null : new BlockTarget(relationship.ResolvedTarget, document, block);
     }
 
     private static ImageTarget? FindMainImageTarget(
@@ -3049,6 +3163,8 @@ internal sealed record ImageTarget(string RelationshipId, OoxmlPart Part);
 internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
 
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
+
+internal sealed record BlockTarget(string PartName, XDocument Document, XElement Block);
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
 
