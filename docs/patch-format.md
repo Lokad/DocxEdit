@@ -27,6 +27,7 @@ Explicit IDs remain the most stable selectors:
 - `H001.T0001`, `H001.T0001.R02`, `H001.T0001.R02.C03`: header table, row, cell
 - `F001.T0001`, `F001.T0001.R02`, `F001.T0001.R02.C03`: footer table, row, cell
 - `M.I0001`: inline main-document image
+- `H001.I0001` / `F001.I0001`: inline header/footer image
 - `M.S0001`: main-document section
 
 Paragraph operations also support:
@@ -59,6 +60,6 @@ including nearby paragraph text.
 - `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
 - `set-section-orientation`: `target`, `orientation`, optional `expect-columns`, `expect-orientation`
 
-Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors.
+Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors. Explicit header/footer image IDs can be used for image replacement, alt text, and deletion.
 
 Parsed but not fully implemented fields include `preserve-size` and `caption`. `expect-hash` is rejected.

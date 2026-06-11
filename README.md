@@ -16,11 +16,12 @@ Implemented areas include:
 - merged/nested table read metadata;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
 - bookmark and content-control selectors for safe paragraph targeting;
-- patch operations for paragraph text, blocks, styles, simple tables, inline images, and basic sections;
-- no-content tracked-change viewing through `changes`;
+- patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
+- no-content tracked-change and comment markup viewing through `changes`;
+- simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full numbering definition/style expansion, comments, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, real tracked-change generation, and full OOXML schema validation.
+Known limits include full numbering definition/style expansion, rich comment bodies, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.
 
 ## Build And Test
 

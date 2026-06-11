@@ -1025,6 +1025,30 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetStyleCanEditHeaderParagraph()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooterAndStyles();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target H001.P0001
+            style Heading 2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Contains("w:val=\"Heading2\"", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        DocxParagraphInfo paragraph = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true }).Paragraphs.Single(paragraph => paragraph.Id == "H001.P0001");
+        Assert.Equal(2, paragraph.HeadingLevel);
+    }
+
+    [Fact]
     public static void ApplySetCellCanEditHeaderTableAndUseItAsBlockAnchor()
     {
         using MemoryStream input = CreateDocxWithHeaderFooterContent(
@@ -1435,6 +1459,47 @@ public static class PatchApplyTests
         string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
         Assert.DoesNotContain("rImage", relationships, StringComparison.Ordinal);
         Assert.DoesNotContain("media/image1.png", relationships, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyImageOperationsCanTargetHeaderAndFooterImages()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooterImages();
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("header.png", "new-header", null, "header.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target H001.I0001
+            asset header.png
+            end
+
+            op set-image-alt
+            target H001.I0001
+            alt Updated header image
+            end
+
+            op delete-image
+            target F001.I0001
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("new-header", ReadEntry(output, "word/media/header.png"));
+        output.Position = 0;
+        Assert.False(EntryExists(output, "word/media/footer.png"));
+        output.Position = 0;
+        Assert.Contains("descr=\"Updated header image\"", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.DoesNotContain("rFooterImage", ReadEntry(output, "word/_rels/footer1.xml.rels"), StringComparison.Ordinal);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true }).Images);
+        Assert.Equal("H001.I0001", image.Id);
+        Assert.Equal("/word/media/header.png", image.PartName);
     }
 
     [Fact]
@@ -1983,6 +2048,146 @@ public static class PatchApplyTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static MemoryStream CreateDocxWithHeaderFooterImages()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/header1.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/footer1.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rFooterImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footer.png"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/header1.xml", CreateImageStoryXml("hdr", "rHeaderImage", "Header image"));
+            AddEntry(archive, "word/footer1.xml", CreateImageStoryXml("ftr", "rFooterImage", "Footer image"));
+            AddEntry(archive, "word/media/header.png", "old-header");
+            AddEntry(archive, "word/media/footer.png", "old-footer");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithHeaderFooterAndStyles()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+                  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Header text</w:t></w:r></w:p>
+                </w:hdr>
+                """);
+            AddEntry(archive, "word/footer1.xml", """
+                <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Footer text</w:t></w:r></w:p>
+                </w:ftr>
+                """);
+            AddEntry(archive, "word/styles.xml", """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+                  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+                </w:styles>
+                """);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static string CreateImageStoryXml(string rootName, string relationshipId, string description)
+    {
+        return $$"""
+            <w:{{rootName}}
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <w:p>
+                <w:r>
+                  <w:drawing>
+                    <wp:inline>
+                      <wp:docPr id="1" name="Picture 1" descr="{{description}}"/>
+                      <a:graphic>
+                        <a:graphicData>
+                          <pic:pic>
+                            <pic:blipFill>
+                              <a:blip r:embed="{{relationshipId}}"/>
+                            </pic:blipFill>
+                          </pic:pic>
+                        </a:graphicData>
+                      </a:graphic>
+                    </wp:inline>
+                  </w:drawing>
+                </w:r>
+              </w:p>
+            </w:{{rootName}}>
+            """;
     }
 
     private static MemoryStream CreateDocxWithStyles(string styleElements)

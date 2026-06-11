@@ -444,12 +444,12 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainImageTarget(target!, out int imageOrdinal))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-image target '{target}'. Expected an image ID such as M.I0001.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-image target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
 
-        ImageTarget? imageTarget = FindMainImageTarget(package, imageOrdinal, cancellationToken);
         if (imageTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -922,12 +922,12 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainImageTarget(target!, out int imageOrdinal))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-alt target '{target}'. Expected an image ID such as M.I0001.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-alt target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
 
-        ImageBlipTarget? imageTarget = FindMainImageBlipTarget(package, imageOrdinal, cancellationToken);
         if (imageTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -961,7 +961,7 @@ internal static class DocxPatchEngine
         }
 
         docPr.SetAttributeValue("descr", alt);
-        SaveMainDocument(package, imageTarget.Document);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         return [];
     }
 
@@ -978,12 +978,12 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainImageTarget(target!, out int imageOrdinal))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-image target '{target}'. Expected an image ID such as M.I0001.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-image target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
 
-        ImageBlipTarget? imageTarget = FindMainImageBlipTarget(package, imageOrdinal, cancellationToken);
         if (imageTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -1008,14 +1008,14 @@ internal static class DocxPatchEngine
         drawing.Remove();
         if (!UsesRelationship(imageTarget.Document, imageTarget.RelationshipId))
         {
-            package.RemoveRelationship(package.MainDocumentPartName!, imageTarget.RelationshipId);
+            package.RemoveRelationship(imageTarget.PartName, imageTarget.RelationshipId);
             if (!AnyRelationshipTargetsPart(package, imageTarget.Part.Name, cancellationToken))
             {
                 package.RemovePart(imageTarget.Part.Name);
             }
         }
 
-        SaveMainDocument(package, imageTarget.Document);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         return [];
     }
 
@@ -1652,6 +1652,25 @@ internal static class DocxPatchEngine
         return target.Length == 7 &&
             target.StartsWith("M.I", StringComparison.Ordinal) &&
             int.TryParse(target[3..], out imageOrdinal);
+    }
+
+    private static bool TryParseStoryImageTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int imageOrdinal)
+    {
+        storyOrdinal = 0;
+        imageOrdinal = 0;
+        if (target.Length != 10 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".I")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..], out imageOrdinal);
     }
 
     private static bool TryParseMainSectionTarget(string target, out int sectionOrdinal)
@@ -2391,28 +2410,54 @@ internal static class DocxPatchEngine
         return blockTarget is null ? null : new TableTarget(blockTarget.PartName, blockTarget.Document, blockTarget.Block);
     }
 
-    private static ImageTarget? FindMainImageTarget(
-        OoxmlPackage package,
-        int imageOrdinal,
-        CancellationToken cancellationToken)
+    private static bool IsSupportedImageTargetShape(string target)
     {
-        ImageBlipTarget? target = FindMainImageBlipTarget(package, imageOrdinal, cancellationToken);
-        return target is null ? null : new ImageTarget(target.RelationshipId, target.Part);
+        return TryParseMainImageTarget(target, out _) ||
+            TryParseStoryImageTarget(target, 'H', out _, out _) ||
+            TryParseStoryImageTarget(target, 'F', out _, out _);
     }
 
-    private static ImageBlipTarget? FindMainImageBlipTarget(
+    private static ImageBlipTarget? ResolveImageBlipTarget(
         OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainImageTarget(target, out int mainImageOrdinal))
+        {
+            return package.MainDocumentPartName is null
+                ? null
+                : FindImageBlipTarget(package, package.MainDocumentPartName, mainImageOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryImageTarget(target, 'H', out int headerOrdinal, out int headerImageOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
+            return partName is null ? null : FindImageBlipTarget(package, partName, headerImageOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryImageTarget(target, 'F', out int footerOrdinal, out int footerImageOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
+            return partName is null ? null : FindImageBlipTarget(package, partName, footerImageOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static ImageBlipTarget? FindImageBlipTarget(
+        OoxmlPackage package,
+        string partName,
         int imageOrdinal,
         CancellationToken cancellationToken)
     {
-        if (imageOrdinal < 1 || package.MainDocumentPartName is null)
+        if (imageOrdinal < 1)
         {
             return null;
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out _);
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
         IReadOnlyDictionary<string, OoxmlRelationship> relationships = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .GetRelationships(partName, cancellationToken)
             .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
         var seenParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int currentOrdinal = 0;
@@ -2437,11 +2482,30 @@ internal static class DocxPatchEngine
             currentOrdinal++;
             if (currentOrdinal == imageOrdinal)
             {
-                return new ImageBlipTarget(document, blip, relationshipId, part);
+                return new ImageBlipTarget(partName, document, blip, relationshipId, part);
             }
         }
 
         return null;
+    }
+
+    private static string? ResolveRelatedStoryPartName(
+        OoxmlPackage package,
+        string relationshipType,
+        int storyOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null || storyOrdinal < 1)
+        {
+            return null;
+        }
+
+        return package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == relationshipType && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .ElementAtOrDefault(storyOrdinal - 1)
+            ?.ResolvedTarget;
     }
 
     private static bool TryReadAsset(
@@ -3318,9 +3382,7 @@ internal sealed record PatchExecutionResult(
     IReadOnlyList<DocxDiagnostic> Diagnostics,
     IReadOnlyList<DocxPatchOperationReport> Reports);
 
-internal sealed record ImageTarget(string RelationshipId, OoxmlPart Part);
-
-internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
+internal sealed record ImageBlipTarget(string PartName, XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
 
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
 
