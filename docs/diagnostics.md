@@ -5,6 +5,7 @@ Diagnostics have a severity, code, message, and optional target, part, story, fe
 Common code ranges:
 
 - `E0001`: expected document/package/XML failure normalized by the public API.
+- `W10xx`: read-model unsupported-feature warnings.
 - `E12xx`: selector parse, not found, or ambiguity.
 - `E20xx`: patch syntax errors.
 - `E32xx`: guard failures.

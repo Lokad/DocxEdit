@@ -38,7 +38,9 @@ public sealed class DocxEditor
         return new DocxReadResult
         {
             Success = true,
-            Diagnostics = diagnostics,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken))
+                .ToArray(),
             PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
             MainDocumentPartName = package.MainDocumentPartName,
             Text = TextRenderers.RenderRead(model!, options.MaxText),
@@ -76,7 +78,9 @@ public sealed class DocxEditor
         return new DocxOutlineResult
         {
             Success = true,
-            Diagnostics = diagnostics,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
+                .ToArray(),
             PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
             MainDocumentPartName = package.MainDocumentPartName,
             Lines = TextRenderers.RenderOutline(model!)
@@ -206,7 +210,9 @@ public sealed class DocxEditor
         return new DocxMediaResult
         {
             Success = true,
-            Diagnostics = diagnostics,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
+                .ToArray(),
             Images = model!.Images
         };
     }

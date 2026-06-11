@@ -248,6 +248,63 @@ public static class ReadApiTests
         Assert.DoesNotContain("Deleted", serialized, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void ReadWarnsWhenTrackedChangeMarkupIsOnlyPartiallyModeled()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:ins w:id="1" w:author="A">
+                        <w:r><w:t>PrivateInserted</w:t></w:r>
+                      </w:ins>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1001" && diagnostic.Feature == "tracked-changes");
+        string serializedDiagnostics = JsonSerializer.Serialize(result.Diagnostics);
+        Assert.DoesNotContain("PrivateInserted", serializedDiagnostics, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void MediaWarnsAboutFloatingAndExternalImages()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor>
+                            <a:graphic>
+                              <a:graphicData>
+                                <a:blip r:embed="rExternalImage"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rExternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/image.png" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxMediaResult result = editor.Media(stream);
+
+        Assert.True(result.Success);
+        Assert.Empty(result.Images);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1007" && diagnostic.Feature == "floating-image");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1008" && diagnostic.Feature == "external-image");
+    }
+
     private static MemoryStream CreateDocx()
     {
         var stream = new MemoryStream();
@@ -354,7 +411,7 @@ public static class ReadApiTests
         return stream;
     }
 
-    private static MemoryStream CreateDocxWithBody(string bodyXml)
+    private static MemoryStream CreateDocxWithBody(string bodyXml, string? documentRelationshipsXml = null)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -371,7 +428,7 @@ public static class ReadApiTests
                   <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
                 </Relationships>
                 """);
-            AddEntry(archive, "word/_rels/document.xml.rels", """
+            AddEntry(archive, "word/_rels/document.xml.rels", documentRelationshipsXml ?? """
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
                 """);
             AddEntry(archive, "word/document.xml", """
