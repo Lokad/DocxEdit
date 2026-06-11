@@ -82,28 +82,28 @@ internal static class DocxUnsupportedFeatureScanner
 
         using Stream stream = part.OpenRead();
         XDocument document = SafeXml.Load(stream, cancellationToken);
-        AddWarningIfAny(diagnostics, "W1001", "tracked-changes", CountAny(document, RevisionElements), partName, story, "Tracked-change markup is present; read output uses a final-view approximation. Use the changes command for markup metadata.");
-        AddWarningIfAny(diagnostics, "W1002", "hyperlink", Count(document, OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are preserved as text but are not modeled as link metadata.");
-        AddWarningIfAny(diagnostics, "W1003", "field", CountAny(document, [OoxmlNs.W + "fldSimple", OoxmlNs.W + "fldChar", OoxmlNs.W + "instrText"]), partName, story, "Fields are preserved as text but are not modeled as field metadata.");
-        AddWarningIfAny(diagnostics, "W1004", "comment", CountAny(document, [OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", OoxmlNs.W + "commentReference"]), partName, story, "Comment anchors are preserved but comments are not modeled.");
-        AddWarningIfAny(diagnostics, "W1005", "bookmark", CountAny(document, [OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1006", "content-control", Count(document, OoxmlNs.W + "sdt"), partName, story, "Content controls are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1007", "floating-image", Count(document, OoxmlNs.Wp + "anchor"), partName, story, "Floating images are preserved but are not listed as editable images.");
-        AddWarningIfAny(diagnostics, "W1009", "chart", CountWhere(document, element => element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)), partName, story, "Charts are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1010", "smart-art", CountWhere(document, element => element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)), partName, story, "SmartArt and diagram content are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1011", "equation", CountWhere(document, element => element.Name.NamespaceName == "http://schemas.openxmlformats.org/officeDocument/2006/math"), partName, story, "Equations are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1012", "shape", CountWhere(document, element =>
+        AddWarningIfAny(diagnostics, "W1001", "tracked-changes", "final-view", CountAny(document, RevisionElements), partName, story, "Tracked-change markup is present; read output uses a final-view approximation. Use the changes command for markup metadata.");
+        AddWarningIfAny(diagnostics, "W1002", "hyperlink", "plain-text", Count(document, OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are preserved as text but are not modeled as link metadata.");
+        AddWarningIfAny(diagnostics, "W1003", "field", "plain-text", CountAny(document, [OoxmlNs.W + "fldSimple", OoxmlNs.W + "fldChar", OoxmlNs.W + "instrText"]), partName, story, "Fields are preserved as text but are not modeled as field metadata.");
+        AddWarningIfAny(diagnostics, "W1004", "comment", "preserve-only", CountAny(document, [OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", OoxmlNs.W + "commentReference"]), partName, story, "Comment anchors are preserved but comments are not modeled.");
+        AddWarningIfAny(diagnostics, "W1005", "bookmark", "preserve-only", CountAny(document, [OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1006", "content-control", "preserve-only", Count(document, OoxmlNs.W + "sdt"), partName, story, "Content controls are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1007", "floating-image", "omit-from-editable-images", Count(document, OoxmlNs.Wp + "anchor"), partName, story, "Floating images are preserved but are not listed as editable images.");
+        AddWarningIfAny(diagnostics, "W1009", "chart", "preserve-only", CountWhere(document, element => element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)), partName, story, "Charts are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1010", "smart-art", "preserve-only", CountWhere(document, element => element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)), partName, story, "SmartArt and diagram content are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1011", "equation", "preserve-only", CountWhere(document, element => element.Name.NamespaceName == "http://schemas.openxmlformats.org/officeDocument/2006/math"), partName, story, "Equations are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1012", "shape", "preserve-only", CountWhere(document, element =>
             element.Name == OoxmlNs.W + "pict" ||
             element.Name.LocalName == "shape" ||
             element.Name.NamespaceName.Contains("vml", StringComparison.OrdinalIgnoreCase) ||
             element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase)), partName, story, "Shapes are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1013", "alt-chunk", Count(document, OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
-        AddWarningIfAny(diagnostics, "W1014", "section-flow", CountComplexSectionFlows(document), partName, story, "Complex section flow is present; section read/edit support does not model full section inheritance.");
+        AddWarningIfAny(diagnostics, "W1013", "alt-chunk", "preserve-only", Count(document, OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
+        AddWarningIfAny(diagnostics, "W1014", "section-flow", "basic-section-model", CountComplexSectionFlows(document), partName, story, "Complex section flow is present; section read/edit support does not model full section inheritance.");
 
         int externalImages = package
             .GetRelationships(partName, cancellationToken)
             .Count(relationship => relationship.IsExternal && relationship.Type == OoxmlRelTypes.Image);
-        AddWarningIfAny(diagnostics, "W1008", "external-image", externalImages, partName, story, "External images are not fetched and are not listed as editable images.");
+        AddWarningIfAny(diagnostics, "W1008", "external-image", "omit-from-editable-images", externalImages, partName, story, "External images are not fetched and are not listed as editable images.");
     }
 
     private static int Count(XDocument document, XName name)
@@ -143,6 +143,7 @@ internal static class DocxUnsupportedFeatureScanner
         List<DocxDiagnostic> diagnostics,
         string code,
         string feature,
+        string fallback,
         int count,
         string partName,
         string story,
@@ -159,6 +160,7 @@ internal static class DocxUnsupportedFeatureScanner
             $"{message} Count={count}.",
             PartName: partName,
             Story: story,
-            Feature: feature));
+            Feature: feature,
+            Fallback: fallback));
     }
 }

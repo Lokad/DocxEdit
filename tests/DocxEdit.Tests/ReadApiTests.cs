@@ -358,6 +358,61 @@ public static class ReadApiTests
             diagnostic.Story == "main");
     }
 
+    [Fact]
+    public static void ReadUnsupportedFeatureDiagnosticsCarryStableMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                        xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                      <w:bookmarkStart w:id="1" w:name="Bookmark"/>
+                      <w:hyperlink r:id="rHyperlink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Date</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:sdt><w:sdtContent><w:r><w:t>Control</w:t></w:r></w:sdtContent></w:sdt>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Revision</w:t></w:r></w:ins>
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor>
+                            <a:graphic>
+                              <a:graphicData>
+                                <c:chart r:id="rChart"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:altChunk xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rAltChunk"/>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rExternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/image.png" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxDiagnostic[] warnings = result.Diagnostics
+            .Where(diagnostic => diagnostic.Code.StartsWith("W10", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(warnings);
+        Assert.All(warnings, diagnostic =>
+        {
+            Assert.Equal(DocxSeverity.Warning, diagnostic.Severity);
+            Assert.Matches("^W10[0-9]{2}$", diagnostic.Code);
+            Assert.Equal("/word/document.xml", diagnostic.PartName);
+            Assert.Equal("main", diagnostic.Story);
+            Assert.False(string.IsNullOrWhiteSpace(diagnostic.Feature));
+            Assert.False(string.IsNullOrWhiteSpace(diagnostic.Fallback));
+        });
+        Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1001" && diagnostic.Fallback == "final-view");
+        Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1008" && diagnostic.Fallback == "omit-from-editable-images");
+    }
+
     private static MemoryStream CreateDocx()
     {
         var stream = new MemoryStream();
