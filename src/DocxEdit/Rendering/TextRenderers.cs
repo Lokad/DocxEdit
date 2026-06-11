@@ -16,7 +16,10 @@ internal static class TextRenderers
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
         {
             string kind = paragraph.HeadingLevel is null ? "paragraph" : $"heading level={paragraph.HeadingLevel}";
-            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(" text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
+            string list = paragraph.List is null
+                ? string.Empty
+                : $" list numId={paragraph.List.NumberingId} level={paragraph.List.Level}";
+            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(list).Append(" text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
         }
 
         foreach (DocxTableInfo table in model.Tables)

@@ -103,6 +103,31 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadExtractsParagraphListMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr>
+                          <w:ilvl w:val="1"/>
+                          <w:numId w:val="42"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>List item</w:t></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
+        Assert.NotNull(paragraph.List);
+        Assert.Equal("42", paragraph.List.NumberingId);
+        Assert.Equal(1, paragraph.List.Level);
+        Assert.Contains("M.P0001 paragraph list numId=42 level=1", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void MediaListsReferencedImagesOnly()
     {
         using MemoryStream stream = CreateDocx();

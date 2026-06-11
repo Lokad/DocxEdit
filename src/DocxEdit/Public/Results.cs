@@ -94,7 +94,10 @@ public sealed record DocxParagraphInfo(
     string Story,
     string Text,
     int? HeadingLevel,
+    DocxListInfo? List,
     IReadOnlyList<DocxRunInfo> Runs);
+
+public sealed record DocxListInfo(string NumberingId, int Level);
 
 public sealed record DocxRunInfo(string Text);
 

@@ -130,6 +130,7 @@ internal static class DocxDocumentScanner
             story,
             ReadVisibleText(paragraph),
             ReadHeadingLevel(paragraph),
+            ReadListInfo(paragraph),
             runs);
     }
 
@@ -219,6 +220,28 @@ internal static class DocxDocumentScanner
         return int.TryParse(digits, out int level) && level is >= 1 and <= 9
             ? level
             : null;
+    }
+
+    private static DocxListInfo? ReadListInfo(XElement paragraph)
+    {
+        XElement? numberingProperties = paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "numPr");
+        string? numberingId = (string?)numberingProperties
+            ?.Element(OoxmlNs.W + "numId")
+            ?.Attribute(OoxmlNs.W + "val");
+        if (string.IsNullOrWhiteSpace(numberingId))
+        {
+            return null;
+        }
+
+        string? levelText = (string?)numberingProperties
+            ?.Element(OoxmlNs.W + "ilvl")
+            ?.Attribute(OoxmlNs.W + "val");
+        int level = int.TryParse(levelText, out int parsedLevel) && parsedLevel >= 0
+            ? parsedLevel
+            : 0;
+        return new DocxListInfo(numberingId, level);
     }
 
     private static DocxSectionInfo ReadSection(XElement sectionProperties, string id, string story)
