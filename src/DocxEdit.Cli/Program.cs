@@ -422,7 +422,7 @@ internal static class ProgramMain
               dump       Dump one target in detail
               styles     List paragraph, character, and table styles
               media      List embedded images
-              changes    List tracked-change markup without printing revision text
+              changes    List tracked-change and comment markup without printing private text
 
             Patch:
               check      Validate a .docxpatch file without writing output

@@ -115,7 +115,9 @@ public sealed class DocxEditor
         return new DocxFindResult
         {
             Success = true,
-            Diagnostics = diagnostics,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
+                .ToArray(),
             Query = query,
             Matches = TextRenderers.Find(model!, query, options.MaxText)
         };
@@ -149,7 +151,9 @@ public sealed class DocxEditor
         return new DocxDumpResult
         {
             Success = true,
-            Diagnostics = diagnostics,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
+                .ToArray(),
             TargetId = targetId,
             Text = TextRenderers.Dump(model!, targetId, options.IncludeRuns, options.MaxText)
         };

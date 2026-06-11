@@ -429,6 +429,44 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadFindAndDumpReportUnsupportedFeatureDiagnosticsConsistently()
+    {
+        using MemoryStream readStream = CreateDocxWithBody("""
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Revenue</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+                    </w:p>
+            """);
+        using MemoryStream findStream = CreateDocxWithBody("""
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Revenue</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+                    </w:p>
+            """);
+        using MemoryStream dumpStream = CreateDocxWithBody("""
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Revenue</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult read = editor.Read(readStream);
+        DocxFindResult find = editor.Find(findStream, "Revenue");
+        DocxDumpResult dump = editor.Dump(dumpStream, "M.P0001");
+
+        AssertUnsupportedFeatureDiagnostics(read.Diagnostics);
+        AssertUnsupportedFeatureDiagnostics(find.Diagnostics);
+        AssertUnsupportedFeatureDiagnostics(dump.Diagnostics);
+    }
+
+    [Fact]
     public static void MediaWarnsAboutFloatingAndExternalImages()
     {
         using MemoryStream stream = CreateDocxWithBody(
@@ -725,6 +763,14 @@ public static class ReadApiTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static void AssertUnsupportedFeatureDiagnostics(IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1001" && diagnostic.Feature == "tracked-changes");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1002" && diagnostic.Feature == "hyperlink");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1003" && diagnostic.Feature == "field");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1004" && diagnostic.Feature == "comment");
     }
 
     private static MemoryStream CreateDocxWithBodyAndComments(string bodyXml, string commentsXml)
