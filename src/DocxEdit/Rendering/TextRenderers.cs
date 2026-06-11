@@ -108,12 +108,23 @@ internal static class TextRenderers
             builder.AppendLine("runs:");
             for (int i = 0; i < paragraph.Runs.Count; i++)
             {
+                DocxRunInfo run = paragraph.Runs[i];
+                string markup = run.MarkupType is null ? string.Empty : $" markup={run.MarkupType}";
+                string revisionId = run.RevisionId is null ? string.Empty : $" revision-id={Escape(run.RevisionId)}";
+                string author = run.Author is null ? string.Empty : $" author=\"{Escape(run.Author)}\"";
+                string timestamp = run.TimestampUtc is null ? string.Empty : $" timestamp-utc={run.TimestampUtc:O}";
+                string commentId = run.CommentId is null ? string.Empty : $" comment-id={Escape(run.CommentId)}";
                 builder.Append("  ")
                     .Append(paragraph.Id)
                     .Append(".R")
                     .Append((i + 1).ToString("0000"))
+                    .Append(markup)
+                    .Append(revisionId)
+                    .Append(author)
+                    .Append(timestamp)
+                    .Append(commentId)
                     .Append(" text=\"")
-                    .Append(Escape(Truncate(paragraph.Runs[i].Text, maxText)))
+                    .Append(Escape(Truncate(run.Text, maxText)))
                     .AppendLine("\"");
             }
 

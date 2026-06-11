@@ -118,11 +118,7 @@ internal static class DocxDocumentScanner
         string imageIdPrefix,
         ref int imageIndex)
     {
-        var runs = paragraph
-            .Elements(OoxmlNs.W + "r")
-            .Select(run => new DocxRunInfo(ReadText(run, textView)))
-            .Where(run => run.Text.Length != 0)
-            .ToArray();
+        DocxRunInfo[] runs = ReadRuns(paragraph, textView);
         foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
         {
             AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
@@ -135,6 +131,105 @@ internal static class DocxDocumentScanner
             ReadHeadingLevel(paragraph),
             ReadListInfo(paragraph),
             runs);
+    }
+
+    private static DocxRunInfo[] ReadRuns(XElement paragraph, DocxTextView textView)
+    {
+        var runs = new List<DocxRunInfo>();
+        foreach (XElement child in paragraph.Elements())
+        {
+            if (child.Name == OoxmlNs.W + "r")
+            {
+                AddRunIfVisible(runs, child, textView, null);
+            }
+            else if (IsRevisionRunContainer(child))
+            {
+                string? markupType = GetRevisionMarkupType(child);
+                foreach (XElement run in child.Elements(OoxmlNs.W + "r"))
+                {
+                    AddRunIfVisible(runs, run, textView, new RunMarkup(
+                        markupType,
+                        (string?)child.Attribute(OoxmlNs.W + "id"),
+                        (string?)child.Attribute(OoxmlNs.W + "author"),
+                        ParseDate((string?)child.Attribute(OoxmlNs.W + "date")),
+                        null));
+                }
+            }
+            else if (IsCommentMarker(child))
+            {
+                runs.Add(new DocxRunInfo(string.Empty)
+                {
+                    MarkupType = GetCommentMarkupType(child),
+                    CommentId = (string?)child.Attribute(OoxmlNs.W + "id")
+                });
+            }
+        }
+
+        return runs.ToArray();
+    }
+
+    private static void AddRunIfVisible(List<DocxRunInfo> runs, XElement run, DocxTextView textView, RunMarkup? inheritedMarkup)
+    {
+        RunMarkup markup = ReadRunMarkup(run) ?? inheritedMarkup ?? RunMarkup.Empty;
+        string text = ReadText(run, textView);
+        if (text.Length == 0 && markup.IsEmpty)
+        {
+            return;
+        }
+
+        runs.Add(new DocxRunInfo(text)
+        {
+            MarkupType = markup.MarkupType,
+            RevisionId = markup.RevisionId,
+            Author = markup.Author,
+            TimestampUtc = markup.TimestampUtc,
+            CommentId = markup.CommentId
+        });
+    }
+
+    private static RunMarkup? ReadRunMarkup(XElement run)
+    {
+        XElement? commentReference = run.Descendants(OoxmlNs.W + "commentReference").FirstOrDefault();
+        if (commentReference is not null)
+        {
+            return new RunMarkup("comment-reference", null, null, null, (string?)commentReference.Attribute(OoxmlNs.W + "id"));
+        }
+
+        return null;
+    }
+
+    private static bool IsRevisionRunContainer(XElement element)
+    {
+        return element.Name.Namespace == OoxmlNs.W &&
+            element.Name.LocalName is "ins" or "del" or "moveFrom" or "moveTo";
+    }
+
+    private static string? GetRevisionMarkupType(XElement element)
+    {
+        return element.Name.LocalName switch
+        {
+            "ins" => "inserted-run",
+            "del" => "deleted-run",
+            "moveFrom" => "move-from-run",
+            "moveTo" => "move-to-run",
+            _ => null
+        };
+    }
+
+    private static bool IsCommentMarker(XElement element)
+    {
+        return element.Name.Namespace == OoxmlNs.W &&
+            element.Name.LocalName is "commentRangeStart" or "commentRangeEnd";
+    }
+
+    private static string? GetCommentMarkupType(XElement element)
+    {
+        return element.Name.LocalName switch
+        {
+            "commentRangeStart" => "comment-range-start",
+            "commentRangeEnd" => "comment-range-end",
+            _ => null
+        };
     }
 
     private static DocxTableInfo ReadTable(
@@ -272,6 +367,13 @@ internal static class DocxDocumentScanner
             element.Ancestors(OoxmlNs.W + "moveTo").Any();
     }
 
+    private static DateTimeOffset? ParseDate(string? value)
+    {
+        return DateTimeOffset.TryParse(value, out DateTimeOffset parsed)
+            ? parsed.ToUniversalTime()
+            : null;
+    }
+
     private static int? ReadHeadingLevel(XElement paragraph)
     {
         string? styleId = (string?)paragraph
@@ -357,5 +459,22 @@ internal static class DocxDocumentScanner
 
             images.Add(new DocxImageInfo($"{imageIdPrefix}.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length));
         }
+    }
+
+    private sealed record RunMarkup(
+        string? MarkupType,
+        string? RevisionId,
+        string? Author,
+        DateTimeOffset? TimestampUtc,
+        string? CommentId)
+    {
+        public static RunMarkup Empty { get; } = new(null, null, null, null, null);
+
+        public bool IsEmpty =>
+            MarkupType is null &&
+            RevisionId is null &&
+            Author is null &&
+            TimestampUtc is null &&
+            CommentId is null;
     }
 }

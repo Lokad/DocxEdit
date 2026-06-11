@@ -62,6 +62,16 @@ including nearby paragraph text.
 
 Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors. Explicit header/footer image IDs can be used for image replacement, alt text, and deletion.
 
+Use table guards whenever possible:
+
+- `expect-text` verifies the selected cell's current visible text for `set-cell`.
+- `expect-row-count` verifies the target table's row count.
+- `expect-column-count` verifies the target table's logical column count.
+- `expect-cell-count` verifies a targeted row's physical cell count for row insert/delete.
+- `expect-contains` verifies a row's visible text before `delete-row`.
+
+CLI examples prefer `--output output.docx`; `-o output.docx` is also accepted.
+
 Unsupported fields are rejected. `expect-hash`, `preserve-size`, and `caption` are not supported.
 
 `delete-row` `expect-contains` is a row-text guard: the operation fails unless the

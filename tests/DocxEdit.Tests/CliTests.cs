@@ -37,13 +37,37 @@ public static class CliTests
 
         Assert.Equal(0, help.ExitCode);
         Assert.Contains("docxedit read report.docx", help.Output, StringComparison.Ordinal);
-        Assert.Contains("docxedit apply report.docx edits.docxpatch -o report.edited.docx", help.Output, StringComparison.Ordinal);
+        Assert.Contains("docxedit apply report.docx edits.docxpatch --output report.edited.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("tracked-change and comment markup", help.Output, StringComparison.Ordinal);
         Assert.Equal(0, patchHelp.ExitCode);
         Assert.Contains("find <<<", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op set-cell", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("insert-after", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("expect-row-count", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("set-section-orientation", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op replace-image", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("Unsupported fields are rejected", patchHelp.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliHasCommandSpecificHelpForAgentWorkflows()
+    {
+        CliResult dump = RunCli("help", "dump");
+        CliResult changes = RunCli("help", "changes");
+        CliResult check = RunCli("help", "check");
+        CliResult apply = RunCli("help", "apply");
+
+        Assert.Equal(0, dump.ExitCode);
+        Assert.Contains("docxedit dump input.docx --id TARGET", dump.Output, StringComparison.Ordinal);
+        Assert.Contains("markup=inserted-run", dump.Output, StringComparison.Ordinal);
+        Assert.Equal(0, changes.ExitCode);
+        Assert.Contains("GroupSummary", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("comment-anchor-target", changes.Output, StringComparison.Ordinal);
+        Assert.Equal(0, check.ExitCode);
+        Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);
+        Assert.Equal(0, apply.ExitCode);
+        Assert.Contains("--output path, -o path", apply.Output, StringComparison.Ordinal);
+        Assert.Contains("require", apply.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -167,6 +191,9 @@ public static class CliTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("inserted-run count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("deleted-run count=1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("summary group=story key=\"main\" type=inserted-run count=1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("summary group=author key=\"Alice\" type=inserted-run count=1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("summary group=target key=\"M.P0001\" type=deleted-run count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("M.CH0001 inserted-run", result.Output, StringComparison.Ordinal);
         Assert.Contains("text-length=8", result.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("Inserted", result.Output, StringComparison.Ordinal);

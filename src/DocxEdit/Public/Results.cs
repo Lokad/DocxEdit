@@ -52,6 +52,7 @@ public sealed record DocxChangesResult : DocxOperationResult
     public string? MainDocumentPartName { get; init; }
     public IReadOnlyList<DocxChangeInfo> Changes { get; init; } = [];
     public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
+    public IReadOnlyList<DocxChangeGroupSummary> GroupSummary { get; init; } = [];
 }
 
 public sealed record DocxCheckResult : DocxOperationResult
@@ -91,9 +92,15 @@ public sealed record DocxChangeInfo
     public string? CommentAuthor { get; init; }
     public DateTimeOffset? CommentTimestampUtc { get; init; }
     public string? CommentInitials { get; init; }
+    public string? CommentAnchorTargetId { get; init; }
+    public string? CommentReferenceTargetId { get; init; }
+    public string? CommentAnchorStory { get; init; }
+    public string? CommentAnchorPartName { get; init; }
 }
 
 public sealed record DocxChangeSummary(string Type, int Count);
+
+public sealed record DocxChangeGroupSummary(string Group, string Key, string Type, int Count);
 
 public sealed record DocxParagraphInfo(
     string Id,
@@ -105,7 +112,14 @@ public sealed record DocxParagraphInfo(
 
 public sealed record DocxListInfo(string NumberingId, int Level);
 
-public sealed record DocxRunInfo(string Text);
+public sealed record DocxRunInfo(string Text)
+{
+    public string? MarkupType { get; init; }
+    public string? RevisionId { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public string? CommentId { get; init; }
+}
 
 public sealed record DocxTableInfo(
     string Id,

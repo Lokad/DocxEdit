@@ -252,7 +252,8 @@ public sealed class DocxEditor
             PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
             MainDocumentPartName = package.MainDocumentPartName,
             Changes = changes!,
-            Summary = DocxChangeScanner.Summarize(changes!)
+            Summary = DocxChangeScanner.Summarize(changes!),
+            GroupSummary = DocxChangeScanner.SummarizeGroups(changes!)
         };
     }
 

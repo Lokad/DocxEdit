@@ -300,6 +300,10 @@ public static class ReadApiTests
         Assert.Contains(result.Summary, summary => summary.Type == "section-properties-change" && summary.Count == 1);
         Assert.Contains(result.Summary, summary => summary.Type == "custom-xml-delete-range-start" && summary.Count == 1);
         Assert.Contains(result.Summary, summary => summary.Type == "custom-xml-delete-range-end" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "story" && summary.Key == "main" && summary.Type == "inserted-run" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "part" && summary.Key == "/word/document.xml" && summary.Type == "deleted-run" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "author" && summary.Key == "Alice" && summary.Type == "inserted-run" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "run-properties-change" && summary.Count == 1);
 
         DocxChangeInfo insertion = Assert.Single(result.Changes, change => change.Type == "inserted-run");
         Assert.Equal("M.CH0001", insertion.Id);
@@ -352,6 +356,10 @@ public static class ReadApiTests
         Assert.Equal("M.P0001", commentStart.TargetId);
         Assert.Null(commentStart.RevisionId);
         Assert.Equal("3", commentStart.CommentId);
+        Assert.Equal("M.P0001", commentStart.CommentAnchorTargetId);
+        Assert.Equal("M.P0001", commentStart.CommentReferenceTargetId);
+        Assert.Equal("main", commentStart.CommentAnchorStory);
+        Assert.Equal("/word/document.xml", commentStart.CommentAnchorPartName);
         Assert.Equal("Reviewer", commentStart.CommentAuthor);
         Assert.Equal("RV", commentStart.CommentInitials);
         Assert.Equal(DateTimeOffset.Parse("2026-06-07T12:00:00Z").ToUniversalTime(), commentStart.CommentTimestampUtc);
@@ -360,10 +368,59 @@ public static class ReadApiTests
         Assert.Equal("comments[1]", comment.Story);
         Assert.Equal("/word/comments.xml", comment.PartName);
         Assert.Equal("C001.C0001", comment.TargetId);
+        Assert.Equal("M.P0001", comment.CommentAnchorTargetId);
+        Assert.Equal("M.P0001", comment.CommentReferenceTargetId);
+        Assert.Equal("main", comment.CommentAnchorStory);
+        Assert.Equal("/word/document.xml", comment.CommentAnchorPartName);
         Assert.Equal(20, comment.TextLength);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "comment" && summary.Count == 1);
 
         string serialized = JsonSerializer.Serialize(result);
         Assert.DoesNotContain("Private comment text", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpRunsAnnotateTrackedChangeAndCommentMarkup()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:ins w:id="7" w:author="Alice" w:date="2026-06-01T12:00:00Z">
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:ins>
+                      <w:del w:id="8" w:author="Bob" w:date="2026-06-02T12:00:00Z">
+                        <w:r><w:delText>Deleted</w:delText></w:r>
+                      </w:del>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P0001", new DocxDumpOptions
+        {
+            IncludeRuns = true,
+            TextView = DocxTextView.Markup
+        });
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Text);
+        Assert.Contains("markup=inserted-run revision-id=7 author=\"Alice\" timestamp-utc=2026-06-01T12:00:00.0000000+00:00", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=deleted-run revision-id=8 author=\"Bob\" timestamp-utc=2026-06-02T12:00:00.0000000+00:00", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=comment-range-start comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=comment-range-end comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=comment-reference comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

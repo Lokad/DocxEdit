@@ -41,6 +41,7 @@ internal static class DocxChangeScanner
         cancellationToken.ThrowIfCancellationRequested();
         var changes = new List<DocxChangeInfo>();
         IReadOnlyDictionary<string, CommentMetadata> comments = BuildCommentMap(package, cancellationToken);
+        IReadOnlyDictionary<string, CommentAnchorMetadata> commentAnchors = BuildCommentAnchorMap(package, cancellationToken);
         int fallbackPartIndex = 1;
         foreach (OoxmlPart part in package.Parts.Values
             .Where(IsWordXmlPart)
@@ -59,6 +60,7 @@ internal static class DocxChangeScanner
                 cancellationToken.ThrowIfCancellationRequested();
                 string? commentId = ReadCommentId(element);
                 comments.TryGetValue(commentId ?? string.Empty, out CommentMetadata? comment);
+                commentAnchors.TryGetValue(commentId ?? string.Empty, out CommentAnchorMetadata? commentAnchor);
                 changes.Add(new DocxChangeInfo
                 {
                     Id = $"{prefix}.CH{index++:0000}",
@@ -74,7 +76,11 @@ internal static class DocxChangeScanner
                     CommentId = commentId,
                     CommentAuthor = comment?.Author,
                     CommentTimestampUtc = comment?.TimestampUtc,
-                    CommentInitials = comment?.Initials
+                    CommentInitials = comment?.Initials,
+                    CommentAnchorTargetId = commentAnchor?.AnchorTargetId,
+                    CommentReferenceTargetId = commentAnchor?.ReferenceTargetId,
+                    CommentAnchorStory = commentAnchor?.Story,
+                    CommentAnchorPartName = commentAnchor?.PartName
                 });
             }
         }
@@ -89,6 +95,40 @@ internal static class DocxChangeScanner
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group => new DocxChangeSummary(group.Key, group.Count()))
             .ToArray();
+    }
+
+    public static IReadOnlyList<DocxChangeGroupSummary> SummarizeGroups(IReadOnlyList<DocxChangeInfo> changes)
+    {
+        return EnumerateGroupValues(changes)
+            .GroupBy(item => (item.Group, item.Key, item.Type))
+            .OrderBy(group => group.Key.Group, StringComparer.Ordinal)
+            .ThenBy(group => group.Key.Key, StringComparer.Ordinal)
+            .ThenBy(group => group.Key.Type, StringComparer.Ordinal)
+            .Select(group => new DocxChangeGroupSummary(group.Key.Group, group.Key.Key, group.Key.Type, group.Count()))
+            .ToArray();
+    }
+
+    private static IEnumerable<(string Group, string Key, string Type)> EnumerateGroupValues(IReadOnlyList<DocxChangeInfo> changes)
+    {
+        foreach (DocxChangeInfo change in changes)
+        {
+            yield return ("story", NormalizeGroupKey(change.Story), change.Type);
+            yield return ("part", NormalizeGroupKey(change.PartName), change.Type);
+            yield return ("author", NormalizeGroupKey(change.Author ?? change.CommentAuthor), change.Type);
+            yield return ("target", NormalizeGroupKey(GetGroupTargetKey(change)), change.Type);
+        }
+    }
+
+    private static string? GetGroupTargetKey(DocxChangeInfo change)
+    {
+        return change.Type == "comment" && change.CommentAnchorTargetId is not null
+            ? change.CommentAnchorTargetId
+            : change.TargetId ?? change.CommentAnchorTargetId;
+    }
+
+    private static string NormalizeGroupKey(string? key)
+    {
+        return string.IsNullOrWhiteSpace(key) ? "(none)" : key;
     }
 
     private static bool IsWordXmlPart(OoxmlPart part)
@@ -400,6 +440,79 @@ internal static class DocxChangeScanner
         return comments;
     }
 
+    private static IReadOnlyDictionary<string, CommentAnchorMetadata> BuildCommentAnchorMap(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        var anchors = new Dictionary<string, CommentAnchorBuilder>(StringComparer.Ordinal);
+        int fallbackPartIndex = 1;
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(part => IsWordXmlPart(part) && !IsCommentsPart(package, part.Name))
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            string story = GetStory(package, part.Name, fallbackPartIndex);
+            string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex);
+            IReadOnlyDictionary<XElement, string> targets = BuildTargetMap(document, prefix);
+
+            foreach (XElement element in document.Descendants().Where(IsCommentElement))
+            {
+                string? commentId = ReadCommentId(element);
+                if (string.IsNullOrWhiteSpace(commentId))
+                {
+                    continue;
+                }
+
+                string? targetId = FindTarget(element, targets);
+                if (!anchors.TryGetValue(commentId, out CommentAnchorBuilder? anchor))
+                {
+                    anchor = new CommentAnchorBuilder(story, part.Name);
+                    anchors[commentId] = anchor;
+                }
+
+                anchor.Story ??= story;
+                anchor.PartName ??= part.Name;
+                switch (element.Name.LocalName)
+                {
+                    case "commentRangeStart":
+                        anchor.RangeStartTargetId ??= targetId;
+                        break;
+                    case "commentRangeEnd":
+                        anchor.RangeEndTargetId ??= targetId;
+                        break;
+                    case "commentReference":
+                        anchor.ReferenceTargetId ??= targetId;
+                        break;
+                }
+            }
+        }
+
+        return anchors.ToDictionary(
+            pair => pair.Key,
+            pair => new CommentAnchorMetadata(
+                pair.Value.RangeStartTargetId ?? pair.Value.ReferenceTargetId ?? pair.Value.RangeEndTargetId,
+                pair.Value.ReferenceTargetId,
+                pair.Value.Story,
+                pair.Value.PartName),
+            StringComparer.Ordinal);
+    }
+
+    private static bool IsCommentsPart(OoxmlPackage package, string partName)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return false;
+        }
+
+        return package.GetRelationships(package.MainDocumentPartName)
+            .Any(relationship => !relationship.IsExternal &&
+                relationship.Type == OoxmlRelTypes.Comments &&
+                relationship.ResolvedTarget is not null &&
+                string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string? ReadRevisionAuthor(XElement element)
     {
         return IsCommentElement(element)
@@ -468,3 +581,18 @@ internal sealed record CommentMetadata(
     string? Author,
     DateTimeOffset? TimestampUtc,
     string? Initials);
+
+internal sealed record CommentAnchorMetadata(
+    string? AnchorTargetId,
+    string? ReferenceTargetId,
+    string? Story,
+    string? PartName);
+
+internal sealed class CommentAnchorBuilder(string? story, string? partName)
+{
+    public string? Story { get; set; } = story;
+    public string? PartName { get; set; } = partName;
+    public string? RangeStartTargetId { get; set; }
+    public string? RangeEndTargetId { get; set; }
+    public string? ReferenceTargetId { get; set; }
+}
