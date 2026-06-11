@@ -281,6 +281,11 @@ public sealed class DocxEditor
 
     private static OoxmlPackageOptions ToPackageOptions(DocxEditOptions options)
     {
-        return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
+        return new OoxmlPackageOptions(
+            options.LeaveInputOpen,
+            options.MaxZipEntries,
+            options.MaxUncompressedBytes,
+            options.MaxSinglePartBytes,
+            options.AllowMacroEnabledDocuments);
     }
 }

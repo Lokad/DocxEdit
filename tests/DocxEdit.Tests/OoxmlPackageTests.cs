@@ -124,6 +124,27 @@ public static class OoxmlPackageTests
     }
 
     [Fact]
+    public static void LoadRejectsMacroEnabledDocumentByDefault()
+    {
+        using MemoryStream stream = CreateMinimalDocx(macroEnabled: true);
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+
+        Assert.Contains("Macro-enabled", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void LoadAllowsMacroEnabledDocumentWhenExplicitlyConfigured()
+    {
+        using MemoryStream stream = CreateMinimalDocx(macroEnabled: true);
+
+        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions(AllowMacroEnabledDocuments: true));
+
+        Assert.Equal("/word/document.xml", package.MainDocumentPartName);
+    }
+
+    [Fact]
     public static void PublicReadReturnsDiagnosticForInvalidPackage()
     {
         using var stream = new MemoryStream("not a zip"u8.ToArray());
@@ -135,11 +156,11 @@ public static class OoxmlPackageTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
     }
 
-    private static MemoryStream CreateMinimalDocx(Action<ZipArchive>? extra = null)
+    private static MemoryStream CreateMinimalDocx(Action<ZipArchive>? extra = null, bool macroEnabled = false)
     {
         return CreatePackage(archive =>
         {
-            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
+            AddEntry(archive, "[Content_Types].xml", ContentTypesXml(macroEnabled));
             AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
             AddEntry(archive, "word/document.xml", DocumentXml());
             AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml());
@@ -167,14 +188,17 @@ public static class OoxmlPackageTests
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    private static string ContentTypesXml()
+    private static string ContentTypesXml(bool macroEnabled = false)
     {
-        return """
+        string mainDocumentContentType = macroEnabled
+            ? "application/vnd.ms-word.document.macroEnabled.main+xml"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
+        return $$"""
             <?xml version="1.0" encoding="utf-8"?>
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
               <Default Extension="xml" ContentType="application/xml"/>
-              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/document.xml" ContentType="{{mainDocumentContentType}}"/>
             </Types>
             """;
     }

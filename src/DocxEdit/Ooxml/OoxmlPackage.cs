@@ -105,6 +105,12 @@ internal sealed class OoxmlPackage
             }
 
             string mainDocumentPartName = FindMainDocumentPartName(parts, cancellationToken);
+            if (!options.AllowMacroEnabledDocuments &&
+                parts[mainDocumentPartName].ContentType == OoxmlContentTypeNames.MacroEnabledMainDocument)
+            {
+                throw new InvalidDataException("Macro-enabled Word documents are not allowed.");
+            }
+
             string mainDocumentRelationshipsPartName = OoxmlPath.GetRelationshipPartName(mainDocumentPartName);
             if (!parts.TryGetValue(mainDocumentRelationshipsPartName, out OoxmlPart? mainDocumentRelationshipsPart))
             {
