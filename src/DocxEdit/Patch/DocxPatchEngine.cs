@@ -7,6 +7,39 @@ namespace DocxEdit;
 
 internal static class DocxPatchEngine
 {
+    private static readonly IReadOnlyDictionary<XName, string> ProtectedTextEditElements = new Dictionary<XName, string>
+    {
+        [OoxmlNs.W + "hyperlink"] = "hyperlink",
+        [OoxmlNs.W + "fldSimple"] = "field",
+        [OoxmlNs.W + "fldChar"] = "field",
+        [OoxmlNs.W + "instrText"] = "field",
+        [OoxmlNs.W + "commentRangeStart"] = "comment",
+        [OoxmlNs.W + "commentRangeEnd"] = "comment",
+        [OoxmlNs.W + "commentReference"] = "comment",
+        [OoxmlNs.W + "bookmarkStart"] = "bookmark",
+        [OoxmlNs.W + "bookmarkEnd"] = "bookmark",
+        [OoxmlNs.W + "sdt"] = "content-control",
+        [OoxmlNs.W + "ins"] = "tracked-insertion",
+        [OoxmlNs.W + "del"] = "tracked-deletion",
+        [OoxmlNs.W + "moveFrom"] = "tracked-move-from",
+        [OoxmlNs.W + "moveTo"] = "tracked-move-to",
+        [OoxmlNs.W + "moveFromRangeStart"] = "tracked-move-from-range",
+        [OoxmlNs.W + "moveFromRangeEnd"] = "tracked-move-from-range",
+        [OoxmlNs.W + "moveToRangeStart"] = "tracked-move-to-range",
+        [OoxmlNs.W + "moveToRangeEnd"] = "tracked-move-to-range",
+        [OoxmlNs.W + "customXmlInsRangeStart"] = "tracked-custom-xml-insertion",
+        [OoxmlNs.W + "customXmlInsRangeEnd"] = "tracked-custom-xml-insertion",
+        [OoxmlNs.W + "customXmlDelRangeStart"] = "tracked-custom-xml-deletion",
+        [OoxmlNs.W + "customXmlDelRangeEnd"] = "tracked-custom-xml-deletion",
+        [OoxmlNs.W + "customXmlMoveFromRangeStart"] = "tracked-custom-xml-move-from",
+        [OoxmlNs.W + "customXmlMoveFromRangeEnd"] = "tracked-custom-xml-move-from",
+        [OoxmlNs.W + "customXmlMoveToRangeStart"] = "tracked-custom-xml-move-to",
+        [OoxmlNs.W + "customXmlMoveToRangeEnd"] = "tracked-custom-xml-move-to",
+        [OoxmlNs.W + "drawing"] = "drawing",
+        [OoxmlNs.W + "pict"] = "picture",
+        [OoxmlNs.W + "object"] = "object"
+    };
+
     public static PatchExecutionResult Check(
         OoxmlPackage package,
         DocxPatch patch,
@@ -95,15 +128,23 @@ internal static class DocxPatchEngine
         string? find = ReadRequiredField(operation, "find", diagnostics);
         string? replacement = ReadRequiredField(operation, "with", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        bool? preserveRuns = ReadBooleanField(operation, "preserve-runs", diagnostics);
+        int? occurrence = ReadPositiveOccurrence(operation, diagnostics);
         if (diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
+        bool shouldPreserveRuns = preserveRuns ?? true;
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
         if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (find!.Length == 0)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'find' must not be empty.", operation, target)];
         }
 
         string current = ReadVisibleText(paragraphTarget.Paragraph);
@@ -120,7 +161,13 @@ internal static class DocxPatchEngine
             ];
         }
 
-        if (!current.Contains(find!, StringComparison.Ordinal))
+        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
+        }
+
+        IReadOnlyList<TextRange> matches = FindTextMatches(current, find!, occurrence);
+        if (matches.Count == 0)
         {
             return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target)];
         }
@@ -130,8 +177,19 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        string edited = current.Replace(find!, replacement!, StringComparison.Ordinal);
-        ReplaceParagraphText(paragraphTarget.Paragraph, edited);
+        if (shouldPreserveRuns)
+        {
+            if (!TryReplaceParagraphTextPreservingRuns(paragraphTarget.Paragraph, matches, replacement!, out string? unsupportedReason))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4306", $"Run-preserving replacement is not supported for {target}: {unsupportedReason}. Use preserve-runs false to allow paragraph-level rewriting.", operation, target)];
+            }
+        }
+        else
+        {
+            string edited = ApplyTextReplacement(current, matches, replacement!);
+            ReplaceParagraphText(paragraphTarget.Paragraph, edited);
+        }
+
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
@@ -162,6 +220,11 @@ internal static class DocxPatchEngine
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+        }
+
+        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4305", $"Paragraph replacement for {target} would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
         if (!apply)
@@ -1359,6 +1422,183 @@ internal static class DocxPatchEngine
         return builder.ToString();
     }
 
+    private static bool TryGetProtectedTextEditFeature(XElement paragraph, out string feature)
+    {
+        foreach (XElement element in paragraph.Descendants())
+        {
+            if (ProtectedTextEditElements.TryGetValue(element.Name, out feature!))
+            {
+                return true;
+            }
+        }
+
+        feature = string.Empty;
+        return false;
+    }
+
+    private static int? ReadPositiveOccurrence(DocxPatchOperation operation, List<DocxDiagnostic> diagnostics)
+    {
+        if (!operation.Fields.TryGetValue("occurrence", out string? value))
+        {
+            return null;
+        }
+
+        if (!int.TryParse(value, out int occurrence) || occurrence <= 0)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'occurrence' must be greater than 0.", operation, operation.Fields.GetValueOrDefault("target")));
+            return null;
+        }
+
+        return occurrence;
+    }
+
+    private static IReadOnlyList<TextRange> FindTextMatches(string text, string find, int? occurrence)
+    {
+        var matches = new List<TextRange>();
+        int index = 0;
+        int seen = 0;
+        while (index <= text.Length)
+        {
+            int found = text.IndexOf(find, index, StringComparison.Ordinal);
+            if (found < 0)
+            {
+                break;
+            }
+
+            seen++;
+            if (occurrence is null || seen == occurrence)
+            {
+                matches.Add(new TextRange(found, find.Length));
+                if (occurrence is not null)
+                {
+                    break;
+                }
+            }
+
+            index = found + find.Length;
+        }
+
+        return matches;
+    }
+
+    private static string ApplyTextReplacement(string text, IReadOnlyList<TextRange> matches, string replacement)
+    {
+        var builder = new StringBuilder(text);
+        for (int i = matches.Count - 1; i >= 0; i--)
+        {
+            TextRange match = matches[i];
+            builder.Remove(match.Start, match.Length);
+            builder.Insert(match.Start, replacement);
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool TryReplaceParagraphTextPreservingRuns(
+        XElement paragraph,
+        IReadOnlyList<TextRange> matches,
+        string replacement,
+        out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (replacement.Contains('\t') || replacement.Contains('\n'))
+        {
+            unsupportedReason = "replacement contains tabs or line breaks";
+            return false;
+        }
+
+        TextPosition?[] positions = BuildTextPositions(paragraph);
+        foreach (TextRange match in matches)
+        {
+            for (int i = match.Start; i < match.Start + match.Length; i++)
+            {
+                if (i < 0 || i >= positions.Length || positions[i] is null)
+                {
+                    unsupportedReason = "match includes tabs, line breaks, or non-text run content";
+                    return false;
+                }
+            }
+        }
+
+        for (int i = matches.Count - 1; i >= 0; i--)
+        {
+            TextRange match = matches[i];
+            TextPosition start = positions[match.Start]!;
+            TextPosition end = positions[match.Start + match.Length - 1]!;
+            if (ReferenceEquals(start.TextElement, end.TextElement))
+            {
+                string value = start.TextElement.Value;
+                string edited = value.Remove(start.Offset, match.Length).Insert(start.Offset, replacement);
+                SetTextElementValue(start.TextElement, edited);
+                continue;
+            }
+
+            string startValue = start.TextElement.Value;
+            string endValue = end.TextElement.Value;
+            SetTextElementValue(start.TextElement, startValue[..start.Offset] + replacement);
+            SetTextElementValue(end.TextElement, endValue[(end.Offset + 1)..]);
+
+            bool insideRange = false;
+            foreach (XElement textElement in paragraph.Elements(OoxmlNs.W + "r").Elements(OoxmlNs.W + "t"))
+            {
+                if (ReferenceEquals(textElement, start.TextElement))
+                {
+                    insideRange = true;
+                    continue;
+                }
+
+                if (ReferenceEquals(textElement, end.TextElement))
+                {
+                    break;
+                }
+
+                if (insideRange)
+                {
+                    SetTextElementValue(textElement, string.Empty);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static TextPosition?[] BuildTextPositions(XElement paragraph)
+    {
+        var positions = new List<TextPosition?>();
+        foreach (XElement run in paragraph.Elements(OoxmlNs.W + "r"))
+        {
+            foreach (XElement child in run.Elements())
+            {
+                if (child.Name == OoxmlNs.W + "t")
+                {
+                    for (int i = 0; i < child.Value.Length; i++)
+                    {
+                        positions.Add(new TextPosition(child, i));
+                    }
+                }
+                else if (child.Name == OoxmlNs.W + "tab" || child.Name == OoxmlNs.W + "br")
+                {
+                    positions.Add(null);
+                }
+            }
+        }
+
+        return positions.ToArray();
+    }
+
+    private static void SetTextElementValue(XElement textElement, string text)
+    {
+        textElement.Value = text;
+        if (RequiresPreserveSpace(text))
+        {
+            textElement.SetAttributeValue(OoxmlNs.Xml + "space", "preserve");
+        }
+        else
+        {
+            textElement.SetAttributeValue(OoxmlNs.Xml + "space", null);
+        }
+    }
+
     private static void ReplaceParagraphText(XElement paragraph, string text)
     {
         XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
@@ -1624,3 +1864,7 @@ internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
+
+internal readonly record struct TextRange(int Start, int Length);
+
+internal sealed record TextPosition(XElement TextElement, int Offset);

@@ -247,6 +247,109 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyReplaceTextHonorsOccurrence()
+    {
+        using MemoryStream input = CreateDocx("foo foo foo");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find foo
+            with bar
+            occurrence 2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("foo bar foo", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextPreservesTargetRunProperties()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:rPr><w:b/></w:rPr><w:t>Revenue </w:t></w:r>
+                      <w:r><w:rPr><w:i/></w:rPr><w:t>increased</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("Revenue rose", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:b", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:i", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>rose</w:t>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckReplaceTextRejectsProtectedBoundaries()
+    {
+        using MemoryStream hyperlinkInput = CreateDocxWithBody("""
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link text</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """);
+        using var hyperlinkPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Link
+            with Anchor
+            end
+            """);
+
+        DocxCheckResult hyperlinkResult = new DocxEditor().Check(hyperlinkInput, hyperlinkPatch);
+
+        Assert.False(hyperlinkResult.Success);
+        Assert.Contains(hyperlinkResult.Diagnostics, diagnostic => diagnostic.Code == "E4305");
+
+        using MemoryStream revisionInput = CreateDocxWithBody("""
+                    <w:p>
+                      <w:ins w:id="1" w:author="A">
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:ins>
+                    </w:p>
+            """);
+        using var revisionPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Inserted
+            with Edited
+            end
+            """);
+
+        DocxCheckResult revisionResult = new DocxEditor().Check(revisionInput, revisionPatch);
+
+        Assert.False(revisionResult.Success);
+        Assert.Contains(revisionResult.Diagnostics, diagnostic => diagnostic.Code == "E4305");
+    }
+
+    [Fact]
     public static void ApplyPreservesUnknownPartsAndUnrelatedMedia()
     {
         using MemoryStream input = CreateDocxWithBody(
