@@ -205,7 +205,7 @@ internal static class DocxPatchEngine
         string? trackedUnsupportedReason = null;
         if (useTrackedChanges)
         {
-            canUseTrackedChanges = TryValidateTrackedTextReplacement(current, matches, replacement!, out trackedUnsupportedReason);
+            canUseTrackedChanges = TryValidateTrackedTextReplacement(paragraphTarget.Paragraph, current, matches, replacement!, out trackedUnsupportedReason);
             if (!canUseTrackedChanges && options.TrackChanges == TrackChangesMode.Require)
             {
                 return [Diagnostic(DocxSeverity.Error, "E6002", $"Tracked-change replacement is not supported for {target}: {trackedUnsupportedReason}.", operation, target)];
@@ -243,7 +243,7 @@ internal static class DocxPatchEngine
         }
 
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceParagraph(
@@ -600,6 +600,7 @@ internal static class DocxPatchEngine
     }
 
     private static bool TryValidateTrackedTextReplacement(
+        XElement paragraph,
         string current,
         IReadOnlyList<TextRange> matches,
         string replacement,
@@ -622,7 +623,47 @@ internal static class DocxPatchEngine
             }
         }
 
+        if (HasMixedDirectTextRunProperties(paragraph))
+        {
+            unsupportedReason = "paragraph contains mixed direct run formatting";
+            return false;
+        }
+
         return true;
+    }
+
+    private static bool HasMixedDirectTextRunProperties(XElement paragraph)
+    {
+        string? firstSignature = null;
+        foreach (XElement run in paragraph.Elements(OoxmlNs.W + "r"))
+        {
+            if (!RunHasVisibleText(run))
+            {
+                continue;
+            }
+
+            string signature = run.Element(OoxmlNs.W + "rPr")?.ToString(SaveOptions.DisableFormatting) ?? string.Empty;
+            if (firstSignature is null)
+            {
+                firstSignature = signature;
+                continue;
+            }
+
+            if (!string.Equals(firstSignature, signature, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool RunHasVisibleText(XElement run)
+    {
+        return run.Elements().Any(element =>
+            element.Name == OoxmlNs.W + "t" ||
+            element.Name == OoxmlNs.W + "tab" ||
+            element.Name == OoxmlNs.W + "br");
     }
 
     private static void ReplaceParagraphTextWithTrackedChanges(

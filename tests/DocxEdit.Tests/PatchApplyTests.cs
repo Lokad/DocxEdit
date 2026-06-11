@@ -269,6 +269,47 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireRejectsMatchedTabs()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Revenue</w:t><w:tab/><w:t>increased</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind <<<\nRevenue\tincreased\n>>>\nwith Revenue rose\nend\n");
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsMixedRunFormatting()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:rPr><w:b/></w:rPr><w:t>Revenue </w:t></w:r>
+                      <w:r><w:rPr><w:i/></w:rPr><w:t>increased</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6002" && diagnostic.Message.Contains("mixed direct run formatting", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceText()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
@@ -317,6 +358,72 @@ public static class PatchApplyTests
         Assert.Equal(timestamp, deletion.TimestampUtc);
         Assert.Equal("1", deletion.RevisionId);
         Assert.Equal("2", insertion.RevisionId);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForMultipleAdjacentRunMatches()
+    {
+        using MemoryStream input = CreateDocxWithRuns("foo ", "foo");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find foo
+            with bar
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(2, CountOccurrences(xml, "<w:del "));
+        Assert.Equal(2, CountOccurrences(xml, "<w:ins "));
+        output.Position = 0;
+        Assert.Equal("bar bar", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestFallsBackForMixedRunFormatting()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:rPr><w:b/></w:rPr><w:t>Revenue </w:t></w:r>
+                      <w:r><w:rPr><w:i/></w:rPr><w:t>increased</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.DoesNotContain("<w:del ", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins ", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:i", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>rose</w:t>", xml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -490,6 +597,32 @@ public static class PatchApplyTests
 
         Assert.False(revisionResult.Success);
         Assert.Contains(revisionResult.Diagnostics, diagnostic => diagnostic.Code == "E4305");
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsProtectedBoundaries()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link text</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Link
+            with Anchor
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4305");
     }
 
     [Fact]
