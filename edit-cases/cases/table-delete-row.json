@@ -1,0 +1,28 @@
+{
+  "id": "table-delete-row",
+  "description": "Deletes a guarded table row and verifies cell readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>East</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-row",
+    "target M.T0001.R02",
+    "expect-contains South",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "North",
+      "East"
+    ]
+  }
+}

@@ -44,11 +44,25 @@ public static class OfficeGateTests
                 find input
                 with output
                 end
+
+                op insert-image-after
+                target M.P0001
+                asset chart.png
+                alt Office chart
+                end
                 """))
             using (FileStream output = File.Create(outputPath))
             {
-                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+                {
+                    TrackChanges = TrackChangesMode.Suggest,
+                    Author = "Office Reviewer",
+                    TimestampUtc = DateTimeOffset.Parse("2026-06-11T12:00:00Z").ToUniversalTime(),
+                    AssetProvider = new MemoryAssetProvider("chart.png", "office-png", "chart.png"),
+                    MarkFieldsDirtyWhenEditing = false
+                });
                 Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
             OpenSaveWithWord(wordApplicationType, outputPath);
@@ -56,7 +70,14 @@ public static class OfficeGateTests
             using FileStream saved = File.OpenRead(outputPath);
             DocxReadResult read = new DocxEditor().Read(saved);
             Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
-            Assert.Equal("Office smoke output", Assert.Single(read.Paragraphs).Text);
+            Assert.Contains(read.Paragraphs, paragraph => paragraph.Text == "Office smoke output");
+            Assert.Single(read.Images);
+
+            using FileStream savedChanges = File.OpenRead(outputPath);
+            DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
+            Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Contains(changes.Summary, summary => summary.Type == "deleted-run" && summary.Count == 1);
+            Assert.Contains(changes.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
         }
         finally
         {
@@ -168,6 +189,36 @@ public static class OfficeGateTests
         using Stream stream = entry.Open();
         byte[] bytes = Encoding.UTF8.GetBytes(text);
         stream.Write(bytes, 0, bytes.Length);
+    }
+
+    private sealed class MemoryAssetProvider : IDocxAssetProvider
+    {
+        private readonly string reference;
+        private readonly byte[] bytes;
+        private readonly string fileNameHint;
+
+        public MemoryAssetProvider(string reference, string text, string fileNameHint)
+        {
+            this.reference = reference;
+            bytes = Encoding.UTF8.GetBytes(text);
+            this.fileNameHint = fileNameHint;
+        }
+
+        public bool TryOpen(string requestedReference, out Stream stream, out string? contentTypeHint, out string? fileNameHint)
+        {
+            if (!string.Equals(reference, requestedReference, StringComparison.Ordinal))
+            {
+                stream = Stream.Null;
+                contentTypeHint = null;
+                fileNameHint = null;
+                return false;
+            }
+
+            stream = new MemoryStream(bytes, writable: false);
+            contentTypeHint = null;
+            fileNameHint = this.fileNameHint;
+            return true;
+        }
     }
 
     private static string FormatDiagnostic(DocxDiagnostic diagnostic) => $"{diagnostic.Code}: {diagnostic.Message}";

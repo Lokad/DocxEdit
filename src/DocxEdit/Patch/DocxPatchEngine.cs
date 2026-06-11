@@ -3276,6 +3276,7 @@ internal static class DocxPatchEngine
 
             if (!ShouldValidateTouchedPart(part))
             {
+                ValidateTouchedBinaryPart(part, diagnostics);
                 continue;
             }
 
@@ -3301,6 +3302,20 @@ internal static class DocxPatchEngine
             part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(part.ContentType, OoxmlContentTypeNames.Xml, StringComparison.OrdinalIgnoreCase) ||
             part.ContentType?.EndsWith("+xml", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static void ValidateTouchedBinaryPart(OoxmlPart part, List<DocxDiagnostic> diagnostics)
+    {
+        if (part.Bytes.Length != 0)
+        {
+            return;
+        }
+
+        if (string.Equals(part.ContentType, "image/png", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(part.ContentType, "image/jpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            diagnostics.Add(PostEditValidationDiagnostic(part.Name, "Image part is empty."));
+        }
     }
 
     private static void ValidateTouchedPartRoot(

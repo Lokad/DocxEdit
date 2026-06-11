@@ -1,0 +1,31 @@
+{
+  "id": "image-insert",
+  "description": "Inserts an image from a local asset path and verifies image readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Chart anchor</w:t></w:r></w:p>"
+    ]
+  },
+  "assets": {
+    "chart.png": "public-chart-bytes"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-image-after",
+    "target M.P0001",
+    "asset {{asset:chart.png}}",
+    "alt Inserted chart",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Chart anchor",
+      ""
+    ],
+    "images": [
+      "/word/media/image1.png"
+    ]
+  }
+}

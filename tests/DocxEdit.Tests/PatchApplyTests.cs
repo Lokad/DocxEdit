@@ -1670,6 +1670,27 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyInsertImageRejectsEmptyImageAssetDuringPostEditValidation()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", [], null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9001" && diagnostic.PartName == "/word/media/image1.png");
+    }
+
+    [Fact]
     public static void ApplyInsertImageAfterPreservesPngAspectRatioWhenOnlyWidthIsSupplied()
     {
         using MemoryStream input = CreateDocx("Intro");

@@ -1,0 +1,41 @@
+{
+  "id": "header-footer-replace",
+  "description": "Edits header and footer paragraphs through explicit story IDs.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>"
+    ],
+    "headerXml": [
+      "  <w:p><w:r><w:t>Header text</w:t></w:r></w:p>"
+    ],
+    "footerXml": [
+      "  <w:p><w:r><w:t>Footer text</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target H001.P0001",
+    "find Header",
+    "with Public header",
+    "end",
+    "",
+    "op replace-text",
+    "target F001.P0001",
+    "find Footer",
+    "with Public footer",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Main text"
+    ],
+    "allStoryParagraphs": [
+      "Main text",
+      "Public header text",
+      "Public footer text"
+    ]
+  }
+}

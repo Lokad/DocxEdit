@@ -1,0 +1,31 @@
+{
+  "id": "section-orientation",
+  "description": "Updates a main-document section orientation and verifies section readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Section text</w:t></w:r></w:p>",
+      "    <w:sectPr>",
+      "      <w:pgSz w:w=\"12240\" w:h=\"15840\"/>",
+      "      <w:cols w:num=\"1\"/>",
+      "    </w:sectPr>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-section-orientation",
+    "target M.S0001",
+    "expect-orientation portrait",
+    "orientation landscape",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Section text"
+    ],
+    "sections": [
+      "1|landscape"
+    ]
+  }
+}

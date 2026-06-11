@@ -14,14 +14,29 @@ The public API normalizes expected package, ZIP, XML, and relationship failures 
 - relationship part root and internal targets;
 - main document root and `w:body`;
 - touched header and footer roots.
+- touched PNG/JPEG media parts are non-empty.
 
 This is structural validation, not full OOXML schema validation.
 
 ## Public Edit Cases
 
 Tracked public cases live under `edit-cases/cases/` as JSON manifests. A case defines synthetic
-WordprocessingML body XML, a `.docxpatch` payload, and expected readback values. The harness
-generates `.docx` inputs at runtime, so fixtures remain reviewable text.
+WordprocessingML body XML or a non-private fixture under `edit-cases/fixtures/`, a
+`.docxpatch` payload, and expected readback values. The harness generates synthetic
+`.docx` inputs at runtime when body XML is supplied, so most fixtures remain reviewable text.
+
+Supported manifest extras include:
+
+- `input.headerXml` and `input.footerXml` for header/footer stories;
+- `input.fixture` for a checked-in non-private `.docx` under `edit-cases/fixtures/`;
+- `assets` values referenced from patches as `{{asset:name.png}}`;
+- `applyOptions.trackChanges`, `author`, and `timestampUtc`;
+- expectations for `paragraphs`, `allStoryParagraphs`, `tableCells`, `sections`,
+  `images`, and `changeSummary`.
+
+The CLI resolves image operation assets from local file paths. Relative paths are
+resolved from the current working directory; public manifests use harness-generated
+absolute asset paths.
 
 Run one case:
 

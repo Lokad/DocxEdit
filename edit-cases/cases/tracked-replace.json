@@ -1,0 +1,33 @@
+{
+  "id": "tracked-replace",
+  "description": "Applies a simple tracked text replacement and verifies change metadata counts.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find increased",
+    "with rose",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Revenue rose."
+    ],
+    "changeSummary": {
+      "deleted-run": 1,
+      "inserted-run": 1
+    }
+  }
+}
