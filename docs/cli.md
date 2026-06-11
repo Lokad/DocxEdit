@@ -24,7 +24,7 @@ Read text views are `final` (default), `original`, and `markup`. Markup view inc
 - `check input.docx edits.docxpatch [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 - `apply input.docx edits.docxpatch -o output.docx [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 
-Track-change modes are `off`, `preserve`, `suggest`, and `require`. Real tracked-change output is not generated yet. `require` fails unsupported operations; `suggest` warns and applies direct edits.
+Track-change modes are `off`, `preserve`, `suggest`, and `require`. `replace-text` generates simple `w:del`/`w:ins` tracked-change markup with the selected author and timestamp under `suggest` or `require`. `require` fails unsupported operations; `suggest` warns and applies unsupported operations directly.
 
 Exit codes:
 

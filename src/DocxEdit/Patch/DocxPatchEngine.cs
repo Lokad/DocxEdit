@@ -74,20 +74,21 @@ internal static class DocxPatchEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
             var operationDiagnostics = new List<DocxDiagnostic>();
-            if (options.TrackChanges == TrackChangesMode.Require)
+            bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
+            if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
             {
                 operationDiagnostics.Add(Diagnostic(DocxSeverity.Error, "E6001", $"TrackChangesMode.Require is not supported for operation '{operation.OperationName}'.", operation, operation.Fields.GetValueOrDefault("target")));
             }
             else
             {
-                if (options.TrackChanges == TrackChangesMode.Suggest)
+                if (options.TrackChanges == TrackChangesMode.Suggest && !supportsTrackedChanges)
                 {
                     operationDiagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4001", $"TrackChangesMode.Suggest is not supported for operation '{operation.OperationName}'; applying the edit directly.", operation, operation.Fields.GetValueOrDefault("target")));
                 }
 
                 operationDiagnostics.AddRange(operation.OperationName switch
                 {
-                    "replace-text" => ExecuteReplaceText(package, operation, apply, cancellationToken),
+                    "replace-text" => ExecuteReplaceText(package, operation, options, apply, cancellationToken),
                     "replace-paragraph" => ExecuteReplaceParagraph(package, operation, apply, cancellationToken),
                     "insert-before" => ExecuteInsertBlock(package, operation, insertAfter: false, apply, cancellationToken),
                     "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
@@ -133,9 +134,15 @@ internal static class DocxPatchEngine
         return new PatchExecutionResult(diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error), diagnostics, reports);
     }
 
+    private static bool SupportsTrackedChangeOutput(string operationName)
+    {
+        return string.Equals(operationName, "replace-text", StringComparison.Ordinal);
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceText(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
         CancellationToken cancellationToken)
     {
@@ -193,8 +200,32 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target)];
         }
 
+        bool useTrackedChanges = options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool canUseTrackedChanges = true;
+        string? trackedUnsupportedReason = null;
+        if (useTrackedChanges)
+        {
+            canUseTrackedChanges = TryValidateTrackedTextReplacement(current, matches, replacement!, out trackedUnsupportedReason);
+            if (!canUseTrackedChanges && options.TrackChanges == TrackChangesMode.Require)
+            {
+                return [Diagnostic(DocxSeverity.Error, "E6002", $"Tracked-change replacement is not supported for {target}: {trackedUnsupportedReason}.", operation, target)];
+            }
+
+            if (!canUseTrackedChanges)
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4002", $"Tracked-change replacement is not supported for {target}: {trackedUnsupportedReason}; applying the edit directly.", operation, target));
+            }
+        }
+
         if (!apply)
         {
+            return diagnostics;
+        }
+
+        if (useTrackedChanges && canUseTrackedChanges)
+        {
+            ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement!, options, cancellationToken);
+            SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
             return [];
         }
 
@@ -553,6 +584,145 @@ internal static class DocxPatchEngine
         }
 
         return true;
+    }
+
+    private static bool TryValidateTrackedTextReplacement(
+        string current,
+        IReadOnlyList<TextRange> matches,
+        string replacement,
+        out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (replacement.Contains('\t') || replacement.Contains('\n'))
+        {
+            unsupportedReason = "replacement contains tabs or line breaks";
+            return false;
+        }
+
+        foreach (TextRange match in matches)
+        {
+            string deletedText = current.Substring(match.Start, match.Length);
+            if (deletedText.Contains('\t') || deletedText.Contains('\n'))
+            {
+                unsupportedReason = "matched text contains tabs or line breaks";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void ReplaceParagraphTextWithTrackedChanges(
+        OoxmlPackage package,
+        XElement paragraph,
+        string current,
+        IReadOnlyList<TextRange> matches,
+        string replacement,
+        DocxEditOptions options,
+        CancellationToken cancellationToken)
+    {
+        string[] revisionIds = AllocateRevisionIds(package, matches.Count * 2, cancellationToken);
+        XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
+        XElement? firstRunProperties = paragraph
+            .Elements(OoxmlNs.W + "r")
+            .Elements(OoxmlNs.W + "rPr")
+            .FirstOrDefault();
+        string author = options.Author;
+        string timestamp = options.TimestampUtc.ToUniversalTime().ToString("O");
+
+        var nodes = new List<XNode>();
+        if (paragraphProperties is not null)
+        {
+            nodes.Add(new XElement(paragraphProperties));
+        }
+
+        int cursor = 0;
+        int revisionIndex = 0;
+        foreach (TextRange match in matches)
+        {
+            if (match.Start > cursor)
+            {
+                AddTextRun(nodes, current[cursor..match.Start], firstRunProperties);
+            }
+
+            string deletedText = current.Substring(match.Start, match.Length);
+            nodes.Add(CreateDeletedRun(deletedText, firstRunProperties, revisionIds[revisionIndex++], author, timestamp));
+            nodes.Add(CreateInsertedRun(replacement, firstRunProperties, revisionIds[revisionIndex++], author, timestamp));
+            cursor = match.Start + match.Length;
+        }
+
+        if (cursor < current.Length)
+        {
+            AddTextRun(nodes, current[cursor..], firstRunProperties);
+        }
+
+        paragraph.RemoveNodes();
+        paragraph.Add(nodes);
+    }
+
+    private static void AddTextRun(List<XNode> nodes, string text, XElement? runProperties)
+    {
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        var run = new XElement(OoxmlNs.W + "r");
+        if (runProperties is not null)
+        {
+            run.Add(new XElement(runProperties));
+        }
+
+        foreach (XNode node in CreateTextNodes(text))
+        {
+            run.Add(node);
+        }
+
+        nodes.Add(run);
+    }
+
+    private static XElement CreateDeletedRun(
+        string text,
+        XElement? runProperties,
+        string revisionId,
+        string author,
+        string timestamp)
+    {
+        var run = new XElement(OoxmlNs.W + "r");
+        if (runProperties is not null)
+        {
+            run.Add(new XElement(runProperties));
+        }
+
+        run.Add(CreateDeletedTextElement(text));
+        return new XElement(
+            OoxmlNs.W + "del",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", author),
+            new XAttribute(OoxmlNs.W + "date", timestamp),
+            run);
+    }
+
+    private static XElement CreateInsertedRun(
+        string text,
+        XElement? runProperties,
+        string revisionId,
+        string author,
+        string timestamp)
+    {
+        var run = new XElement(OoxmlNs.W + "r");
+        if (runProperties is not null)
+        {
+            run.Add(new XElement(runProperties));
+        }
+
+        run.Add(CreateTextElement(text));
+        return new XElement(
+            OoxmlNs.W + "ins",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", author),
+            new XAttribute(OoxmlNs.W + "date", timestamp),
+            run);
     }
 
     private static bool TryReadImagePixelSize(byte[] bytes, string contentType, out int width, out int height)
@@ -2506,6 +2676,48 @@ internal static class DocxPatchEngine
         }
 
         return textElement;
+    }
+
+    private static XElement CreateDeletedTextElement(string text)
+    {
+        var textElement = new XElement(OoxmlNs.W + "delText", text);
+        if (RequiresPreserveSpace(text))
+        {
+            textElement.SetAttributeValue(OoxmlNs.Xml + "space", "preserve");
+        }
+
+        return textElement;
+    }
+
+    private static string[] AllocateRevisionIds(
+        OoxmlPackage package,
+        int count,
+        CancellationToken cancellationToken)
+    {
+        int nextId = 1;
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) && part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XAttribute idAttribute in document.Descendants().Attributes(OoxmlNs.W + "id"))
+            {
+                if (int.TryParse(idAttribute.Value, out int id) && id >= nextId)
+                {
+                    nextId = id + 1;
+                }
+            }
+        }
+
+        string[] ids = new string[count];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            ids[i] = (nextId++).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return ids;
     }
 
     private static bool IsSimpleEditableCell(XElement cell)

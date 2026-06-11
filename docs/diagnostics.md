@@ -16,7 +16,8 @@ Common code ranges:
 - `E62xx`: section edit issue.
 - `E71xx`: style resolution issue.
 - `E90xx`: post-edit validation failure.
-- `W4001`: `TrackChangesMode.Suggest` warning; the edit is applied directly.
+- `W4001`: `TrackChangesMode.Suggest` warning for an operation without tracked-change output; the edit is applied directly.
+- `W4002`: `TrackChangesMode.Suggest` warning for a `replace-text` shape that cannot be represented as simple tracked-change output; the edit is applied directly.
 
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,

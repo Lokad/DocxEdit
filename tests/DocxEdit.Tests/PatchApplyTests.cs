@@ -213,10 +213,9 @@ public static class PatchApplyTests
         using var patch = new StringReader("""
             docxpatch 1
 
-            op replace-text
+            op replace-paragraph
             target M.P0001
-            find increased
-            with rose
+            text Revenue rose.
             end
             """);
 
@@ -227,7 +226,50 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void ApplyTrackChangesSuggestWarnsAndAppliesDirectly()
+    public static void CheckTrackChangesRequireAllowsReplaceText()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsComplexReplaceTextMarkup()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with <<<
+            rose
+            sharply
+            >>>
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceText()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
         using var output = new MemoryStream();
@@ -238,6 +280,56 @@ public static class PatchApplyTests
             target M.P0001
             find increased
             with rose
+            end
+            """);
+
+        DateTimeOffset timestamp = DateTimeOffset.Parse("2026-06-08T12:00:00Z").ToUniversalTime();
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Reviewer",
+            TimestampUtc = timestamp,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>increased</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>rose</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:author=\"Reviewer\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"1\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"2\"", xml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Revenue increased.", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+
+        output.Position = 0;
+        DocxChangesResult changes = new DocxEditor().Changes(output);
+        DocxChangeInfo deletion = Assert.Single(changes.Changes, change => change.Type == "deleted-run");
+        DocxChangeInfo insertion = Assert.Single(changes.Changes, change => change.Type == "inserted-run");
+        Assert.Equal("Reviewer", deletion.Author);
+        Assert.Equal(timestamp, deletion.TimestampUtc);
+        Assert.Equal("1", deletion.RevisionId);
+        Assert.Equal("2", insertion.RevisionId);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestWarnsAndAppliesUnsupportedOperationsDirectly()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            text Revenue rose.
             end
             """);
 

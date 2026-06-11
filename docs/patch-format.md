@@ -41,7 +41,7 @@ including nearby paragraph text.
 
 ## Supported Operations
 
-- `replace-text`: `target`, `find`, `with`, optional `expect-text`, `preserve-runs`, `occurrence`
+- `replace-text`: `target`, `find`, `with`, optional `expect-text`, `preserve-runs`, `occurrence`. Under `TrackChangesMode.Suggest` or `Require`, simple text-only replacements are emitted as tracked `w:del`/`w:ins` markup with the configured author and timestamp.
 - `replace-paragraph`: `target`, `text`, optional `expect-text`, `style`
 - `insert-before`, `insert-after`: `target`, `text`, optional `style`
 - `delete-block`: `target`, optional `expect-text`
