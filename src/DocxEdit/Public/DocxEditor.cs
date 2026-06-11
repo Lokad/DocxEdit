@@ -24,7 +24,8 @@ public sealed class DocxEditor
             Text = TextRenderers.RenderRead(model, options.MaxText),
             Paragraphs = model.Paragraphs,
             Tables = model.Tables,
-            Images = model.Images
+            Images = model.Images,
+            Sections = model.Sections
         };
     }
 

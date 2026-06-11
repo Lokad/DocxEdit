@@ -99,6 +99,32 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadExtractsSectionColumnsAndOrientation()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxSectionInfo section = Assert.Single(result.Sections);
+        Assert.Equal("M.S0001", section.Id);
+        Assert.Equal(2, section.Columns);
+        Assert.Equal("landscape", section.Orientation);
+        Assert.Contains("M.S0001 section columns=2 orientation=landscape", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void OutlineIncludesSections()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxOutlineResult result = editor.Outline(stream);
+
+        Assert.Contains(result.Lines, line => line == "M.S0001 section columns=2 orientation=landscape");
+    }
+
+    [Fact]
     public static void StylesListsParagraphCharacterAndTableStyles()
     {
         using MemoryStream stream = CreateDocx();
@@ -206,6 +232,10 @@ public static class ReadApiTests
                         <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
                       </w:tr>
                     </w:tbl>
+                    <w:sectPr>
+                      <w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>
+                      <w:cols w:num="2"/>
+                    </w:sectPr>
                   </w:body>
                 </w:document>
                 """);

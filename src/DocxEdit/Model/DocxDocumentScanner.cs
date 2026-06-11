@@ -19,7 +19,8 @@ internal static class DocxDocumentScanner
         var paragraphs = new List<DocxParagraphInfo>();
         var tables = new List<DocxTableInfo>();
         var images = new List<DocxImageInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", paragraphs, tables, images, cancellationToken);
+        var sections = new List<DocxSectionInfo>();
+        ScanStory(package, package.MainDocumentPartName, "M", "main", paragraphs, tables, images, sections, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -32,7 +33,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", paragraphs, tables, images, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", paragraphs, tables, images, sections, cancellationToken);
                 }
             }
 
@@ -44,12 +45,12 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", paragraphs, tables, images, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", paragraphs, tables, images, sections, cancellationToken);
                 }
             }
         }
 
-        return new DocxDocumentModel(paragraphs, tables, images);
+        return new DocxDocumentModel(paragraphs, tables, images, sections);
     }
 
     private static void ScanStory(
@@ -60,6 +61,7 @@ internal static class DocxDocumentScanner
         List<DocxParagraphInfo> paragraphs,
         List<DocxTableInfo> tables,
         List<DocxImageInfo> images,
+        List<DocxSectionInfo> sections,
         CancellationToken cancellationToken)
     {
         OoxmlPart part = package.GetPart(partName)
@@ -77,16 +79,28 @@ internal static class DocxDocumentScanner
         int paragraphIndex = 1;
         int tableIndex = 1;
         int imageIndex = 1;
+        int sectionIndex = sections.Count(section => section.Id.StartsWith($"{idPrefix}.S", StringComparison.Ordinal)) + 1;
         foreach (XElement block in body.Elements())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            XElement? sectionProperties = null;
             if (block.Name == OoxmlNs.W + "p")
             {
                 paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, package, relationships, images, idPrefix, ref imageIndex));
+                sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
             }
             else if (block.Name == OoxmlNs.W + "tbl")
             {
                 tables.Add(ReadTable(block, $"{idPrefix}.T{tableIndex++:0000}", story, package, relationships, images, idPrefix, ref imageIndex));
+            }
+            else if (block.Name == OoxmlNs.W + "sectPr")
+            {
+                sectionProperties = block;
+            }
+
+            if (sectionProperties is not null && idPrefix == "M")
+            {
+                sections.Add(ReadSection(sectionProperties, $"{idPrefix}.S{sectionIndex++:0000}", story));
             }
         }
     }
@@ -205,6 +219,20 @@ internal static class DocxDocumentScanner
         return int.TryParse(digits, out int level) && level is >= 1 and <= 9
             ? level
             : null;
+    }
+
+    private static DocxSectionInfo ReadSection(XElement sectionProperties, string id, string story)
+    {
+        string? columnCountText = (string?)sectionProperties
+            .Element(OoxmlNs.W + "cols")
+            ?.Attribute(OoxmlNs.W + "num");
+        int columns = int.TryParse(columnCountText, out int parsedColumns) && parsedColumns > 0
+            ? parsedColumns
+            : 1;
+        string orientation = (string?)sectionProperties
+            .Element(OoxmlNs.W + "pgSz")
+            ?.Attribute(OoxmlNs.W + "orient") ?? "portrait";
+        return new DocxSectionInfo(id, story, columns, orientation);
     }
 
     private static void AddDrawingImages(

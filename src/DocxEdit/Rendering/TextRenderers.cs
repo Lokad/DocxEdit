@@ -8,6 +8,11 @@ internal static class TextRenderers
     public static string RenderRead(DocxDocumentModel model, int maxText)
     {
         var builder = new StringBuilder();
+        foreach (DocxSectionInfo section in model.Sections)
+        {
+            builder.Append(section.Id).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation).AppendLine();
+        }
+
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
         {
             string kind = paragraph.HeadingLevel is null ? "paragraph" : $"heading level={paragraph.HeadingLevel}";
@@ -42,6 +47,11 @@ internal static class TextRenderers
         foreach (DocxTableInfo table in model.Tables)
         {
             lines.Add($"{table.Id} table rows={table.RowCount} columns={table.ColumnCount}");
+        }
+
+        foreach (DocxSectionInfo section in model.Sections)
+        {
+            lines.Add($"{section.Id} section columns={section.Columns} orientation={section.Orientation}");
         }
 
         foreach (DocxImageInfo image in model.Images)

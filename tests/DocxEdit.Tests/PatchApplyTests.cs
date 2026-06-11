@@ -322,6 +322,46 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetSectionColumnsAndOrientation()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-section-columns
+            target M.S0001
+            count 2
+            end
+
+            op set-section-orientation
+            target M.S0001
+            orientation landscape
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxSectionInfo section = Assert.Single(new DocxEditor().Read(output).Sections);
+        Assert.Equal(2, section.Columns);
+        Assert.Equal("landscape", section.Orientation);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:num=\"2\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:orient=\"landscape\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:w=\"15840\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:h=\"12240\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyReplaceTextCanEditHeaderParagraph()
     {
         using MemoryStream input = CreateDocxWithHeaderFooter("Header text", "Footer text");

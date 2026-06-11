@@ -14,6 +14,7 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxParagraphInfo> Paragraphs { get; init; } = [];
     public IReadOnlyList<DocxTableInfo> Tables { get; init; } = [];
     public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
+    public IReadOnlyList<DocxSectionInfo> Sections { get; init; } = [];
 }
 
 public sealed record DocxOutlineResult : DocxOperationResult
@@ -87,3 +88,9 @@ public sealed record DocxTableCellInfo(
     int RowIndex,
     int ColumnIndex,
     string Text);
+
+public sealed record DocxSectionInfo(
+    string Id,
+    string Story,
+    int Columns,
+    string Orientation);

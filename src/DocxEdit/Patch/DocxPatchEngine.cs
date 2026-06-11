@@ -52,6 +52,8 @@ internal static class DocxPatchEngine
                 "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
                 "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
                 "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
+                "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
+                "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, apply, cancellationToken),
                 _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
             };
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
@@ -509,6 +511,98 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetSectionColumns(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? countText = ReadRequiredField(operation, "count", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!int.TryParse(countText, out int count) || count is < 1 or > 4)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E6201", "Section column count must be between 1 and 4.", operation, target)];
+        }
+
+        SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target!, cancellationToken);
+        if (sectionTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        XElement? columns = sectionTarget.SectionProperties.Element(OoxmlNs.W + "cols");
+        if (columns is null)
+        {
+            columns = new XElement(OoxmlNs.W + "cols");
+            sectionTarget.SectionProperties.Add(columns);
+        }
+
+        columns.SetAttributeValue(OoxmlNs.W + "num", count.ToString());
+        SaveMainDocument(package, sectionTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetSectionOrientation(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? orientation = ReadRequiredField(operation, "orientation", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (orientation is not ("portrait" or "landscape"))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E6202", "Section orientation must be portrait or landscape.", operation, target)];
+        }
+
+        SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target!, cancellationToken);
+        if (sectionTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        XElement? pageSize = sectionTarget.SectionProperties.Element(OoxmlNs.W + "pgSz");
+        if (pageSize is null)
+        {
+            pageSize = new XElement(OoxmlNs.W + "pgSz");
+            sectionTarget.SectionProperties.AddFirst(pageSize);
+        }
+
+        string? currentOrientation = (string?)pageSize.Attribute(OoxmlNs.W + "orient") ?? "portrait";
+        if (!string.Equals(currentOrientation, orientation, StringComparison.Ordinal) &&
+            pageSize.Attribute(OoxmlNs.W + "w") is XAttribute width &&
+            pageSize.Attribute(OoxmlNs.W + "h") is XAttribute height)
+        {
+            (width.Value, height.Value) = (height.Value, width.Value);
+        }
+
+        pageSize.SetAttributeValue(OoxmlNs.W + "orient", orientation);
+        SaveMainDocument(package, sectionTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCell(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -850,6 +944,14 @@ internal static class DocxPatchEngine
             int.TryParse(target[3..], out imageOrdinal);
     }
 
+    private static bool TryParseMainSectionTarget(string target, out int sectionOrdinal)
+    {
+        sectionOrdinal = 0;
+        return target.Length == 7 &&
+            target.StartsWith("M.S", StringComparison.Ordinal) &&
+            int.TryParse(target[3..], out sectionOrdinal);
+    }
+
     private static XElement? FindTable(XElement body, int tableOrdinal)
     {
         return tableOrdinal < 1
@@ -901,6 +1003,31 @@ internal static class DocxPatchEngine
         if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
         {
             return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerParagraphOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static SectionTarget? ResolveMainSectionTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseMainSectionTarget(target, out int sectionOrdinal) || sectionOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+        int currentOrdinal = 0;
+        foreach (XElement element in body.Descendants(OoxmlNs.W + "sectPr"))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            currentOrdinal++;
+            if (currentOrdinal == sectionOrdinal)
+            {
+                return new SectionTarget(document, element);
+            }
         }
 
         return null;
@@ -1408,3 +1535,5 @@ internal sealed record ImageTarget(string RelationshipId, OoxmlPart Part);
 internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
 
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
+
+internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
