@@ -57,14 +57,15 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit read input.docx [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit read input.docx [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxReadResult result = new DocxEditor().Read(input, new DocxReadOptions
         {
             IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-            IncludeAllStories = options.Flags.Contains("--all-stories")
+            IncludeAllStories = options.Flags.Contains("--all-stories"),
+            MaxText = options.MaxText ?? 4_000
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
@@ -111,13 +112,14 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 2)
         {
-            return InvalidUsage("Usage: docxedit find input.docx \"text\" [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit find input.docx \"text\" [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxFindResult result = new DocxEditor().Find(input, options.Positionals[1], new DocxFindOptions
         {
-            IncludeHeadersFooters = options.Flags.Contains("--headers-footers")
+            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+            MaxText = options.MaxText ?? 4_000
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
@@ -139,13 +141,14 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1 || options.Id is null)
         {
-            return InvalidUsage("Usage: docxedit dump input.docx --id M.P0001 [--runs] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit dump input.docx --id M.P0001 [--runs] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxDumpResult result = new DocxEditor().Dump(input, options.Id, new DocxDumpOptions
         {
-            IncludeRuns = options.Flags.Contains("--runs")
+            IncludeRuns = options.Flags.Contains("--runs"),
+            MaxText = options.MaxText ?? 4_000
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
@@ -418,6 +421,7 @@ internal static class ProgramMain
         string? OutputPath,
         string? Id,
         string? ExtractPath,
+        int? MaxText,
         TrackChangesMode TrackChanges,
         string? Author,
         DateTimeOffset? TimestampUtc,
@@ -436,6 +440,7 @@ internal static class ProgramMain
             string? outputPath = null;
             string? id = null;
             string? extractPath = null;
+            int? maxText = null;
             TrackChangesMode trackChanges = TrackChangesMode.Off;
             string? author = null;
             DateTimeOffset? timestampUtc = null;
@@ -479,6 +484,19 @@ internal static class ProgramMain
                             return WithError(command, "Missing value for --extract.");
                         }
 
+                        break;
+                    case "--max-text":
+                        if (!TryReadValue(args, ref i, out string? maxTextValue))
+                        {
+                            return WithError(command, "Missing value for --max-text.");
+                        }
+
+                        if (!int.TryParse(maxTextValue, out int parsedMaxText) || parsedMaxText < 0)
+                        {
+                            return WithError(command, "Invalid value for --max-text.");
+                        }
+
+                        maxText = parsedMaxText;
                         break;
                     case "--track-changes":
                         if (!TryReadValue(args, ref i, out string? trackChangesValue))
@@ -538,7 +556,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, trackChanges, author, timestampUtc, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, trackChanges, author, timestampUtc, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -555,7 +573,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, TrackChangesMode.Off, null, null, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, TrackChangesMode.Off, null, null, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)

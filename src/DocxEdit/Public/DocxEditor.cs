@@ -21,7 +21,7 @@ public sealed class DocxEditor
             Diagnostics = diagnostics,
             PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
             MainDocumentPartName = package?.MainDocumentPartName,
-            Text = TextRenderers.RenderRead(model),
+            Text = TextRenderers.RenderRead(model, options.MaxText),
             Paragraphs = model.Paragraphs,
             Tables = model.Tables,
             Images = model.Images
@@ -63,7 +63,7 @@ public sealed class DocxEditor
             Success = package is not null,
             Diagnostics = diagnostics,
             Query = query,
-            Matches = TextRenderers.Find(model, query)
+            Matches = TextRenderers.Find(model, query, options.MaxText)
         };
     }
 
@@ -83,7 +83,7 @@ public sealed class DocxEditor
             Success = package is not null,
             Diagnostics = diagnostics,
             TargetId = targetId,
-            Text = TextRenderers.Dump(model, targetId)
+            Text = TextRenderers.Dump(model, targetId, options.IncludeRuns, options.MaxText)
         };
     }
 

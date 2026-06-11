@@ -58,6 +58,34 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadHonorsMaxTextInRenderedOutput()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream, new DocxReadOptions { MaxText = 10 });
+
+        Assert.True(result.Success);
+        Assert.Contains("Revenue...", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue increased", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpCanIncludeParagraphRuns()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P0002", new DocxDumpOptions { IncludeRuns = true });
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Text);
+        Assert.Contains("runs:", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.P0002.R0001 text=\"Revenue\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.P0002.R0002 text=\" increased\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void MediaListsReferencedImagesOnly()
     {
         using MemoryStream stream = CreateDocx();
