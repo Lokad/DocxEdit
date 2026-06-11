@@ -14,15 +14,15 @@ internal static class ProgramMain
     {
         try
         {
-            if (args.Length == 0 || IsHelp(args[0]))
-            {
-                WriteHelp();
-                return 0;
-            }
-
             if (args.Length == 2 && args[0] == "help" && args[1] == "patch")
             {
                 WritePatchHelp();
+                return 0;
+            }
+
+            if (args.Length == 0 || IsHelp(args[0]))
+            {
+                WriteHelp();
                 return 0;
             }
 
@@ -387,6 +387,13 @@ internal static class ProgramMain
 
             Help:
               help patch Show the .docxpatch syntax with examples
+
+            Examples:
+              docxedit read report.docx
+              docxedit dump report.docx --id M.P0004 --runs
+              docxedit media report.docx --extract media
+              docxedit check report.docx edits.docxpatch
+              docxedit apply report.docx edits.docxpatch -o report.edited.docx
             """);
     }
 
@@ -403,6 +410,19 @@ internal static class ProgramMain
             with <<<
             new text
             >>>
+            end
+
+            op set-cell
+            target M.T0001.R02.C03
+            text <<<
+            updated cell text
+            >>>
+            end
+
+            op replace-image
+            target M.I0001
+            asset chart.png
+            preserve-size true
             end
 
             The expect-hash feature is unsupported and is rejected.

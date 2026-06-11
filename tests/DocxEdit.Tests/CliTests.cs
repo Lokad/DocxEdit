@@ -30,6 +30,20 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliHelpIncludesRequiredExamples()
+    {
+        CliResult help = RunCli("--help");
+        CliResult patchHelp = RunCli("help", "patch");
+
+        Assert.Equal(0, help.ExitCode);
+        Assert.Contains("docxedit read report.docx", help.Output, StringComparison.Ordinal);
+        Assert.Contains("docxedit apply report.docx edits.docxpatch -o report.edited.docx", help.Output, StringComparison.Ordinal);
+        Assert.Equal(0, patchHelp.ExitCode);
+        Assert.Contains("op set-cell", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("op replace-image", patchHelp.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliCheckWritesJsonReport()
     {
         using TempDirectory temp = TempDirectory.Create();
