@@ -876,6 +876,57 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyInsertImageAfterTwiceRefreshesContentTypesAndRelationships()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider(
+            ("chart.png", "new-png", null, "chart.png"),
+            ("logo.png", "new-logo", null, "logo.png"));
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            width 1in
+            end
+
+            op insert-image-after
+            target M.P0001
+            asset logo.png
+            width 72pt
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(2, read.Images.Count);
+        Assert.Contains(read.Images, image => image.PartName == "/word/media/image1.png" && image.ContentType == "image/png");
+        Assert.Contains(read.Images, image => image.PartName == "/word/media/image2.png" && image.ContentType == "image/png");
+
+        output.Position = 0;
+        Assert.Equal("new-png", ReadEntry(output, "word/media/image1.png"));
+        output.Position = 0;
+        Assert.Equal("new-logo", ReadEntry(output, "word/media/image2.png"));
+
+        output.Position = 0;
+        string contentTypes = ReadEntry(output, "[Content_Types].xml");
+        Assert.Contains("PartName=\"/word/media/image1.png\"", contentTypes, StringComparison.Ordinal);
+        Assert.Contains("ContentType=\"image/png\"", contentTypes, StringComparison.Ordinal);
+        Assert.Contains("PartName=\"/word/media/image2.png\"", contentTypes, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.Contains("Target=\"media/image1.png\"", relationships, StringComparison.Ordinal);
+        Assert.Contains("Target=\"media/image2.png\"", relationships, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(relationships, "relationships/image"));
+    }
+
+    [Fact]
     public static void ApplyInsertRowBeforeClonesTargetRowShape()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -1286,22 +1337,24 @@ public static class PatchApplyTests
 
     private sealed class MemoryAssetProvider : IDocxAssetProvider
     {
-        private readonly string reference;
-        private readonly byte[] bytes;
-        private readonly string? contentTypeHint;
-        private readonly string? fileNameHint;
+        private readonly Dictionary<string, MemoryAsset> assets;
 
         public MemoryAssetProvider(string reference, string text, string? contentTypeHint, string? fileNameHint)
+            : this((reference, text, contentTypeHint, fileNameHint))
         {
-            this.reference = reference;
-            bytes = Encoding.UTF8.GetBytes(text);
-            this.contentTypeHint = contentTypeHint;
-            this.fileNameHint = fileNameHint;
+        }
+
+        public MemoryAssetProvider(params (string Reference, string Text, string? ContentTypeHint, string? FileNameHint)[] assets)
+        {
+            this.assets = assets.ToDictionary(
+                asset => asset.Reference,
+                asset => new MemoryAsset(Encoding.UTF8.GetBytes(asset.Text), asset.ContentTypeHint, asset.FileNameHint),
+                StringComparer.Ordinal);
         }
 
         public bool TryOpen(string requestedReference, out Stream stream, out string? contentTypeHint, out string? fileNameHint)
         {
-            if (requestedReference != reference)
+            if (!assets.TryGetValue(requestedReference, out MemoryAsset? asset))
             {
                 stream = Stream.Null;
                 contentTypeHint = null;
@@ -1309,11 +1362,13 @@ public static class PatchApplyTests
                 return false;
             }
 
-            stream = new MemoryStream(bytes, writable: false);
-            contentTypeHint = this.contentTypeHint;
-            fileNameHint = this.fileNameHint;
+            stream = new MemoryStream(asset.Bytes, writable: false);
+            contentTypeHint = asset.ContentTypeHint;
+            fileNameHint = asset.FileNameHint;
             return true;
         }
+
+        private sealed record MemoryAsset(byte[] Bytes, string? ContentTypeHint, string? FileNameHint);
     }
 
     private sealed class NonSeekableReadStream : MemoryStream

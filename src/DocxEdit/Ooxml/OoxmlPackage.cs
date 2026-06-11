@@ -7,17 +7,14 @@ internal sealed class OoxmlPackage
 {
     private readonly Dictionary<string, OoxmlPart> parts;
 
-    private OoxmlPackage(Dictionary<string, OoxmlPart> parts, OoxmlContentTypes contentTypes, string? mainDocumentPartName)
+    private OoxmlPackage(Dictionary<string, OoxmlPart> parts, string? mainDocumentPartName)
     {
         this.parts = parts;
-        ContentTypes = contentTypes;
         MainDocumentPartName = mainDocumentPartName;
-        ContentTypesPart = parts["/[Content_Types].xml"];
     }
 
     public IReadOnlyDictionary<string, OoxmlPart> Parts => parts;
-    public OoxmlPart ContentTypesPart { get; }
-    public OoxmlContentTypes ContentTypes { get; }
+    public OoxmlPart ContentTypesPart => parts["/[Content_Types].xml"];
     public string? MainDocumentPartName { get; }
 
     public static OoxmlPackage Load(
@@ -125,7 +122,7 @@ internal sealed class OoxmlPackage
                 _ = ParseRelationships(relationshipStream, mainDocumentPartName, cancellationToken);
             }
 
-            return new OoxmlPackage(parts, contentTypes, mainDocumentPartName);
+            return new OoxmlPackage(parts, mainDocumentPartName);
         }
         finally
         {
