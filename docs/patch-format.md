@@ -34,6 +34,8 @@ Paragraph operations also support:
 - `text:"contained paragraph text"`
 
 Ambiguous selectors fail with `E1202`; use a more specific selector or an explicit ID.
+Parsed selectors that match no target fail with `E1201` and include nearby target IDs without
+including nearby paragraph text.
 
 ## Supported Operations
 

@@ -1532,7 +1532,55 @@ internal static class DocxPatchEngine
             return null;
         }
 
-        return matches.Count == 0 ? null : matches[0].Paragraph;
+        if (matches.Count == 0)
+        {
+            diagnostics =
+            [
+                Diagnostic(
+                    DocxSeverity.Error,
+                    "E1201",
+                    $"Selector matched 0 targets: {rawSelector}.{BuildNoMatchSuggestion(body, rawSelector)}",
+                    operation,
+                    rawSelector)
+            ];
+            return null;
+        }
+
+        return matches[0].Paragraph;
+    }
+
+    private static string BuildNoMatchSuggestion(XElement body, string rawSelector)
+    {
+        string[] suggestions = rawSelector.StartsWith("heading:", StringComparison.Ordinal)
+            ? EnumerateMainParagraphs(body)
+                .Select(match => (match.Id, HeadingLevel: ReadHeadingLevel(match.Paragraph)))
+                .Where(match => match.HeadingLevel is not null)
+                .Take(3)
+                .Select(match => $"{match.Id} heading level={match.HeadingLevel}")
+                .ToArray()
+            : EnumerateMainParagraphs(body)
+                .Take(3)
+                .Select(match => match.Id)
+                .ToArray();
+        if (suggestions.Length == 0)
+        {
+            return " No nearby paragraph targets are available.";
+        }
+
+        string label = rawSelector.StartsWith("heading:", StringComparison.Ordinal)
+            ? "Nearby headings"
+            : "Nearby paragraphs";
+        return $" {label}: {string.Join(", ", suggestions)}.";
+    }
+
+    private static IEnumerable<ParagraphSelectorMatch> EnumerateMainParagraphs(XElement body)
+    {
+        int paragraphOrdinal = 0;
+        foreach (XElement paragraph in body.Elements(OoxmlNs.W + "p"))
+        {
+            paragraphOrdinal++;
+            yield return new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", paragraph);
+        }
     }
 
     private static int? ReadHeadingLevel(XElement paragraph)

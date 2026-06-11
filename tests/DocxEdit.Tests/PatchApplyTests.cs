@@ -541,6 +541,35 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTextSelectorSuggestsNearbyTargetsWithoutLeakingText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Private heading text</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Private paragraph text</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Missing"
+            find Missing
+            with Updated
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E1201", diagnostic.Code);
+        Assert.Contains("Nearby paragraphs: M.P0001, M.P0002", diagnostic.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertBeforeParagraphAddsParagraphAtTargetPosition()
     {
         using MemoryStream input = CreateDocxWithBody("""
