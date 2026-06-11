@@ -1,0 +1,24 @@
+{
+  "id": "tracked-replace-probe",
+  "title": "Apply A Tracked Replacement Or Explain Why Not",
+  "tags": ["private", "track-changes", "replace-text", "diagnostics"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Create an edited output document in the run directory using docxedit only.",
+    "Choose a small, low-risk visible text replacement in a paragraph that appears not to contain existing tracked-change/comment/hyperlink/field boundaries.",
+    "Use replace-text with expect-text and apply with --track-changes require, --author \"DocxEdit Challenge\", and --timestamp-utc \"2026-01-01T00:00:00Z\".",
+    "If docxedit reports that the chosen target cannot be represented as a tracked replacement, retry once with a different safer target. If it still fails, stop and report the diagnostics rather than falling back to raw OOXML.",
+    "Validate successful output with docxedit changes and mention whether a new inserted-run/deleted-run pair appears."
+  ],
+  "successCriteria": [
+    "Uses replace-text, expect-text, and --track-changes require.",
+    "Handles E6002 or related diagnostics without using non-docxedit document tooling.",
+    "Produces an output .docx if a safe target exists.",
+    "Does not quote private text in the final response."
+  ],
+  "observerQuestions": [
+    "Could the agent identify a safe replacement target from docxedit output?",
+    "Were tracked replacement constraints and diagnostics understandable?",
+    "Did the agent recover cleanly from unsupported tracked-output shapes?"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "markup-targeting",
+  "title": "Target A Markup-Affected Area",
+  "tags": ["private", "markup", "targeting", "read-views"],
+  "requiresOutputDocx": false,
+  "task": [
+    "Using docxedit only, identify one target ID that appears to be affected by tracked changes or comment markup.",
+    "Use privacy-safe commands first. If you need read or dump, keep --max-text small and do not repeat private text in the final response.",
+    "Compare final, original, or markup views only as needed to understand how docxedit exposes the target.",
+    "Report only target IDs, change IDs or types, command outcomes, and usability observations."
+  ],
+  "successCriteria": [
+    "Uses changes and at least one target-oriented command such as dump, find, read, or outline.",
+    "Avoids raw OOXML inspection and non-docxedit document tooling.",
+    "Final response does not quote private content.",
+    "Explains whether the target IDs are sufficient to navigate from markup inventory to document context."
+  ],
+  "observerQuestions": [
+    "Could the agent bridge change records to editable targets?",
+    "Did it know when to use --view markup?",
+    "Did the CLI force it to expose too much text?"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "preserve-edit",
+  "title": "Make A Small Edit While Preserving Existing Markup",
+  "tags": ["private", "patch", "preserve", "editing"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Create an edited output document in the run directory using docxedit only.",
+    "Insert one short paragraph after a safe main-story target, preferably after the first heading if one is available; otherwise use a stable explicit paragraph ID.",
+    "Use a .docxpatch file and run docxedit check before apply.",
+    "Apply with --track-changes preserve so existing tracked changes and comments remain in the document.",
+    "Validate the output with docxedit read using --max-text 0 and docxedit changes."
+  ],
+  "successCriteria": [
+    "Produces an edited .docx under the run directory.",
+    "Uses check before apply.",
+    "Uses --track-changes preserve on apply.",
+    "Does not modify the input copy in place.",
+    "Does not inspect raw OOXML package parts."
+  ],
+  "observerQuestions": [
+    "Was insert-after syntax discoverable?",
+    "Did the agent choose a stable selector and guard where practical?",
+    "Did preserving existing markup feel obvious?"
+  ]
+}

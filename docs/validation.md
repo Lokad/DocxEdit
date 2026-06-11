@@ -86,3 +86,40 @@ expectations:
 
 Expected values are compared to sanitized counts only. Text content is neither printed
 nor stored in the summary artifact.
+
+## Agent Challenges
+
+Agent challenges live under `agent-challenges/challenges/`. They are usability probes
+for fresh Codex agents, not deterministic regression cases. They launch `codex exec`
+against an ignored run directory containing a private input copy, a local `docxedit.ps1`
+wrapper, and a generated prompt.
+
+List probes:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -List
+```
+
+Preview a prompt without launching Codex:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -DryRun
+```
+
+Prepare the ignored run directory without launching Codex:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -PrepareOnly
+```
+
+Run a probe:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory
+```
+
+Artifacts are written under ignored `artifacts/agent-challenges/`. The runner captures
+Codex JSONL events, the final response, post-run `docxedit` read/changes checks for
+generated outputs, and heuristic signals such as whether the agent used `docxedit`,
+`changes`, `check`, `apply`, or forbidden raw OOXML inspection. These artifacts may
+contain private text if the evaluated agent printed it, so do not commit or publish them.
