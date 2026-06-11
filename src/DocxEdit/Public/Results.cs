@@ -75,21 +75,23 @@ public sealed record DocxStyleInfo(string StyleId, string Name, string Type, boo
 
 public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength);
 
-public sealed record DocxChangeInfo(
-    string Id,
-    string Type,
-    string Story,
-    string PartName,
-    string? TargetId,
-    string? Author,
-    DateTimeOffset? TimestampUtc,
-    string? RevisionId,
-    int TextLength,
-    int ChildElementCount,
-    string? CommentId,
-    string? CommentAuthor,
-    DateTimeOffset? CommentTimestampUtc,
-    string? CommentInitials);
+public sealed record DocxChangeInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? TargetId { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public string? RevisionId { get; init; }
+    public int TextLength { get; init; }
+    public int ChildElementCount { get; init; }
+    public string? CommentId { get; init; }
+    public string? CommentAuthor { get; init; }
+    public DateTimeOffset? CommentTimestampUtc { get; init; }
+    public string? CommentInitials { get; init; }
+}
 
 public sealed record DocxChangeSummary(string Type, int Count);
 

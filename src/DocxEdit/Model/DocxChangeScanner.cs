@@ -59,21 +59,23 @@ internal static class DocxChangeScanner
                 cancellationToken.ThrowIfCancellationRequested();
                 string? commentId = ReadCommentId(element);
                 comments.TryGetValue(commentId ?? string.Empty, out CommentMetadata? comment);
-                changes.Add(new DocxChangeInfo(
-                    $"{prefix}.CH{index++:0000}",
-                    ChangeTypes[element.Name.LocalName],
-                    story,
-                    part.Name,
-                    FindTarget(element, targets),
-                    ReadRevisionAuthor(element),
-                    ReadRevisionTimestamp(element),
-                    ReadRevisionId(element),
-                    ReadRevisionTextLength(element),
-                    element.Elements().Count(),
-                    commentId,
-                    comment?.Author,
-                    comment?.TimestampUtc,
-                    comment?.Initials));
+                changes.Add(new DocxChangeInfo
+                {
+                    Id = $"{prefix}.CH{index++:0000}",
+                    Type = ChangeTypes[element.Name.LocalName],
+                    Story = story,
+                    PartName = part.Name,
+                    TargetId = FindTarget(element, targets),
+                    Author = ReadRevisionAuthor(element),
+                    TimestampUtc = ReadRevisionTimestamp(element),
+                    RevisionId = ReadRevisionId(element),
+                    TextLength = ReadRevisionTextLength(element),
+                    ChildElementCount = element.Elements().Count(),
+                    CommentId = commentId,
+                    CommentAuthor = comment?.Author,
+                    CommentTimestampUtc = comment?.TimestampUtc,
+                    CommentInitials = comment?.Initials
+                });
             }
         }
 

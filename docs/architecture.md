@@ -17,3 +17,10 @@ The parser produces structured operation blocks. The engine resolves selectors, 
 ## Public API And CLI
 
 `DocxEditor` is stream-first and returns result objects with success flags, diagnostics, structured data, and operation reports. The CLI is a thin local harness over the public API with text and JSON modes.
+
+## Compatibility
+
+DocxEdit is pre-1.0. Public result models prefer init-only properties over long
+positional records so future metadata can be added as optional properties instead of
+changing constructor and deconstruction shapes. Breaking public API changes may still
+occur before 1.0 when they make the supported surface clearer or safer.

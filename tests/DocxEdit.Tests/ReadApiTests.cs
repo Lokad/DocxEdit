@@ -367,6 +367,28 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void DocxChangeInfoUsesPropertyBasedPublicShape()
+    {
+        Assert.Contains(typeof(DocxChangeInfo).GetConstructors(), constructor => constructor.GetParameters().Length == 0);
+        Assert.DoesNotContain(typeof(DocxChangeInfo).GetConstructors(), constructor => constructor.GetParameters().Length > 0);
+
+        var change = new DocxChangeInfo
+        {
+            Id = "M.CH0001",
+            Type = "inserted-run",
+            Story = "main",
+            PartName = "/word/document.xml",
+            TextLength = 8,
+            ChildElementCount = 1
+        };
+
+        string serialized = JsonSerializer.Serialize(change);
+        Assert.Contains("\"Id\":\"M.CH0001\"", serialized, StringComparison.Ordinal);
+        Assert.Contains("\"Type\":\"inserted-run\"", serialized, StringComparison.Ordinal);
+        Assert.Contains("\"TextLength\":8", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ChangesLinksBodyLevelRangeMarkersToAdjacentTargets()
     {
         using MemoryStream stream = CreateDocxWithBody("""
