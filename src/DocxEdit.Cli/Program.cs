@@ -190,12 +190,18 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit media input.docx [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit media input.docx [--extract <dir>] [--json] [--diagnostics <path>] [--strict]");
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
+        string inputPath = options.Positionals[0];
+        using Stream input = File.OpenRead(inputPath);
         DocxMediaResult result = new DocxEditor().Media(input);
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
+        if (result.Success && options.ExtractPath is not null)
+        {
+            ExtractMedia(inputPath, result.Images, options.ExtractPath);
+        }
+
         if (options.Json)
         {
             WriteJson(result);
@@ -285,6 +291,28 @@ internal static class ProgramMain
     private static void WriteJson(object value)
     {
         Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
+    }
+
+    private static void ExtractMedia(string inputPath, IReadOnlyList<DocxImageInfo> images, string outputDirectory)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        using FileStream input = File.OpenRead(inputPath);
+        using var archive = new System.IO.Compression.ZipArchive(input, System.IO.Compression.ZipArchiveMode.Read);
+        foreach (DocxImageInfo image in images)
+        {
+            string entryName = image.PartName.TrimStart('/');
+            System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(entryName);
+            if (entry is null)
+            {
+                continue;
+            }
+
+            string fileName = $"{image.Id}-{Path.GetFileName(entryName)}";
+            string outputPath = Path.Combine(outputDirectory, fileName);
+            using Stream source = entry.Open();
+            using Stream destination = File.Create(outputPath);
+            source.CopyTo(destination);
+        }
     }
 
     private static string EscapeText(string text)
@@ -378,6 +406,7 @@ internal static class ProgramMain
         string? ReportPath,
         string? OutputPath,
         string? Id,
+        string? ExtractPath,
         string? Error)
     {
         public static ParsedOptions Parse(string[] args)
@@ -391,6 +420,7 @@ internal static class ProgramMain
             string? reportPath = null;
             string? outputPath = null;
             string? id = null;
+            string? extractPath = null;
 
             for (int i = 1; i < args.Length; i++)
             {
@@ -422,6 +452,13 @@ internal static class ProgramMain
                         }
 
                         break;
+                    case "--extract":
+                        if (!TryReadValue(args, ref i, out extractPath))
+                        {
+                            return WithError(command, "Missing value for --extract.");
+                        }
+
+                        break;
                     case "-o":
                     case "--output":
                         if (!TryReadValue(args, ref i, out outputPath))
@@ -448,7 +485,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, diagnosticsPath, reportPath, outputPath, id, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, diagnosticsPath, reportPath, outputPath, id, extractPath, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -465,7 +502,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, null, null, null, null, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, null, null, null, null, null, message);
         }
     }
 }

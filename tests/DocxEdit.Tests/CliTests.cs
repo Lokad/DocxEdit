@@ -60,6 +60,23 @@ public static class CliTests
         Assert.Contains("table styleId=TableGrid", result.Output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CliMediaExtractsReferencedImages()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string extract = Path.Combine(temp.Path, "media");
+        CreateDocx(input);
+
+        CliResult result = RunCli("media", input, "--extract", extract);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("M.I0001", result.Output, StringComparison.Ordinal);
+        string extracted = Path.Combine(extract, "M.I0001-image1.png");
+        Assert.True(File.Exists(extracted));
+        Assert.Equal("fake-png", File.ReadAllText(extracted));
+    }
+
     private static CliResult RunCli(params string[] args)
     {
         string repoRoot = FindRepoRoot();
@@ -110,6 +127,7 @@ public static class CliTests
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
               <Default Extension="xml" ContentType="application/xml"/>
+              <Default Extension="png" ContentType="image/png"/>
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
               <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
             </Types>
@@ -122,12 +140,35 @@ public static class CliTests
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+              <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
             </Relationships>
             """);
         AddEntry(archive, "word/document.xml", """
-            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:document
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
               <w:body>
-                <w:p><w:r><w:t>Revenue increased</w:t></w:r></w:p>
+                <w:p>
+                  <w:r><w:t>Revenue increased</w:t></w:r>
+                  <w:r>
+                    <w:drawing>
+                      <wp:inline>
+                        <a:graphic>
+                          <a:graphicData>
+                            <pic:pic>
+                              <pic:blipFill>
+                                <a:blip r:embed="rImage"/>
+                              </pic:blipFill>
+                            </pic:pic>
+                          </a:graphicData>
+                        </a:graphic>
+                      </wp:inline>
+                    </w:drawing>
+                  </w:r>
+                </w:p>
               </w:body>
             </w:document>
             """);
@@ -141,6 +182,7 @@ public static class CliTests
               </w:style>
             </w:styles>
             """);
+        AddEntry(archive, "word/media/image1.png", "fake-png");
     }
 
     private static void AddEntry(ZipArchive archive, string name, string text)
