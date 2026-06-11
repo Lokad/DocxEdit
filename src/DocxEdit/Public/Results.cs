@@ -112,7 +112,10 @@ public sealed record DocxTableCellInfo(
     string Id,
     int RowIndex,
     int ColumnIndex,
-    string Text);
+    string Text,
+    int ColumnSpan,
+    string? VerticalMerge,
+    bool HasNestedTable);
 
 public sealed record DocxSectionInfo(
     string Id,

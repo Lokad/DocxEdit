@@ -30,6 +30,52 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadExtractsMergedAndNestedTableMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>Wide</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>East</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>Continued</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc>
+                          <w:p><w:r><w:t>Outer</w:t></w:r></w:p>
+                          <w:tbl>
+                            <w:tr><w:tc><w:p><w:r><w:t>Inner</w:t></w:r></w:p></w:tc></w:tr>
+                          </w:tbl>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxTableInfo table = Assert.Single(result.Tables);
+        Assert.Equal(3, table.ColumnCount);
+        DocxTableCellInfo wide = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C01");
+        Assert.Equal(2, wide.ColumnSpan);
+        Assert.Equal("restart", wide.VerticalMerge);
+        Assert.False(wide.HasNestedTable);
+        DocxTableCellInfo east = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C03");
+        Assert.Equal("East", east.Text);
+        DocxTableCellInfo continued = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C01");
+        Assert.Equal("continue", continued.VerticalMerge);
+        DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C02");
+        Assert.True(nested.HasNestedTable);
+        Assert.Contains("M.T0001.R01.C01 column-span=2 vertical-merge=restart", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02.C02 nested-table=true", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void FindMatchesParagraphAndTableCellText()
     {
         using MemoryStream stream = CreateDocx();

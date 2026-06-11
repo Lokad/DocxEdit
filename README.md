@@ -13,13 +13,14 @@ Implemented areas include:
 - safe ZIP/package loading without filesystem extraction;
 - stable IDs for paragraphs, tables, cells, images, sections, headers, and footers;
 - direct paragraph numbering/list metadata (`numId` and level);
+- merged/nested table read metadata;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
 - bookmark and content-control selectors for safe paragraph targeting;
 - patch operations for paragraph text, blocks, styles, simple tables, inline images, and basic sections;
 - no-content tracked-change viewing through `changes`;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full numbering definition/style expansion, comments, full bookmark/content-control models, fields, hyperlinks, floating images, complex tables, real tracked-change generation, and full OOXML schema validation.
+Known limits include full numbering definition/style expansion, comments, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, real tracked-change generation, and full OOXML schema validation.
 
 ## Build And Test
 

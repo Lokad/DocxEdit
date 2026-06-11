@@ -157,12 +157,16 @@ internal static class DocxDocumentScanner
                     AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
                 }
 
+                int columnSpan = ReadCellColumnSpan(cell);
                 cells.Add(new DocxTableCellInfo(
                     $"{id}.R{rowIndex:00}.C{columnIndex:00}",
                     rowIndex,
                     columnIndex,
-                    ReadVisibleText(cell)));
-                columnIndex++;
+                    ReadVisibleText(cell),
+                    columnSpan,
+                    ReadCellVerticalMerge(cell),
+                    cell.Elements(OoxmlNs.W + "tbl").Any()));
+                columnIndex += columnSpan;
             }
 
             maxColumns = Math.Max(maxColumns, columnIndex - 1);
@@ -197,6 +201,28 @@ internal static class DocxDocumentScanner
         }
 
         return string.Concat(buffer);
+    }
+
+    private static int ReadCellColumnSpan(XElement cell)
+    {
+        string? spanText = (string?)cell
+            .Element(OoxmlNs.W + "tcPr")
+            ?.Element(OoxmlNs.W + "gridSpan")
+            ?.Attribute(OoxmlNs.W + "val");
+        return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
+    }
+
+    private static string? ReadCellVerticalMerge(XElement cell)
+    {
+        XElement? verticalMerge = cell
+            .Element(OoxmlNs.W + "tcPr")
+            ?.Element(OoxmlNs.W + "vMerge");
+        if (verticalMerge is null)
+        {
+            return null;
+        }
+
+        return (string?)verticalMerge.Attribute(OoxmlNs.W + "val") ?? "continue";
     }
 
     private static bool IsInsideDeletedRevision(XElement element)

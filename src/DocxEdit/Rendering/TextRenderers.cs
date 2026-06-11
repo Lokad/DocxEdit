@@ -27,7 +27,10 @@ internal static class TextRenderers
             builder.Append(table.Id).Append(" table rows=").Append(table.RowCount).Append(" columns=").Append(table.ColumnCount).AppendLine();
             foreach (DocxTableCellInfo cell in table.Cells)
             {
-                builder.Append("  ").Append(cell.Id).Append(" text=\"").Append(Escape(Truncate(cell.Text, maxText))).AppendLine("\"");
+                string columnSpan = cell.ColumnSpan == 1 ? string.Empty : $" column-span={cell.ColumnSpan}";
+                string verticalMerge = cell.VerticalMerge is null ? string.Empty : $" vertical-merge={cell.VerticalMerge}";
+                string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
+                builder.Append("  ").Append(cell.Id).Append(columnSpan).Append(verticalMerge).Append(nestedTable).Append(" text=\"").Append(Escape(Truncate(cell.Text, maxText))).AppendLine("\"");
             }
         }
 
