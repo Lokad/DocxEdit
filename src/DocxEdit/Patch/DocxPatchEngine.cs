@@ -36,6 +36,10 @@ internal static class DocxPatchEngine
             IReadOnlyList<DocxDiagnostic> operationDiagnostics = operation.OperationName switch
             {
                 "replace-text" => ExecuteReplaceText(package, operation, apply, cancellationToken),
+                "replace-paragraph" => ExecuteReplaceParagraph(package, operation, apply, cancellationToken),
+                "insert-before" => ExecuteInsertBlock(package, operation, insertAfter: false, apply, cancellationToken),
+                "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
+                "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
                 "set-cell" => ExecuteSetCell(package, operation, apply, cancellationToken),
                 "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                 "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
@@ -111,6 +115,137 @@ internal static class DocxPatchEngine
 
         string edited = current.Replace(find!, replacement!, StringComparison.Ordinal);
         ReplaceParagraphText(paragraph, edited);
+        SaveMainDocument(package, document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceParagraph(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string? style = operation.Fields.GetValueOrDefault("style");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!TryParseMainParagraphTarget(target!, out int paragraphOrdinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-paragraph target '{target}'. Expected a main paragraph ID such as M.P0001.", operation, target)];
+        }
+
+        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+        XElement? paragraph = FindParagraph(body, paragraphOrdinal);
+        if (paragraph is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        string current = ReadVisibleText(paragraph);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceParagraphText(paragraph, text!);
+        if (style is not null)
+        {
+            SetParagraphStyle(paragraph, style);
+        }
+
+        SaveMainDocument(package, document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteInsertBlock(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool insertAfter,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? style = operation.Fields.GetValueOrDefault("style");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+        XElement? targetBlock = ResolveMainBlock(body, target!);
+        if (targetBlock is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        XElement paragraph = CreateSimpleParagraph(text!, style);
+        if (insertAfter)
+        {
+            targetBlock.AddAfterSelf(paragraph);
+        }
+        else
+        {
+            targetBlock.AddBeforeSelf(paragraph);
+        }
+
+        SaveMainDocument(package, document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteBlock(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+        XElement? targetBlock = ResolveMainBlock(body, target!);
+        if (targetBlock is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (expected is not null)
+        {
+            string current = ReadVisibleText(targetBlock);
+            if (!string.Equals(current, expected, StringComparison.Ordinal))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+            }
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        targetBlock.Remove();
         SaveMainDocument(package, document);
         return [];
     }
@@ -455,6 +590,28 @@ internal static class DocxPatchEngine
             : body.Elements(OoxmlNs.W + "tbl").ElementAtOrDefault(tableOrdinal - 1);
     }
 
+    private static XElement? FindParagraph(XElement body, int paragraphOrdinal)
+    {
+        return paragraphOrdinal < 1
+            ? null
+            : body.Elements(OoxmlNs.W + "p").ElementAtOrDefault(paragraphOrdinal - 1);
+    }
+
+    private static XElement? ResolveMainBlock(XElement body, string target)
+    {
+        if (TryParseMainParagraphTarget(target, out int paragraphOrdinal))
+        {
+            return FindParagraph(body, paragraphOrdinal);
+        }
+
+        if (TryParseMainTableTarget(target, out int tableOrdinal))
+        {
+            return FindTable(body, tableOrdinal);
+        }
+
+        return null;
+    }
+
     private static string ReadVisibleText(XElement container)
     {
         var builder = new StringBuilder();
@@ -551,9 +708,14 @@ internal static class DocxPatchEngine
         return row;
     }
 
-    private static XElement CreateSimpleParagraph(string text)
+    private static XElement CreateSimpleParagraph(string text, string? style = null)
     {
         var paragraph = new XElement(OoxmlNs.W + "p");
+        if (style is not null)
+        {
+            SetParagraphStyle(paragraph, style);
+        }
+
         var run = new XElement(OoxmlNs.W + "r");
         foreach (XNode node in CreateTextNodes(text))
         {
@@ -562,6 +724,25 @@ internal static class DocxPatchEngine
 
         paragraph.Add(run);
         return paragraph;
+    }
+
+    private static void SetParagraphStyle(XElement paragraph, string style)
+    {
+        XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
+        if (paragraphProperties is null)
+        {
+            paragraphProperties = new XElement(OoxmlNs.W + "pPr");
+            paragraph.AddFirst(paragraphProperties);
+        }
+
+        XElement? paragraphStyle = paragraphProperties.Element(OoxmlNs.W + "pStyle");
+        if (paragraphStyle is null)
+        {
+            paragraphStyle = new XElement(OoxmlNs.W + "pStyle");
+            paragraphProperties.AddFirst(paragraphStyle);
+        }
+
+        paragraphStyle.SetAttributeValue(OoxmlNs.W + "val", style);
     }
 
     private static IEnumerable<XNode> CreateTextNodes(string text)

@@ -170,6 +170,124 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyReplaceParagraphUpdatesTextAndStyle()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Old heading</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            expect-text Old heading
+            style Heading2
+            text New heading
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("New heading", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Contains("w:val=\"Heading2\"", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyInsertBeforeParagraphAddsParagraphAtTargetPosition()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-before
+            target M.P0002
+            text Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal(new[] { "One", "Inserted", "Two" }, new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
+    }
+
+    [Fact]
+    public static void ApplyInsertAfterTableAddsParagraphAfterTable()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+                    <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.T0001
+            style Normal
+            text Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(new[] { "One", "Inserted", "Two" }, read.Paragraphs.Select(paragraph => paragraph.Text));
+        output.Position = 0;
+        Assert.Contains("w:val=\"Normal\"", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyDeleteBlockRemovesParagraphOrTable()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+                    <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.T0001
+            end
+
+            op delete-block
+            target M.P0001
+            expect-text One
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Empty(read.Tables);
+        Assert.Equal("Two", Assert.Single(read.Paragraphs).Text);
+    }
+
+    [Fact]
     public static void ApplySetCellPreservesCellPropertiesAndDoesNotMutateInput()
     {
         using MemoryStream input = CreateDocxWithBody("""
