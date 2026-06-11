@@ -66,3 +66,7 @@ Parsed but not fully implemented fields include `preserve-size` and `caption`. `
 
 `delete-row` `expect-contains` is a row-text guard: the operation fails unless the
 resolved row's final visible text contains the supplied value exactly.
+
+`replace-image` `alt` updates the target inline or anchored DrawingML object's
+description while replacing the media bytes. Use `set-image-alt` when only the
+description should change.

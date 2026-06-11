@@ -439,6 +439,8 @@ internal static class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? asset = ReadRequiredField(operation, "asset", diagnostics);
+        bool hasAlt = operation.Fields.ContainsKey("alt");
+        string? alt = operation.Fields.GetValueOrDefault("alt");
         if (diagnostics.Count != 0)
         {
             return diagnostics;
@@ -471,12 +473,25 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E5204", $"Replacing image content type '{imageTarget.Part.ContentType}' with '{contentType}' is not supported for existing media part {imageTarget.Part.Name}.", operation, target)];
         }
 
+        XElement? imageContainer = null;
+        if (hasAlt &&
+            !TryGetImageDrawingContainer(imageTarget, target!, operation, out imageContainer, out DocxDiagnostic? altDiagnostic))
+        {
+            return [altDiagnostic!];
+        }
+
         if (!apply)
         {
             return [];
         }
 
         package.ReplacePartBytes(imageTarget.Part.Name, bytes);
+        if (hasAlt)
+        {
+            SetImageAlt(imageContainer!, alt!, target!);
+            SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        }
+
         return [];
     }
 
@@ -938,12 +953,9 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
-        XElement? container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
-            ?? drawing?.Descendants(OoxmlNs.Wp + "anchor").FirstOrDefault();
-        if (container is null)
+        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
-            return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' does not have editable DrawingML properties.", operation, target)];
+            return [diagnostic!];
         }
 
         if (!apply)
@@ -951,6 +963,33 @@ internal static class DocxPatchEngine
             return [];
         }
 
+        SetImageAlt(imageContainer!, alt!, target!);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        return [];
+    }
+
+    private static bool TryGetImageDrawingContainer(
+        ImageBlipTarget imageTarget,
+        string target,
+        DocxPatchOperation operation,
+        out XElement? container,
+        out DocxDiagnostic? diagnostic)
+    {
+        XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
+        container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
+            ?? drawing?.Descendants(OoxmlNs.Wp + "anchor").FirstOrDefault();
+        if (container is null)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' does not have editable DrawingML properties.", operation, target);
+            return false;
+        }
+
+        diagnostic = null;
+        return true;
+    }
+
+    private static void SetImageAlt(XElement container, string alt, string target)
+    {
         XElement? docPr = container.Element(OoxmlNs.Wp + "docPr");
         if (docPr is null)
         {
@@ -961,8 +1000,6 @@ internal static class DocxPatchEngine
         }
 
         docPr.SetAttributeValue("descr", alt);
-        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
-        return [];
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteImage(

@@ -469,6 +469,7 @@ internal static class ProgramMain
             op replace-image
             target M.I0001
             asset chart.png
+            alt Chart after update
             end
 
             op delete-row
@@ -478,6 +479,7 @@ internal static class ProgramMain
 
             Selectors may use explicit IDs, heading:"Text", heading:2:"Text", text:"contained text", bookmark:"Name", or content-control:"TagOrAlias" for paragraph targets.
             delete-row expect-contains checks that the target row's final visible text contains the supplied value.
+            replace-image alt updates the image DrawingML description while replacing the media bytes.
             The expect-hash feature is unsupported and is rejected. Some parsed fields, such as preserve-size and caption, are not implemented yet.
             """);
     }

@@ -1317,6 +1317,7 @@ public static class PatchApplyTests
             op replace-image
             target M.I0001
             asset chart.png
+            alt Updated chart
             end
             """);
 
@@ -1325,6 +1326,10 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         output.Position = 0;
         Assert.Equal("new-png", ReadEntry(output, "word/media/image1.png"));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("descr=\"Updated chart\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"Old chart\"", xml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1474,10 +1479,6 @@ public static class PatchApplyTests
             op replace-image
             target H001.I0001
             asset header.png
-            end
-
-            op set-image-alt
-            target H001.I0001
             alt Updated header image
             end
 
