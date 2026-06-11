@@ -156,6 +156,49 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireFailsUnsupportedOperations()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestWarnsAndAppliesDirectly()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
+        output.Position = 0;
+        Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
     public static void ApplyReplaceTextFailsWhenFindTextIsMissing()
     {
         using MemoryStream input = CreateDocx("Revenue increased by 8.4%.");

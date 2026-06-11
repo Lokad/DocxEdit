@@ -37,27 +37,40 @@ internal static class DocxPatchEngine
         foreach (DocxPatchOperation operation in patch.Operations)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DocxDiagnostic> operationDiagnostics = operation.OperationName switch
+            var operationDiagnostics = new List<DocxDiagnostic>();
+            if (options.TrackChanges == TrackChangesMode.Require)
             {
-                "replace-text" => ExecuteReplaceText(package, operation, apply, cancellationToken),
-                "replace-paragraph" => ExecuteReplaceParagraph(package, operation, apply, cancellationToken),
-                "insert-before" => ExecuteInsertBlock(package, operation, insertAfter: false, apply, cancellationToken),
-                "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
-                "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
-                "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
-                "set-cell" => ExecuteSetCell(package, operation, apply, cancellationToken),
-                "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
-                "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
-                "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
-                "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
-                "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
-                "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
-                "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
-                "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
-                "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
-                "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, apply, cancellationToken),
-                _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
-            };
+                operationDiagnostics.Add(Diagnostic(DocxSeverity.Error, "E6001", $"TrackChangesMode.Require is not supported for operation '{operation.OperationName}'.", operation, operation.Fields.GetValueOrDefault("target")));
+            }
+            else
+            {
+                if (options.TrackChanges == TrackChangesMode.Suggest)
+                {
+                    operationDiagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4001", $"TrackChangesMode.Suggest is not supported for operation '{operation.OperationName}'; applying the edit directly.", operation, operation.Fields.GetValueOrDefault("target")));
+                }
+
+                operationDiagnostics.AddRange(operation.OperationName switch
+                {
+                    "replace-text" => ExecuteReplaceText(package, operation, apply, cancellationToken),
+                    "replace-paragraph" => ExecuteReplaceParagraph(package, operation, apply, cancellationToken),
+                    "insert-before" => ExecuteInsertBlock(package, operation, insertAfter: false, apply, cancellationToken),
+                    "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
+                    "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
+                    "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
+                    "set-cell" => ExecuteSetCell(package, operation, apply, cancellationToken),
+                    "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
+                    "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
+                    "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
+                    "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
+                    "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
+                    "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
+                    "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
+                    "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
+                    "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
+                    "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, apply, cancellationToken),
+                    _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
+                });
+            }
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
             diagnostics.AddRange(operationDiagnostics);
             reports.Add(new DocxPatchOperationReport(
