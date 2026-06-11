@@ -115,6 +115,56 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyMarksFieldsDirtyByDefault()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string settings = ReadEntry(output, "word/settings.xml");
+        Assert.Contains("updateFields", settings, StringComparison.Ordinal);
+        Assert.Contains("w:val=\"true\"", settings, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("relationships/settings", ReadEntry(output, "word/_rels/document.xml.rels"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("wordprocessingml.settings+xml", ReadEntry(output, "[Content_Types].xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyCanSkipMarkingFieldsDirty()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { MarkFieldsDirtyWhenEditing = false });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.False(EntryExists(output, "word/settings.xml"));
+    }
+
+    [Fact]
     public static void ReadWorksWithNonSeekableInputStream()
     {
         using MemoryStream seekable = CreateDocx("Revenue increased.");
@@ -1493,6 +1543,12 @@ public static class PatchApplyTests
         using Stream stream = entry.Open();
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd();
+    }
+
+    private static bool EntryExists(Stream docx, string entryName)
+    {
+        using var archive = new ZipArchive(docx, ZipArchiveMode.Read, leaveOpen: true);
+        return archive.GetEntry(entryName) is not null;
     }
 
     private static int CountOccurrences(string text, string value)

@@ -8,6 +8,8 @@ namespace DocxEdit;
 
 internal static class DocxPatchEngine
 {
+    private const string SettingsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
+
     private static readonly IReadOnlyDictionary<XName, string> ProtectedTextEditElements = new Dictionary<XName, string>
     {
         [OoxmlNs.W + "hyperlink"] = "hyperlink",
@@ -113,6 +115,14 @@ internal static class DocxPatchEngine
                 operation.Fields.GetValueOrDefault("target"),
                 operationSuccess,
                 operationDiagnostics));
+        }
+
+        if (apply &&
+            options.MarkFieldsDirtyWhenEditing &&
+            patch.Operations.Count != 0 &&
+            diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+        {
+            diagnostics.AddRange(MarkFieldsDirty(package, cancellationToken));
         }
 
         if (apply && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
@@ -2031,6 +2041,67 @@ internal static class DocxPatchEngine
         return null;
     }
 
+    private static IReadOnlyList<DocxDiagnostic> MarkFieldsDirty(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return [new DocxDiagnostic(DocxSeverity.Error, "E9001", "Post-edit validation failed: main document part is missing.")];
+        }
+
+        string settingsPartName = ResolveOrCreateSettingsPart(package, cancellationToken);
+        OoxmlPart settingsPart = package.GetPart(settingsPartName)
+            ?? throw new InvalidDataException($"Settings part '{settingsPartName}' does not exist.");
+        using Stream stream = settingsPart.OpenRead();
+        XDocument document = SafeXml.Load(stream, cancellationToken);
+        XElement settings = document.Root
+            ?? throw new InvalidDataException($"Settings part '{settingsPartName}' has no XML root.");
+        if (settings.Name != OoxmlNs.W + "settings")
+        {
+            return [new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Post-edit validation failed for {settingsPartName}: Expected root element 'settings', found '{settings.Name.LocalName}'.", PartName: settingsPartName)];
+        }
+
+        XElement? updateFields = settings.Element(OoxmlNs.W + "updateFields");
+        if (updateFields is null)
+        {
+            updateFields = new XElement(OoxmlNs.W + "updateFields");
+            settings.Add(updateFields);
+        }
+
+        updateFields.SetAttributeValue(OoxmlNs.W + "val", "true");
+        SaveDocumentPart(package, settingsPartName, document);
+        return [];
+    }
+
+    private static string ResolveOrCreateSettingsPart(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        OoxmlRelationship? relationship = package
+            .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+            .FirstOrDefault(relationship =>
+                !relationship.IsExternal &&
+                relationship.Type == OoxmlRelTypes.Settings &&
+                relationship.ResolvedTarget is not null);
+        if (relationship?.ResolvedTarget is not null)
+        {
+            return relationship.ResolvedTarget;
+        }
+
+        const string settingsPartName = "/word/settings.xml";
+        if (package.GetPart(settingsPartName) is null)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
+                """);
+            package.AddPart(settingsPartName, SettingsContentType, bytes);
+        }
+
+        string relationshipId = OoxmlIds.AllocateRelationshipId(package
+            .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+            .Select(relationship => relationship.Id));
+        package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Settings, GetRelativeRelationshipTarget(package.MainDocumentPartName!, settingsPartName));
+        return settingsPartName;
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ValidateEditedPackage(OoxmlPackage package, CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -2116,6 +2187,12 @@ internal static class DocxPatchEngine
         if (string.Equals(part.ContentType, "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml", StringComparison.OrdinalIgnoreCase))
         {
             RequireRoot(part, root, OoxmlNs.W + "ftr", diagnostics);
+            return;
+        }
+
+        if (string.Equals(part.ContentType, SettingsContentType, StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.W + "settings", diagnostics);
         }
     }
 
