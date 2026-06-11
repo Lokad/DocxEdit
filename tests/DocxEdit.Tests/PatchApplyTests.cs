@@ -93,6 +93,40 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyWorksWithMemoryStreamInputAndOutput()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ReadWorksWithNonSeekableInputStream()
+    {
+        using MemoryStream seekable = CreateDocx("Revenue increased.");
+        using var nonSeekable = new NonSeekableReadStream(seekable.ToArray());
+
+        DocxReadResult result = new DocxEditor().Read(nonSeekable);
+
+        Assert.True(result.Success);
+        Assert.Equal("Revenue increased.", Assert.Single(result.Paragraphs).Text);
+    }
+
+    [Fact]
     public static void ApplyReplaceTextWorksAcrossAdjacentRuns()
     {
         using MemoryStream input = CreateDocxWithRuns("Revenue ", "increased");
@@ -900,5 +934,28 @@ public static class PatchApplyTests
             fileNameHint = this.fileNameHint;
             return true;
         }
+    }
+
+    private sealed class NonSeekableReadStream : MemoryStream
+    {
+        public NonSeekableReadStream(byte[] bytes)
+            : base(bytes, writable: false)
+        {
+        }
+
+        public override bool CanSeek => false;
+
+        public override long Seek(long offset, SeekOrigin loc)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override long Position
+        {
+            get => base.Position;
+            set => throw new NotSupportedException();
+        }
+
+        public override long Length => throw new NotSupportedException();
     }
 }
