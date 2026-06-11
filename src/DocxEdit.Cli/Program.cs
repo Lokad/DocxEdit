@@ -251,7 +251,11 @@ internal static class ProgramMain
                 string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
                 string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
                 string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
-                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}");
+                string commentId = change.CommentId is null ? string.Empty : $" comment-id={EscapeText(change.CommentId)}";
+                string commentAuthor = change.CommentAuthor is null ? string.Empty : $" comment-author=\"{EscapeText(change.CommentAuthor)}\"";
+                string commentTimestamp = change.CommentTimestampUtc is null ? string.Empty : $" comment-timestamp-utc={change.CommentTimestampUtc:O}";
+                string commentInitials = change.CommentInitials is null ? string.Empty : $" comment-initials=\"{EscapeText(change.CommentInitials)}\"";
+                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}{commentId}{commentAuthor}{commentTimestamp}{commentInitials}");
             }
         }
 

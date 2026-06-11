@@ -320,6 +320,77 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ChangesListsCommentMarkupWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment-range-start" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment-range-end" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment-reference" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment" && summary.Count == 1);
+
+        DocxChangeInfo commentStart = Assert.Single(result.Changes, change => change.Type == "comment-range-start");
+        Assert.Equal("M.P0001", commentStart.TargetId);
+        Assert.Null(commentStart.RevisionId);
+        Assert.Equal("3", commentStart.CommentId);
+        Assert.Equal("Reviewer", commentStart.CommentAuthor);
+        Assert.Equal("RV", commentStart.CommentInitials);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-07T12:00:00Z").ToUniversalTime(), commentStart.CommentTimestampUtc);
+
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal("comments[1]", comment.Story);
+        Assert.Equal("/word/comments.xml", comment.PartName);
+        Assert.Equal("C001.C0001", comment.TargetId);
+        Assert.Equal(20, comment.TextLength);
+
+        string serialized = JsonSerializer.Serialize(result);
+        Assert.DoesNotContain("Private comment text", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesLinksBodyLevelRangeMarkersToAdjacentTargets()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:moveFromRangeStart w:id="4" w:author="Alice"/>
+                    <w:p><w:r><w:t>Moved paragraph</w:t></w:r></w:p>
+                    <w:moveFromRangeEnd w:id="4"/>
+                    <w:customXmlDelRangeStart w:id="5" w:author="Bob"/>
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+                    <w:customXmlDelRangeEnd w:id="5"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal("M.P0001", Assert.Single(result.Changes, change => change.Type == "move-from-range-start").TargetId);
+        Assert.Equal("M.P0001", Assert.Single(result.Changes, change => change.Type == "move-from-range-end").TargetId);
+        Assert.Equal("M.T0001", Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start").TargetId);
+        Assert.Equal("M.T0001", Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end").TargetId);
+    }
+
+    [Fact]
     public static void ReadCanSwitchTrackedChangeTextViews()
     {
         using MemoryStream finalStream = CreateDocxWithBody(TrackedChangeBodyXml);
@@ -650,6 +721,45 @@ public static class ReadApiTests
                   </w:body>
                 </w:document>
                 """);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithBodyAndComments(string bodyXml, string commentsXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/comments.xml", commentsXml);
         }
 
         stream.Position = 0;

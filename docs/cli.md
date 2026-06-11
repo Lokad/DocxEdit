@@ -16,7 +16,7 @@ dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
 - `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
 - `changes input.docx [--json] [--diagnostics path] [--strict]`
 
-`changes` lists existing tracked-change markup without printing revision text. It reports counts, IDs, type, story, part, target, revision metadata, text length, and child element count.
+`changes` lists existing tracked-change and comment markup without printing revision or comment text. It reports counts, IDs, type, story, part, target, revision/comment metadata, text length, and child element count.
 Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 
 ## Patch

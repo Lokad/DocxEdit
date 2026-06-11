@@ -27,7 +27,11 @@ internal static class DocxChangeScanner
         ["customXmlInsRangeStart"] = "custom-xml-insert-range-start",
         ["customXmlInsRangeEnd"] = "custom-xml-insert-range-end",
         ["customXmlDelRangeStart"] = "custom-xml-delete-range-start",
-        ["customXmlDelRangeEnd"] = "custom-xml-delete-range-end"
+        ["customXmlDelRangeEnd"] = "custom-xml-delete-range-end",
+        ["commentRangeStart"] = "comment-range-start",
+        ["commentRangeEnd"] = "comment-range-end",
+        ["commentReference"] = "comment-reference",
+        ["comment"] = "comment"
     };
 
     public static IReadOnlyList<DocxChangeInfo> Scan(
@@ -36,6 +40,7 @@ internal static class DocxChangeScanner
     {
         cancellationToken.ThrowIfCancellationRequested();
         var changes = new List<DocxChangeInfo>();
+        IReadOnlyDictionary<string, CommentMetadata> comments = BuildCommentMap(package, cancellationToken);
         int fallbackPartIndex = 1;
         foreach (OoxmlPart part in package.Parts.Values
             .Where(IsWordXmlPart)
@@ -52,17 +57,23 @@ internal static class DocxChangeScanner
             foreach (XElement element in document.Descendants().Where(IsChangeElement))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                string? commentId = ReadCommentId(element);
+                comments.TryGetValue(commentId ?? string.Empty, out CommentMetadata? comment);
                 changes.Add(new DocxChangeInfo(
                     $"{prefix}.CH{index++:0000}",
                     ChangeTypes[element.Name.LocalName],
                     story,
                     part.Name,
-                    FindNearestTarget(element, targets),
-                    (string?)element.Attribute(OoxmlNs.W + "author"),
-                    ParseDate((string?)element.Attribute(OoxmlNs.W + "date")),
-                    (string?)element.Attribute(OoxmlNs.W + "id"),
+                    FindTarget(element, targets),
+                    ReadRevisionAuthor(element),
+                    ReadRevisionTimestamp(element),
+                    ReadRevisionId(element),
                     ReadRevisionTextLength(element),
-                    element.Elements().Count()));
+                    element.Elements().Count(),
+                    commentId,
+                    comment?.Author,
+                    comment?.TimestampUtc,
+                    comment?.Initials));
             }
         }
 
@@ -101,6 +112,19 @@ internal static class DocxChangeScanner
         if (package.MainDocumentPartName is not null)
         {
             IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName);
+            int commentsIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"comments[{commentsIndex}]";
+                }
+
+                commentsIndex++;
+            }
+
             int headerIndex = 1;
             foreach (OoxmlRelationship relationship in relationships
                 .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
@@ -141,6 +165,19 @@ internal static class DocxChangeScanner
         if (package.MainDocumentPartName is not null)
         {
             IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName);
+            int commentsIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"C{commentsIndex:000}";
+                }
+
+                commentsIndex++;
+            }
+
             int headerIndex = 1;
             foreach (OoxmlRelationship relationship in relationships
                 .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
@@ -175,6 +212,17 @@ internal static class DocxChangeScanner
     {
         var targets = new Dictionary<XElement, string>();
         XElement root = document.Root ?? new XElement("empty");
+        if (root.Name == OoxmlNs.W + "comments")
+        {
+            int commentIndex = 1;
+            foreach (XElement comment in root.Elements(OoxmlNs.W + "comment"))
+            {
+                targets[comment] = $"{prefix}.C{commentIndex++:0000}";
+            }
+
+            return targets;
+        }
+
         XElement body = root.Element(OoxmlNs.W + "body") ?? root;
         int paragraphIndex = 1;
         int tableIndex = 1;
@@ -218,6 +266,12 @@ internal static class DocxChangeScanner
         return targets;
     }
 
+    private static string? FindTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    {
+        return FindNearestTarget(element, targets) ??
+            FindAdjacentRangeTarget(element, targets);
+    }
+
     private static string? FindNearestTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
     {
         foreach (XElement candidate in element.AncestorsAndSelf())
@@ -229,6 +283,153 @@ internal static class DocxChangeScanner
         }
 
         return null;
+    }
+
+    private static string? FindAdjacentRangeTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    {
+        if (!IsRangeBoundaryElement(element))
+        {
+            return null;
+        }
+
+        bool isEnd = element.Name.LocalName.EndsWith("End", StringComparison.Ordinal);
+        IEnumerable<XElement> siblings = isEnd
+            ? element.ElementsBeforeSelf().Reverse()
+            : element.ElementsAfterSelf();
+        foreach (XElement sibling in siblings)
+        {
+            if (TryFindTargetInSubtree(sibling, targets, preferLast: isEnd, out string? targetId))
+            {
+                return targetId;
+            }
+        }
+
+        siblings = isEnd
+            ? element.ElementsAfterSelf()
+            : element.ElementsBeforeSelf().Reverse();
+        foreach (XElement sibling in siblings)
+        {
+            if (TryFindTargetInSubtree(sibling, targets, preferLast: !isEnd, out string? targetId))
+            {
+                return targetId;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryFindTargetInSubtree(
+        XElement element,
+        IReadOnlyDictionary<XElement, string> targets,
+        bool preferLast,
+        out string? targetId)
+    {
+        if (targets.TryGetValue(element, out targetId))
+        {
+            return true;
+        }
+
+        IEnumerable<XElement> descendants = preferLast
+            ? element.Descendants().Reverse()
+            : element.Descendants();
+        foreach (XElement descendant in descendants)
+        {
+            if (targets.TryGetValue(descendant, out targetId))
+            {
+                return true;
+            }
+        }
+
+        targetId = null;
+        return false;
+    }
+
+    private static bool IsRangeBoundaryElement(XElement element)
+    {
+        if (element.Name.Namespace != OoxmlNs.W)
+        {
+            return false;
+        }
+
+        return element.Name.LocalName.EndsWith("RangeStart", StringComparison.Ordinal) ||
+            element.Name.LocalName.EndsWith("RangeEnd", StringComparison.Ordinal) ||
+            element.Name.LocalName is "commentRangeStart" or "commentRangeEnd";
+    }
+
+    private static IReadOnlyDictionary<string, CommentMetadata> BuildCommentMap(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return new Dictionary<string, CommentMetadata>(StringComparer.Ordinal);
+        }
+
+        var comments = new Dictionary<string, CommentMetadata>(StringComparer.Ordinal);
+        foreach (OoxmlRelationship relationship in package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget!);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XElement comment in document.Descendants(OoxmlNs.W + "comment"))
+            {
+                string? id = (string?)comment.Attribute(OoxmlNs.W + "id");
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+
+                comments[id] = new CommentMetadata(
+                    (string?)comment.Attribute(OoxmlNs.W + "author"),
+                    ParseDate((string?)comment.Attribute(OoxmlNs.W + "date")),
+                    (string?)comment.Attribute(OoxmlNs.W + "initials"));
+            }
+        }
+
+        return comments;
+    }
+
+    private static string? ReadRevisionAuthor(XElement element)
+    {
+        return IsCommentElement(element)
+            ? null
+            : (string?)element.Attribute(OoxmlNs.W + "author");
+    }
+
+    private static DateTimeOffset? ReadRevisionTimestamp(XElement element)
+    {
+        return IsCommentElement(element)
+            ? null
+            : ParseDate((string?)element.Attribute(OoxmlNs.W + "date"));
+    }
+
+    private static string? ReadRevisionId(XElement element)
+    {
+        return IsCommentElement(element)
+            ? null
+            : (string?)element.Attribute(OoxmlNs.W + "id");
+    }
+
+    private static string? ReadCommentId(XElement element)
+    {
+        return IsCommentElement(element)
+            ? (string?)element.Attribute(OoxmlNs.W + "id")
+            : null;
+    }
+
+    private static bool IsCommentElement(XElement element)
+    {
+        return element.Name.Namespace == OoxmlNs.W &&
+            element.Name.LocalName is "comment" or "commentRangeStart" or "commentRangeEnd" or "commentReference";
     }
 
     private static DateTimeOffset? ParseDate(string? value)
@@ -260,3 +461,8 @@ internal static class DocxChangeScanner
         return length;
     }
 }
+
+internal sealed record CommentMetadata(
+    string? Author,
+    DateTimeOffset? TimestampUtc,
+    string? Initials);

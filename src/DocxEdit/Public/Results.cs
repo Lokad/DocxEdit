@@ -85,7 +85,11 @@ public sealed record DocxChangeInfo(
     DateTimeOffset? TimestampUtc,
     string? RevisionId,
     int TextLength,
-    int ChildElementCount);
+    int ChildElementCount,
+    string? CommentId,
+    string? CommentAuthor,
+    DateTimeOffset? CommentTimestampUtc,
+    string? CommentInitials);
 
 public sealed record DocxChangeSummary(string Type, int Count);
 
