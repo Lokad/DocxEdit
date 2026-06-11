@@ -81,4 +81,26 @@ public static class PatchParserTests
         Assert.Equal("replace-text", patch.Operations[0].OperationName);
         Assert.Equal("hello\nworld", patch.Operations[0].Fields["with"]);
     }
+
+    [Fact]
+    public static void ParsePatchPreservesRepeatedFieldsInOrder()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            cell North
+            cell Revenue
+            end
+            """));
+
+        Assert.True(patch.Success);
+        DocxPatchOperation operation = Assert.Single(patch.Operations);
+        Assert.Equal(new[] { "target", "cell", "cell" }, operation.FieldValues.Select(field => field.Name));
+        Assert.Equal(new[] { "M.T0001", "North", "Revenue" }, operation.FieldValues.Select(field => field.Value));
+        Assert.Equal("Revenue", operation.Fields["cell"]);
+    }
 }

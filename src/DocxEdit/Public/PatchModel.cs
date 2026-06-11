@@ -9,5 +9,9 @@ public sealed record DocxPatch(
 public sealed record DocxPatchOperation(
     int Index,
     string OperationName,
-    IReadOnlyDictionary<string, string> Fields);
+    IReadOnlyDictionary<string, string> Fields)
+{
+    public IReadOnlyList<DocxPatchField> FieldValues { get; init; } = [];
+}
 
+public sealed record DocxPatchField(string Name, string Value);

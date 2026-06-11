@@ -55,6 +55,7 @@ internal static class DocxPatchParser
             }
 
             var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+            var fieldValues = new List<DocxPatchField>();
             i++;
             for (; i < lines.Length; i++)
             {
@@ -97,6 +98,7 @@ internal static class DocxPatchParser
                 }
 
                 fields[key] = value;
+                fieldValues.Add(new DocxPatchField(key, value));
             }
 
             if (i >= lines.Length || lines[i].Trim() != "end")
@@ -104,7 +106,10 @@ internal static class DocxPatchParser
                 return Error("E2009", $"Operation '{operationName}' is missing 'end'.", i + 1, 1);
             }
 
-            operations.Add(new DocxPatchOperation(index++, operationName, fields));
+            operations.Add(new DocxPatchOperation(index++, operationName, fields)
+            {
+                FieldValues = fieldValues
+            });
         }
 
         return new DocxPatch(true, majorVersion, operations, []);
@@ -128,4 +133,3 @@ internal static class DocxPatchParser
         return 1;
     }
 }
-
