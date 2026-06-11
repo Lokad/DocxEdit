@@ -89,6 +89,15 @@ internal static class DocxUnsupportedFeatureScanner
         AddWarningIfAny(diagnostics, "W1005", "bookmark", CountAny(document, [OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1006", "content-control", Count(document, OoxmlNs.W + "sdt"), partName, story, "Content controls are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1007", "floating-image", Count(document, OoxmlNs.Wp + "anchor"), partName, story, "Floating images are preserved but are not listed as editable images.");
+        AddWarningIfAny(diagnostics, "W1009", "chart", CountWhere(document, element => element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)), partName, story, "Charts are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1010", "smart-art", CountWhere(document, element => element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)), partName, story, "SmartArt and diagram content are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1011", "equation", CountWhere(document, element => element.Name.NamespaceName == "http://schemas.openxmlformats.org/officeDocument/2006/math"), partName, story, "Equations are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1012", "shape", CountWhere(document, element =>
+            element.Name == OoxmlNs.W + "pict" ||
+            element.Name.LocalName == "shape" ||
+            element.Name.NamespaceName.Contains("vml", StringComparison.OrdinalIgnoreCase) ||
+            element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase)), partName, story, "Shapes are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1013", "alt-chunk", Count(document, OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
 
         int externalImages = package
             .GetRelationships(partName, cancellationToken)
@@ -104,6 +113,11 @@ internal static class DocxUnsupportedFeatureScanner
     private static int CountAny(XDocument document, IReadOnlyCollection<XName> names)
     {
         return document.Descendants().Count(element => names.Contains(element.Name));
+    }
+
+    private static int CountWhere(XDocument document, Func<XElement, bool> predicate)
+    {
+        return document.Descendants().Count(predicate);
     }
 
     private static void AddWarningIfAny(

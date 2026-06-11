@@ -305,6 +305,30 @@ public static class ReadApiTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1008" && diagnostic.Feature == "external-image");
     }
 
+    [Fact]
+    public static void ReadWarnsAboutUnsupportedPreservedObjects()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                      <w:r>
+                        <w:drawing>
+                          <c:chart r:id="rChart"/>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:altChunk xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rAltChunk"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1009" && diagnostic.Feature == "chart");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1013" && diagnostic.Feature == "alt-chunk");
+    }
+
     private static MemoryStream CreateDocx()
     {
         var stream = new MemoryStream();
