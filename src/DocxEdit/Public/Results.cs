@@ -34,6 +34,7 @@ public sealed record DocxDumpResult : DocxOperationResult
 {
     public string TargetId { get; init; } = string.Empty;
     public string? Text { get; init; }
+    public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
 }
 
 public sealed record DocxStylesResult : DocxOperationResult
@@ -53,6 +54,8 @@ public sealed record DocxChangesResult : DocxOperationResult
     public IReadOnlyList<DocxChangeInfo> Changes { get; init; } = [];
     public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
     public IReadOnlyList<DocxChangeGroupSummary> GroupSummary { get; init; } = [];
+    public IReadOnlyList<DocxChangeTargetSummary> TargetSummary { get; init; } = [];
+    public IReadOnlyList<DocxCommentThreadSummary> CommentSummary { get; init; } = [];
 }
 
 public sealed record DocxCheckResult : DocxOperationResult
@@ -96,11 +99,44 @@ public sealed record DocxChangeInfo
     public string? CommentReferenceTargetId { get; init; }
     public string? CommentAnchorStory { get; init; }
     public string? CommentAnchorPartName { get; init; }
+    public string TargetStatus { get; init; } = "targetless";
+    public string? TargetNote { get; init; }
 }
 
 public sealed record DocxChangeSummary(string Type, int Count);
 
 public sealed record DocxChangeGroupSummary(string Group, string Key, string Type, int Count);
+
+public sealed record DocxChangeTargetSummary
+{
+    public string TargetId { get; init; } = string.Empty;
+    public int Count { get; init; }
+    public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
+}
+
+public sealed record DocxCommentThreadSummary
+{
+    public string CommentId { get; init; } = string.Empty;
+    public string? AnchorTargetId { get; init; }
+    public string? ReferenceTargetId { get; init; }
+    public string? AnchorStory { get; init; }
+    public string? AnchorPartName { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public int Count { get; init; }
+    public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
+}
+
+public sealed record DocxDumpRunInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Text { get; init; } = string.Empty;
+    public string? MarkupType { get; init; }
+    public string? RevisionId { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public string? CommentId { get; init; }
+}
 
 public sealed record DocxParagraphInfo(
     string Id,

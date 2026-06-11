@@ -61,13 +61,14 @@ internal static class DocxChangeScanner
                 string? commentId = ReadCommentId(element);
                 comments.TryGetValue(commentId ?? string.Empty, out CommentMetadata? comment);
                 commentAnchors.TryGetValue(commentId ?? string.Empty, out CommentAnchorMetadata? commentAnchor);
+                string? targetId = FindTarget(element, targets);
                 changes.Add(new DocxChangeInfo
                 {
                     Id = $"{prefix}.CH{index++:0000}",
                     Type = ChangeTypes[element.Name.LocalName],
                     Story = story,
                     PartName = part.Name,
-                    TargetId = FindTarget(element, targets),
+                    TargetId = targetId,
                     Author = ReadRevisionAuthor(element),
                     TimestampUtc = ReadRevisionTimestamp(element),
                     RevisionId = ReadRevisionId(element),
@@ -80,7 +81,9 @@ internal static class DocxChangeScanner
                     CommentAnchorTargetId = commentAnchor?.AnchorTargetId,
                     CommentReferenceTargetId = commentAnchor?.ReferenceTargetId,
                     CommentAnchorStory = commentAnchor?.Story,
-                    CommentAnchorPartName = commentAnchor?.PartName
+                    CommentAnchorPartName = commentAnchor?.PartName,
+                    TargetStatus = GetTargetStatus(targetId, commentAnchor?.AnchorTargetId),
+                    TargetNote = GetTargetNote(targetId, commentAnchor?.AnchorTargetId)
                 });
             }
         }
@@ -94,6 +97,46 @@ internal static class DocxChangeScanner
             .GroupBy(change => change.Type, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group => new DocxChangeSummary(group.Key, group.Count()))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<DocxChangeTargetSummary> SummarizeTargets(IReadOnlyList<DocxChangeInfo> changes)
+    {
+        return changes
+            .GroupBy(change => GetGroupTargetKey(change) ?? "(none)", StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new DocxChangeTargetSummary
+            {
+                TargetId = group.Key,
+                Count = group.Count(),
+                Summary = Summarize(group.ToArray())
+            })
+            .ToArray();
+    }
+
+    public static IReadOnlyList<DocxCommentThreadSummary> SummarizeComments(IReadOnlyList<DocxChangeInfo> changes)
+    {
+        return changes
+            .Where(change => !string.IsNullOrWhiteSpace(change.CommentId))
+            .GroupBy(change => change.CommentId!, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                DocxChangeInfo? anchor = group.FirstOrDefault(change => change.CommentAnchorTargetId is not null);
+                DocxChangeInfo? metadata = group.FirstOrDefault(change => change.CommentAuthor is not null || change.CommentTimestampUtc is not null);
+                return new DocxCommentThreadSummary
+                {
+                    CommentId = group.Key,
+                    AnchorTargetId = anchor?.CommentAnchorTargetId,
+                    ReferenceTargetId = anchor?.CommentReferenceTargetId,
+                    AnchorStory = anchor?.CommentAnchorStory,
+                    AnchorPartName = anchor?.CommentAnchorPartName,
+                    Author = metadata?.CommentAuthor,
+                    TimestampUtc = metadata?.CommentTimestampUtc,
+                    Count = group.Count(),
+                    Summary = Summarize(group.ToArray())
+                };
+            })
             .ToArray();
     }
 
@@ -124,6 +167,36 @@ internal static class DocxChangeScanner
         return change.Type == "comment" && change.CommentAnchorTargetId is not null
             ? change.CommentAnchorTargetId
             : change.TargetId ?? change.CommentAnchorTargetId;
+    }
+
+    private static string GetTargetStatus(string? targetId, string? commentAnchorTargetId)
+    {
+        if (targetId is not null)
+        {
+            return "targeted";
+        }
+
+        if (commentAnchorTargetId is not null)
+        {
+            return "comment-anchor";
+        }
+
+        return "targetless";
+    }
+
+    private static string? GetTargetNote(string? targetId, string? commentAnchorTargetId)
+    {
+        if (targetId is not null)
+        {
+            return null;
+        }
+
+        if (commentAnchorTargetId is not null)
+        {
+            return "Linked through matching comment anchor metadata.";
+        }
+
+        return "No modeled paragraph, table, cell, section, or comment anchor target was found; the markup may be body-level, package-level, or inside an unsupported structure.";
     }
 
     private static string NormalizeGroupKey(string? key)

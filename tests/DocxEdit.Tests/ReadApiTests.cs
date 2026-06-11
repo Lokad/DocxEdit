@@ -304,12 +304,16 @@ public static class ReadApiTests
         Assert.Contains(result.GroupSummary, summary => summary.Group == "part" && summary.Key == "/word/document.xml" && summary.Type == "deleted-run" && summary.Count == 1);
         Assert.Contains(result.GroupSummary, summary => summary.Group == "author" && summary.Key == "Alice" && summary.Type == "inserted-run" && summary.Count == 1);
         Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "run-properties-change" && summary.Count == 1);
+        DocxChangeTargetSummary paragraphSummary = Assert.Single(result.TargetSummary, summary => summary.TargetId == "M.P0001");
+        Assert.Contains(paragraphSummary.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
 
         DocxChangeInfo insertion = Assert.Single(result.Changes, change => change.Type == "inserted-run");
         Assert.Equal("M.CH0001", insertion.Id);
         Assert.Equal("main", insertion.Story);
         Assert.Equal("/word/document.xml", insertion.PartName);
         Assert.Equal("M.P0001", insertion.TargetId);
+        Assert.Equal("targeted", insertion.TargetStatus);
+        Assert.Null(insertion.TargetNote);
         Assert.Equal("Alice", insertion.Author);
         Assert.Equal("9", insertion.RevisionId);
         Assert.Equal(8, insertion.TextLength);
@@ -374,9 +378,35 @@ public static class ReadApiTests
         Assert.Equal("/word/document.xml", comment.CommentAnchorPartName);
         Assert.Equal(20, comment.TextLength);
         Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "comment" && summary.Count == 1);
+        DocxCommentThreadSummary commentSummary = Assert.Single(result.CommentSummary);
+        Assert.Equal("3", commentSummary.CommentId);
+        Assert.Equal("M.P0001", commentSummary.AnchorTargetId);
+        Assert.Equal("M.P0001", commentSummary.ReferenceTargetId);
+        Assert.Equal("Reviewer", commentSummary.Author);
+        Assert.Contains(commentSummary.Summary, summary => summary.Type == "comment" && summary.Count == 1);
 
         string serialized = JsonSerializer.Serialize(result);
         Assert.DoesNotContain("Private comment text", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesClassifiesTargetlessRecords()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:del w:id="44" w:author="Reviewer">
+                      <w:r><w:delText>Body level deletion</w:delText></w:r>
+                    </w:del>
+            """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        DocxChangeInfo deletion = Assert.Single(result.Changes);
+        Assert.Equal("deleted-run", deletion.Type);
+        Assert.Null(deletion.TargetId);
+        Assert.Equal("targetless", deletion.TargetStatus);
+        Assert.Contains("No modeled paragraph", deletion.TargetNote, StringComparison.Ordinal);
+        Assert.Contains(result.TargetSummary, summary => summary.TargetId == "(none)" && summary.Count == 1);
     }
 
     [Fact]
@@ -421,6 +451,9 @@ public static class ReadApiTests
         Assert.Contains("markup=comment-range-end comment-id=3", result.Text, StringComparison.Ordinal);
         Assert.Contains("markup=comment-reference comment-id=3", result.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Runs, run => run.MarkupType == "inserted-run" && run.RevisionId == "7" && run.Author == "Alice");
+        Assert.Contains(result.Runs, run => run.MarkupType == "deleted-run" && run.RevisionId == "8" && run.Author == "Bob");
+        Assert.Contains(result.Runs, run => run.MarkupType == "comment-reference" && run.CommentId == "3");
     }
 
     [Fact]

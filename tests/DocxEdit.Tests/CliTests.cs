@@ -60,14 +60,34 @@ public static class CliTests
         Assert.Equal(0, dump.ExitCode);
         Assert.Contains("docxedit dump input.docx --id TARGET", dump.Output, StringComparison.Ordinal);
         Assert.Contains("markup=inserted-run", dump.Output, StringComparison.Ordinal);
+        Assert.Contains("Runs array", dump.Output, StringComparison.Ordinal);
         Assert.Equal(0, changes.ExitCode);
         Assert.Contains("GroupSummary", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("TargetSummary", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("CommentSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("comment-anchor-target", changes.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
         Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);
+        Assert.Contains("operation line", check.Output, StringComparison.Ordinal);
         Assert.Equal(0, apply.ExitCode);
         Assert.Contains("--output path, -o path", apply.Output, StringComparison.Ordinal);
         Assert.Contains("require", apply.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliReadSummaryPrintsCompactCounts()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult result = RunCli("read", input, "--summary");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("paragraphs count=1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("images count=1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("story=\"main\" paragraphs=1", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue increased", result.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -194,9 +214,51 @@ public static class CliTests
         Assert.Contains("summary group=story key=\"main\" type=inserted-run count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("summary group=author key=\"Alice\" type=inserted-run count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("summary group=target key=\"M.P0001\" type=deleted-run count=1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("target-summary target=M.P0001 count=2", result.Output, StringComparison.Ordinal);
+        Assert.Contains("target-status=targeted", result.Output, StringComparison.Ordinal);
         Assert.Contains("M.CH0001 inserted-run", result.Output, StringComparison.Ordinal);
         Assert.Contains("text-length=8", result.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("Inserted", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deleted", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliApplyPrintsOperationSummary()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string output = Path.Combine(temp.Path, "output.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, """
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Revenue
+            with Margin
+            end
+            """);
+
+        CliResult result = RunCli("apply", input, patch, "--output", output);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("operation index=1 name=replace-text target=M.P0001 success=True", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliDumpJsonIncludesStructuredRuns()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "changes.docx");
+        CreateDocxWithTrackedChanges(input);
+
+        CliResult result = RunCli("dump", input, "--id", "M.P0001", "--runs", "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"runs\"", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"markupType\": \"inserted-run\"", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"revisionId\": \"1\"", result.Output, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Deleted", result.Output, StringComparison.Ordinal);
     }
 
@@ -352,6 +414,34 @@ public static class CliTests
                     <w:r><w:delText>Deleted</w:delText></w:r>
                   </w:del>
                 </w:p>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void CreateTextOnlyDocx(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:r><w:t>Revenue increased</w:t></w:r></w:p>
               </w:body>
             </w:document>
             """);

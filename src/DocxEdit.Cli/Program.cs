@@ -65,7 +65,7 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit read input.docx [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit read input.docx [--summary] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
@@ -80,6 +80,10 @@ internal static class ProgramMain
         if (options.Json)
         {
             WriteJson(result);
+        }
+        else if (options.Flags.Contains("--summary"))
+        {
+            WriteReadSummary(result);
         }
         else
         {
@@ -257,9 +261,26 @@ internal static class ProgramMain
                 Console.WriteLine($"summary group={summary.Group} key=\"{EscapeText(summary.Key)}\" type={summary.Type} count={summary.Count}");
             }
 
+            foreach (DocxChangeTargetSummary summary in result.TargetSummary)
+            {
+                Console.WriteLine($"target-summary target={summary.TargetId} count={summary.Count} types=\"{EscapeText(FormatTypeSummary(summary.Summary))}\"");
+            }
+
+            foreach (DocxCommentThreadSummary summary in result.CommentSummary)
+            {
+                string anchorTarget = summary.AnchorTargetId is null ? "anchor-target=unknown" : $"anchor-target={summary.AnchorTargetId}";
+                string referenceTarget = summary.ReferenceTargetId is null ? string.Empty : $" reference-target={summary.ReferenceTargetId}";
+                string anchorStory = summary.AnchorStory is null ? string.Empty : $" anchor-story=\"{EscapeText(summary.AnchorStory)}\"";
+                string anchorPart = summary.AnchorPartName is null ? string.Empty : $" anchor-part={summary.AnchorPartName}";
+                string author = summary.Author is null ? string.Empty : $" author=\"{EscapeText(summary.Author)}\"";
+                string timestamp = summary.TimestampUtc is null ? string.Empty : $" timestamp-utc={summary.TimestampUtc:O}";
+                Console.WriteLine($"comment-summary comment-id={EscapeText(summary.CommentId)} {anchorTarget}{referenceTarget}{anchorStory}{anchorPart}{author}{timestamp} count={summary.Count} types=\"{EscapeText(FormatTypeSummary(summary.Summary))}\"");
+            }
+
             foreach (DocxChangeInfo change in result.Changes)
             {
                 string target = change.TargetId is null ? "target=unknown" : $"target={change.TargetId}";
+                string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{EscapeText(change.TargetNote)}\"";
                 string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
                 string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
                 string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
@@ -271,7 +292,7 @@ internal static class ProgramMain
                 string commentReferenceTarget = change.CommentReferenceTargetId is null ? string.Empty : $" comment-reference-target={change.CommentReferenceTargetId}";
                 string commentAnchorStory = change.CommentAnchorStory is null ? string.Empty : $" comment-anchor-story=\"{EscapeText(change.CommentAnchorStory)}\"";
                 string commentAnchorPart = change.CommentAnchorPartName is null ? string.Empty : $" comment-anchor-part={change.CommentAnchorPartName}";
-                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}{commentId}{commentAuthor}{commentTimestamp}{commentInitials}{commentAnchorTarget}{commentReferenceTarget}{commentAnchorStory}{commentAnchorPart}");
+                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} target-status={change.TargetStatus}{targetNote} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}{commentId}{commentAuthor}{commentTimestamp}{commentInitials}{commentAnchorTarget}{commentReferenceTarget}{commentAnchorStory}{commentAnchorPart}");
             }
         }
 
@@ -297,6 +318,7 @@ internal static class ProgramMain
         else
         {
             Console.WriteLine(result.Success ? "docxedit check: OK" : "docxedit check: FAILED");
+            WriteOperationSummary(result.Operations);
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -306,7 +328,7 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 2 || options.OutputPath is null)
         {
-            return InvalidUsage("Usage: docxedit apply input.docx edits.docxpatch -o output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
@@ -322,6 +344,7 @@ internal static class ProgramMain
         else
         {
             Console.WriteLine(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED");
+            WriteOperationSummary(result.Operations);
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -352,6 +375,36 @@ internal static class ProgramMain
     private static void WriteJson(object value)
     {
         Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
+    }
+
+    private static void WriteReadSummary(DocxReadResult result)
+    {
+        Console.WriteLine($"parts count={result.PartNames.Count}");
+        Console.WriteLine($"main-document-part={result.MainDocumentPartName ?? "unknown"}");
+        Console.WriteLine($"paragraphs count={result.Paragraphs.Count}");
+        Console.WriteLine($"tables count={result.Tables.Count}");
+        Console.WriteLine($"images count={result.Images.Count}");
+        Console.WriteLine($"sections count={result.Sections.Count}");
+        foreach (IGrouping<string, DocxParagraphInfo> group in result.Paragraphs
+            .GroupBy(paragraph => paragraph.Story)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            Console.WriteLine($"story=\"{EscapeText(group.Key)}\" paragraphs={group.Count()}");
+        }
+    }
+
+    private static void WriteOperationSummary(IReadOnlyList<DocxPatchOperationReport> operations)
+    {
+        foreach (DocxPatchOperationReport operation in operations)
+        {
+            string target = operation.Target is null ? "target=unknown" : $"target={operation.Target}";
+            Console.WriteLine($"operation index={operation.Index} name={operation.OperationName} {target} success={operation.Success}");
+        }
+    }
+
+    private static string FormatTypeSummary(IReadOnlyList<DocxChangeSummary> summaries)
+    {
+        return string.Join(",", summaries.Select(summary => $"{summary.Type}:{summary.Count}"));
     }
 
     private static DocxEditOptions ToEditOptions(ParsedOptions options)
@@ -485,10 +538,11 @@ internal static class ProgramMain
               apply      Apply a .docxpatch file and write a new .docx
 
             Help:
-              help patch Show the .docxpatch syntax with examples
+              help dump|changes|check|apply|patch
 
             Examples:
               docxedit read report.docx [--view final|original|markup]
+              docxedit read report.docx --summary
               docxedit dump report.docx --id M.P0004 --runs
               docxedit media report.docx --extract media
               docxedit changes report.docx
@@ -506,6 +560,7 @@ internal static class ProgramMain
             With --runs, paragraph dumps include run-level markup metadata such as
             markup=inserted-run, markup=deleted-run, revision-id, author, timestamp-utc,
             comment-id, and comment range/reference markers without printing comment body text.
+            With --json, the Runs array exposes the same run metadata as structured fields.
 
             Options:
               --id M.P0001                 Target ID from read, outline, find, or changes
@@ -532,15 +587,21 @@ internal static class ProgramMain
             text length, child element count, and comment anchor targets when known.
 
             JSON output includes:
-              Summary       Counts by change type
-              GroupSummary  Counts by group=story|part|author|target and type
-              Changes       Individual private-text-free change records
+              Summary        Counts by change type
+              GroupSummary   Counts by group=story|part|author|target and type
+              TargetSummary  Compact per-target type rollups
+              CommentSummary Compact per-comment anchor/type rollups
+              Changes        Individual private-text-free change records
 
             Target notes:
-              target=unknown means the markup is not inside or adjacent to a modeled
+              target-status explains whether a record is targeted, linked by a comment
+              anchor, or targetless. target=unknown means the markup is not inside or adjacent to a modeled
               paragraph/table/section target. Comment body records may expose
               comment-anchor-target and comment-reference-target when the main-story
               anchor/reference can be correlated by comment ID.
+
+            Text output includes type counts, group summaries, target summaries, comment
+            summaries, and individual records.
 
             Timestamp notes:
               TimestampUtc and CommentTimestampUtc are nullable UTC ISO-8601 values.
@@ -563,7 +624,7 @@ internal static class ProgramMain
 
             Validate a patch against an input document without writing an output file.
             Use check before apply to verify selectors, guards, assets, and track-change
-            constraints.
+            constraints. Text output includes one operation line per patch operation.
 
             Options:
               --track-changes off|preserve|suggest|require
@@ -586,6 +647,7 @@ internal static class ProgramMain
             docxedit apply input.docx edits.docxpatch --output output.docx [options]
 
             Apply a patch and write a new .docx. The input is never modified in place.
+            Text output includes one operation line per patch operation.
 
             Options:
               --output path, -o path       Output .docx path
@@ -736,6 +798,7 @@ internal static class ProgramMain
                     case "--runs":
                     case "--headers-footers":
                     case "--all-stories":
+                    case "--summary":
                         flags.Add(arg);
                         break;
                     case "--diagnostics":

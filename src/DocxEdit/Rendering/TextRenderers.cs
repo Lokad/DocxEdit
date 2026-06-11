@@ -143,6 +143,28 @@ internal static class TextRenderers
         return cell is null ? null : Truncate(cell.Text, maxText);
     }
 
+    public static IReadOnlyList<DocxDumpRunInfo> DumpRuns(DocxDocumentModel model, string targetId, int maxText)
+    {
+        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
+        if (paragraph is null)
+        {
+            return [];
+        }
+
+        return paragraph.Runs
+            .Select((run, index) => new DocxDumpRunInfo
+            {
+                Id = $"{paragraph.Id}.R{index + 1:0000}",
+                Text = Truncate(run.Text, maxText),
+                MarkupType = run.MarkupType,
+                RevisionId = run.RevisionId,
+                Author = run.Author,
+                TimestampUtc = run.TimestampUtc,
+                CommentId = run.CommentId
+            })
+            .ToArray();
+    }
+
     public static IReadOnlyList<string> RenderStyles(IReadOnlyList<DocxStyleInfo> styles)
     {
         return styles

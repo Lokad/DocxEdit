@@ -155,7 +155,8 @@ public sealed class DocxEditor
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
                 .ToArray(),
             TargetId = targetId,
-            Text = TextRenderers.Dump(model!, targetId, options.IncludeRuns, options.MaxText)
+            Text = TextRenderers.Dump(model!, targetId, options.IncludeRuns, options.MaxText),
+            Runs = options.IncludeRuns ? TextRenderers.DumpRuns(model!, targetId, options.MaxText) : []
         };
     }
 
@@ -253,7 +254,9 @@ public sealed class DocxEditor
             MainDocumentPartName = package.MainDocumentPartName,
             Changes = changes!,
             Summary = DocxChangeScanner.Summarize(changes!),
-            GroupSummary = DocxChangeScanner.SummarizeGroups(changes!)
+            GroupSummary = DocxChangeScanner.SummarizeGroups(changes!),
+            TargetSummary = DocxChangeScanner.SummarizeTargets(changes!),
+            CommentSummary = DocxChangeScanner.SummarizeComments(changes!)
         };
     }
 
