@@ -46,6 +46,20 @@ public static class CliTests
         Assert.Contains("\"success\": true", File.ReadAllText(report), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public static void CliStylesPrintsTextOutput()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult result = RunCli("styles", input);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("paragraph styleId=Normal", result.Output, StringComparison.Ordinal);
+        Assert.Contains("table styleId=TableGrid", result.Output, StringComparison.Ordinal);
+    }
+
     private static CliResult RunCli(params string[] args)
     {
         string repoRoot = FindRepoRoot();
@@ -97,6 +111,7 @@ public static class CliTests
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
               <Default Extension="xml" ContentType="application/xml"/>
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
             </Types>
             """);
         AddEntry(archive, "_rels/.rels", """
@@ -105,7 +120,9 @@ public static class CliTests
             </Relationships>
             """);
         AddEntry(archive, "word/_rels/document.xml.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+            </Relationships>
             """);
         AddEntry(archive, "word/document.xml", """
             <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -113,6 +130,16 @@ public static class CliTests
                 <w:p><w:r><w:t>Revenue increased</w:t></w:r></w:p>
               </w:body>
             </w:document>
+            """);
+        AddEntry(archive, "word/styles.xml", """
+            <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:style w:type="paragraph" w:styleId="Normal" w:default="1">
+                <w:name w:val="Normal"/>
+              </w:style>
+              <w:style w:type="table" w:styleId="TableGrid">
+                <w:name w:val="Table Grid"/>
+              </w:style>
+            </w:styles>
             """);
     }
 
@@ -151,4 +178,3 @@ public static class CliTests
         }
     }
 }
-

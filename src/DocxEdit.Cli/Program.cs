@@ -174,6 +174,14 @@ internal static class ProgramMain
         {
             WriteJson(result);
         }
+        else
+        {
+            foreach (DocxStyleInfo style in result.Styles.OrderBy(style => style.Type, StringComparer.Ordinal).ThenBy(style => style.StyleId, StringComparer.Ordinal))
+            {
+                string defaultText = style.IsDefault ? " default=true" : string.Empty;
+                Console.WriteLine($"{style.Type} styleId={style.StyleId} name=\"{EscapeText(style.Name)}\"{defaultText}");
+            }
+        }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
     }
@@ -277,6 +285,11 @@ internal static class ProgramMain
     private static void WriteJson(object value)
     {
         Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
+    }
+
+    private static string EscapeText(string text)
+    {
+        return text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
     }
 
     private static void EnsureParentDirectory(string path)

@@ -70,6 +70,21 @@ public static class ReadApiTests
         Assert.Equal("/word/media/image1.png", image.PartName);
     }
 
+    [Fact]
+    public static void StylesListsParagraphCharacterAndTableStyles()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxStylesResult result = editor.Styles(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.Styles.Count);
+        Assert.Contains(result.Styles, style => style.StyleId == "Normal" && style.Type == "paragraph" && style.IsDefault);
+        Assert.Contains(result.Styles, style => style.StyleId == "Emphasis" && style.Type == "character");
+        Assert.Contains(result.Styles, style => style.StyleId == "TableGrid" && style.Type == "table");
+    }
+
     private static MemoryStream CreateDocx()
     {
         var stream = new MemoryStream();
@@ -81,6 +96,7 @@ public static class ReadApiTests
                   <Default Extension="xml" ContentType="application/xml"/>
                   <Default Extension="png" ContentType="image/png"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
                 </Types>
                 """);
             AddEntry(archive, "_rels/.rels", """
@@ -91,6 +107,7 @@ public static class ReadApiTests
             AddEntry(archive, "word/_rels/document.xml.rels", """
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
                 </Relationships>
                 """);
             AddEntry(archive, "word/document.xml", """
@@ -133,6 +150,22 @@ public static class ReadApiTests
                   </w:body>
                 </w:document>
                 """);
+            AddEntry(archive, "word/styles.xml", """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="Normal" w:default="1">
+                    <w:name w:val="Normal"/>
+                  </w:style>
+                  <w:style w:type="character" w:styleId="Emphasis">
+                    <w:name w:val="Emphasis"/>
+                  </w:style>
+                  <w:style w:type="table" w:styleId="TableGrid">
+                    <w:name w:val="Table Grid"/>
+                  </w:style>
+                  <w:style w:type="numbering" w:styleId="ListNumber">
+                    <w:name w:val="List Number"/>
+                  </w:style>
+                </w:styles>
+                """);
             AddEntry(archive, "word/media/image1.png", "fake-png");
         }
 
@@ -148,4 +181,3 @@ public static class ReadApiTests
         stream.Write(bytes, 0, bytes.Length);
     }
 }
-

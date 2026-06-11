@@ -97,9 +97,21 @@ internal static class TextRenderers
         return cell?.Text;
     }
 
+    public static IReadOnlyList<string> RenderStyles(IReadOnlyList<DocxStyleInfo> styles)
+    {
+        return styles
+            .OrderBy(style => style.Type, StringComparer.Ordinal)
+            .ThenBy(style => style.StyleId, StringComparer.Ordinal)
+            .Select(style =>
+            {
+                string defaultText = style.IsDefault ? " default=true" : string.Empty;
+                return $"{style.Type} styleId={style.StyleId} name=\"{Escape(style.Name)}\"{defaultText}";
+            })
+            .ToArray();
+    }
+
     private static string Escape(string text)
     {
         return text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal).Replace("\t", "\\t", StringComparison.Ordinal);
     }
 }
-

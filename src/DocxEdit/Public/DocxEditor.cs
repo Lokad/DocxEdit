@@ -95,10 +95,12 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxStylesOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        IReadOnlyList<DocxStyleInfo> styles = package is null ? [] : DocxStyleScanner.Scan(package, cancellationToken);
         return new DocxStylesResult
         {
             Success = package is not null,
-            Diagnostics = diagnostics
+            Diagnostics = diagnostics,
+            Styles = styles
         };
     }
 
