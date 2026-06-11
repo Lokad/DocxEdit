@@ -508,6 +508,29 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetImageAltUpdatesDrawingProperties()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0001
+            alt Updated chart
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("descr=\"Updated chart\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"Old chart\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertRowBeforeClonesTargetRowShape()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -758,6 +781,7 @@ public static class PatchApplyTests
                       <w:r>
                         <w:drawing>
                           <wp:inline>
+                            <wp:docPr id="1" name="Picture 1" descr="Old chart"/>
                             <a:graphic>
                               <a:graphicData>
                                 <pic:pic>

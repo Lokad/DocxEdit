@@ -49,6 +49,7 @@ internal static class DocxPatchEngine
                 "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
                 "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
                 "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
+                "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
                 _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
             };
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
@@ -297,6 +298,58 @@ internal static class DocxPatchEngine
         }
 
         package.ReplacePartBytes(imageTarget.Part.Name, bytes);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageAlt(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? alt = ReadRequiredField(operation, "alt", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!TryParseMainImageTarget(target!, out int imageOrdinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-alt target '{target}'. Expected an image ID such as M.I0001.", operation, target)];
+        }
+
+        ImageBlipTarget? imageTarget = FindMainImageBlipTarget(package, imageOrdinal, cancellationToken);
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
+        XElement? container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
+            ?? drawing?.Descendants(OoxmlNs.Wp + "anchor").FirstOrDefault();
+        if (container is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' does not have editable DrawingML properties.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        XElement? docPr = container.Element(OoxmlNs.Wp + "docPr");
+        if (docPr is null)
+        {
+            docPr = new XElement(OoxmlNs.Wp + "docPr");
+            docPr.SetAttributeValue("id", "1");
+            docPr.SetAttributeValue("name", target);
+            container.AddFirst(docPr);
+        }
+
+        docPr.SetAttributeValue("descr", alt);
+        SaveMainDocument(package, imageTarget.Document);
         return [];
     }
 
@@ -675,6 +728,15 @@ internal static class DocxPatchEngine
         int imageOrdinal,
         CancellationToken cancellationToken)
     {
+        ImageBlipTarget? target = FindMainImageBlipTarget(package, imageOrdinal, cancellationToken);
+        return target is null ? null : new ImageTarget(target.RelationshipId, target.Part);
+    }
+
+    private static ImageBlipTarget? FindMainImageBlipTarget(
+        OoxmlPackage package,
+        int imageOrdinal,
+        CancellationToken cancellationToken)
+    {
         if (imageOrdinal < 1 || package.MainDocumentPartName is null)
         {
             return null;
@@ -707,7 +769,7 @@ internal static class DocxPatchEngine
             currentOrdinal++;
             if (currentOrdinal == imageOrdinal)
             {
-                return new ImageTarget(relationshipId, part);
+                return new ImageBlipTarget(document, blip, relationshipId, part);
             }
         }
 
@@ -1096,3 +1158,5 @@ internal sealed record PatchExecutionResult(
     IReadOnlyList<DocxPatchOperationReport> Reports);
 
 internal sealed record ImageTarget(string RelationshipId, OoxmlPart Part);
+
+internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
