@@ -204,6 +204,38 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyPreservesUnknownPartsAndUnrelatedMedia()
+    {
+        using MemoryStream input = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Before</w:t></w:r></w:p>
+            """,
+            archive =>
+            {
+                AddEntry(archive, "custom/data.bin", "opaque");
+                AddEntry(archive, "word/media/unrelated.png", "unrelated");
+            });
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Before
+            with After
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("opaque", ReadEntry(output, "custom/data.bin"));
+        output.Position = 0;
+        Assert.Equal("unrelated", ReadEntry(output, "word/media/unrelated.png"));
+    }
+
+    [Fact]
     public static void ApplyReplaceParagraphUpdatesTextAndStyle()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -979,7 +1011,7 @@ public static class PatchApplyTests
         return stream;
     }
 
-    private static MemoryStream CreateDocxWithBody(string bodyXml)
+    private static MemoryStream CreateDocxWithBody(string bodyXml, Action<ZipArchive>? extra = null)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -1009,6 +1041,7 @@ public static class PatchApplyTests
                 </w:document>
                 """;
             AddEntry(archive, "word/document.xml", documentXml);
+            extra?.Invoke(archive);
         }
 
         stream.Position = 0;
