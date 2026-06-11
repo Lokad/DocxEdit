@@ -54,3 +54,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/CheckPrivateCase.ps1 -
 ```
 
 The harness writes sanitized artifacts under ignored `artifacts/private-edit/` and prints only structure counts, tracked-change counts, diagnostics count, and status. It must not print or store private document text.
+
+An ignored private manifest may sit next to the input and provide aggregate-only
+expectations:
+
+```json
+{
+  "id": "local-case",
+  "input": "local-case.docx",
+  "expected": {
+    "Structure": { "Paragraphs": 10, "Tables": 2 },
+    "Changes": { "Total": 3, "ByType": { "inserted-run": 2 } }
+  }
+}
+```
+
+Expected values are compared to sanitized counts only. Text content is neither printed
+nor stored in the summary artifact.

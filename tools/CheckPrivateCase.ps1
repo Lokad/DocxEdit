@@ -254,6 +254,67 @@ function Get-StructuralSummary([string] $InputPath) {
     }
 }
 
+function Get-ObjectProperty([object] $Object, [string] $Name) {
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Compare-ExpectedAggregate(
+    [System.Collections.Generic.List[string]] $Failures,
+    [string] $Name,
+    [object] $Actual,
+    [object] $Expected) {
+    if ($null -eq $Expected) {
+        return
+    }
+
+    $actualValue = [int64] $Actual
+    $expectedValue = [int64] $Expected
+    if ($actualValue -ne $expectedValue) {
+        [void] $Failures.Add("$Name expected $expectedValue, found $actualValue")
+    }
+}
+
+function Compare-ExpectedAggregates([object] $Expected, [object] $Structure, [hashtable] $ChangeSummary, [int] $ChangeTotal) {
+    $failures = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $Expected) {
+        return ,$failures
+    }
+
+    $expectedStructure = Get-ObjectProperty $Expected "Structure"
+    if ($null -ne $expectedStructure) {
+        Compare-ExpectedAggregate $failures "structure.PackageParts" $Structure.PackageParts (Get-ObjectProperty $expectedStructure "PackageParts")
+        Compare-ExpectedAggregate $failures "structure.Paragraphs" $Structure.Paragraphs (Get-ObjectProperty $expectedStructure "Paragraphs")
+        Compare-ExpectedAggregate $failures "structure.Tables" $Structure.Tables (Get-ObjectProperty $expectedStructure "Tables")
+        Compare-ExpectedAggregate $failures "structure.ScannerVisibleImages" $Structure.ScannerVisibleImages (Get-ObjectProperty $expectedStructure "ScannerVisibleImages")
+        Compare-ExpectedAggregate $failures "structure.Sections" $Structure.Sections (Get-ObjectProperty $expectedStructure "Sections")
+        Compare-ExpectedAggregate $failures "structure.Styles" $Structure.Styles (Get-ObjectProperty $expectedStructure "Styles")
+    }
+
+    $expectedChanges = Get-ObjectProperty $Expected "Changes"
+    if ($null -ne $expectedChanges) {
+        Compare-ExpectedAggregate $failures "changes.Total" $ChangeTotal (Get-ObjectProperty $expectedChanges "Total")
+        $expectedByType = Get-ObjectProperty $expectedChanges "ByType"
+        if ($null -ne $expectedByType) {
+            foreach ($property in @($expectedByType.PSObject.Properties)) {
+                $key = [string] $property.Name
+                $actual = if ($ChangeSummary.ContainsKey($key)) { $ChangeSummary[$key] } else { 0 }
+                Compare-ExpectedAggregate $failures "changes.ByType.$key" $actual $property.Value
+            }
+        }
+    }
+
+    return ,$failures
+}
+
 function Resolve-PrivateCase([string] $CaseValue) {
     if ([System.IO.Path]::IsPathRooted($CaseValue)) {
         $candidate = $CaseValue
@@ -291,10 +352,20 @@ function Resolve-PrivateCase([string] $CaseValue) {
         }
 
         Assert-PrivatePath $inputPath "Private input"
+        $expected = Get-ObjectProperty $manifest "expected"
     }
     else {
         $inputPath = $casePath
         $caseId = [System.IO.Path]::GetFileNameWithoutExtension($inputPath)
+        $manifestPath = $null
+        $expected = $null
+        $siblingManifest = [System.IO.Path]::ChangeExtension($inputPath, ".json")
+        if (Test-Path -LiteralPath $siblingManifest) {
+            $manifestPath = Resolve-ExistingPath $siblingManifest
+            Assert-PrivatePath $manifestPath "Private manifest"
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            $expected = Get-ObjectProperty $manifest "expected"
+        }
     }
 
     if ($caseId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
@@ -309,6 +380,7 @@ function Resolve-PrivateCase([string] $CaseValue) {
         CaseId = $caseId
         InputPath = $inputPath
         ManifestPath = if ($inputPath -eq $casePath) { $null } else { $casePath }
+        Expected = $expected
     }
 }
 
@@ -348,7 +420,8 @@ foreach ($summary in @($changesJson.Summary)) {
     $changeSummary[[string] $summary.Type] = [int] $summary.Count
 }
 
-$success = [bool] $changesJson.Success -and $diagnostics.Count -eq 0
+$aggregateFailures = Compare-ExpectedAggregates $privateCase.Expected $structure $changeSummary $changeRecords.Count
+$success = [bool] $changesJson.Success -and $diagnostics.Count -eq 0 -and $aggregateFailures.Count -eq 0
 $summaryObject = [pscustomobject]@{
     CaseId = $privateCase.CaseId
     RunId = $runId
@@ -367,6 +440,7 @@ $summaryObject = [pscustomobject]@{
             Message = $_.Message
         }
     })
+    AggregateFailures = @($aggregateFailures)
 }
 
 $summaryPath = Join-Path $artifactDir "summary.json"
@@ -380,6 +454,9 @@ foreach ($key in @($changeSummary.Keys | Sort-Object)) {
     Write-Host "  $key=$($changeSummary[$key])"
 }
 Write-Host "diagnostics: count=$($diagnostics.Count)"
+foreach ($failure in @($aggregateFailures)) {
+    Write-Host "aggregate-check: $failure"
+}
 
 if (-not $success) {
     exit 1
