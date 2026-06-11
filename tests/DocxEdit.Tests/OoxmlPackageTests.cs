@@ -97,8 +97,7 @@ public static class OoxmlPackageTests
     [Fact]
     public static void GetRelationshipsResolvesRelativeAndExternalTargets()
     {
-        using MemoryStream stream = CreateMinimalDocx(archive =>
-            AddEntry(archive, "word/media/image1.png", "png"));
+        using MemoryStream stream = CreateMinimalDocx();
         OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions());
 
         IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships("/word/document.xml");
@@ -121,6 +120,23 @@ public static class OoxmlPackageTests
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
             OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
         Assert.Contains("escapes", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void LoadRejectsMissingInternalRelationshipTarget()
+    {
+        using MemoryStream stream = CreatePackage(archive =>
+        {
+            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
+            AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
+            AddEntry(archive, "word/document.xml", DocumentXml());
+            AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml("media/missing.png"));
+        });
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+
+        Assert.Contains("targets missing part", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -164,6 +180,7 @@ public static class OoxmlPackageTests
             AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
             AddEntry(archive, "word/document.xml", DocumentXml());
             AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml());
+            AddEntry(archive, "word/media/image1.png", "png");
             extra?.Invoke(archive);
         });
     }

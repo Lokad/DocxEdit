@@ -105,6 +105,7 @@ internal sealed class OoxmlPackage
             }
 
             string mainDocumentPartName = FindMainDocumentPartName(parts, cancellationToken);
+            ValidateInternalRelationshipTargets(parts, cancellationToken);
             if (!options.AllowMacroEnabledDocuments &&
                 parts[mainDocumentPartName].ContentType == OoxmlContentTypeNames.MacroEnabledMainDocument)
             {
@@ -241,6 +242,47 @@ internal sealed class OoxmlPackage
         }
 
         return officeDocumentRelationship.ResolvedTarget;
+    }
+
+    private static void ValidateInternalRelationshipTargets(
+        Dictionary<string, OoxmlPart> parts,
+        CancellationToken cancellationToken)
+    {
+        foreach (OoxmlPart relationshipPart in parts.Values.Where(part => part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string sourcePartName = GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+            using Stream stream = relationshipPart.OpenRead();
+            foreach (OoxmlRelationship relationship in ParseRelationships(stream, sourcePartName, cancellationToken))
+            {
+                if (!relationship.IsExternal &&
+                    relationship.ResolvedTarget is not null &&
+                    !parts.ContainsKey(relationship.ResolvedTarget))
+                {
+                    throw new InvalidDataException($"Relationship '{relationship.Id}' in '{relationshipPart.Name}' targets missing part '{relationship.ResolvedTarget}'.");
+                }
+            }
+        }
+    }
+
+    private static string GetSourcePartNameFromRelationshipPartName(string relationshipPartName)
+    {
+        string normalized = OoxmlPath.NormalizePartName(relationshipPartName);
+        if (normalized == "/_rels/.rels")
+        {
+            return "/";
+        }
+
+        const string relationshipMarker = "/_rels/";
+        int markerIndex = normalized.LastIndexOf(relationshipMarker, StringComparison.Ordinal);
+        if (markerIndex < 0 || !normalized.EndsWith(".rels", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Invalid relationship part name '{relationshipPartName}'.");
+        }
+
+        string directory = normalized[..markerIndex];
+        string fileName = normalized[(markerIndex + relationshipMarker.Length)..^".rels".Length];
+        return OoxmlPath.NormalizePartName($"{directory}/{fileName}");
     }
 
     private static void CopyTo(
