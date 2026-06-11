@@ -905,7 +905,10 @@ public static class PatchApplyTests
                       <w:tr>
                         <w:tc>
                           <w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>
-                          <w:p><w:r><w:t>Old</w:t></w:r></w:p>
+                          <w:p>
+                            <w:pPr><w:pStyle w:val="TableBody"/></w:pPr>
+                            <w:r><w:t>Old</w:t></w:r>
+                          </w:p>
                         </w:tc>
                         <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
                       </w:tr>
@@ -931,7 +934,9 @@ public static class PatchApplyTests
         Assert.Equal("New", new DocxEditor().Read(output).Tables[0].Cells[0].Text);
 
         output.Position = 0;
-        Assert.Contains("<w:tcW", ReadDocumentXml(output), StringComparison.Ordinal);
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:tcW", xml, StringComparison.Ordinal);
+        Assert.Contains("w:val=\"TableBody\"", xml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -973,7 +978,10 @@ public static class PatchApplyTests
                         <w:trPr><w:trHeight w:val="240"/></w:trPr>
                         <w:tc>
                           <w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>
-                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                          <w:p>
+                            <w:pPr><w:pStyle w:val="TableRegion"/></w:pPr>
+                            <w:r><w:t>North</w:t></w:r>
+                          </w:p>
                         </w:tc>
                         <w:tc>
                           <w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>
@@ -1006,6 +1014,7 @@ public static class PatchApplyTests
         string xml = ReadDocumentXml(output);
         Assert.Equal(2, CountOccurrences(xml, "<w:trHeight"));
         Assert.Equal(4, CountOccurrences(xml, "<w:tcW"));
+        Assert.Equal(2, CountOccurrences(xml, "w:val=\"TableRegion\""));
     }
 
     [Fact]

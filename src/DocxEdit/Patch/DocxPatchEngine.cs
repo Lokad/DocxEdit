@@ -2387,13 +2387,17 @@ internal static class DocxPatchEngine
     private static void ReplaceCellText(XElement cell, string text)
     {
         XElement? cellProperties = cell.Element(OoxmlNs.W + "tcPr");
+        XElement? paragraphProperties = cell
+            .Elements(OoxmlNs.W + "p")
+            .Elements(OoxmlNs.W + "pPr")
+            .FirstOrDefault();
         cell.RemoveNodes();
         if (cellProperties is not null)
         {
             cell.Add(new XElement(cellProperties));
         }
 
-        cell.Add(CreateSimpleParagraph(text));
+        cell.Add(CreateSimpleParagraph(text, paragraphProperties: paragraphProperties));
     }
 
     private static XElement CreateRowFromTemplate(XElement templateRow, IReadOnlyList<string> cellTexts)
@@ -2415,16 +2419,25 @@ internal static class DocxPatchEngine
                 cell.Add(new XElement(cellProperties));
             }
 
-            cell.Add(CreateSimpleParagraph(cellTexts[i]));
+            XElement? paragraphProperties = templateCells[i]
+                .Elements(OoxmlNs.W + "p")
+                .Elements(OoxmlNs.W + "pPr")
+                .FirstOrDefault();
+            cell.Add(CreateSimpleParagraph(cellTexts[i], paragraphProperties: paragraphProperties));
             row.Add(cell);
         }
 
         return row;
     }
 
-    private static XElement CreateSimpleParagraph(string text, string? style = null)
+    private static XElement CreateSimpleParagraph(string text, string? style = null, XElement? paragraphProperties = null)
     {
         var paragraph = new XElement(OoxmlNs.W + "p");
+        if (paragraphProperties is not null)
+        {
+            paragraph.Add(new XElement(paragraphProperties));
+        }
+
         if (style is not null)
         {
             SetParagraphStyle(paragraph, style);
