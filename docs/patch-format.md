@@ -53,8 +53,8 @@ including nearby paragraph text.
 - `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
 - `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
 - `delete-row`: `target`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`
-- `replace-image`: `target`, `asset`, optional `expect-content-type`, `alt`, `preserve-size`
-- `insert-image-after`: `target`, `asset`, optional `expect-content-type`, `width`, `height`, `alt`, `caption`
+- `replace-image`: `target`, `asset`, optional `expect-content-type`, `alt`
+- `insert-image-after`: `target`, `asset`, optional `expect-content-type`, `width`, `height`, `alt`
 - `set-image-alt`: `target`, `alt`, optional `expect-content-type`
 - `delete-image`: `target`, optional `expect-content-type`
 - `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
@@ -62,7 +62,7 @@ including nearby paragraph text.
 
 Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors. Explicit header/footer image IDs can be used for image replacement, alt text, and deletion.
 
-Parsed but not fully implemented fields include `preserve-size` and `caption`. `expect-hash` is rejected.
+Unsupported fields are rejected. `expect-hash`, `preserve-size`, and `caption` are not supported.
 
 `delete-row` `expect-contains` is a row-text guard: the operation fails unless the
 resolved row's final visible text contains the supplied value exactly.

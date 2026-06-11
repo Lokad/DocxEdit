@@ -185,4 +185,25 @@ public static class PatchParserTests
         Assert.False(patch.Success);
         Assert.Contains(patch.Diagnostics, diagnostic => diagnostic.Code == "E2013");
     }
+
+    [Theory]
+    [InlineData("replace-image", "preserve-size true")]
+    [InlineData("insert-image-after", "caption Figure 1")]
+    public static void ParsePatchRejectsUnimplementedImageFields(string operationName, string unsupportedField)
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            target M.I0001
+            asset chart.png
+            {unsupportedField}
+            end
+            """));
+
+        Assert.False(patch.Success);
+        Assert.Contains(patch.Diagnostics, diagnostic => diagnostic.Code == "E2011");
+    }
 }
