@@ -113,6 +113,33 @@ public static class ReadApiTests
         Assert.Contains(result.Styles, style => style.StyleId == "TableGrid" && style.Type == "table");
     }
 
+    [Fact]
+    public static void ReadIncludesHeaderAndFooterStoriesWhenRequested()
+    {
+        using MemoryStream defaultStream = CreateDocx();
+        using MemoryStream allStoriesStream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult defaultResult = editor.Read(defaultStream);
+        DocxReadResult allStories = editor.Read(allStoriesStream, new DocxReadOptions { IncludeHeadersFooters = true });
+
+        Assert.DoesNotContain(defaultResult.Paragraphs, paragraph => paragraph.Id.StartsWith("H", StringComparison.Ordinal));
+        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Story == "header[1]" && paragraph.Text == "Confidential");
+        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Story == "footer[1]" && paragraph.Text == "Page 1");
+    }
+
+    [Fact]
+    public static void FindCanSearchHeaderAndFooterStoriesWhenRequested()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxFindResult result = editor.Find(stream, "Confidential", new DocxFindOptions { IncludeHeadersFooters = true });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Matches, match => match.StartsWith("H001.P0001", StringComparison.Ordinal));
+    }
+
     private static MemoryStream CreateDocx()
     {
         var stream = new MemoryStream();
@@ -125,6 +152,8 @@ public static class ReadApiTests
                   <Default Extension="png" ContentType="image/png"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
                   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
                 </Types>
                 """);
             AddEntry(archive, "_rels/.rels", """
@@ -136,6 +165,8 @@ public static class ReadApiTests
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
                   <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
                 </Relationships>
                 """);
             AddEntry(archive, "word/document.xml", """
@@ -193,6 +224,16 @@ public static class ReadApiTests
                     <w:name w:val="List Number"/>
                   </w:style>
                 </w:styles>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Confidential</w:t></w:r></w:p>
+                </w:hdr>
+                """);
+            AddEntry(archive, "word/footer1.xml", """
+                <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Page 1</w:t></w:r></w:p>
+                </w:ftr>
                 """);
             AddEntry(archive, "word/media/image1.png", "fake-png");
         }

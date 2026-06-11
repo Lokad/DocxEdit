@@ -5,7 +5,10 @@ namespace DocxEdit.Model;
 
 internal static class DocxDocumentScanner
 {
-    public static DocxDocumentModel Scan(OoxmlPackage package, CancellationToken cancellationToken = default)
+    public static DocxDocumentModel Scan(
+        OoxmlPackage package,
+        bool includeHeadersFooters = false,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (package.MainDocumentPartName is null)
@@ -13,38 +16,79 @@ internal static class DocxDocumentScanner
             return DocxDocumentModel.Empty;
         }
 
-        OoxmlPart documentPart = package.GetPart(package.MainDocumentPartName)
-            ?? throw new InvalidDataException($"Main document part '{package.MainDocumentPartName}' does not exist.");
-        using Stream stream = documentPart.OpenRead();
-        XDocument document = SafeXml.Load(stream, cancellationToken);
-        XElement body = document.Root?.Element(OoxmlNs.W + "body")
-            ?? throw new InvalidDataException("Main document part is missing w:body.");
-
-        IReadOnlyDictionary<string, OoxmlRelationship> relationships = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
-
         var paragraphs = new List<DocxParagraphInfo>();
         var tables = new List<DocxTableInfo>();
         var images = new List<DocxImageInfo>();
+        ScanStory(package, package.MainDocumentPartName, "M", "main", paragraphs, tables, images, cancellationToken);
+
+        if (includeHeadersFooters)
+        {
+            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
+            int headerIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (package.GetPart(relationship.ResolvedTarget!) is not null)
+                {
+                    string prefix = $"H{headerIndex++:000}";
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", paragraphs, tables, images, cancellationToken);
+                }
+            }
+
+            int footerIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (package.GetPart(relationship.ResolvedTarget!) is not null)
+                {
+                    string prefix = $"F{footerIndex++:000}";
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", paragraphs, tables, images, cancellationToken);
+                }
+            }
+        }
+
+        return new DocxDocumentModel(paragraphs, tables, images);
+    }
+
+    private static void ScanStory(
+        OoxmlPackage package,
+        string partName,
+        string idPrefix,
+        string story,
+        List<DocxParagraphInfo> paragraphs,
+        List<DocxTableInfo> tables,
+        List<DocxImageInfo> images,
+        CancellationToken cancellationToken)
+    {
+        OoxmlPart part = package.GetPart(partName)
+            ?? throw new InvalidDataException($"Story part '{partName}' does not exist.");
+        using Stream stream = part.OpenRead();
+        XDocument document = SafeXml.Load(stream, cancellationToken);
+        XElement body = document.Root?.Element(OoxmlNs.W + "body")
+            ?? document.Root
+            ?? throw new InvalidDataException($"Story part '{partName}' has no XML root.");
+
+        IReadOnlyDictionary<string, OoxmlRelationship> relationships = package
+            .GetRelationships(partName, cancellationToken)
+            .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
+
         int paragraphIndex = 1;
         int tableIndex = 1;
         int imageIndex = 1;
-
         foreach (XElement block in body.Elements())
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (block.Name == OoxmlNs.W + "p")
             {
-                paragraphs.Add(ReadParagraph(block, $"M.P{paragraphIndex++:0000}", "main", package, relationships, images, ref imageIndex));
+                paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, package, relationships, images, idPrefix, ref imageIndex));
             }
             else if (block.Name == OoxmlNs.W + "tbl")
             {
-                tables.Add(ReadTable(block, $"M.T{tableIndex++:0000}", package, relationships, images, ref imageIndex));
+                tables.Add(ReadTable(block, $"{idPrefix}.T{tableIndex++:0000}", story, package, relationships, images, idPrefix, ref imageIndex));
             }
         }
-
-        return new DocxDocumentModel(paragraphs, tables, images);
     }
 
     private static DocxParagraphInfo ReadParagraph(
@@ -54,6 +98,7 @@ internal static class DocxDocumentScanner
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
+        string imageIdPrefix,
         ref int imageIndex)
     {
         var runs = paragraph
@@ -63,7 +108,7 @@ internal static class DocxDocumentScanner
             .ToArray();
         foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
         {
-            AddDrawingImages(drawing, package, relationships, images, ref imageIndex);
+            AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
         }
 
         return new DocxParagraphInfo(
@@ -77,9 +122,11 @@ internal static class DocxDocumentScanner
     private static DocxTableInfo ReadTable(
         XElement table,
         string id,
+        string story,
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
+        string imageIdPrefix,
         ref int imageIndex)
     {
         var cells = new List<DocxTableCellInfo>();
@@ -92,7 +139,7 @@ internal static class DocxDocumentScanner
             {
                 foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
                 {
-                    AddDrawingImages(drawing, package, relationships, images, ref imageIndex);
+                    AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
                 }
 
                 cells.Add(new DocxTableCellInfo(
@@ -107,7 +154,7 @@ internal static class DocxDocumentScanner
             rowIndex++;
         }
 
-        return new DocxTableInfo(id, "main", rowIndex - 1, maxColumns, cells);
+        return new DocxTableInfo(id, story, rowIndex - 1, maxColumns, cells);
     }
 
     private static string ReadVisibleText(XElement container)
@@ -165,6 +212,7 @@ internal static class DocxDocumentScanner
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
+        string imageIdPrefix,
         ref int imageIndex)
     {
         foreach (XElement blip in drawing.Descendants(OoxmlNs.A + "blip"))
@@ -189,8 +237,7 @@ internal static class DocxDocumentScanner
                 continue;
             }
 
-            images.Add(new DocxImageInfo($"M.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length));
+            images.Add(new DocxImageInfo($"{imageIdPrefix}.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length));
         }
     }
 }
-

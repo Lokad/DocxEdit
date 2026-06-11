@@ -14,7 +14,7 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxReadOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken);
         return new DocxReadResult
         {
             Success = package is not null,
@@ -36,7 +36,7 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxOutlineOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken);
         return new DocxOutlineResult
         {
             Success = package is not null,
@@ -57,7 +57,7 @@ public sealed class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         options ??= new DocxFindOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken);
         return new DocxFindResult
         {
             Success = package is not null,
@@ -77,7 +77,7 @@ public sealed class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
         options ??= new DocxDumpOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken);
         return new DocxDumpResult
         {
             Success = package is not null,
@@ -112,7 +112,7 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxMediaOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken);
+        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken);
         return new DocxMediaResult
         {
             Success = package is not null,
