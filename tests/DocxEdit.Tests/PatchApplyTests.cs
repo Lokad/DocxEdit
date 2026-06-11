@@ -1025,6 +1025,87 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetCellCanEditHeaderTableAndUseItAsBlockAnchor()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooterContent(
+            """
+                  <w:tbl>
+                    <w:tr><w:tc><w:p><w:r><w:t>Old</w:t></w:r></w:p></w:tc></w:tr>
+                  </w:tbl>
+            """,
+            """
+                  <w:p><w:r><w:t>Footer text</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target H001.T0001.R01.C01
+            expect-text Old
+            text New
+            end
+
+            op insert-after
+            target H001.T0001
+            text After header table
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        DocxTableInfo table = Assert.Single(read.Tables, table => table.Story == "header[1]");
+        Assert.Equal("New", Assert.Single(table.Cells).Text);
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "After header table");
+    }
+
+    [Fact]
+    public static void ApplyRowOperationsCanEditFooterTable()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooterContent(
+            """
+                  <w:p><w:r><w:t>Header text</w:t></w:r></w:p>
+            """,
+            """
+                  <w:tbl>
+                    <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>
+                    <w:tr><w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc></w:tr>
+                  </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target F001.T0001
+            cell East
+            end
+
+            op insert-row-before
+            target F001.T0001.R02
+            cell Central
+            end
+
+            op delete-row
+            target F001.T0001.R01
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true }).Tables, table => table.Story == "footer[1]");
+        Assert.Equal(3, table.RowCount);
+        Assert.Equal("Central", table.Cells.Single(cell => cell.RowIndex == 1).Text);
+        Assert.Equal("South", table.Cells.Single(cell => cell.RowIndex == 2).Text);
+        Assert.Equal("East", table.Cells.Single(cell => cell.RowIndex == 3).Text);
+    }
+
+    [Fact]
     public static void ApplySetCellPreservesCellPropertiesAndDoesNotMutateInput()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -1843,6 +1924,17 @@ public static class PatchApplyTests
 
     private static MemoryStream CreateDocxWithHeaderFooter(string headerText, string footerText)
     {
+        return CreateDocxWithHeaderFooterContent(
+            $$"""
+                  <w:p><w:r><w:t>{{headerText}}</w:t></w:r></w:p>
+            """,
+            $$"""
+                  <w:p><w:r><w:t>{{footerText}}</w:t></w:r></w:p>
+            """);
+    }
+
+    private static MemoryStream CreateDocxWithHeaderFooterContent(string headerContent, string footerContent)
+    {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -1873,14 +1965,18 @@ public static class PatchApplyTests
                   </w:body>
                 </w:document>
                 """);
-            AddEntry(archive, "word/header1.xml", $$"""
+            AddEntry(archive, "word/header1.xml", """
                 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-                  <w:p><w:r><w:t>{{headerText}}</w:t></w:r></w:p>
+
+                """ + headerContent + """
+
                 </w:hdr>
                 """);
-            AddEntry(archive, "word/footer1.xml", $$"""
+            AddEntry(archive, "word/footer1.xml", """
                 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-                  <w:p><w:r><w:t>{{footerText}}</w:t></w:r></w:p>
+
+                """ + footerContent + """
+
                 </w:ftr>
                 """);
         }

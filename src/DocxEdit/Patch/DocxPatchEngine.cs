@@ -1163,26 +1163,23 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainCellTarget(target!, out int tableOrdinal, out int rowOrdinal, out int cellOrdinal))
+        CellTarget? cellTarget = ResolveCellTarget(package, target!, cancellationToken);
+        if (cellTarget is null && !IsSupportedCellTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell target '{target}'. Expected a table cell ID such as M.T0001.R02.C03.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell target '{target}'. Expected a table cell ID such as M.T0001.R02.C03 or H001.T0001.R02.C03.", operation, target)];
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? table = FindTable(body, tableOrdinal);
-        XElement? row = table?.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(rowOrdinal - 1);
-        XElement? cell = row?.Elements(OoxmlNs.W + "tc").ElementAtOrDefault(cellOrdinal - 1);
-        if (cell is null)
+        if (cellTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, table!, row, diagnostics))
+        if (!ValidateTableGuards(operation, target!, cellTarget.Table, cellTarget.Row, diagnostics))
         {
             return diagnostics;
         }
 
-        string current = ReadVisibleText(cell);
+        string current = ReadVisibleText(cellTarget.Cell);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
             return
@@ -1196,12 +1193,12 @@ internal static class DocxPatchEngine
             ];
         }
 
-        if (IsVerticalMergeContinuation(cell))
+        if (IsVerticalMergeContinuation(cellTarget.Cell))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Unsupported merged-cell target '{target}'.", operation, target)];
         }
 
-        if (!force && !IsSimpleEditableCell(cell))
+        if (!force && !IsSimpleEditableCell(cellTarget.Cell))
         {
             return [Diagnostic(DocxSeverity.Error, "E4302", $"Cell '{target}' contains unsupported content. Use force true only when replacing all cell content is intended.", operation, target)];
         }
@@ -1211,8 +1208,8 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        ReplaceCellText(cell, text!);
-        SaveMainDocument(package, document);
+        ReplaceCellText(cellTarget.Cell, text!);
+        SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
         return [];
     }
 
@@ -1229,9 +1226,10 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainTableTarget(target!, out int tableOrdinal))
+        TableTarget? tableTarget = ResolveTableTarget(package, target!, cancellationToken);
+        if (tableTarget is null && !IsSupportedTableTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported append-row target '{target}'. Expected a table ID such as M.T0001.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported append-row target '{target}'. Expected a table ID such as M.T0001 or H001.T0001.", operation, target)];
         }
 
         string[] cellTexts = operation.FieldValues
@@ -1243,30 +1241,28 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4202", "Operation 'append-row' is missing required field 'cell'.", operation, target)];
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? table = FindTable(body, tableOrdinal);
-        if (table is null)
+        if (tableTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, table, row: null, diagnostics))
+        if (!ValidateTableGuards(operation, target!, tableTarget.Table, row: null, diagnostics))
         {
             return diagnostics;
         }
 
-        XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
+        XElement[] rows = tableTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
         if (rows.Length == 0)
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' has no rows to clone.", operation, target)];
         }
 
-        if (ContainsVerticalMerges(table))
+        if (ContainsVerticalMerges(tableTarget.Table))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' contains vertical merges that are not supported by append-row.", operation, target)];
         }
 
-        if (!IsRectangular(table, out int columnCount))
+        if (!IsRectangular(tableTarget.Table, out int columnCount))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be appended safely.", operation, target)];
         }
@@ -1283,7 +1279,7 @@ internal static class DocxPatchEngine
 
         XElement newRow = CreateRowFromTemplate(rows[^1], cellTexts);
         rows[^1].AddAfterSelf(newRow);
-        SaveMainDocument(package, document);
+        SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);
         return [];
     }
 
@@ -1302,9 +1298,10 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainRowTarget(target!, out int tableOrdinal, out int rowOrdinal))
+        RowTarget? rowTarget = ResolveRowTarget(package, target!, cancellationToken);
+        if (rowTarget is null && !IsSupportedRowTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported {operation.OperationName} target '{target}'. Expected a table row ID such as M.T0001.R02.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported {operation.OperationName} target '{target}'. Expected a table row ID such as M.T0001.R02 or H001.T0001.R02.", operation, target)];
         }
 
         string[] cellTexts = operation.FieldValues
@@ -1316,27 +1313,23 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4202", $"Operation '{operation.OperationName}' is missing required field 'cell'.", operation, target)];
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? table = FindTable(body, tableOrdinal);
-        XElement[] rows = table?.Elements(OoxmlNs.W + "tr").ToArray() ?? [];
-        XElement? templateRow = rowOrdinal < 1 || rowOrdinal > rows.Length ? null : rows[rowOrdinal - 1];
-        if (templateRow is null)
+        if (rowTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, table!, templateRow, diagnostics))
+        if (!ValidateTableGuards(operation, target!, rowTarget.Table, rowTarget.Row, diagnostics))
         {
             return diagnostics;
         }
 
-        if (ContainsVerticalMerges(table!))
+        if (ContainsVerticalMerges(rowTarget.Table))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' contains vertical merges that are not supported by {operation.OperationName}.", operation, target)];
         }
 
         int expectedCellCount;
-        if (IsRectangular(table!, out int columnCount))
+        if (IsRectangular(rowTarget.Table, out int columnCount))
         {
             expectedCellCount = columnCount;
         }
@@ -1347,7 +1340,7 @@ internal static class DocxPatchEngine
                 return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be edited safely without force true.", operation, target)];
             }
 
-            expectedCellCount = templateRow.Elements(OoxmlNs.W + "tc").Count();
+            expectedCellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
         }
 
         if (expectedCellCount == 0)
@@ -1365,17 +1358,17 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        XElement newRow = CreateRowFromTemplate(templateRow, cellTexts);
+        XElement newRow = CreateRowFromTemplate(rowTarget.Row, cellTexts);
         if (insertAfter)
         {
-            templateRow.AddAfterSelf(newRow);
+            rowTarget.Row.AddAfterSelf(newRow);
         }
         else
         {
-            templateRow.AddBeforeSelf(newRow);
+            rowTarget.Row.AddBeforeSelf(newRow);
         }
 
-        SaveMainDocument(package, document);
+        SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
         return [];
     }
 
@@ -1393,36 +1386,34 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainRowTarget(target!, out int tableOrdinal, out int rowOrdinal))
+        RowTarget? rowTarget = ResolveRowTarget(package, target!, cancellationToken);
+        if (rowTarget is null && !IsSupportedRowTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-row target '{target}'. Expected a table row ID such as M.T0001.R02.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-row target '{target}'. Expected a table row ID such as M.T0001.R02 or H001.T0001.R02.", operation, target)];
         }
 
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? table = FindTable(body, tableOrdinal);
-        XElement[] rows = table?.Elements(OoxmlNs.W + "tr").ToArray() ?? [];
-        XElement? row = rowOrdinal < 1 || rowOrdinal > rows.Length ? null : rows[rowOrdinal - 1];
-        if (row is null)
+        if (rowTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, table!, row, diagnostics))
+        if (!ValidateTableGuards(operation, target!, rowTarget.Table, rowTarget.Row, diagnostics))
         {
             return diagnostics;
         }
 
+        XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
         if (rows.Length == 1)
         {
             return [Diagnostic(DocxSeverity.Error, "E4304", $"Cannot delete the last row of table '{target}'.", operation, target)];
         }
 
-        if (ContainsVerticalMerges(table!))
+        if (ContainsVerticalMerges(rowTarget.Table))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' contains vertical merges that are not supported by delete-row.", operation, target)];
         }
 
-        if (!force && !IsRectangular(table!, out _))
+        if (!force && !IsRectangular(rowTarget.Table, out _))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be edited safely without force true.", operation, target)];
         }
@@ -1432,8 +1423,8 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        row.Remove();
-        SaveMainDocument(package, document);
+        rowTarget.Row.Remove();
+        SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
         return [];
     }
 
@@ -2192,15 +2183,65 @@ internal static class DocxPatchEngine
     {
         storyOrdinal = 0;
         tableOrdinal = 0;
-        if (target.Length != 11 ||
+        if (target.Length != 10 ||
             target[0] != storyPrefix ||
-            target[4..7] != ".T")
+            target[4..6] != ".T")
         {
             return false;
         }
 
         return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[7..], out tableOrdinal);
+            int.TryParse(target[6..], out tableOrdinal);
+    }
+
+    private static bool TryParseStoryRowTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int tableOrdinal,
+        out int rowOrdinal)
+    {
+        storyOrdinal = 0;
+        tableOrdinal = 0;
+        rowOrdinal = 0;
+        if (target.Length != 14 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".T" ||
+            target[10..12] != ".R")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..10], out tableOrdinal) &&
+            int.TryParse(target[12..], out rowOrdinal);
+    }
+
+    private static bool TryParseStoryCellTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int tableOrdinal,
+        out int rowOrdinal,
+        out int cellOrdinal)
+    {
+        storyOrdinal = 0;
+        tableOrdinal = 0;
+        rowOrdinal = 0;
+        cellOrdinal = 0;
+        if (target.Length != 18 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".T" ||
+            target[10..12] != ".R" ||
+            target[14..16] != ".C")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..10], out tableOrdinal) &&
+            int.TryParse(target[12..14], out rowOrdinal) &&
+            int.TryParse(target[16..], out cellOrdinal);
     }
 
     private static BlockTarget? ResolveRelatedStoryBlockTarget(
@@ -2229,6 +2270,125 @@ internal static class DocxPatchEngine
         XDocument document = LoadDocumentPart(package, relationship.ResolvedTarget, cancellationToken, out XElement root);
         XElement? block = root.Elements(blockName).ElementAtOrDefault(blockOrdinal - 1);
         return block is null ? null : new BlockTarget(relationship.ResolvedTarget, document, block);
+    }
+
+    private static bool IsSupportedTableTargetShape(string target)
+    {
+        return TryParseMainTableTarget(target, out _) ||
+            TryParseStoryTableTarget(target, 'H', out _, out _) ||
+            TryParseStoryTableTarget(target, 'F', out _, out _);
+    }
+
+    private static bool IsSupportedRowTargetShape(string target)
+    {
+        return TryParseMainRowTarget(target, out _, out _) ||
+            TryParseStoryRowTarget(target, 'H', out _, out _, out _) ||
+            TryParseStoryRowTarget(target, 'F', out _, out _, out _);
+    }
+
+    private static bool IsSupportedCellTargetShape(string target)
+    {
+        return TryParseMainCellTarget(target, out _, out _, out _) ||
+            TryParseStoryCellTarget(target, 'H', out _, out _, out _, out _) ||
+            TryParseStoryCellTarget(target, 'F', out _, out _, out _, out _);
+    }
+
+    private static TableTarget? ResolveTableTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainTableTarget(target, out int mainTableOrdinal))
+        {
+            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+            XElement? table = FindTable(body, mainTableOrdinal);
+            return table is null || package.MainDocumentPartName is null
+                ? null
+                : new TableTarget(package.MainDocumentPartName, document, table);
+        }
+
+        if (TryParseStoryTableTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal))
+        {
+            return ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerTableOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryTableTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal))
+        {
+            return ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerTableOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static RowTarget? ResolveRowTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        TableTarget? tableTarget;
+        int rowOrdinal;
+        if (TryParseMainRowTarget(target, out int mainTableOrdinal, out rowOrdinal))
+        {
+            tableTarget = ResolveTableTarget(package, $"M.T{mainTableOrdinal:0000}", cancellationToken);
+        }
+        else if (TryParseStoryRowTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal, out rowOrdinal))
+        {
+            tableTarget = ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerTableOrdinal, cancellationToken);
+        }
+        else if (TryParseStoryRowTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal, out rowOrdinal))
+        {
+            tableTarget = ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerTableOrdinal, cancellationToken);
+        }
+        else
+        {
+            return null;
+        }
+
+        XElement? row = tableTarget?.Table.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(rowOrdinal - 1);
+        return tableTarget is null || row is null
+            ? null
+            : new RowTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row);
+    }
+
+    private static CellTarget? ResolveCellTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        RowTarget? rowTarget;
+        int cellOrdinal;
+        if (TryParseMainCellTarget(target, out int mainTableOrdinal, out int rowOrdinal, out cellOrdinal))
+        {
+            rowTarget = ResolveRowTarget(package, $"M.T{mainTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
+        }
+        else if (TryParseStoryCellTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal, out rowOrdinal, out cellOrdinal))
+        {
+            rowTarget = ResolveRowTarget(package, $"H{headerOrdinal:000}.T{headerTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
+        }
+        else if (TryParseStoryCellTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal, out rowOrdinal, out cellOrdinal))
+        {
+            rowTarget = ResolveRowTarget(package, $"F{footerOrdinal:000}.T{footerTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
+        }
+        else
+        {
+            return null;
+        }
+
+        XElement? cell = rowTarget?.Row.Elements(OoxmlNs.W + "tc").ElementAtOrDefault(cellOrdinal - 1);
+        return rowTarget is null || cell is null
+            ? null
+            : new CellTarget(rowTarget.PartName, rowTarget.Document, rowTarget.Table, rowTarget.Row, cell);
+    }
+
+    private static TableTarget? ResolveRelatedStoryTableTarget(
+        OoxmlPackage package,
+        string relationshipType,
+        int storyOrdinal,
+        int tableOrdinal,
+        CancellationToken cancellationToken)
+    {
+        BlockTarget? blockTarget = ResolveRelatedStoryBlockTarget(package, relationshipType, storyOrdinal, OoxmlNs.W + "tbl", tableOrdinal, cancellationToken);
+        return blockTarget is null ? null : new TableTarget(blockTarget.PartName, blockTarget.Document, blockTarget.Block);
     }
 
     private static ImageTarget? FindMainImageTarget(
@@ -3165,6 +3325,12 @@ internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
 
 internal sealed record BlockTarget(string PartName, XDocument Document, XElement Block);
+
+internal sealed record TableTarget(string PartName, XDocument Document, XElement Table);
+
+internal sealed record RowTarget(string PartName, XDocument Document, XElement Table, XElement Row);
+
+internal sealed record CellTarget(string PartName, XDocument Document, XElement Table, XElement Row, XElement Cell);
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
 
