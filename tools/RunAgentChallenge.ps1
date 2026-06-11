@@ -136,6 +136,33 @@ function Resolve-ProcessInvocation([string] $FileName, [string[]] $Arguments) {
         }
     }
 
+    if ([System.IO.Path]::GetFileName($path).Equals("codex.ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $baseDirectory = Split-Path -Parent $path
+        $codexJs = Join-Path $baseDirectory "node_modules/@openai/codex/bin/codex.js"
+        if (Test-Path -LiteralPath $codexJs) {
+            $localNode = Join-Path $baseDirectory "node.exe"
+            $nodeCommand = if (Test-Path -LiteralPath $localNode) {
+                $localNode
+            }
+            else {
+                $resolvedNode = Get-Command "node" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($null -eq $resolvedNode) {
+                    $null
+                }
+                else {
+                    [string] $resolvedNode.Source
+                }
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($nodeCommand)) {
+                return [pscustomobject]@{
+                    FileName = $nodeCommand
+                    Arguments = @($codexJs) + $Arguments
+                }
+            }
+        }
+    }
+
     if ([System.IO.Path]::GetExtension($path).Equals(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
         return [pscustomobject]@{
             FileName = "powershell"
