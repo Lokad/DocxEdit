@@ -17,6 +17,26 @@ The public API normalizes expected package, ZIP, XML, and relationship failures 
 
 This is structural validation, not full OOXML schema validation.
 
+## Public Edit Cases
+
+Tracked public cases live under `edit-cases/cases/` as JSON manifests. A case defines synthetic
+WordprocessingML body XML, a `.docxpatch` payload, and expected readback values. The harness
+generates `.docx` inputs at runtime, so fixtures remain reviewable text.
+
+Run one case:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/CheckDocxCase.ps1 -Case basic-replace
+```
+
+Run every public case:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/ValidateDocxCases.ps1
+```
+
+Artifacts are written under ignored `artifacts/edit-cases/`.
+
 ## Private Cases
 
 Private inputs must live under ignored `private-cases/` and must never be committed. The private harness rejects cases outside `private-cases/`, git-tracked private files, non-ignored private files, and unsafe case IDs.

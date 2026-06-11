@@ -1,0 +1,24 @@
+{
+  "id": "basic-replace",
+  "description": "Replaces text in a simple paragraph and verifies public readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Revenue increased by 8.4%.</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find 8.4%",
+    "with 9.1%",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Revenue increased by 9.1%."
+    ]
+  }
+}
