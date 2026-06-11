@@ -221,12 +221,12 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 2)
         {
-            return InvalidUsage("Usage: docxedit check input.docx edits.docxpatch [--json] [--report <path>] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         using TextReader patch = File.OpenText(options.Positionals[1]);
-        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        DocxCheckResult result = new DocxEditor().Check(input, patch, ToEditOptions(options));
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         WriteReport(options.ReportPath, result);
         if (options.Json)
@@ -245,13 +245,13 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 2 || options.OutputPath is null)
         {
-            return InvalidUsage("Usage: docxedit apply input.docx edits.docxpatch -o output.docx [--json] [--report <path>] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit apply input.docx edits.docxpatch -o output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         using TextReader patch = File.OpenText(options.Positionals[1]);
         using Stream output = File.Create(options.OutputPath);
-        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, ToEditOptions(options));
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         WriteReport(options.ReportPath, result);
         if (options.Json)
@@ -291,6 +291,16 @@ internal static class ProgramMain
     private static void WriteJson(object value)
     {
         Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
+    }
+
+    private static DocxEditOptions ToEditOptions(ParsedOptions options)
+    {
+        return new DocxEditOptions
+        {
+            TrackChanges = options.TrackChanges,
+            Author = options.Author ?? "docxedit",
+            TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow
+        };
     }
 
     private static void ExtractMedia(string inputPath, IReadOnlyList<DocxImageInfo> images, string outputDirectory)
@@ -402,11 +412,15 @@ internal static class ProgramMain
         HashSet<string> Flags,
         bool Json,
         bool Strict,
+        bool Verbose,
         string? DiagnosticsPath,
         string? ReportPath,
         string? OutputPath,
         string? Id,
         string? ExtractPath,
+        TrackChangesMode TrackChanges,
+        string? Author,
+        DateTimeOffset? TimestampUtc,
         string? Error)
     {
         public static ParsedOptions Parse(string[] args)
@@ -416,11 +430,15 @@ internal static class ProgramMain
             var flags = new HashSet<string>(StringComparer.Ordinal);
             bool json = false;
             bool strict = false;
+            bool verbose = false;
             string? diagnosticsPath = null;
             string? reportPath = null;
             string? outputPath = null;
             string? id = null;
             string? extractPath = null;
+            TrackChangesMode trackChanges = TrackChangesMode.Off;
+            string? author = null;
+            DateTimeOffset? timestampUtc = null;
 
             for (int i = 1; i < args.Length; i++)
             {
@@ -432,6 +450,9 @@ internal static class ProgramMain
                         break;
                     case "--strict":
                         strict = true;
+                        break;
+                    case "--verbose":
+                        verbose = true;
                         break;
                     case "--runs":
                     case "--headers-footers":
@@ -459,6 +480,38 @@ internal static class ProgramMain
                         }
 
                         break;
+                    case "--track-changes":
+                        if (!TryReadValue(args, ref i, out string? trackChangesValue))
+                        {
+                            return WithError(command, "Missing value for --track-changes.");
+                        }
+
+                        if (!TryParseTrackChangesMode(trackChangesValue, out trackChanges))
+                        {
+                            return WithError(command, "Invalid value for --track-changes. Expected off, preserve, suggest, or require.");
+                        }
+
+                        break;
+                    case "--author":
+                        if (!TryReadValue(args, ref i, out author))
+                        {
+                            return WithError(command, "Missing value for --author.");
+                        }
+
+                        break;
+                    case "--timestamp-utc":
+                        if (!TryReadValue(args, ref i, out string? timestampValue))
+                        {
+                            return WithError(command, "Missing value for --timestamp-utc.");
+                        }
+
+                        if (!DateTimeOffset.TryParse(timestampValue, out DateTimeOffset parsedTimestamp))
+                        {
+                            return WithError(command, "Invalid value for --timestamp-utc.");
+                        }
+
+                        timestampUtc = parsedTimestamp.ToUniversalTime();
+                        break;
                     case "-o":
                     case "--output":
                         if (!TryReadValue(args, ref i, out outputPath))
@@ -485,7 +538,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, diagnosticsPath, reportPath, outputPath, id, extractPath, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, trackChanges, author, timestampUtc, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -502,7 +555,21 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, null, null, null, null, null, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, TrackChangesMode.Off, null, null, message);
+        }
+
+        private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)
+        {
+            string normalized = value.ToLowerInvariant();
+            mode = normalized switch
+            {
+                "off" => TrackChangesMode.Off,
+                "preserve" => TrackChangesMode.Preserve,
+                "suggest" => TrackChangesMode.Suggest,
+                "require" => TrackChangesMode.Require,
+                _ => TrackChangesMode.Off
+            };
+            return normalized is "off" or "preserve" or "suggest" or "require";
         }
     }
 }

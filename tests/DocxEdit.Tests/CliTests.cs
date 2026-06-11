@@ -47,6 +47,40 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliCheckAcceptsEditOptions()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edits.docxpatch");
+        CreateDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + Environment.NewLine);
+
+        CliResult result = RunCli(
+            "check",
+            input,
+            patch,
+            "--track-changes",
+            "preserve",
+            "--author",
+            "Agent",
+            "--timestamp-utc",
+            "2026-01-02T03:04:05Z",
+            "--verbose");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("docxedit check: OK", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliRejectsInvalidTrackChangesMode()
+    {
+        CliResult result = RunCli("check", "input.docx", "edits.docxpatch", "--track-changes", "maybe");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Invalid value for --track-changes", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliStylesPrintsTextOutput()
     {
         using TempDirectory temp = TempDirectory.Create();
