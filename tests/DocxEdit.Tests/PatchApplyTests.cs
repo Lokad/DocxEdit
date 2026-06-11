@@ -412,6 +412,84 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyReplaceTextCanTargetHeadingByTextAndLevel()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
+                      <w:r><w:t>Old heading</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target heading:2:"Old heading"
+            find Old
+            with New
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("New heading", new DocxEditor().Read(output).Paragraphs[0].Text);
+    }
+
+    [Fact]
+    public static void ApplyInsertAfterCanTargetParagraphContainingText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Needle paragraph</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Omega</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target text:"Needle"
+            text Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal(
+            new[] { "Alpha", "Needle paragraph", "Inserted", "Omega" },
+            new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
+    }
+
+    [Fact]
+    public static void CheckTextSelectorRejectsAmbiguousMatches()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Revenue north</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Revenue south</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:Revenue
+            find Revenue
+            with Sales
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E1202");
+    }
+
+    [Fact]
     public static void ApplyInsertBeforeParagraphAddsParagraphAtTargetPosition()
     {
         using MemoryStream input = CreateDocxWithBody("""

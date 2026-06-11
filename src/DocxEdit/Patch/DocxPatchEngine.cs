@@ -136,7 +136,12 @@ internal static class DocxPatchEngine
         }
 
         bool shouldPreserveRuns = preserveRuns ?? true;
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -210,7 +215,12 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -259,7 +269,12 @@ internal static class DocxPatchEngine
         }
 
         XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? targetBlock = ResolveMainBlock(body, target!);
+        XElement? targetBlock = ResolveMainBlock(body, operation, target!, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (targetBlock is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -299,7 +314,12 @@ internal static class DocxPatchEngine
         }
 
         XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? targetBlock = ResolveMainBlock(body, target!);
+        XElement? targetBlock = ResolveMainBlock(body, operation, target!, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (targetBlock is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -338,7 +358,12 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -420,7 +445,12 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
@@ -1079,46 +1109,244 @@ internal static class DocxPatchEngine
             : body.Elements(OoxmlNs.W + "p").ElementAtOrDefault(paragraphOrdinal - 1);
     }
 
-    private static XElement? ResolveMainBlock(XElement body, string target)
+    private static XElement? ResolveMainBlock(
+        XElement body,
+        DocxPatchOperation operation,
+        string target,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
-        if (TryParseMainParagraphTarget(target, out int paragraphOrdinal))
+        diagnostics = [];
+        if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
         {
-            return FindParagraph(body, paragraphOrdinal);
+            diagnostics = [diagnostic!];
+            return null;
         }
 
-        if (TryParseMainTableTarget(target, out int tableOrdinal))
+        if (selector is ExplicitIdTargetSelector)
         {
-            return FindTable(body, tableOrdinal);
+            if (TryParseMainParagraphTarget(target, out int paragraphOrdinal))
+            {
+                return FindParagraph(body, paragraphOrdinal);
+            }
+
+            if (TryParseMainTableTarget(target, out int tableOrdinal))
+            {
+                return FindTable(body, tableOrdinal);
+            }
+
+            return null;
+        }
+
+        return ResolveMainParagraphElementBySelector(body, selector!, operation, out diagnostics);
+    }
+
+    private static ParagraphTarget? ResolveParagraphTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
+        {
+            diagnostics = [diagnostic!];
+            return null;
+        }
+
+        if (selector is ExplicitIdTargetSelector)
+        {
+            if (TryParseMainParagraphTarget(target, out int mainParagraphOrdinal))
+            {
+                XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+                XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
+                return paragraph is null || package.MainDocumentPartName is null
+                    ? null
+                    : new ParagraphTarget(package.MainDocumentPartName, document, paragraph);
+            }
+
+            if (TryParseStoryParagraphTarget(target, 'H', out int headerOrdinal, out int headerParagraphOrdinal))
+            {
+                return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerParagraphOrdinal, cancellationToken);
+            }
+
+            if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
+            {
+                return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerParagraphOrdinal, cancellationToken);
+            }
+
+            return null;
+        }
+
+        if (package.MainDocumentPartName is null)
+        {
+            return null;
+        }
+
+        XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
+        XElement? selectedParagraph = ResolveMainParagraphElementBySelector(mainBody, selector!, operation, out diagnostics);
+        return selectedParagraph is null
+            ? null
+            : new ParagraphTarget(package.MainDocumentPartName, mainDocument, selectedParagraph);
+    }
+
+    private static bool TryParseTargetSelector(
+        string target,
+        DocxPatchOperation operation,
+        out TargetSelector? selector,
+        out DocxDiagnostic? diagnostic)
+    {
+        selector = null;
+        diagnostic = null;
+        if (target.StartsWith("heading:", StringComparison.Ordinal))
+        {
+            string value = target["heading:".Length..].Trim();
+            int? level = null;
+            int separator = value.IndexOf(':');
+            if (separator > 0 && value[..separator].All(char.IsDigit))
+            {
+                if (!int.TryParse(value[..separator], out int parsedLevel) || parsedLevel is < 1 or > 9)
+                {
+                    diagnostic = Diagnostic(DocxSeverity.Error, "E1203", $"Invalid heading selector '{target}'. Heading level must be between 1 and 9.", operation, target);
+                    return false;
+                }
+
+                level = parsedLevel;
+                value = value[(separator + 1)..].Trim();
+            }
+
+            if (!TryReadSelectorText(value, out string selectorText))
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E1203", $"Invalid heading selector '{target}'. Expected heading:\"Text\" or heading:2:\"Text\".", operation, target);
+                return false;
+            }
+
+            selector = new HeadingTargetSelector(target, level, selectorText);
+            return true;
+        }
+
+        if (target.StartsWith("text:", StringComparison.Ordinal))
+        {
+            string value = target["text:".Length..].Trim();
+            if (!TryReadSelectorText(value, out string selectorText))
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E1203", $"Invalid text selector '{target}'. Expected text:\"Text\".", operation, target);
+                return false;
+            }
+
+            selector = new ParagraphTextTargetSelector(target, selectorText);
+            return true;
+        }
+
+        selector = new ExplicitIdTargetSelector(target);
+        return true;
+    }
+
+    private static bool TryReadSelectorText(string value, out string selectorText)
+    {
+        selectorText = string.Empty;
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+        {
+            selectorText = value[1..^1];
+            return selectorText.Length != 0;
+        }
+
+        if (value.StartsWith('"') || value.EndsWith('"'))
+        {
+            return false;
+        }
+
+        selectorText = value;
+        return selectorText.Length != 0;
+    }
+
+    private static XElement? ResolveMainParagraphElementBySelector(
+        XElement body,
+        TargetSelector selector,
+        DocxPatchOperation operation,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        if (selector is HeadingTargetSelector headingSelector)
+        {
+            return ResolveMainParagraphElementByPredicate(
+                body,
+                paragraph =>
+                {
+                    int? headingLevel = ReadHeadingLevel(paragraph);
+                    return headingLevel is not null &&
+                        (headingSelector.Level is null || headingSelector.Level == headingLevel) &&
+                        string.Equals(ReadVisibleText(paragraph), headingSelector.Text, StringComparison.Ordinal);
+                },
+                selector.Raw,
+                operation,
+                out diagnostics);
+        }
+
+        if (selector is ParagraphTextTargetSelector paragraphTextSelector)
+        {
+            return ResolveMainParagraphElementByPredicate(
+                body,
+                paragraph => ReadVisibleText(paragraph).Contains(paragraphTextSelector.Text, StringComparison.Ordinal),
+                selector.Raw,
+                operation,
+                out diagnostics);
         }
 
         return null;
     }
 
-    private static ParagraphTarget? ResolveParagraphTarget(
-        OoxmlPackage package,
-        string target,
-        CancellationToken cancellationToken)
+    private static XElement? ResolveMainParagraphElementByPredicate(
+        XElement body,
+        Func<XElement, bool> predicate,
+        string rawSelector,
+        DocxPatchOperation operation,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
-        if (TryParseMainParagraphTarget(target, out int mainParagraphOrdinal))
+        diagnostics = [];
+        var matches = new List<ParagraphSelectorMatch>();
+        int paragraphOrdinal = 0;
+        foreach (XElement paragraph in body.Elements(OoxmlNs.W + "p"))
         {
-            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
-            return paragraph is null || package.MainDocumentPartName is null
-                ? null
-                : new ParagraphTarget(package.MainDocumentPartName, document, paragraph);
+            paragraphOrdinal++;
+            if (predicate(paragraph))
+            {
+                matches.Add(new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", paragraph));
+            }
         }
 
-        if (TryParseStoryParagraphTarget(target, 'H', out int headerOrdinal, out int headerParagraphOrdinal))
+        if (matches.Count > 1)
         {
-            return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerParagraphOrdinal, cancellationToken);
+            diagnostics =
+            [
+                Diagnostic(
+                    DocxSeverity.Error,
+                    "E1202",
+                    $"Selector matched {matches.Count} targets: {string.Join(", ", matches.Select(match => match.Id))}. Use a more specific selector or an explicit ID.",
+                    operation,
+                    rawSelector)
+            ];
+            return null;
         }
 
-        if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
+        return matches.Count == 0 ? null : matches[0].Paragraph;
+    }
+
+    private static int? ReadHeadingLevel(XElement paragraph)
+    {
+        string? styleId = (string?)paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "pStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+        if (styleId is null)
         {
-            return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerParagraphOrdinal, cancellationToken);
+            return null;
         }
 
-        return null;
+        string digits = new(styleId.Where(char.IsDigit).ToArray());
+        return int.TryParse(digits, out int level) && level is >= 1 and <= 9
+            ? level
+            : null;
     }
 
     private static SectionTarget? ResolveMainSectionTarget(
@@ -1868,3 +2096,13 @@ internal sealed record SectionTarget(XDocument Document, XElement SectionPropert
 internal readonly record struct TextRange(int Start, int Length);
 
 internal sealed record TextPosition(XElement TextElement, int Offset);
+
+internal abstract record TargetSelector(string Raw);
+
+internal sealed record ExplicitIdTargetSelector(string Raw) : TargetSelector(Raw);
+
+internal sealed record HeadingTargetSelector(string Raw, int? Level, string Text) : TargetSelector(Raw);
+
+internal sealed record ParagraphTextTargetSelector(string Raw, string Text) : TargetSelector(Raw);
+
+internal sealed record ParagraphSelectorMatch(string Id, XElement Paragraph);
