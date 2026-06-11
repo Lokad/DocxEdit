@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Xml.Linq;
 
 namespace DocxEdit.Tests;
 
@@ -1086,6 +1087,80 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyInsertImageAfterPreservesPngAspectRatioWhenOnlyWidthIsSupplied()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", CreatePngBytes(200, 100), null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            width 2in
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        (long cx, long cy) = ReadFirstInlineImageExtent(output);
+        Assert.Equal(1_828_800, cx);
+        Assert.Equal(914_400, cy);
+    }
+
+    [Fact]
+    public static void ApplyInsertImageAfterInfersPngDimensionsWhenNoneAreSupplied()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", CreatePngBytes(200, 100), null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        (long cx, long cy) = ReadFirstInlineImageExtent(output);
+        Assert.Equal(1_905_000, cx);
+        Assert.Equal(952_500, cy);
+    }
+
+    [Fact]
+    public static void ApplyInsertImageAfterPreservesJpegAspectRatioWhenOnlyHeightIsSupplied()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("photo.jpeg", CreateJpegBytes(120, 60), null, "photo.jpeg");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset photo.jpeg
+            height 1in
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        (long cx, long cy) = ReadFirstInlineImageExtent(output);
+        Assert.Equal(1_828_800, cx);
+        Assert.Equal(914_400, cy);
+    }
+
+    [Fact]
     public static void ApplyInsertImageAfterAddsInlineJpegImage()
     {
         using MemoryStream input = CreateDocx("Intro");
@@ -1566,6 +1641,15 @@ public static class PatchApplyTests
         return reader.ReadToEnd();
     }
 
+    private static (long Cx, long Cy) ReadFirstInlineImageExtent(Stream docx)
+    {
+        string xml = ReadDocumentXml(docx);
+        XElement extent = XDocument.Parse(xml)
+            .Descendants(XName.Get("extent", "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"))
+            .First();
+        return ((long)extent.Attribute("cx")!, (long)extent.Attribute("cy")!);
+    }
+
     private static string ReadEntry(Stream docx, string entryName)
     {
         using var archive = new ZipArchive(docx, ZipArchiveMode.Read, leaveOpen: true);
@@ -1603,6 +1687,57 @@ public static class PatchApplyTests
         stream.Write(bytes, 0, bytes.Length);
     }
 
+    private static byte[] CreatePngBytes(int width, int height)
+    {
+        byte[] bytes =
+        [
+            0x89, 0x50, 0x4E, 0x47,
+            0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D,
+            0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00
+        ];
+        WriteBigEndianInt32(bytes, 16, width);
+        WriteBigEndianInt32(bytes, 20, height);
+        return bytes;
+    }
+
+    private static byte[] CreateJpegBytes(int width, int height)
+    {
+        byte[] bytes =
+        [
+            0xFF, 0xD8,
+            0xFF, 0xC0,
+            0x00, 0x11,
+            0x08,
+            0x00, 0x00,
+            0x00, 0x00,
+            0x03,
+            0x01, 0x11, 0x00,
+            0x02, 0x11, 0x00,
+            0x03, 0x11, 0x00,
+            0xFF, 0xD9
+        ];
+        WriteBigEndianUInt16(bytes, 7, height);
+        WriteBigEndianUInt16(bytes, 9, width);
+        return bytes;
+    }
+
+    private static void WriteBigEndianInt32(byte[] bytes, int offset, int value)
+    {
+        bytes[offset] = (byte)((value >> 24) & 0xFF);
+        bytes[offset + 1] = (byte)((value >> 16) & 0xFF);
+        bytes[offset + 2] = (byte)((value >> 8) & 0xFF);
+        bytes[offset + 3] = (byte)(value & 0xFF);
+    }
+
+    private static void WriteBigEndianUInt16(byte[] bytes, int offset, int value)
+    {
+        bytes[offset] = (byte)((value >> 8) & 0xFF);
+        bytes[offset + 1] = (byte)(value & 0xFF);
+    }
+
     private sealed class MemoryAssetProvider : IDocxAssetProvider
     {
         private readonly Dictionary<string, MemoryAsset> assets;
@@ -1612,11 +1747,25 @@ public static class PatchApplyTests
         {
         }
 
+        public MemoryAssetProvider(string reference, byte[] bytes, string? contentTypeHint, string? fileNameHint)
+            : this(new MemoryAsset(reference, bytes, contentTypeHint, fileNameHint))
+        {
+        }
+
         public MemoryAssetProvider(params (string Reference, string Text, string? ContentTypeHint, string? FileNameHint)[] assets)
+            : this(assets.Select(asset => new MemoryAsset(
+                asset.Reference,
+                Encoding.UTF8.GetBytes(asset.Text),
+                asset.ContentTypeHint,
+                asset.FileNameHint)).ToArray())
+        {
+        }
+
+        private MemoryAssetProvider(params MemoryAsset[] assets)
         {
             this.assets = assets.ToDictionary(
                 asset => asset.Reference,
-                asset => new MemoryAsset(Encoding.UTF8.GetBytes(asset.Text), asset.ContentTypeHint, asset.FileNameHint),
+                asset => asset,
                 StringComparer.Ordinal);
         }
 
@@ -1636,7 +1785,7 @@ public static class PatchApplyTests
             return true;
         }
 
-        private sealed record MemoryAsset(byte[] Bytes, string? ContentTypeHint, string? FileNameHint);
+        private sealed record MemoryAsset(string Reference, byte[] Bytes, string? ContentTypeHint, string? FileNameHint);
     }
 
     private sealed class NonSeekableReadStream : MemoryStream

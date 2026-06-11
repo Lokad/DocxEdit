@@ -477,7 +477,7 @@ internal static class DocxPatchEngine
             return [assetDiagnostic!];
         }
 
-        if (!TryReadImageExtent(operation, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
+        if (!TryReadImageExtent(operation, bytes, contentType!, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
         {
             return [dimensionDiagnostic!];
         }
@@ -500,6 +500,8 @@ internal static class DocxPatchEngine
 
     private static bool TryReadImageExtent(
         DocxPatchOperation operation,
+        byte[] bytes,
+        string contentType,
         out long widthEmus,
         out long heightEmus,
         out DocxDiagnostic? diagnostic)
@@ -509,6 +511,7 @@ internal static class DocxPatchEngine
         diagnostic = null;
         bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
         bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
+        bool hasPixelSize = TryReadImagePixelSize(bytes, contentType, out int pixelWidth, out int pixelHeight);
         if (hasWidth && !OoxmlUnits.TryParseDimension(width!, out widthEmus))
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
@@ -523,14 +526,142 @@ internal static class DocxPatchEngine
 
         if (hasWidth && !hasHeight)
         {
-            heightEmus = widthEmus;
+            heightEmus = hasPixelSize && pixelWidth > 0
+                ? checked((long)Math.Round(widthEmus * (pixelHeight / (double)pixelWidth), MidpointRounding.AwayFromZero))
+                : widthEmus;
         }
         else if (!hasWidth && hasHeight)
         {
-            widthEmus = heightEmus;
+            widthEmus = hasPixelSize && pixelHeight > 0
+                ? checked((long)Math.Round(heightEmus * (pixelWidth / (double)pixelHeight), MidpointRounding.AwayFromZero))
+                : heightEmus;
+        }
+        else if (!hasWidth && !hasHeight && hasPixelSize)
+        {
+            widthEmus = OoxmlUnits.PixelsToEmu(pixelWidth);
+            heightEmus = OoxmlUnits.PixelsToEmu(pixelHeight);
         }
 
         return true;
+    }
+
+    private static bool TryReadImagePixelSize(byte[] bytes, string contentType, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        return contentType switch
+        {
+            "image/png" => TryReadPngPixelSize(bytes, out width, out height),
+            "image/jpeg" => TryReadJpegPixelSize(bytes, out width, out height),
+            _ => false
+        };
+    }
+
+    private static bool TryReadPngPixelSize(byte[] bytes, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        if (bytes.Length < 24 ||
+            bytes[0] != 0x89 ||
+            bytes[1] != 0x50 ||
+            bytes[2] != 0x4E ||
+            bytes[3] != 0x47 ||
+            bytes[4] != 0x0D ||
+            bytes[5] != 0x0A ||
+            bytes[6] != 0x1A ||
+            bytes[7] != 0x0A ||
+            bytes[12] != 0x49 ||
+            bytes[13] != 0x48 ||
+            bytes[14] != 0x44 ||
+            bytes[15] != 0x52)
+        {
+            return false;
+        }
+
+        width = ReadBigEndianInt32(bytes, 16);
+        height = ReadBigEndianInt32(bytes, 20);
+        return width > 0 && height > 0;
+    }
+
+    private static bool TryReadJpegPixelSize(byte[] bytes, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        if (bytes.Length < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8)
+        {
+            return false;
+        }
+
+        int index = 2;
+        while (index + 3 < bytes.Length)
+        {
+            if (bytes[index] != 0xFF)
+            {
+                index++;
+                continue;
+            }
+
+            while (index < bytes.Length && bytes[index] == 0xFF)
+            {
+                index++;
+            }
+
+            if (index >= bytes.Length)
+            {
+                return false;
+            }
+
+            byte marker = bytes[index++];
+            if (marker is 0xD9 or 0xDA)
+            {
+                return false;
+            }
+
+            if (marker is 0x01 || marker is >= 0xD0 and <= 0xD7)
+            {
+                continue;
+            }
+
+            if (index + 1 >= bytes.Length)
+            {
+                return false;
+            }
+
+            int segmentLength = ReadBigEndianUInt16(bytes, index);
+            if (segmentLength < 2 || index + segmentLength > bytes.Length)
+            {
+                return false;
+            }
+
+            if (IsJpegStartOfFrame(marker) && segmentLength >= 7)
+            {
+                height = ReadBigEndianUInt16(bytes, index + 3);
+                width = ReadBigEndianUInt16(bytes, index + 5);
+                return width > 0 && height > 0;
+            }
+
+            index += segmentLength;
+        }
+
+        return false;
+    }
+
+    private static bool IsJpegStartOfFrame(byte marker)
+    {
+        return marker is 0xC0 or 0xC1 or 0xC2 or 0xC3 or 0xC5 or 0xC6 or 0xC7 or 0xC9 or 0xCA or 0xCB or 0xCD or 0xCE or 0xCF;
+    }
+
+    private static int ReadBigEndianInt32(byte[] bytes, int offset)
+    {
+        return (bytes[offset] << 24) |
+            (bytes[offset + 1] << 16) |
+            (bytes[offset + 2] << 8) |
+            bytes[offset + 3];
+    }
+
+    private static int ReadBigEndianUInt16(byte[] bytes, int offset)
+    {
+        return (bytes[offset] << 8) | bytes[offset + 1];
     }
 
     private static string GetRelativeRelationshipTarget(string sourcePartName, string targetPartName)
