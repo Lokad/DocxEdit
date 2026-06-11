@@ -98,6 +98,7 @@ internal static class DocxUnsupportedFeatureScanner
             element.Name.NamespaceName.Contains("vml", StringComparison.OrdinalIgnoreCase) ||
             element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase)), partName, story, "Shapes are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1013", "alt-chunk", Count(document, OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
+        AddWarningIfAny(diagnostics, "W1014", "section-flow", CountComplexSectionFlows(document), partName, story, "Complex section flow is present; section read/edit support does not model full section inheritance.");
 
         int externalImages = package
             .GetRelationships(partName, cancellationToken)
@@ -118,6 +119,24 @@ internal static class DocxUnsupportedFeatureScanner
     private static int CountWhere(XDocument document, Func<XElement, bool> predicate)
     {
         return document.Descendants().Count(predicate);
+    }
+
+    private static int CountComplexSectionFlows(XDocument document)
+    {
+        XElement? root = document.Root;
+        if (root is null)
+        {
+            return 0;
+        }
+
+        int sectionProperties = root.Descendants(OoxmlNs.W + "sectPr").Count();
+        int paragraphSectionBreaks = root
+            .Descendants(OoxmlNs.W + "pPr")
+            .Elements(OoxmlNs.W + "sectPr")
+            .Count();
+        return sectionProperties > 1
+            ? sectionProperties
+            : paragraphSectionBreaks;
     }
 
     private static void AddWarningIfAny(

@@ -18,4 +18,8 @@ Common code ranges:
 - `E90xx`: post-edit validation failure.
 - `W4001`: `TrackChangesMode.Suggest` warning; the edit is applied directly.
 
+Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
+`bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,
+`equation`, `shape`, `alt-chunk`, and `section-flow`.
+
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.

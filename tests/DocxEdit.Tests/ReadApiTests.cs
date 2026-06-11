@@ -329,6 +329,35 @@ public static class ReadApiTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1013" && diagnostic.Feature == "alt-chunk");
     }
 
+    [Fact]
+    public static void ReadWarnsAboutComplexSectionFlow()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:sectPr>
+                          <w:cols w:num="2"/>
+                        </w:sectPr>
+                      </w:pPr>
+                      <w:r><w:t>First section</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Second section</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W1014" &&
+            diagnostic.Feature == "section-flow" &&
+            diagnostic.PartName == "/word/document.xml" &&
+            diagnostic.Story == "main");
+    }
+
     private static MemoryStream CreateDocx()
     {
         var stream = new MemoryStream();
