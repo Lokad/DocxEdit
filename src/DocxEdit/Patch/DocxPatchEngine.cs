@@ -82,20 +82,13 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainParagraphTarget(target!, out int paragraphOrdinal))
-        {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-text target '{target}'. Expected a main paragraph ID such as M.P0001.", operation, target)];
-        }
-
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement[] paragraphs = body.Elements(OoxmlNs.W + "p").ToArray();
-        if (paragraphOrdinal < 1 || paragraphOrdinal > paragraphs.Length)
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        XElement paragraph = paragraphs[paragraphOrdinal - 1];
-        string current = ReadVisibleText(paragraph);
+        string current = ReadVisibleText(paragraphTarget.Paragraph);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
             return
@@ -120,8 +113,8 @@ internal static class DocxPatchEngine
         }
 
         string edited = current.Replace(find!, replacement!, StringComparison.Ordinal);
-        ReplaceParagraphText(paragraph, edited);
-        SaveMainDocument(package, document);
+        ReplaceParagraphText(paragraphTarget.Paragraph, edited);
+        SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
 
@@ -141,19 +134,13 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryParseMainParagraphTarget(target!, out int paragraphOrdinal))
-        {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-paragraph target '{target}'. Expected a main paragraph ID such as M.P0001.", operation, target)];
-        }
-
-        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        XElement? paragraph = FindParagraph(body, paragraphOrdinal);
-        if (paragraph is null)
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        if (paragraphTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        string current = ReadVisibleText(paragraph);
+        string current = ReadVisibleText(paragraphTarget.Paragraph);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
@@ -164,13 +151,13 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        ReplaceParagraphText(paragraph, text!);
+        ReplaceParagraphText(paragraphTarget.Paragraph, text!);
         if (style is not null)
         {
-            SetParagraphStyle(paragraph, style);
+            SetParagraphStyle(paragraphTarget.Paragraph, style);
         }
 
-        SaveMainDocument(package, document);
+        SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
 
@@ -764,6 +751,79 @@ internal static class DocxPatchEngine
         return null;
     }
 
+    private static ParagraphTarget? ResolveParagraphTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainParagraphTarget(target, out int mainParagraphOrdinal))
+        {
+            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+            XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
+            return paragraph is null || package.MainDocumentPartName is null
+                ? null
+                : new ParagraphTarget(package.MainDocumentPartName, document, paragraph);
+        }
+
+        if (TryParseStoryParagraphTarget(target, 'H', out int headerOrdinal, out int headerParagraphOrdinal))
+        {
+            return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerParagraphOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
+        {
+            return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerParagraphOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static ParagraphTarget? ResolveRelatedStoryParagraphTarget(
+        OoxmlPackage package,
+        string relationshipType,
+        int storyOrdinal,
+        int paragraphOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null || storyOrdinal < 1)
+        {
+            return null;
+        }
+
+        OoxmlRelationship? relationship = package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == relationshipType && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .ElementAtOrDefault(storyOrdinal - 1);
+        if (relationship?.ResolvedTarget is null)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, relationship.ResolvedTarget, cancellationToken, out XElement root);
+        XElement? paragraph = FindParagraph(root, paragraphOrdinal);
+        return paragraph is null ? null : new ParagraphTarget(relationship.ResolvedTarget, document, paragraph);
+    }
+
+    private static bool TryParseStoryParagraphTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int paragraphOrdinal)
+    {
+        storyOrdinal = 0;
+        paragraphOrdinal = 0;
+        if (target.Length != 10 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".P")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..], out paragraphOrdinal);
+    }
+
     private static ImageTarget? FindMainImageTarget(
         OoxmlPackage package,
         int imageOrdinal,
@@ -1160,20 +1220,37 @@ internal static class DocxPatchEngine
         CancellationToken cancellationToken,
         out XElement body)
     {
-        OoxmlPart documentPart = package.GetPart(package.MainDocumentPartName!)
-            ?? throw new InvalidDataException($"Main document part '{package.MainDocumentPartName}' does not exist.");
+        XDocument document = LoadDocumentPart(package, package.MainDocumentPartName!, cancellationToken, out XElement root);
+        body = root.Element(OoxmlNs.W + "body")
+            ?? throw new InvalidDataException("Main document part is missing w:body.");
+        return document;
+    }
+
+    private static XDocument LoadDocumentPart(
+        OoxmlPackage package,
+        string partName,
+        CancellationToken cancellationToken,
+        out XElement root)
+    {
+        OoxmlPart documentPart = package.GetPart(partName)
+            ?? throw new InvalidDataException($"Document part '{partName}' does not exist.");
         using Stream stream = documentPart.OpenRead();
         XDocument document = SafeXml.Load(stream, cancellationToken);
-        body = document.Root?.Element(OoxmlNs.W + "body")
-            ?? throw new InvalidDataException("Main document part is missing w:body.");
+        root = document.Root
+            ?? throw new InvalidDataException($"Document part '{partName}' has no XML root.");
         return document;
     }
 
     private static void SaveMainDocument(OoxmlPackage package, XDocument document)
     {
+        SaveDocumentPart(package, package.MainDocumentPartName!, document);
+    }
+
+    private static void SaveDocumentPart(OoxmlPackage package, string partName, XDocument document)
+    {
         using var output = new MemoryStream();
         document.Save(output, SaveOptions.DisableFormatting);
-        package.ReplacePartBytes(package.MainDocumentPartName!, output.ToArray());
+        package.ReplacePartBytes(partName, output.ToArray());
     }
 
     private static bool RequiresPreserveSpace(string text)
@@ -1201,3 +1278,5 @@ internal sealed record PatchExecutionResult(
 internal sealed record ImageTarget(string RelationshipId, OoxmlPart Part);
 
 internal sealed record ImageBlipTarget(XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
+
+internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
