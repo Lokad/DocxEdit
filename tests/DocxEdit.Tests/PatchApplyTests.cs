@@ -635,6 +635,65 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyInsertImageAfterAddsInlinePngImage()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", "new-png", null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            width 1in
+            alt Inserted chart
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxImageInfo image = Assert.Single(read.Images);
+        Assert.Equal("/word/media/image1.png", image.PartName);
+        Assert.Equal("image/png", image.ContentType);
+        Assert.Equal(2, read.Paragraphs.Count);
+        output.Position = 0;
+        Assert.Equal("new-png", ReadEntry(output, "word/media/image1.png"));
+        output.Position = 0;
+        Assert.Contains("ContentType=\"image/png\"", ReadEntry(output, "[Content_Types].xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyInsertImageAfterAddsInlineJpegImage()
+    {
+        using MemoryStream input = CreateDocx("Intro");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("photo.jpeg", "new-jpeg", null, "photo.jpeg");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset photo.jpeg
+            width 72pt
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal("/word/media/image1.jpeg", image.PartName);
+        Assert.Equal("image/jpeg", image.ContentType);
+        output.Position = 0;
+        Assert.Equal("new-jpeg", ReadEntry(output, "word/media/image1.jpeg"));
+    }
+
+    [Fact]
     public static void ApplyInsertRowBeforeClonesTargetRowShape()
     {
         using MemoryStream input = CreateDocxWithBody("""

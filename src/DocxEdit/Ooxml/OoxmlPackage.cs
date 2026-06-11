@@ -188,6 +188,72 @@ internal sealed class OoxmlPackage
         parts[normalized] = part with { Bytes = bytes };
     }
 
+    internal void AddPart(string partName, string contentType, byte[] bytes)
+    {
+        string normalized = OoxmlPath.NormalizePartName(partName);
+        if (parts.ContainsKey(normalized))
+        {
+            throw new InvalidDataException($"OOXML part '{normalized}' already exists.");
+        }
+
+        parts[normalized] = new OoxmlPart(normalized, normalized.TrimStart('/'), contentType, bytes);
+        AddContentTypeOverride(normalized, contentType);
+    }
+
+    internal void AddRelationship(string sourcePartName, string relationshipId, string relationshipType, string target)
+    {
+        string relationshipPartName = OoxmlPath.GetRelationshipPartName(sourcePartName);
+        XDocument document;
+        if (parts.TryGetValue(relationshipPartName, out OoxmlPart? relationshipPart))
+        {
+            using Stream stream = relationshipPart.OpenRead();
+            document = SafeXml.Load(stream);
+        }
+        else
+        {
+            document = new XDocument(new XElement(OoxmlNs.Rel + "Relationships"));
+            parts[relationshipPartName] = new OoxmlPart(
+                relationshipPartName,
+                relationshipPartName.TrimStart('/'),
+                OoxmlContentTypeNames.Relationships,
+                []);
+        }
+
+        XElement root = document.Root
+            ?? throw new InvalidDataException($"Relationship part '{relationshipPartName}' has no XML root.");
+        root.Add(new XElement(
+            OoxmlNs.Rel + "Relationship",
+            new XAttribute("Id", relationshipId),
+            new XAttribute("Type", relationshipType),
+            new XAttribute("Target", target)));
+
+        using var output = new MemoryStream();
+        document.Save(output, SaveOptions.DisableFormatting);
+        ReplacePartBytes(relationshipPartName, output.ToArray());
+    }
+
+    private void AddContentTypeOverride(string partName, string contentType)
+    {
+        using Stream stream = ContentTypesPart.OpenRead();
+        XDocument document = SafeXml.Load(stream);
+        XElement root = document.Root
+            ?? throw new InvalidDataException("Content types part has no XML root.");
+        bool exists = root
+            .Elements(OoxmlNs.Ct + "Override")
+            .Any(element => string.Equals((string?)element.Attribute("PartName"), partName, StringComparison.OrdinalIgnoreCase));
+        if (!exists)
+        {
+            root.Add(new XElement(
+                OoxmlNs.Ct + "Override",
+                new XAttribute("PartName", partName),
+                new XAttribute("ContentType", contentType)));
+        }
+
+        using var output = new MemoryStream();
+        document.Save(output, SaveOptions.DisableFormatting);
+        ReplacePartBytes("/[Content_Types].xml", output.ToArray());
+    }
+
     internal static IReadOnlyList<OoxmlRelationship> ParseRelationships(
         Stream stream,
         string sourcePartName,

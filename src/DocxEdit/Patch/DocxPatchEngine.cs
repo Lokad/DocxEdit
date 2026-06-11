@@ -49,6 +49,7 @@ internal static class DocxPatchEngine
                 "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
                 "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
                 "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
+                "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
                 "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
                 "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                 _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
@@ -287,6 +288,133 @@ internal static class DocxPatchEngine
 
         package.ReplacePartBytes(imageTarget.Part.Name, bytes);
         return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteInsertImageAfter(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxEditOptions options,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? asset = ReadRequiredField(operation, "asset", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        if (paragraphTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!TryReadAsset(options.AssetProvider, asset!, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
+        {
+            return [assetDiagnostic!];
+        }
+
+        if (!TryReadImageExtent(operation, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
+        {
+            return [dimensionDiagnostic!];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType!);
+        string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(paragraphTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
+        package.AddPart(imagePartName, contentType!, bytes);
+        package.AddRelationship(paragraphTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(paragraphTarget.PartName, imagePartName));
+        XElement imageParagraph = CreateInlineImageParagraph(relationshipId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
+        paragraphTarget.Paragraph.AddAfterSelf(imageParagraph);
+        SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
+        return [];
+    }
+
+    private static bool TryReadImageExtent(
+        DocxPatchOperation operation,
+        out long widthEmus,
+        out long heightEmus,
+        out DocxDiagnostic? diagnostic)
+    {
+        widthEmus = OoxmlUnits.InchesToEmu(1);
+        heightEmus = widthEmus;
+        diagnostic = null;
+        bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
+        bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
+        if (hasWidth && !OoxmlUnits.TryParseDimension(width!, out widthEmus))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
+        }
+
+        if (hasHeight && !OoxmlUnits.TryParseDimension(height!, out heightEmus))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image height '{height}'.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
+        }
+
+        if (hasWidth && !hasHeight)
+        {
+            heightEmus = widthEmus;
+        }
+        else if (!hasWidth && hasHeight)
+        {
+            widthEmus = heightEmus;
+        }
+
+        return true;
+    }
+
+    private static string GetRelativeRelationshipTarget(string sourcePartName, string targetPartName)
+    {
+        string normalizedSource = OoxmlPath.NormalizePartName(sourcePartName);
+        string normalizedTarget = OoxmlPath.NormalizePartName(targetPartName);
+        string sourceDirectory = normalizedSource[..(normalizedSource.LastIndexOf('/') + 1)];
+        return normalizedTarget.StartsWith(sourceDirectory, StringComparison.Ordinal)
+            ? normalizedTarget[sourceDirectory.Length..]
+            : normalizedTarget.TrimStart('/');
+    }
+
+    private static XElement CreateInlineImageParagraph(string relationshipId, long widthEmus, long heightEmus, string alt)
+    {
+        return new XElement(
+            OoxmlNs.W + "p",
+            new XElement(
+                OoxmlNs.W + "r",
+                new XElement(
+                    OoxmlNs.W + "drawing",
+                    new XElement(
+                        OoxmlNs.Wp + "inline",
+                        new XElement(OoxmlNs.Wp + "extent", new XAttribute("cx", widthEmus), new XAttribute("cy", heightEmus)),
+                        new XElement(OoxmlNs.Wp + "docPr", new XAttribute("id", "1"), new XAttribute("name", "Picture"), new XAttribute("descr", alt)),
+                        new XElement(
+                            OoxmlNs.A + "graphic",
+                            new XElement(
+                                OoxmlNs.A + "graphicData",
+                                new XAttribute("uri", "http://schemas.openxmlformats.org/drawingml/2006/picture"),
+                                new XElement(
+                                    OoxmlNs.Pic + "pic",
+                                    new XElement(
+                                        OoxmlNs.Pic + "nvPicPr",
+                                        new XElement(OoxmlNs.Pic + "cNvPr", new XAttribute("id", "0"), new XAttribute("name", "Picture")),
+                                        new XElement(OoxmlNs.Pic + "cNvPicPr")),
+                                    new XElement(
+                                        OoxmlNs.Pic + "blipFill",
+                                        new XElement(OoxmlNs.A + "blip", new XAttribute(OoxmlNs.R + "embed", relationshipId)),
+                                        new XElement(OoxmlNs.A + "stretch", new XElement(OoxmlNs.A + "fillRect"))),
+                                    new XElement(
+                                        OoxmlNs.Pic + "spPr",
+                                        new XElement(
+                                            OoxmlNs.A + "xfrm",
+                                            new XElement(OoxmlNs.A + "off", new XAttribute("x", "0"), new XAttribute("y", "0")),
+                                            new XElement(OoxmlNs.A + "ext", new XAttribute("cx", widthEmus), new XAttribute("cy", heightEmus))),
+                                        new XElement(OoxmlNs.A + "prstGeom", new XAttribute("prst", "rect"), new XElement(OoxmlNs.A + "avLst"))))))))));
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageAlt(
