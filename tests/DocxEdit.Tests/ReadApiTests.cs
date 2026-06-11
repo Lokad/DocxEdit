@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 
 namespace DocxEdit.Tests;
 
@@ -180,6 +181,71 @@ public static class ReadApiTests
 
         Assert.True(result.Success);
         Assert.Contains(result.Matches, match => match.StartsWith("H001.P0001", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ChangesListsTrackedMarkupWithoutRevisionText()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before</w:t></w:r>
+                      <w:ins w:id="9" w:author="Alice" w:date="2026-06-01T12:00:00Z">
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:ins>
+                      <w:del w:id="10" w:author="Bob" w:date="2026-06-02T12:00:00Z">
+                        <w:r><w:delText>Deleted</w:delText></w:r>
+                      </w:del>
+                      <w:r>
+                        <w:rPr>
+                          <w:rPrChange w:id="11" w:author="Carol" w:date="2026-06-03T12:00:00Z"/>
+                        </w:rPr>
+                        <w:t>After</w:t>
+                      </w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:tcPrChange w:id="12" w:author="Dan" w:date="2026-06-04T12:00:00Z"/></w:tcPr>
+                          <w:p><w:r><w:t>Cell</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:sectPr>
+                      <w:sectPrChange w:id="13" w:author="Eve" w:date="2026-06-05T12:00:00Z"/>
+                    </w:sectPr>
+                    <w:customXmlDelRangeStart w:id="14" w:author="Frank" w:date="2026-06-06T12:00:00Z"/>
+                    <w:customXmlDelRangeEnd w:id="14"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(7, result.Changes.Count);
+        Assert.Contains(result.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "deleted-run" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "run-properties-change" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "cell-properties-change" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "section-properties-change" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "custom-xml-delete-range-start" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "custom-xml-delete-range-end" && summary.Count == 1);
+
+        DocxChangeInfo insertion = Assert.Single(result.Changes, change => change.Type == "inserted-run");
+        Assert.Equal("M.CH0001", insertion.Id);
+        Assert.Equal("main", insertion.Story);
+        Assert.Equal("/word/document.xml", insertion.PartName);
+        Assert.Equal("M.P0001", insertion.TargetId);
+        Assert.Equal("Alice", insertion.Author);
+        Assert.Equal("9", insertion.RevisionId);
+        Assert.Equal(8, insertion.TextLength);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-01T12:00:00Z").ToUniversalTime(), insertion.TimestampUtc);
+
+        DocxChangeInfo cellChange = Assert.Single(result.Changes, change => change.Type == "cell-properties-change");
+        Assert.Equal("M.T0001.R01.C01", cellChange.TargetId);
+
+        string serialized = JsonSerializer.Serialize(result);
+        Assert.DoesNotContain("Inserted", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deleted", serialized, StringComparison.Ordinal);
     }
 
     private static MemoryStream CreateDocx()

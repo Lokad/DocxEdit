@@ -122,6 +122,26 @@ public sealed class DocxEditor
         };
     }
 
+    public DocxChangesResult Changes(
+        Stream input,
+        DocxChangesOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        options ??= new DocxChangesOptions();
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        IReadOnlyList<DocxChangeInfo> changes = package is null ? [] : DocxChangeScanner.Scan(package, cancellationToken);
+        return new DocxChangesResult
+        {
+            Success = package is not null,
+            Diagnostics = diagnostics,
+            PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
+            MainDocumentPartName = package?.MainDocumentPartName,
+            Changes = changes,
+            Summary = DocxChangeScanner.Summarize(changes)
+        };
+    }
+
     public DocxPatch ParsePatch(
         TextReader patchReader,
         DocxPatchParseOptions? options = null,
@@ -276,6 +296,11 @@ public sealed class DocxEditor
     }
 
     private static OoxmlPackageOptions ToPackageOptions(DocxMediaOptions options)
+    {
+        return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
+    }
+
+    private static OoxmlPackageOptions ToPackageOptions(DocxChangesOptions options)
     {
         return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
     }

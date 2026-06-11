@@ -1,0 +1,262 @@
+using System.Xml.Linq;
+using DocxEdit.Ooxml;
+
+namespace DocxEdit.Model;
+
+internal static class DocxChangeScanner
+{
+    private static readonly IReadOnlyDictionary<string, string> ChangeTypes = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["ins"] = "inserted-run",
+        ["del"] = "deleted-run",
+        ["moveFrom"] = "move-from-run",
+        ["moveTo"] = "move-to-run",
+        ["moveFromRangeStart"] = "move-from-range-start",
+        ["moveFromRangeEnd"] = "move-from-range-end",
+        ["moveToRangeStart"] = "move-to-range-start",
+        ["moveToRangeEnd"] = "move-to-range-end",
+        ["rPrChange"] = "run-properties-change",
+        ["pPrChange"] = "paragraph-properties-change",
+        ["tblPrChange"] = "table-properties-change",
+        ["trPrChange"] = "row-properties-change",
+        ["tcPrChange"] = "cell-properties-change",
+        ["sectPrChange"] = "section-properties-change",
+        ["cellIns"] = "cell-inserted",
+        ["cellDel"] = "cell-deleted",
+        ["cellMerge"] = "cell-merge-change",
+        ["customXmlInsRangeStart"] = "custom-xml-insert-range-start",
+        ["customXmlInsRangeEnd"] = "custom-xml-insert-range-end",
+        ["customXmlDelRangeStart"] = "custom-xml-delete-range-start",
+        ["customXmlDelRangeEnd"] = "custom-xml-delete-range-end"
+    };
+
+    public static IReadOnlyList<DocxChangeInfo> Scan(
+        OoxmlPackage package,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var changes = new List<DocxChangeInfo>();
+        int fallbackPartIndex = 1;
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(IsWordXmlPart)
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            string story = GetStory(package, part.Name, fallbackPartIndex);
+            string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex);
+            IReadOnlyDictionary<XElement, string> targets = BuildTargetMap(document, prefix);
+
+            int index = 1;
+            foreach (XElement element in document.Descendants().Where(IsChangeElement))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                changes.Add(new DocxChangeInfo(
+                    $"{prefix}.CH{index++:0000}",
+                    ChangeTypes[element.Name.LocalName],
+                    story,
+                    part.Name,
+                    FindNearestTarget(element, targets),
+                    (string?)element.Attribute(OoxmlNs.W + "author"),
+                    ParseDate((string?)element.Attribute(OoxmlNs.W + "date")),
+                    (string?)element.Attribute(OoxmlNs.W + "id"),
+                    ReadRevisionTextLength(element),
+                    element.Elements().Count()));
+            }
+        }
+
+        return changes;
+    }
+
+    public static IReadOnlyList<DocxChangeSummary> Summarize(IReadOnlyList<DocxChangeInfo> changes)
+    {
+        return changes
+            .GroupBy(change => change.Type, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new DocxChangeSummary(group.Key, group.Count()))
+            .ToArray();
+    }
+
+    private static bool IsWordXmlPart(OoxmlPart part)
+    {
+        return part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
+            part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+            !part.Name.Contains("/_rels/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsChangeElement(XElement element)
+    {
+        return element.Name.Namespace == OoxmlNs.W &&
+            ChangeTypes.ContainsKey(element.Name.LocalName);
+    }
+
+    private static string GetStory(OoxmlPackage package, string partName, int fallbackPartIndex)
+    {
+        if (string.Equals(partName, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
+        {
+            return "main";
+        }
+
+        if (package.MainDocumentPartName is not null)
+        {
+            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName);
+            int headerIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"header[{headerIndex}]";
+                }
+
+                headerIndex++;
+            }
+
+            int footerIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"footer[{footerIndex}]";
+                }
+
+                footerIndex++;
+            }
+        }
+
+        return $"part[{fallbackPartIndex}]";
+    }
+
+    private static string GetIdPrefix(OoxmlPackage package, string partName, ref int fallbackPartIndex)
+    {
+        if (string.Equals(partName, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
+        {
+            return "M";
+        }
+
+        if (package.MainDocumentPartName is not null)
+        {
+            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName);
+            int headerIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"H{headerIndex:000}";
+                }
+
+                headerIndex++;
+            }
+
+            int footerIndex = 1;
+            foreach (OoxmlRelationship relationship in relationships
+                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            {
+                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"F{footerIndex:000}";
+                }
+
+                footerIndex++;
+            }
+        }
+
+        return $"P{fallbackPartIndex++:000}";
+    }
+
+    private static IReadOnlyDictionary<XElement, string> BuildTargetMap(XDocument document, string prefix)
+    {
+        var targets = new Dictionary<XElement, string>();
+        XElement root = document.Root ?? new XElement("empty");
+        XElement body = root.Element(OoxmlNs.W + "body") ?? root;
+        int paragraphIndex = 1;
+        int tableIndex = 1;
+        int sectionIndex = 1;
+
+        foreach (XElement block in body.Elements())
+        {
+            if (block.Name == OoxmlNs.W + "p")
+            {
+                targets[block] = $"{prefix}.P{paragraphIndex++:0000}";
+                XElement? sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
+                if (sectionProperties is not null)
+                {
+                    targets[sectionProperties] = $"{prefix}.S{sectionIndex++:0000}";
+                }
+            }
+            else if (block.Name == OoxmlNs.W + "tbl")
+            {
+                string tableId = $"{prefix}.T{tableIndex++:0000}";
+                targets[block] = tableId;
+                int rowIndex = 1;
+                foreach (XElement row in block.Elements(OoxmlNs.W + "tr"))
+                {
+                    string rowId = $"{tableId}.R{rowIndex:00}";
+                    targets[row] = rowId;
+                    int cellIndex = 1;
+                    foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+                    {
+                        targets[cell] = $"{rowId}.C{cellIndex++:00}";
+                    }
+
+                    rowIndex++;
+                }
+            }
+            else if (block.Name == OoxmlNs.W + "sectPr")
+            {
+                targets[block] = $"{prefix}.S{sectionIndex++:0000}";
+            }
+        }
+
+        return targets;
+    }
+
+    private static string? FindNearestTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    {
+        foreach (XElement candidate in element.AncestorsAndSelf())
+        {
+            if (targets.TryGetValue(candidate, out string? id))
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? ParseDate(string? value)
+    {
+        return DateTimeOffset.TryParse(value, out DateTimeOffset parsed)
+            ? parsed.ToUniversalTime()
+            : null;
+    }
+
+    private static int ReadRevisionTextLength(XElement element)
+    {
+        int length = 0;
+        foreach (XElement descendant in element.Descendants())
+        {
+            if (descendant.Name == OoxmlNs.W + "t" ||
+                descendant.Name == OoxmlNs.W + "delText" ||
+                descendant.Name == OoxmlNs.W + "instrText")
+            {
+                length += descendant.Value.Length;
+            }
+            else if (descendant.Name == OoxmlNs.W + "tab" ||
+                descendant.Name == OoxmlNs.W + "br" ||
+                descendant.Name == OoxmlNs.W + "cr")
+            {
+                length++;
+            }
+        }
+
+        return length;
+    }
+}

@@ -46,6 +46,14 @@ public sealed record DocxMediaResult : DocxOperationResult
     public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
 }
 
+public sealed record DocxChangesResult : DocxOperationResult
+{
+    public IReadOnlyList<string> PartNames { get; init; } = [];
+    public string? MainDocumentPartName { get; init; }
+    public IReadOnlyList<DocxChangeInfo> Changes { get; init; } = [];
+    public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
+}
+
 public sealed record DocxCheckResult : DocxOperationResult
 {
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
@@ -66,6 +74,20 @@ public sealed record DocxPatchOperationReport(
 public sealed record DocxStyleInfo(string StyleId, string Name, string Type, bool IsDefault);
 
 public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength);
+
+public sealed record DocxChangeInfo(
+    string Id,
+    string Type,
+    string Story,
+    string PartName,
+    string? TargetId,
+    string? Author,
+    DateTimeOffset? TimestampUtc,
+    string? RevisionId,
+    int TextLength,
+    int ChildElementCount);
+
+public sealed record DocxChangeSummary(string Type, int Count);
 
 public sealed record DocxParagraphInfo(
     string Id,

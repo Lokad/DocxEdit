@@ -56,6 +56,14 @@ public sealed class DocxMediaOptions
     public bool LeaveInputOpen { get; init; } = true;
 }
 
+public sealed class DocxChangesOptions
+{
+    public int MaxZipEntries { get; init; } = 10_000;
+    public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
+    public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;
+    public bool LeaveInputOpen { get; init; } = true;
+}
+
 public sealed class DocxPatchParseOptions
 {
 }
@@ -86,4 +94,3 @@ public enum TrackChangesMode
     Suggest,
     Require
 }
-

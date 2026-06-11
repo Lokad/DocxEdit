@@ -41,6 +41,7 @@ internal static class ProgramMain
                 "dump" => RunDump(options),
                 "styles" => RunStyles(options),
                 "media" => RunMedia(options),
+                "changes" => RunChanges(options),
                 "check" => RunCheck(options),
                 "apply" => RunApply(options),
                 _ => InvalidUsage($"Unknown command '{options.Command}'.")
@@ -220,6 +221,40 @@ internal static class ProgramMain
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
     }
 
+    private static int RunChanges(ParsedOptions options)
+    {
+        if (options.Positionals.Count != 1)
+        {
+            return InvalidUsage("Usage: docxedit changes input.docx [--json] [--diagnostics <path>] [--strict]");
+        }
+
+        using Stream input = File.OpenRead(options.Positionals[0]);
+        DocxChangesResult result = new DocxEditor().Changes(input);
+        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
+        if (options.Json)
+        {
+            WriteJson(result);
+        }
+        else
+        {
+            foreach (DocxChangeSummary summary in result.Summary)
+            {
+                Console.WriteLine($"{summary.Type} count={summary.Count}");
+            }
+
+            foreach (DocxChangeInfo change in result.Changes)
+            {
+                string target = change.TargetId is null ? "target=unknown" : $"target={change.TargetId}";
+                string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
+                string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
+                string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
+                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}");
+            }
+        }
+
+        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+    }
+
     private static int RunCheck(ParsedOptions options)
     {
         if (options.Positionals.Count != 2)
@@ -380,6 +415,7 @@ internal static class ProgramMain
               dump       Dump one target in detail
               styles     List paragraph, character, and table styles
               media      List embedded images
+              changes    List tracked-change markup without printing revision text
 
             Patch:
               check      Validate a .docxpatch file without writing output
@@ -392,6 +428,7 @@ internal static class ProgramMain
               docxedit read report.docx
               docxedit dump report.docx --id M.P0004 --runs
               docxedit media report.docx --extract media
+              docxedit changes report.docx
               docxedit check report.docx edits.docxpatch
               docxedit apply report.docx edits.docxpatch -o report.edited.docx
             """);
