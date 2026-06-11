@@ -172,6 +172,26 @@ public static class OoxmlPackageTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
     }
 
+    [Fact]
+    public static void PublicReadReturnsDiagnosticForInvalidMainDocumentNamespace()
+    {
+        using MemoryStream stream = CreatePackage(archive =>
+        {
+            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
+            AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
+            AddEntry(archive, "word/document.xml", "<root />");
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+                """);
+        });
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Message.Contains("WordprocessingML", StringComparison.Ordinal));
+    }
+
     private static MemoryStream CreateMinimalDocx(Action<ZipArchive>? extra = null, bool macroEnabled = false)
     {
         return CreatePackage(archive =>

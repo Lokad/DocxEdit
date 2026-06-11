@@ -112,6 +112,8 @@ internal sealed class OoxmlPackage
                 throw new InvalidDataException("Macro-enabled Word documents are not allowed.");
             }
 
+            ValidateMainDocumentNamespace(parts[mainDocumentPartName], cancellationToken);
+
             string mainDocumentRelationshipsPartName = OoxmlPath.GetRelationshipPartName(mainDocumentPartName);
             if (!parts.TryGetValue(mainDocumentRelationshipsPartName, out OoxmlPart? mainDocumentRelationshipsPart))
             {
@@ -328,6 +330,16 @@ internal sealed class OoxmlPackage
                     throw new InvalidDataException($"Relationship '{relationship.Id}' in '{relationshipPart.Name}' targets missing part '{relationship.ResolvedTarget}'.");
                 }
             }
+        }
+    }
+
+    private static void ValidateMainDocumentNamespace(OoxmlPart mainDocumentPart, CancellationToken cancellationToken)
+    {
+        using Stream stream = mainDocumentPart.OpenRead();
+        XDocument document = SafeXml.Load(stream, cancellationToken);
+        if (document.Root?.Name != OoxmlNs.W + "document")
+        {
+            throw new InvalidDataException($"Main document part '{mainDocumentPart.Name}' is not a WordprocessingML document.");
         }
     }
 
