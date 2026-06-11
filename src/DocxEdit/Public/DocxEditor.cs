@@ -160,7 +160,7 @@ public sealed class DocxEditor
             };
         }
 
-        PatchExecutionResult execution = DocxPatchEngine.Check(package, patch, cancellationToken);
+        PatchExecutionResult execution = DocxPatchEngine.Check(package, patch, options, cancellationToken);
         return new DocxCheckResult
         {
             Success = execution.Success,
@@ -197,7 +197,7 @@ public sealed class DocxEditor
             return new DocxApplyResult { Success = false, Diagnostics = diagnostics };
         }
 
-        PatchExecutionResult execution = DocxPatchEngine.Apply(package, patch, cancellationToken);
+        PatchExecutionResult execution = DocxPatchEngine.Apply(package, patch, options, cancellationToken);
         if (!execution.Success)
         {
             return new DocxApplyResult

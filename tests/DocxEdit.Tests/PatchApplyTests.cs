@@ -425,6 +425,89 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyReplaceImageUsesAssetProviderForPng()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", "new-png", null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            asset chart.png
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("new-png", ReadEntry(output, "word/media/image1.png"));
+    }
+
+    [Fact]
+    public static void ApplyReplaceImageUsesAssetProviderForJpeg()
+    {
+        using MemoryStream input = CreateDocxWithImage("jpeg", "image/jpeg", "old-jpeg");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("photo.jpeg", "new-jpeg", null, "photo.jpeg");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            asset photo.jpeg
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("new-jpeg", ReadEntry(output, "word/media/image1.jpeg"));
+    }
+
+    [Fact]
+    public static void CheckReplaceImageFailsWithoutAssetProvider()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            asset chart.png
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E5201");
+    }
+
+    [Fact]
+    public static void CheckReplaceImageRejectsUnsupportedAssetType()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        var assets = new MemoryAssetProvider("asset.bin", "not-image", null, "asset.bin");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            asset asset.bin
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E5203");
+    }
+
+    [Fact]
     public static void ApplyInsertRowBeforeClonesTargetRowShape()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -639,11 +722,80 @@ public static class PatchApplyTests
         return stream;
     }
 
+    private static MemoryStream CreateDocxWithImage(string extension, string contentType, string mediaBytes)
+    {
+        var stream = new MemoryStream();
+        string partName = $"word/media/image1.{extension}";
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", $$"""
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="{{extension}}" ContentType="{{contentType}}"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", $$"""
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.{{extension}}"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rImage"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, partName, mediaBytes);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
     private static string ReadDocumentXml(Stream docx)
     {
         using var archive = new ZipArchive(docx, ZipArchiveMode.Read, leaveOpen: true);
         ZipArchiveEntry entry = archive.GetEntry("word/document.xml")
             ?? throw new InvalidDataException("Missing word/document.xml.");
+        using Stream stream = entry.Open();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    private static string ReadEntry(Stream docx, string entryName)
+    {
+        using var archive = new ZipArchive(docx, ZipArchiveMode.Read, leaveOpen: true);
+        ZipArchiveEntry entry = archive.GetEntry(entryName)
+            ?? throw new InvalidDataException($"Missing {entryName}.");
         using Stream stream = entry.Open();
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd();
@@ -668,5 +820,37 @@ public static class PatchApplyTests
         using Stream stream = entry.Open();
         byte[] bytes = Encoding.UTF8.GetBytes(text);
         stream.Write(bytes, 0, bytes.Length);
+    }
+
+    private sealed class MemoryAssetProvider : IDocxAssetProvider
+    {
+        private readonly string reference;
+        private readonly byte[] bytes;
+        private readonly string? contentTypeHint;
+        private readonly string? fileNameHint;
+
+        public MemoryAssetProvider(string reference, string text, string? contentTypeHint, string? fileNameHint)
+        {
+            this.reference = reference;
+            bytes = Encoding.UTF8.GetBytes(text);
+            this.contentTypeHint = contentTypeHint;
+            this.fileNameHint = fileNameHint;
+        }
+
+        public bool TryOpen(string requestedReference, out Stream stream, out string? contentTypeHint, out string? fileNameHint)
+        {
+            if (requestedReference != reference)
+            {
+                stream = Stream.Null;
+                contentTypeHint = null;
+                fileNameHint = null;
+                return false;
+            }
+
+            stream = new MemoryStream(bytes, writable: false);
+            contentTypeHint = this.contentTypeHint;
+            fileNameHint = this.fileNameHint;
+            return true;
+        }
     }
 }

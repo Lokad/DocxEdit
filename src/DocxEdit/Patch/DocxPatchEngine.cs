@@ -9,22 +9,25 @@ internal static class DocxPatchEngine
     public static PatchExecutionResult Check(
         OoxmlPackage package,
         DocxPatch patch,
+        DocxEditOptions options,
         CancellationToken cancellationToken = default)
     {
-        return Execute(package, patch, apply: false, cancellationToken);
+        return Execute(package, patch, options, apply: false, cancellationToken);
     }
 
     public static PatchExecutionResult Apply(
         OoxmlPackage package,
         DocxPatch patch,
+        DocxEditOptions options,
         CancellationToken cancellationToken = default)
     {
-        return Execute(package, patch, apply: true, cancellationToken);
+        return Execute(package, patch, options, apply: true, cancellationToken);
     }
 
     private static PatchExecutionResult Execute(
         OoxmlPackage package,
         DocxPatch patch,
+        DocxEditOptions options,
         bool apply,
         CancellationToken cancellationToken)
     {
@@ -45,6 +48,7 @@ internal static class DocxPatchEngine
                 "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
                 "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
                 "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
+                "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
                 _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
             };
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
@@ -247,6 +251,52 @@ internal static class DocxPatchEngine
 
         targetBlock.Remove();
         SaveMainDocument(package, document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceImage(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxEditOptions options,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? asset = ReadRequiredField(operation, "asset", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!TryParseMainImageTarget(target!, out int imageOrdinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-image target '{target}'. Expected an image ID such as M.I0001.", operation, target)];
+        }
+
+        ImageTarget? imageTarget = FindMainImageTarget(package, imageOrdinal, cancellationToken);
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!TryReadAsset(options.AssetProvider, asset!, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
+        {
+            return [assetDiagnostic!];
+        }
+
+        if (imageTarget.Part.ContentType is not null &&
+            !string.Equals(imageTarget.Part.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5204", $"Replacing image content type '{imageTarget.Part.ContentType}' with '{contentType}' is not supported for existing media part {imageTarget.Part.Name}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        package.ReplacePartBytes(imageTarget.Part.Name, bytes);
         return [];
     }
 
@@ -583,6 +633,14 @@ internal static class DocxPatchEngine
             int.TryParse(target[9..11], out rowOrdinal);
     }
 
+    private static bool TryParseMainImageTarget(string target, out int imageOrdinal)
+    {
+        imageOrdinal = 0;
+        return target.Length == 7 &&
+            target.StartsWith("M.I", StringComparison.Ordinal) &&
+            int.TryParse(target[3..], out imageOrdinal);
+    }
+
     private static XElement? FindTable(XElement body, int tableOrdinal)
     {
         return tableOrdinal < 1
@@ -610,6 +668,162 @@ internal static class DocxPatchEngine
         }
 
         return null;
+    }
+
+    private static ImageTarget? FindMainImageTarget(
+        OoxmlPackage package,
+        int imageOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (imageOrdinal < 1 || package.MainDocumentPartName is null)
+        {
+            return null;
+        }
+
+        XDocument document = LoadMainDocument(package, cancellationToken, out _);
+        IReadOnlyDictionary<string, OoxmlRelationship> relationships = package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
+        var seenParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int currentOrdinal = 0;
+        foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed");
+            if (relationshipId is null ||
+                !relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship) ||
+                relationship.IsExternal ||
+                relationship.ResolvedTarget is null)
+            {
+                continue;
+            }
+
+            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
+            if (part is null || !seenParts.Add(part.Name))
+            {
+                continue;
+            }
+
+            currentOrdinal++;
+            if (currentOrdinal == imageOrdinal)
+            {
+                return new ImageTarget(relationshipId, part);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryReadAsset(
+        IDocxAssetProvider? assetProvider,
+        string asset,
+        CancellationToken cancellationToken,
+        out byte[] bytes,
+        out string? contentType,
+        out DocxDiagnostic? diagnostic,
+        DocxPatchOperation operation,
+        string? target)
+    {
+        bytes = [];
+        contentType = null;
+        diagnostic = null;
+        if (assetProvider is null)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5201", "No asset provider is configured for image operation assets.", operation, target);
+            return false;
+        }
+
+        if (!assetProvider.TryOpen(asset, out Stream stream, out string? contentTypeHint, out string? fileNameHint))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5202", $"Asset '{asset}' could not be resolved.", operation, target);
+            return false;
+        }
+
+        using (stream)
+        using (var memory = new MemoryStream())
+        {
+            CopyTo(stream, memory, cancellationToken);
+            bytes = memory.ToArray();
+        }
+
+        contentType = DetectImageContentType(bytes, contentTypeHint, fileNameHint ?? asset);
+        if (contentType is null)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a supported PNG or JPEG image.", operation, target);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string? DetectImageContentType(byte[] bytes, string? contentTypeHint, string? fileNameHint)
+    {
+        string? normalizedHint = NormalizeImageContentType(contentTypeHint);
+        if (normalizedHint is not null)
+        {
+            return normalizedHint;
+        }
+
+        string extension = Path.GetExtension(fileNameHint ?? string.Empty).ToLowerInvariant();
+        if (extension is ".png")
+        {
+            return "image/png";
+        }
+
+        if (extension is ".jpg" or ".jpeg")
+        {
+            return "image/jpeg";
+        }
+
+        if (bytes.Length >= 8 &&
+            bytes[0] == 0x89 &&
+            bytes[1] == 0x50 &&
+            bytes[2] == 0x4E &&
+            bytes[3] == 0x47 &&
+            bytes[4] == 0x0D &&
+            bytes[5] == 0x0A &&
+            bytes[6] == 0x1A &&
+            bytes[7] == 0x0A)
+        {
+            return "image/png";
+        }
+
+        if (bytes.Length >= 3 &&
+            bytes[0] == 0xFF &&
+            bytes[1] == 0xD8 &&
+            bytes[2] == 0xFF)
+        {
+            return "image/jpeg";
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeImageContentType(string? contentType)
+    {
+        return contentType?.ToLowerInvariant() switch
+        {
+            "image/png" => "image/png",
+            "image/jpeg" => "image/jpeg",
+            "image/jpg" => "image/jpeg",
+            _ => null
+        };
+    }
+
+    private static void CopyTo(Stream source, Stream destination, CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[81920];
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int read = source.Read(buffer, 0, buffer.Length);
+            if (read == 0)
+            {
+                return;
+            }
+
+            destination.Write(buffer, 0, read);
+        }
     }
 
     private static string ReadVisibleText(XElement container)
@@ -880,3 +1094,5 @@ internal sealed record PatchExecutionResult(
     bool Success,
     IReadOnlyList<DocxDiagnostic> Diagnostics,
     IReadOnlyList<DocxPatchOperationReport> Reports);
+
+internal sealed record ImageTarget(string RelationshipId, OoxmlPart Part);
