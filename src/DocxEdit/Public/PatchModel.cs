@@ -14,4 +14,4 @@ public sealed record DocxPatchOperation(
     public IReadOnlyList<DocxPatchField> FieldValues { get; init; } = [];
 }
 
-public sealed record DocxPatchField(string Name, string Value);
+public sealed record DocxPatchField(string Name, string Value, int Line = 0, int Column = 0);

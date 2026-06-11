@@ -101,6 +101,88 @@ public static class PatchParserTests
         DocxPatchOperation operation = Assert.Single(patch.Operations);
         Assert.Equal(new[] { "target", "cell", "cell" }, operation.FieldValues.Select(field => field.Name));
         Assert.Equal(new[] { "M.T0001", "North", "Revenue" }, operation.FieldValues.Select(field => field.Value));
+        Assert.Equal(new[] { 4, 5, 6 }, operation.FieldValues.Select(field => field.Line));
         Assert.Equal("Revenue", operation.Fields["cell"]);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsUnknownOperationName()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op update-widget
+            target M.P0001
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2010", diagnostic.Code);
+        Assert.Equal(3, diagnostic.Line);
+        Assert.Equal(4, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsUnknownFieldForKnownOperation()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            color blue
+            text New
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2011", diagnostic.Code);
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsInvalidBooleanField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            force yes
+            text New
+            end
+            """));
+
+        Assert.False(patch.Success);
+        Assert.Contains(patch.Diagnostics, diagnostic => diagnostic.Code == "E2012");
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsInvalidIntegerField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            occurrence second
+            find old
+            with new
+            end
+            """));
+
+        Assert.False(patch.Success);
+        Assert.Contains(patch.Diagnostics, diagnostic => diagnostic.Code == "E2013");
     }
 }

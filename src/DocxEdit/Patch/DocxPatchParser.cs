@@ -2,6 +2,27 @@ namespace DocxEdit;
 
 internal static class DocxPatchParser
 {
+    private static readonly IReadOnlyDictionary<string, OperationDefinition> OperationDefinitions = new Dictionary<string, OperationDefinition>(StringComparer.Ordinal)
+    {
+        ["replace-text"] = new(["target", "expect-text", "find", "with", "preserve-runs", "occurrence"], ["preserve-runs"], ["occurrence"]),
+        ["replace-paragraph"] = new(["target", "expect-text", "style", "text"], [], []),
+        ["insert-before"] = new(["target", "style", "text"], [], []),
+        ["insert-after"] = new(["target", "style", "text"], [], []),
+        ["delete-block"] = new(["target", "expect-text"], [], []),
+        ["set-style"] = new(["target", "style"], [], []),
+        ["set-cell"] = new(["target", "expect-text", "text", "force"], ["force"], []),
+        ["append-row"] = new(["target", "cell"], [], []),
+        ["insert-row-before"] = new(["target", "cell", "force"], ["force"], []),
+        ["insert-row-after"] = new(["target", "cell", "force"], ["force"], []),
+        ["delete-row"] = new(["target", "expect-contains", "force"], ["force"], []),
+        ["replace-image"] = new(["target", "asset", "preserve-size", "alt"], ["preserve-size"], []),
+        ["insert-image-after"] = new(["target", "asset", "width", "height", "alt", "caption"], [], []),
+        ["set-image-alt"] = new(["target", "alt"], [], []),
+        ["delete-image"] = new(["target"], [], []),
+        ["set-section-columns"] = new(["target", "count", "space"], [], ["count"]),
+        ["set-section-orientation"] = new(["target", "orientation"], [], [])
+    };
+
     public static DocxPatch Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -54,6 +75,11 @@ internal static class DocxPatchParser
                 return Error("E2006", "Operation name is required.", i + 1, 4);
             }
 
+            if (!OperationDefinitions.TryGetValue(operationName, out OperationDefinition? operationDefinition))
+            {
+                return Error("E2010", $"Unknown operation '{operationName}'.", i + 1, 4);
+            }
+
             var fields = new Dictionary<string, string>(StringComparer.Ordinal);
             var fieldValues = new List<DocxPatchField>();
             i++;
@@ -71,14 +97,22 @@ internal static class DocxPatchParser
                     break;
                 }
 
-                int separator = operationLine.IndexOf(' ');
+                int leadingWhitespace = operationLine.Length - operationLine.TrimStart().Length;
+                string fieldLine = operationLine[leadingWhitespace..];
+                int separator = fieldLine.IndexOf(' ');
                 if (separator <= 0)
                 {
                     return Error("E2007", $"Invalid field line '{operationTrimmed}'.", i + 1, 1);
                 }
 
-                string key = operationLine[..separator].Trim();
-                string value = operationLine[(separator + 1)..].Trim();
+                string key = fieldLine[..separator].Trim();
+                string value = fieldLine[(separator + 1)..].Trim();
+                int keyColumn = leadingWhitespace + 1;
+                if (!operationDefinition.AllowedFields.Contains(key))
+                {
+                    return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", i + 1, keyColumn);
+                }
+
                 if (value == "<<<")
                 {
                     int startLine = i + 2;
@@ -97,8 +131,18 @@ internal static class DocxPatchParser
                     value = string.Join('\n', heredoc);
                 }
 
+                if (operationDefinition.BooleanFields.Contains(key) && !IsBooleanLiteral(value))
+                {
+                    return Error("E2012", $"Field '{key}' must be true or false.", i + 1, keyColumn);
+                }
+
+                if (operationDefinition.IntegerFields.Contains(key) && !int.TryParse(value, out _))
+                {
+                    return Error("E2013", $"Field '{key}' must be an integer.", i + 1, keyColumn);
+                }
+
                 fields[key] = value;
-                fieldValues.Add(new DocxPatchField(key, value));
+                fieldValues.Add(new DocxPatchField(key, value, i + 1, keyColumn));
             }
 
             if (i >= lines.Length || lines[i].Trim() != "end")
@@ -131,5 +175,25 @@ internal static class DocxPatchParser
         }
 
         return 1;
+    }
+
+    private static bool IsBooleanLiteral(string value)
+    {
+        return string.Equals(value, "true", StringComparison.Ordinal) ||
+            string.Equals(value, "false", StringComparison.Ordinal);
+    }
+
+    private sealed record OperationDefinition(
+        IReadOnlySet<string> AllowedFields,
+        IReadOnlySet<string> BooleanFields,
+        IReadOnlySet<string> IntegerFields)
+    {
+        public OperationDefinition(string[] allowedFields, string[] booleanFields, string[] integerFields)
+            : this(
+                new HashSet<string>(allowedFields, StringComparer.Ordinal),
+                new HashSet<string>(booleanFields, StringComparer.Ordinal),
+                new HashSet<string>(integerFields, StringComparer.Ordinal))
+        {
+        }
     }
 }
