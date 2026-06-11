@@ -1,5 +1,6 @@
 using System.Text;
 using System.Xml.Linq;
+using DocxEdit.Model;
 using DocxEdit.Ooxml;
 
 namespace DocxEdit;
@@ -43,6 +44,7 @@ internal static class DocxPatchEngine
                 "insert-before" => ExecuteInsertBlock(package, operation, insertAfter: false, apply, cancellationToken),
                 "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
                 "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
+                "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
                 "set-cell" => ExecuteSetCell(package, operation, apply, cancellationToken),
                 "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                 "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
@@ -243,6 +245,41 @@ internal static class DocxPatchEngine
 
         targetBlock.Remove();
         SaveMainDocument(package, document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetStyle(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? style = ReadRequiredField(operation, "style", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, target!, cancellationToken);
+        if (paragraphTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!TryResolveStyleId(package, style!, "paragraph", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+        {
+            return [styleDiagnostic!];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetParagraphStyle(paragraphTarget.Paragraph, styleId!);
+        SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
 
@@ -1172,6 +1209,43 @@ internal static class DocxPatchEngine
         }
 
         return true;
+    }
+
+    private static bool TryResolveStyleId(
+        OoxmlPackage package,
+        string requestedStyle,
+        string styleType,
+        CancellationToken cancellationToken,
+        out string? styleId,
+        out DocxDiagnostic? diagnostic,
+        DocxPatchOperation operation,
+        string? target)
+    {
+        styleId = null;
+        diagnostic = null;
+        IReadOnlyList<DocxStyleInfo> styles = DocxStyleScanner.Scan(package, cancellationToken)
+            .Where(style => style.Type == styleType)
+            .ToArray();
+        DocxStyleInfo? byId = styles.FirstOrDefault(style => string.Equals(style.StyleId, requestedStyle, StringComparison.Ordinal));
+        if (byId is not null)
+        {
+            styleId = byId.StyleId;
+            return true;
+        }
+
+        DocxStyleInfo[] byName = styles
+            .Where(style => string.Equals(style.Name, requestedStyle, StringComparison.Ordinal))
+            .ToArray();
+        if (byName.Length == 1)
+        {
+            styleId = byName[0].StyleId;
+            return true;
+        }
+
+        diagnostic = byName.Length > 1
+            ? Diagnostic(DocxSeverity.Error, "E7102", $"Style name '{requestedStyle}' is ambiguous.", operation, target)
+            : Diagnostic(DocxSeverity.Error, "E7101", $"Style '{requestedStyle}' was not found.", operation, target);
+        return false;
     }
 
     private static string? DetectImageContentType(byte[] bytes, string? contentTypeHint, string? fileNameHint)
