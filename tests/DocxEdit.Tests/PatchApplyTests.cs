@@ -531,6 +531,30 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyDeleteImageRemovesDrawingAndPreservesParagraph()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-image
+            target M.I0001
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Empty(read.Images);
+        Assert.Single(read.Paragraphs);
+        output.Position = 0;
+        Assert.DoesNotContain("<w:drawing>", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertRowBeforeClonesTargetRowShape()
     {
         using MemoryStream input = CreateDocxWithBody("""

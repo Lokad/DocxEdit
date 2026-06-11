@@ -50,6 +50,7 @@ internal static class DocxPatchEngine
                 "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
                 "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
                 "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
+                "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                 _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
             };
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
@@ -349,6 +350,46 @@ internal static class DocxPatchEngine
         }
 
         docPr.SetAttributeValue("descr", alt);
+        SaveMainDocument(package, imageTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteImage(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!TryParseMainImageTarget(target!, out int imageOrdinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-image target '{target}'. Expected an image ID such as M.I0001.", operation, target)];
+        }
+
+        ImageBlipTarget? imageTarget = FindMainImageBlipTarget(package, imageOrdinal, cancellationToken);
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
+        if (drawing is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' does not have an editable DrawingML object.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        drawing.Remove();
         SaveMainDocument(package, imageTarget.Document);
         return [];
     }
