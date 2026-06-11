@@ -86,6 +86,22 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadExtractsTabsAndLineBreaks()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>A</w:t><w:tab/><w:t>B</w:t><w:br/><w:t>C</w:t></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.Equal("A\tB\nC", Assert.Single(result.Paragraphs).Text);
+        Assert.Contains("A\\tB\\nC", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void MediaListsReferencedImagesOnly()
     {
         using MemoryStream stream = CreateDocx();
@@ -266,6 +282,41 @@ public static class ReadApiTests
                 </w:ftr>
                 """);
             AddEntry(archive, "word/media/image1.png", "fake-png");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithBody(string bodyXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
         }
 
         stream.Position = 0;
