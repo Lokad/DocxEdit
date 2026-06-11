@@ -1,6 +1,7 @@
 using DocxEdit.Ooxml;
 using DocxEdit.Model;
 using DocxEdit.Rendering;
+using System.Xml;
 
 namespace DocxEdit;
 
@@ -14,15 +15,34 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxReadOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken);
+        if (package is null)
+        {
+            return new DocxReadResult
+            {
+                Success = false,
+                Diagnostics = diagnostics
+            };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxReadResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                MainDocumentPartName = package.MainDocumentPartName
+            };
+        }
+
         return new DocxReadResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
-            PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
-            MainDocumentPartName = package?.MainDocumentPartName,
-            Text = TextRenderers.RenderRead(model, options.MaxText),
-            Paragraphs = model.Paragraphs,
+            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            MainDocumentPartName = package.MainDocumentPartName,
+            Text = TextRenderers.RenderRead(model!, options.MaxText),
+            Paragraphs = model!.Paragraphs,
             Tables = model.Tables,
             Images = model.Images,
             Sections = model.Sections
@@ -37,14 +57,29 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxOutlineOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken);
+        if (package is null)
+        {
+            return new DocxOutlineResult { Success = false, Diagnostics = diagnostics };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxOutlineResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                MainDocumentPartName = package.MainDocumentPartName
+            };
+        }
+
         return new DocxOutlineResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
-            PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
-            MainDocumentPartName = package?.MainDocumentPartName,
-            Lines = TextRenderers.RenderOutline(model)
+            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            MainDocumentPartName = package.MainDocumentPartName,
+            Lines = TextRenderers.RenderOutline(model!)
         };
     }
 
@@ -58,13 +93,27 @@ public sealed class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         options ??= new DocxFindOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken);
+        if (package is null)
+        {
+            return new DocxFindResult { Success = false, Diagnostics = diagnostics, Query = query };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxFindResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                Query = query
+            };
+        }
+
         return new DocxFindResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
             Query = query,
-            Matches = TextRenderers.Find(model, query, options.MaxText)
+            Matches = TextRenderers.Find(model!, query, options.MaxText)
         };
     }
 
@@ -78,13 +127,27 @@ public sealed class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
         options ??= new DocxDumpOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken);
+        if (package is null)
+        {
+            return new DocxDumpResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxDumpResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                TargetId = targetId
+            };
+        }
+
         return new DocxDumpResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
             TargetId = targetId,
-            Text = TextRenderers.Dump(model, targetId, options.IncludeRuns, options.MaxText)
+            Text = TextRenderers.Dump(model!, targetId, options.IncludeRuns, options.MaxText)
         };
     }
 
@@ -96,12 +159,25 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxStylesOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        IReadOnlyList<DocxStyleInfo> styles = package is null ? [] : DocxStyleScanner.Scan(package, cancellationToken);
+        if (package is null)
+        {
+            return new DocxStylesResult { Success = false, Diagnostics = diagnostics };
+        }
+
+        if (!TryDocumentOperation(() => DocxStyleScanner.Scan(package, cancellationToken), out IReadOnlyList<DocxStyleInfo>? styles, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxStylesResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray()
+            };
+        }
+
         return new DocxStylesResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
-            Styles = styles
+            Styles = styles!
         };
     }
 
@@ -113,12 +189,25 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxMediaOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        DocxDocumentModel model = package is null ? DocxDocumentModel.Empty : DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken);
+        if (package is null)
+        {
+            return new DocxMediaResult { Success = false, Diagnostics = diagnostics };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, cancellationToken: cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxMediaResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray()
+            };
+        }
+
         return new DocxMediaResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
-            Images = model.Images
+            Images = model!.Images
         };
     }
 
@@ -130,15 +219,30 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         options ??= new DocxChangesOptions();
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        IReadOnlyList<DocxChangeInfo> changes = package is null ? [] : DocxChangeScanner.Scan(package, cancellationToken);
+        if (package is null)
+        {
+            return new DocxChangesResult { Success = false, Diagnostics = diagnostics };
+        }
+
+        if (!TryDocumentOperation(() => DocxChangeScanner.Scan(package, cancellationToken), out IReadOnlyList<DocxChangeInfo>? changes, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxChangesResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                MainDocumentPartName = package.MainDocumentPartName
+            };
+        }
+
         return new DocxChangesResult
         {
-            Success = package is not null,
+            Success = true,
             Diagnostics = diagnostics,
-            PartNames = package?.Parts.Keys.Order(StringComparer.Ordinal).ToArray() ?? [],
-            MainDocumentPartName = package?.MainDocumentPartName,
-            Changes = changes,
-            Summary = DocxChangeScanner.Summarize(changes)
+            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            MainDocumentPartName = package.MainDocumentPartName,
+            Changes = changes!,
+            Summary = DocxChangeScanner.Summarize(changes!)
         };
     }
 
@@ -181,10 +285,18 @@ public sealed class DocxEditor
             };
         }
 
-        PatchExecutionResult execution = DocxPatchEngine.Check(package, patch, options, cancellationToken);
+        if (!TryDocumentOperation(() => DocxPatchEngine.Check(package, patch, options, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
+        {
+            return new DocxCheckResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray()
+            };
+        }
+
         return new DocxCheckResult
         {
-            Success = execution.Success,
+            Success = execution!.Success,
             Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
             Operations = execution.Reports
         };
@@ -218,8 +330,16 @@ public sealed class DocxEditor
             return new DocxApplyResult { Success = false, Diagnostics = diagnostics };
         }
 
-        PatchExecutionResult execution = DocxPatchEngine.Apply(package, patch, options, cancellationToken);
-        if (!execution.Success)
+        if (!TryDocumentOperation(() => DocxPatchEngine.Apply(package, patch, options, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
+        {
+            return new DocxApplyResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray()
+            };
+        }
+
+        if (!execution!.Success)
         {
             return new DocxApplyResult
             {
@@ -260,14 +380,54 @@ public sealed class DocxEditor
             diagnostics = [];
             return package;
         }
-        catch (InvalidDataException ex)
+        catch (Exception ex) when (IsExpectedDocumentException(ex))
         {
             diagnostics =
             [
-                new DocxDiagnostic(DocxSeverity.Error, "E0001", ex.Message)
+                ToDocumentDiagnostic(ex)
             ];
             return null;
         }
+    }
+
+    private static bool TryDocumentOperation<T>(
+        Func<T> operation,
+        out T? result,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+        where T : class
+    {
+        try
+        {
+            result = operation();
+            diagnostics = [];
+            return true;
+        }
+        catch (Exception ex) when (IsExpectedDocumentException(ex))
+        {
+            result = null;
+            diagnostics = [ToDocumentDiagnostic(ex)];
+            return false;
+        }
+    }
+
+    private static bool IsExpectedDocumentException(Exception exception)
+    {
+        return exception is InvalidDataException or XmlException or IOException;
+    }
+
+    private static DocxDiagnostic ToDocumentDiagnostic(Exception exception)
+    {
+        if (exception is XmlException xmlException)
+        {
+            return new DocxDiagnostic(
+                DocxSeverity.Error,
+                "E0001",
+                xmlException.Message,
+                Line: xmlException.LineNumber > 0 ? xmlException.LineNumber : null,
+                Column: xmlException.LinePosition > 0 ? xmlException.LinePosition : null);
+        }
+
+        return new DocxDiagnostic(DocxSeverity.Error, "E0001", exception.Message);
     }
 
     private static OoxmlPackageOptions ToPackageOptions(DocxReadOptions options)

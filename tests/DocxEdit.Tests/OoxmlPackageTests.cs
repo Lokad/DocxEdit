@@ -95,6 +95,82 @@ public static class OoxmlPackageTests
     }
 
     [Fact]
+    public static void PublicReadReturnsDiagnosticForXmlDtd()
+    {
+        using MemoryStream stream = CreatePackage(archive =>
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <!DOCTYPE Types [
+                  <!ELEMENT Types ANY>
+                ]>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" />
+                """);
+        });
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E0001", diagnostic.Code);
+        Assert.Equal(DocxSeverity.Error, diagnostic.Severity);
+    }
+
+    [Fact]
+    public static void PublicReadReturnsDiagnosticForMalformedHeaderXml()
+    {
+        using MemoryStream stream = CreatePackage(archive =>
+        {
+            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
+            AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
+            AddEntry(archive, "word/document.xml", DocumentXml());
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p>
+                """);
+        });
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream, new DocxReadOptions { IncludeHeadersFooters = true });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
+        Assert.NotEmpty(result.PartNames);
+    }
+
+    [Fact]
+    public static void PublicStylesReturnsDiagnosticForMalformedStylesXml()
+    {
+        using MemoryStream stream = CreatePackage(archive =>
+        {
+            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
+            AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
+            AddEntry(archive, "word/document.xml", DocumentXml());
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/styles.xml", """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style>
+                """);
+        });
+        var editor = new DocxEditor();
+
+        DocxStylesResult result = editor.Styles(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
+        Assert.Empty(result.Styles);
+    }
+
+    [Fact]
     public static void GetRelationshipsResolvesRelativeAndExternalTargets()
     {
         using MemoryStream stream = CreateMinimalDocx();
