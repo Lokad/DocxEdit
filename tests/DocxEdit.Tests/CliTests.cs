@@ -129,6 +129,33 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliApplyCanResolveImageAssetFiles()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string output = Path.Combine(temp.Path, "output.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        string asset = Path.Combine(temp.Path, "chart.png");
+        CreateDocx(input);
+        File.WriteAllText(asset, "new-png");
+        File.WriteAllText(patch, $"""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset {asset}
+            alt Inserted chart
+            end
+            """);
+
+        CliResult result = RunCli("apply", input, patch, "-o", output);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(output));
+        Assert.Equal("new-png", ReadEntry(output, "word/media/image2.png"));
+    }
+
+    [Fact]
     public static void CliChangesPrintsSafeTrackedMarkupSummary()
     {
         using TempDirectory temp = TempDirectory.Create();
@@ -309,6 +336,17 @@ public static class CliTests
         using Stream stream = entry.Open();
         byte[] bytes = Encoding.UTF8.GetBytes(text);
         stream.Write(bytes, 0, bytes.Length);
+    }
+
+    private static string ReadEntry(string docxPath, string entryName)
+    {
+        using FileStream file = File.OpenRead(docxPath);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+        ZipArchiveEntry entry = archive.GetEntry(entryName)
+            ?? throw new InvalidDataException($"Missing {entryName}.");
+        using Stream stream = entry.Open();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
     }
 
     private sealed record CliResult(int ExitCode, string Output, string Error);

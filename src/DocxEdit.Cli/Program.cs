@@ -344,8 +344,42 @@ internal static class ProgramMain
         {
             TrackChanges = options.TrackChanges,
             Author = options.Author ?? "docxedit",
-            TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow
+            TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow,
+            AssetProvider = FileSystemAssetProvider.Instance
         };
+    }
+
+    private sealed class FileSystemAssetProvider : IDocxAssetProvider
+    {
+        public static readonly FileSystemAssetProvider Instance = new();
+
+        public bool TryOpen(
+            string reference,
+            out Stream stream,
+            out string? contentTypeHint,
+            out string? fileNameHint)
+        {
+            stream = Stream.Null;
+            contentTypeHint = null;
+            fileNameHint = null;
+
+            try
+            {
+                string path = Path.GetFullPath(reference);
+                if (!File.Exists(path))
+                {
+                    return false;
+                }
+
+                stream = File.OpenRead(path);
+                fileNameHint = Path.GetFileName(path);
+                return true;
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
     }
 
     private static void ExtractMedia(string inputPath, IReadOnlyList<DocxImageInfo> images, string outputDirectory)
