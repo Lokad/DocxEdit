@@ -115,15 +115,50 @@ function ConvertTo-ProcessArgument([string] $Argument) {
     return '"' + $Argument.Replace('"', '\"') + '"'
 }
 
+function Resolve-ProcessInvocation([string] $FileName, [string[]] $Arguments) {
+    $command = Get-Command $FileName -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $command) {
+        return [pscustomobject]@{
+            FileName = $FileName
+            Arguments = $Arguments
+        }
+    }
+
+    $path = [string] $command.Source
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        $path = [string] $command.Path
+    }
+
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return [pscustomobject]@{
+            FileName = $FileName
+            Arguments = $Arguments
+        }
+    }
+
+    if ([System.IO.Path]::GetExtension($path).Equals(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{
+            FileName = "powershell"
+            Arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $path) + $Arguments
+        }
+    }
+
+    return [pscustomobject]@{
+        FileName = $path
+        Arguments = $Arguments
+    }
+}
+
 function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [string] $WorkingDirectory, [string] $StandardInput = $null, [int] $TimeoutSeconds = 0) {
+    $invocation = Resolve-ProcessInvocation $FileName $Arguments
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $FileName
+    $startInfo.FileName = $invocation.FileName
     $startInfo.WorkingDirectory = $WorkingDirectory
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
     $startInfo.RedirectStandardInput = $null -ne $StandardInput
     $startInfo.UseShellExecute = $false
-    $startInfo.Arguments = (($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
+    $startInfo.Arguments = (($invocation.Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
 
     $process = [System.Diagnostics.Process]::Start($startInfo)
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
@@ -307,9 +342,7 @@ function Get-CodexCommandArgs([string] $RunDirectory, [string] $FinalPath, [bool
         "--cd",
         $RunDirectory,
         "--sandbox",
-        $Sandbox,
-        "--ask-for-approval",
-        "never"
+        $Sandbox
     )
 
     if (-not $PersistCodexSession) {
