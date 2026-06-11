@@ -1646,6 +1646,32 @@ internal static class DocxPatchEngine
             return true;
         }
 
+        if (target.StartsWith("bookmark:", StringComparison.Ordinal))
+        {
+            string value = target["bookmark:".Length..].Trim();
+            if (!TryReadSelectorText(value, out string selectorText))
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E1203", $"Invalid bookmark selector '{target}'. Expected bookmark:\"Name\".", operation, target);
+                return false;
+            }
+
+            selector = new BookmarkTargetSelector(target, selectorText);
+            return true;
+        }
+
+        if (target.StartsWith("content-control:", StringComparison.Ordinal))
+        {
+            string value = target["content-control:".Length..].Trim();
+            if (!TryReadSelectorText(value, out string selectorText))
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E1203", $"Invalid content-control selector '{target}'. Expected content-control:\"TagOrAlias\".", operation, target);
+                return false;
+            }
+
+            selector = new ContentControlTargetSelector(target, selectorText);
+            return true;
+        }
+
         selector = new ExplicitIdTargetSelector(target);
         return true;
     }
@@ -1701,7 +1727,52 @@ internal static class DocxPatchEngine
                 out diagnostics);
         }
 
+        if (selector is BookmarkTargetSelector bookmarkSelector)
+        {
+            return ResolveMainParagraphElementByPredicate(
+                body,
+                paragraph => ParagraphHasBookmark(paragraph, bookmarkSelector.Name),
+                selector.Raw,
+                operation,
+                out diagnostics);
+        }
+
+        if (selector is ContentControlTargetSelector contentControlSelector)
+        {
+            return ResolveMainParagraphElementByPredicate(
+                body,
+                paragraph => ParagraphHasContentControl(paragraph, contentControlSelector.Name),
+                selector.Raw,
+                operation,
+                out diagnostics);
+        }
+
         return null;
+    }
+
+    private static bool ParagraphHasBookmark(XElement paragraph, string name)
+    {
+        return paragraph
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Any(bookmark => string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal));
+    }
+
+    private static bool ParagraphHasContentControl(XElement paragraph, string name)
+    {
+        return paragraph
+            .Descendants(OoxmlNs.W + "sdt")
+            .Any(contentControl =>
+            {
+                XElement? properties = contentControl.Element(OoxmlNs.W + "sdtPr");
+                string? tag = (string?)properties
+                    ?.Element(OoxmlNs.W + "tag")
+                    ?.Attribute(OoxmlNs.W + "val");
+                string? alias = (string?)properties
+                    ?.Element(OoxmlNs.W + "alias")
+                    ?.Attribute(OoxmlNs.W + "val");
+                return string.Equals(tag, name, StringComparison.Ordinal) ||
+                    string.Equals(alias, name, StringComparison.Ordinal);
+            });
     }
 
     private static XElement? ResolveMainParagraphElementByPredicate(
@@ -2767,5 +2838,9 @@ internal sealed record ExplicitIdTargetSelector(string Raw) : TargetSelector(Raw
 internal sealed record HeadingTargetSelector(string Raw, int? Level, string Text) : TargetSelector(Raw);
 
 internal sealed record ParagraphTextTargetSelector(string Raw, string Text) : TargetSelector(Raw);
+
+internal sealed record BookmarkTargetSelector(string Raw, string Name) : TargetSelector(Raw);
+
+internal sealed record ContentControlTargetSelector(string Raw, string Name) : TargetSelector(Raw);
 
 internal sealed record ParagraphSelectorMatch(string Id, XElement Paragraph);

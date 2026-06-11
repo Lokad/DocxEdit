@@ -32,6 +32,8 @@ Paragraph operations also support:
 - `heading:"Exact heading"`
 - `heading:2:"Exact heading"`
 - `text:"contained paragraph text"`
+- `bookmark:"BookmarkName"`
+- `content-control:"TagOrAlias"`
 
 Ambiguous selectors fail with `E1202`; use a more specific selector or an explicit ID.
 Parsed selectors that match no target fail with `E1201` and include nearby target IDs without
