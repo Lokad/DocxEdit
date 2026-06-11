@@ -524,7 +524,7 @@ internal static class ProgramMain
                             return WithError(command, "Missing value for --track-changes.");
                         }
 
-                        if (!TryParseTrackChangesMode(trackChangesValue, out trackChanges))
+                        if (!TryParseTrackChangesMode(trackChangesValue!, out trackChanges))
                         {
                             return WithError(command, "Invalid value for --track-changes. Expected off, preserve, suggest, or require.");
                         }
