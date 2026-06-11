@@ -1,9 +1,13 @@
+using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Text;
+
 namespace DocxEdit.OfficeTests;
 
 public static class OfficeGateTests
 {
     [Fact]
-    public static void OfficeAutomationIsOptIn()
+    public static void OfficeAutomationOpenSaveRoundTripIsOptIn()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
         {
@@ -20,6 +24,151 @@ public static class OfficeGateTests
         {
             throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
         }
-    }
-}
 
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateDocx(inputPath, "Office smoke input");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op replace-text
+                target M.P0001
+                find input
+                with output
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Equal("Office smoke output", Assert.Single(read.Paragraphs).Text);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
+    private static void OpenSaveWithWord(Type wordApplicationType, string path)
+    {
+        object? application = null;
+        object? document = null;
+
+        try
+        {
+            application = Activator.CreateInstance(wordApplicationType)
+                ?? throw new InvalidOperationException("Could not create Word.Application.");
+
+            dynamic word = application;
+            word.Visible = false;
+            word.DisplayAlerts = 0;
+
+            dynamic documents = word.Documents;
+            document = documents.Open(path, ReadOnly: false, AddToRecentFiles: false, Visible: false);
+
+            dynamic doc = document;
+            doc.Save();
+            doc.Close(SaveChanges: false);
+            document = null;
+
+            word.Quit(SaveChanges: false);
+        }
+        finally
+        {
+            if (document is not null)
+            {
+                try
+                {
+                    ((dynamic)document).Close(SaveChanges: false);
+                }
+                catch
+                {
+                }
+
+                ReleaseComObject(document);
+            }
+
+            if (application is not null)
+            {
+                try
+                {
+                    ((dynamic)application).Quit(SaveChanges: false);
+                }
+                catch
+                {
+                }
+
+                ReleaseComObject(application);
+            }
+        }
+    }
+
+    private static void ReleaseComObject(object value)
+    {
+        if (OperatingSystem.IsWindows() && Marshal.IsComObject(value))
+        {
+            Marshal.FinalReleaseComObject(value);
+        }
+    }
+
+    private static void CreateDocx(string path, string text)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", $$"""
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:r><w:t>{{text}}</w:t></w:r></w:p>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void AddEntry(ZipArchive archive, string name, string text)
+    {
+        ZipArchiveEntry entry = archive.CreateEntry(name);
+        using Stream stream = entry.Open();
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        stream.Write(bytes, 0, bytes.Length);
+    }
+
+    private static string FormatDiagnostic(DocxDiagnostic diagnostic) => $"{diagnostic.Code}: {diagnostic.Message}";
+}

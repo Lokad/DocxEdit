@@ -37,6 +37,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/ValidateDocxCases.ps1
 
 Artifacts are written under ignored `artifacts/edit-cases/`.
 
+## Office Compatibility
+
+Optional Microsoft Word automation tests are gated by `DOCXEDIT_ENABLE_OFFICE_TESTS=1`.
+On Windows with Word installed, the Office test project creates a synthetic `.docx`, applies
+a patch, opens and saves the generated output through Word COM automation, then re-reads it.
+
 ## Private Cases
 
 Private inputs must live under ignored `private-cases/` and must never be committed. The private harness rejects cases outside `private-cases/`, git-tracked private files, non-ignored private files, and unsafe case IDs.
