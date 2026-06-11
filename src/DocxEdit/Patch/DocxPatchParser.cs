@@ -10,17 +10,17 @@ internal static class DocxPatchParser
         ["insert-after"] = new(["target", "style", "text"], [], []),
         ["delete-block"] = new(["target", "expect-text"], [], []),
         ["set-style"] = new(["target", "style"], [], []),
-        ["set-cell"] = new(["target", "expect-text", "text", "force"], ["force"], []),
-        ["append-row"] = new(["target", "cell"], [], []),
-        ["insert-row-before"] = new(["target", "cell", "force"], ["force"], []),
-        ["insert-row-after"] = new(["target", "cell", "force"], ["force"], []),
-        ["delete-row"] = new(["target", "expect-contains", "force"], ["force"], []),
-        ["replace-image"] = new(["target", "asset", "preserve-size", "alt"], ["preserve-size"], []),
-        ["insert-image-after"] = new(["target", "asset", "width", "height", "alt", "caption"], [], []),
-        ["set-image-alt"] = new(["target", "alt"], [], []),
-        ["delete-image"] = new(["target"], [], []),
-        ["set-section-columns"] = new(["target", "count", "space"], [], ["count"]),
-        ["set-section-orientation"] = new(["target", "orientation"], [], [])
+        ["set-cell"] = new(["target", "expect-text", "expect-row-count", "expect-column-count", "text", "force"], ["force"], ["expect-row-count", "expect-column-count"]),
+        ["append-row"] = new(["target", "expect-row-count", "expect-column-count", "cell"], [], ["expect-row-count", "expect-column-count"]),
+        ["insert-row-before"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
+        ["insert-row-after"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
+        ["delete-row"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
+        ["replace-image"] = new(["target", "asset", "expect-content-type", "preserve-size", "alt"], ["preserve-size"], []),
+        ["insert-image-after"] = new(["target", "asset", "expect-content-type", "width", "height", "alt", "caption"], [], []),
+        ["set-image-alt"] = new(["target", "expect-content-type", "alt"], [], []),
+        ["delete-image"] = new(["target", "expect-content-type"], [], []),
+        ["set-section-columns"] = new(["target", "expect-columns", "expect-orientation", "count", "space"], [], ["expect-columns", "count"]),
+        ["set-section-orientation"] = new(["target", "expect-columns", "expect-orientation", "orientation"], [], ["expect-columns"])
     };
 
     public static DocxPatch Parse(string text)

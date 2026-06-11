@@ -698,6 +698,32 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckSetSectionRejectsFailedGuards()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-section-orientation
+            target M.S0001
+            expect-columns 2
+            orientation landscape
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.S0001");
+    }
+
+    [Fact]
     public static void ApplySetStyleResolvesParagraphStyleByDisplayName()
     {
         using MemoryStream input = CreateDocxWithStyles("""
@@ -948,6 +974,35 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckAppendRowRejectsFailedShapeGuards()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            expect-row-count 2
+            expect-column-count 2
+            cell South
+            cell Profit
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
+    }
+
+    [Fact]
     public static void ApplyReplaceImageUsesAssetProviderForPng()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
@@ -967,6 +1022,27 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         output.Position = 0;
         Assert.Equal("new-png", ReadEntry(output, "word/media/image1.png"));
+    }
+
+    [Fact]
+    public static void CheckReplaceImageRejectsFailedContentTypeGuard()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        var assets = new MemoryAssetProvider("chart.png", "new-png", null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            expect-content-type image/jpeg
+            asset chart.png
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.I0001");
     }
 
     [Fact]

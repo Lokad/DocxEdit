@@ -44,15 +44,15 @@ including nearby paragraph text.
 - `insert-before`, `insert-after`: `target`, `text`, optional `style`
 - `delete-block`: `target`, optional `expect-text`
 - `set-style`: `target`, `style`
-- `set-cell`: `target`, `text`, optional `expect-text`, `force`
-- `append-row`: `target`, repeated `cell`
-- `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `force`
-- `delete-row`: `target`, optional `expect-contains`, `force`
-- `replace-image`: `target`, `asset`
-- `insert-image-after`: `target`, `asset`, optional `width`, `height`, `alt`
-- `set-image-alt`: `target`, `alt`
-- `delete-image`: `target`
-- `set-section-columns`: `target`, `count`
-- `set-section-orientation`: `target`, `orientation`
+- `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
+- `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
+- `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
+- `delete-row`: `target`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`
+- `replace-image`: `target`, `asset`, optional `expect-content-type`, `alt`, `preserve-size`
+- `insert-image-after`: `target`, `asset`, optional `expect-content-type`, `width`, `height`, `alt`, `caption`
+- `set-image-alt`: `target`, `alt`, optional `expect-content-type`
+- `delete-image`: `target`, optional `expect-content-type`
+- `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
+- `set-section-orientation`: `target`, `orientation`, optional `expect-columns`, `expect-orientation`
 
 Parsed but not fully implemented fields include `preserve-size`, `caption`, edit author, and edit timestamp. `expect-hash` is rejected.

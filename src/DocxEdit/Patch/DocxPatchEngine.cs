@@ -426,6 +426,11 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
         if (!TryReadAsset(options.AssetProvider, asset!, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
             return [assetDiagnostic!];
@@ -475,6 +480,11 @@ internal static class DocxPatchEngine
         if (!TryReadAsset(options.AssetProvider, asset!, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
             return [assetDiagnostic!];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, contentType!, diagnostics))
+        {
+            return diagnostics;
         }
 
         if (!TryReadImageExtent(operation, bytes, contentType!, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
@@ -755,6 +765,11 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
         XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
         XElement? container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
             ?? drawing?.Descendants(OoxmlNs.Wp + "anchor").FirstOrDefault();
@@ -804,6 +819,11 @@ internal static class DocxPatchEngine
         if (imageTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
         }
 
         XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
@@ -882,6 +902,11 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        if (!ValidateSectionGuards(operation, target!, sectionTarget.SectionProperties, diagnostics))
+        {
+            return diagnostics;
+        }
+
         if (!apply)
         {
             return [];
@@ -922,6 +947,11 @@ internal static class DocxPatchEngine
         if (sectionTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateSectionGuards(operation, target!, sectionTarget.SectionProperties, diagnostics))
+        {
+            return diagnostics;
         }
 
         if (!apply)
@@ -977,6 +1007,11 @@ internal static class DocxPatchEngine
         if (cell is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateTableGuards(operation, target!, table!, row, diagnostics))
+        {
+            return diagnostics;
         }
 
         string current = ReadVisibleText(cell);
@@ -1047,6 +1082,11 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        if (!ValidateTableGuards(operation, target!, table, row: null, diagnostics))
+        {
+            return diagnostics;
+        }
+
         XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
         if (rows.Length == 0)
         {
@@ -1115,6 +1155,11 @@ internal static class DocxPatchEngine
         if (templateRow is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateTableGuards(operation, target!, table!, templateRow, diagnostics))
+        {
+            return diagnostics;
         }
 
         if (ContainsVerticalMerges(table!))
@@ -1194,6 +1239,11 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        if (!ValidateTableGuards(operation, target!, table!, row, diagnostics))
+        {
+            return diagnostics;
+        }
+
         if (rows.Length == 1)
         {
             return [Diagnostic(DocxSeverity.Error, "E4304", $"Cannot delete the last row of table '{target}'.", operation, target)];
@@ -1217,6 +1267,161 @@ internal static class DocxPatchEngine
         row.Remove();
         SaveMainDocument(package, document);
         return [];
+    }
+
+    private static bool ValidateTableGuards(
+        DocxPatchOperation operation,
+        string target,
+        XElement table,
+        XElement? row,
+        List<DocxDiagnostic> diagnostics)
+    {
+        if (!TryReadPositiveIntegerGuard(operation, "expect-row-count", target, diagnostics, out int? expectedRowCount) ||
+            !TryReadPositiveIntegerGuard(operation, "expect-column-count", target, diagnostics, out int? expectedColumnCount) ||
+            !TryReadPositiveIntegerGuard(operation, "expect-cell-count", target, diagnostics, out int? expectedCellCount))
+        {
+            return false;
+        }
+
+        int actualRowCount = table.Elements(OoxmlNs.W + "tr").Count();
+        if (expectedRowCount is not null && actualRowCount != expectedRowCount)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedRowCount} row(s), found {actualRowCount}.", operation, target));
+        }
+
+        if (expectedColumnCount is not null)
+        {
+            if (!IsRectangular(table, out int actualColumnCount))
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), but table is not rectangular.", operation, target));
+            }
+            else if (actualColumnCount != expectedColumnCount)
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), found {actualColumnCount}.", operation, target));
+            }
+        }
+
+        if (expectedCellCount is not null)
+        {
+            if (row is null)
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Field 'expect-cell-count' requires a row or cell target.", operation, target));
+            }
+            else
+            {
+                int actualCellCount = row.Elements(OoxmlNs.W + "tc").Count();
+                if (actualCellCount != expectedCellCount)
+                {
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedCellCount} cell(s), found {actualCellCount}.", operation, target));
+                }
+            }
+        }
+
+        return diagnostics.Count == 0;
+    }
+
+    private static bool ValidateImageContentTypeGuard(
+        DocxPatchOperation operation,
+        string target,
+        string? actualContentType,
+        List<DocxDiagnostic> diagnostics)
+    {
+        if (!operation.Fields.TryGetValue("expect-content-type", out string? expectedContentType))
+        {
+            return true;
+        }
+
+        string? normalizedExpected = NormalizeImageContentType(expectedContentType);
+        if (normalizedExpected is null)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-content-type' must be image/png or image/jpeg.", operation, target));
+            return false;
+        }
+
+        if (!string.Equals(actualContentType, normalizedExpected, StringComparison.Ordinal))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image content type '{normalizedExpected}', found '{actualContentType ?? "unknown"}'.", operation, target));
+        }
+
+        return diagnostics.Count == 0;
+    }
+
+    private static bool ValidateSectionGuards(
+        DocxPatchOperation operation,
+        string target,
+        XElement sectionProperties,
+        List<DocxDiagnostic> diagnostics)
+    {
+        if (!TryReadPositiveIntegerGuard(operation, "expect-columns", target, diagnostics, out int? expectedColumns))
+        {
+            return false;
+        }
+
+        if (expectedColumns is not null)
+        {
+            int actualColumns = ReadSectionColumnCount(sectionProperties);
+            if (actualColumns != expectedColumns)
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumns} section column(s), found {actualColumns}.", operation, target));
+            }
+        }
+
+        if (operation.Fields.TryGetValue("expect-orientation", out string? expectedOrientation))
+        {
+            if (expectedOrientation is not ("portrait" or "landscape"))
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-orientation' must be portrait or landscape.", operation, target));
+            }
+            else
+            {
+                string actualOrientation = ReadSectionOrientation(sectionProperties);
+                if (!string.Equals(actualOrientation, expectedOrientation, StringComparison.Ordinal))
+                {
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected section orientation '{expectedOrientation}', found '{actualOrientation}'.", operation, target));
+                }
+            }
+        }
+
+        return diagnostics.Count == 0;
+    }
+
+    private static int ReadSectionColumnCount(XElement sectionProperties)
+    {
+        string? countText = (string?)sectionProperties
+            .Element(OoxmlNs.W + "cols")
+            ?.Attribute(OoxmlNs.W + "num");
+        return int.TryParse(countText, out int count) && count > 0 ? count : 1;
+    }
+
+    private static string ReadSectionOrientation(XElement sectionProperties)
+    {
+        return (string?)sectionProperties
+            .Element(OoxmlNs.W + "pgSz")
+            ?.Attribute(OoxmlNs.W + "orient")
+            ?? "portrait";
+    }
+
+    private static bool TryReadPositiveIntegerGuard(
+        DocxPatchOperation operation,
+        string fieldName,
+        string target,
+        List<DocxDiagnostic> diagnostics,
+        out int? value)
+    {
+        value = null;
+        if (!operation.Fields.TryGetValue(fieldName, out string? text))
+        {
+            return true;
+        }
+
+        if (!int.TryParse(text, out int parsed) || parsed <= 0)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", $"Field '{fieldName}' must be greater than 0.", operation, target));
+            return false;
+        }
+
+        value = parsed;
+        return true;
     }
 
     private static string? ReadRequiredField(
