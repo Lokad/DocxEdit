@@ -1380,6 +1380,7 @@ internal static class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? expectedContains = operation.Fields.GetValueOrDefault("expect-contains");
         bool force = ReadBooleanField(operation, "force", diagnostics) ?? false;
         if (diagnostics.Count != 0)
         {
@@ -1400,6 +1401,12 @@ internal static class DocxPatchEngine
         if (!ValidateTableGuards(operation, target!, rowTarget.Table, rowTarget.Row, diagnostics))
         {
             return diagnostics;
+        }
+
+        string rowText = ReadVisibleText(rowTarget.Row);
+        if (expectedContains is not null && !rowText.Contains(expectedContains, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row text to contain '{expectedContains}'.", operation, target)];
         }
 
         XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();

@@ -471,7 +471,13 @@ internal static class ProgramMain
             asset chart.png
             end
 
+            op delete-row
+            target M.T0001.R02
+            expect-contains row text
+            end
+
             Selectors may use explicit IDs, heading:"Text", heading:2:"Text", text:"contained text", bookmark:"Name", or content-control:"TagOrAlias" for paragraph targets.
+            delete-row expect-contains checks that the target row's final visible text contains the supplied value.
             The expect-hash feature is unsupported and is rejected. Some parsed fields, such as preserve-size and caption, are not implemented yet.
             """);
     }

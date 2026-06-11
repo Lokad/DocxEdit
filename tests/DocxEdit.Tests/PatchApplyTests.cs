@@ -1115,6 +1115,7 @@ public static class PatchApplyTests
 
             op delete-row
             target F001.T0001.R01
+            expect-contains North
             end
             """);
 
@@ -1849,6 +1850,35 @@ public static class PatchApplyTests
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4304");
+    }
+
+    [Fact]
+    public static void CheckDeleteRowRejectsFailedExpectContainsGuard()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-row
+            target M.T0001.R01
+            expect-contains South
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
+        Assert.False(Assert.Single(result.Operations).Success);
     }
 
     private static MemoryStream CreateDocx(string paragraphText)
