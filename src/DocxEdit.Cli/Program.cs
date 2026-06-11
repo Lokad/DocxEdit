@@ -444,6 +444,9 @@ internal static class ProgramMain
             expect-text <<<
             current text
             >>>
+            find <<<
+            current
+            >>>
             with <<<
             new text
             >>>
@@ -459,10 +462,10 @@ internal static class ProgramMain
             op replace-image
             target M.I0001
             asset chart.png
-            preserve-size true
             end
 
-            The expect-hash feature is unsupported and is rejected.
+            Selectors may use explicit IDs, heading:"Text", heading:2:"Text", or text:"contained text" for paragraph targets.
+            The expect-hash feature is unsupported and is rejected. Some parsed fields, such as preserve-size and caption, are not implemented yet.
             """);
     }
 

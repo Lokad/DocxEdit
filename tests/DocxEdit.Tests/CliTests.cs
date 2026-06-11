@@ -39,6 +39,7 @@ public static class CliTests
         Assert.Contains("docxedit read report.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("docxedit apply report.docx edits.docxpatch -o report.edited.docx", help.Output, StringComparison.Ordinal);
         Assert.Equal(0, patchHelp.ExitCode);
+        Assert.Contains("find <<<", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op set-cell", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op replace-image", patchHelp.Output, StringComparison.Ordinal);
     }
