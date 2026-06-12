@@ -240,7 +240,7 @@ internal static class TextRenderers
         return matches;
     }
 
-    public static string? Dump(DocxDocumentModel model, string targetId, bool includeRuns, int maxText)
+    public static string? Dump(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId, bool includeRuns, int maxText)
     {
         DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
         if (paragraph is not null)
@@ -291,7 +291,13 @@ internal static class TextRenderers
         DocxTableCellInfo? cell = model.Tables
             .SelectMany(table => table.Cells)
             .FirstOrDefault(cell => string.Equals(cell.Id, targetId, StringComparison.Ordinal));
-        return cell is null ? null : Truncate(cell.Text, maxText);
+        if (cell is not null)
+        {
+            return Truncate(cell.Text, maxText);
+        }
+
+        DocxChangeInfo? comment = FindCommentChange(changes, targetId);
+        return comment is null ? null : RenderCommentDump(comment);
     }
 
     public static IReadOnlyList<DocxDumpRunInfo> DumpRuns(DocxDocumentModel model, string targetId, int maxText)
@@ -318,10 +324,10 @@ internal static class TextRenderers
             .ToArray();
     }
 
-    public static IReadOnlyList<DocxContextItem> Context(DocxDocumentModel model, string targetId, int radius, int maxText)
+    public static IReadOnlyList<DocxContextItem> Context(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId, int radius, int maxText)
     {
         radius = Math.Max(0, radius);
-        TargetAnnotations annotations = BuildTargetAnnotations(model);
+        TargetAnnotations annotations = BuildTargetAnnotations(model, changes);
 
         DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
         if (paragraph is not null)
@@ -378,9 +384,15 @@ internal static class TextRenderers
         }
 
         DocxImageInfo? image = model.Images.FirstOrDefault(image => string.Equals(image.Id, targetId, StringComparison.Ordinal));
-        return image is null
+        if (image is not null)
+        {
+            return [ToContextItem(image, "target")];
+        }
+
+        DocxChangeInfo? comment = FindCommentChange(changes, targetId);
+        return comment is null
             ? []
-            : [ToContextItem(image, "target")];
+            : [ApplyAnnotations(ToContextItem(comment, "target"), annotations)];
     }
 
     public static string RenderContext(IReadOnlyList<DocxContextItem> items)
@@ -402,6 +414,8 @@ internal static class TextRenderers
             string fieldKinds = item.FieldKinds.Count == 0 ? string.Empty : $" field-kinds=\"{Escape(string.Join(",", item.FieldKinds))}\"";
             string hyperlinkIds = item.HyperlinkIds.Count == 0 ? string.Empty : $" hyperlinks=\"{Escape(string.Join(",", item.HyperlinkIds))}\"";
             string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{Escape(string.Join(",", item.HyperlinkTargets))}\"";
+            string commentIds = item.CommentIds.Count == 0 ? string.Empty : $" comments=\"{Escape(string.Join(",", item.CommentIds))}\"";
+            string commentBodyIds = item.CommentBodyIds.Count == 0 ? string.Empty : $" comment-bodies=\"{Escape(string.Join(",", item.CommentBodyIds))}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
@@ -431,6 +445,8 @@ internal static class TextRenderers
                 .Append(fieldKinds)
                 .Append(hyperlinkIds)
                 .Append(hyperlinkTargets)
+                .Append(commentIds)
+                .Append(commentBodyIds)
                 .Append(rowCount)
                 .Append(columnCount)
                 .Append(row)
@@ -558,7 +574,7 @@ internal static class TextRenderers
         return offset < 0 ? "before" : offset > 0 ? "after" : "target";
     }
 
-    private static TargetAnnotations BuildTargetAnnotations(DocxDocumentModel model)
+    private static TargetAnnotations BuildTargetAnnotations(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes)
     {
         var bookmarkNames = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
@@ -575,6 +591,8 @@ internal static class TextRenderers
         var fieldKinds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var hyperlinkIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var hyperlinkTargets = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentBodyIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
             AddAnnotation(contentControlIds, control.TargetId, control.Id);
@@ -595,6 +613,27 @@ internal static class TextRenderers
             AddAnnotation(hyperlinkTargets, hyperlink.TargetId, hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName);
         }
 
+        IReadOnlyDictionary<string, string> commentBodyById = changes
+            .Where(change => string.Equals(change.Type, "comment", StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(change.CommentId) &&
+                !string.IsNullOrWhiteSpace(change.TargetId))
+            .GroupBy(change => change.CommentId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().TargetId!, StringComparer.Ordinal);
+        foreach (DocxChangeInfo change in changes)
+        {
+            if (string.IsNullOrWhiteSpace(change.CommentId))
+            {
+                continue;
+            }
+
+            commentBodyById.TryGetValue(change.CommentId, out string? bodyId);
+            foreach (string? target in new[] { change.TargetId, change.CommentAnchorTargetId, change.CommentReferenceTargetId })
+            {
+                AddAnnotation(commentIds, target, change.CommentId);
+                AddAnnotation(commentBodyIds, target, bodyId);
+            }
+        }
+
         return new TargetAnnotations(
             ToArrayDictionary(bookmarkNames),
             ToArrayDictionary(contentControlIds),
@@ -604,7 +643,9 @@ internal static class TextRenderers
             ToArrayDictionary(fieldCodes),
             ToArrayDictionary(fieldKinds),
             ToArrayDictionary(hyperlinkIds),
-            ToArrayDictionary(hyperlinkTargets));
+            ToArrayDictionary(hyperlinkTargets),
+            ToArrayDictionary(commentIds),
+            ToArrayDictionary(commentBodyIds));
     }
 
     private static DocxContextItem ApplyAnnotations(DocxContextItem item, TargetAnnotations annotations)
@@ -619,7 +660,9 @@ internal static class TextRenderers
             FieldCodes = LookupAnnotations(annotations.FieldCodesByTarget, item.Id),
             FieldKinds = LookupAnnotations(annotations.FieldKindsByTarget, item.Id),
             HyperlinkIds = LookupAnnotations(annotations.HyperlinkIdsByTarget, item.Id),
-            HyperlinkTargets = LookupAnnotations(annotations.HyperlinkTargetsByTarget, item.Id)
+            HyperlinkTargets = LookupAnnotations(annotations.HyperlinkTargetsByTarget, item.Id),
+            CommentIds = LookupAnnotations(annotations.CommentIdsByTarget, item.Id),
+            CommentBodyIds = LookupAnnotations(annotations.CommentBodyIdsByTarget, item.Id)
         };
     }
 
@@ -726,6 +769,48 @@ internal static class TextRenderers
         };
     }
 
+    private static DocxContextItem ToContextItem(DocxChangeInfo comment, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = comment.TargetId ?? (comment.CommentId is null ? comment.Id : $"comment:{comment.CommentId}"),
+            Kind = "comment",
+            Relation = relation,
+            Story = comment.Story,
+            ParentId = comment.CommentAnchorTargetId ?? comment.CommentReferenceTargetId,
+            CommentIds = string.IsNullOrWhiteSpace(comment.CommentId) ? [] : [comment.CommentId],
+            CommentBodyIds = string.IsNullOrWhiteSpace(comment.TargetId) ? [] : [comment.TargetId]
+        };
+    }
+
+    private static DocxChangeInfo? FindCommentChange(IReadOnlyList<DocxChangeInfo> changes, string targetId)
+    {
+        if (targetId.StartsWith("comment:", StringComparison.Ordinal))
+        {
+            string commentId = targetId["comment:".Length..].Trim();
+            return changes.FirstOrDefault(change =>
+                string.Equals(change.Type, "comment", StringComparison.Ordinal) &&
+                string.Equals(change.CommentId, commentId, StringComparison.Ordinal));
+        }
+
+        return changes.FirstOrDefault(change =>
+            string.Equals(change.Type, "comment", StringComparison.Ordinal) &&
+            string.Equals(change.TargetId, targetId, StringComparison.Ordinal));
+    }
+
+    private static string RenderCommentDump(DocxChangeInfo comment)
+    {
+        string commentId = comment.CommentId is null ? string.Empty : $" comment-id={Escape(comment.CommentId)}";
+        string story = string.IsNullOrWhiteSpace(comment.Story) ? string.Empty : $" story=\"{Escape(comment.Story)}\"";
+        string part = string.IsNullOrWhiteSpace(comment.PartName) ? string.Empty : $" part={comment.PartName}";
+        string anchor = comment.CommentAnchorTargetId is null ? string.Empty : $" anchor-target={comment.CommentAnchorTargetId}";
+        string reference = comment.CommentReferenceTargetId is null ? string.Empty : $" reference-target={comment.CommentReferenceTargetId}";
+        string author = comment.CommentAuthor is null ? string.Empty : $" comment-author=\"{Escape(comment.CommentAuthor)}\"";
+        string initials = comment.CommentInitials is null ? string.Empty : $" comment-initials=\"{Escape(comment.CommentInitials)}\"";
+        string timestamp = comment.CommentTimestampUtc is null ? string.Empty : $" comment-timestamp-utc={comment.CommentTimestampUtc:O}";
+        return $"comment{commentId}{story}{part}{anchor}{reference}{author}{initials}{timestamp} text-length={comment.TextLength}";
+    }
+
     private static string Escape(string text)
     {
         return text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal).Replace("\t", "\\t", StringComparison.Ordinal);
@@ -755,5 +840,7 @@ internal static class TextRenderers
         IReadOnlyDictionary<string, string[]> FieldCodesByTarget,
         IReadOnlyDictionary<string, string[]> FieldKindsByTarget,
         IReadOnlyDictionary<string, string[]> HyperlinkIdsByTarget,
-        IReadOnlyDictionary<string, string[]> HyperlinkTargetsByTarget);
+        IReadOnlyDictionary<string, string[]> HyperlinkTargetsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentBodyIdsByTarget);
 }

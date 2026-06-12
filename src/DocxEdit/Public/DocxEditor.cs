@@ -152,6 +152,16 @@ public sealed class DocxEditor
             };
         }
 
+        if (!TryDocumentOperation(() => DocxChangeScanner.Scan(package, includeCommentText: false, maxCommentText: 0, cancellationToken), out IReadOnlyList<DocxChangeInfo>? changes, out IReadOnlyList<DocxDiagnostic> changeDiagnostics))
+        {
+            return new DocxDumpResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(changeDiagnostics).ToArray(),
+                TargetId = targetId
+            };
+        }
+
         return new DocxDumpResult
         {
             Success = true,
@@ -159,7 +169,7 @@ public sealed class DocxEditor
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
                 .ToArray(),
             TargetId = targetId,
-            Text = TextRenderers.Dump(model!, targetId, options.IncludeRuns, options.MaxText),
+            Text = TextRenderers.Dump(model!, changes!, targetId, options.IncludeRuns, options.MaxText),
             Runs = options.IncludeRuns ? TextRenderers.DumpRuns(model!, targetId, options.MaxText) : []
         };
     }
@@ -189,7 +199,17 @@ public sealed class DocxEditor
             };
         }
 
-        IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model!, targetId, options.Radius, options.MaxText);
+        if (!TryDocumentOperation(() => DocxChangeScanner.Scan(package, includeCommentText: false, maxCommentText: 0, cancellationToken), out IReadOnlyList<DocxChangeInfo>? changes, out IReadOnlyList<DocxDiagnostic> changeDiagnostics))
+        {
+            return new DocxContextResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(changeDiagnostics).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model!, changes!, targetId, options.Radius, options.MaxText);
         IReadOnlyList<DocxDiagnostic> contextDiagnostics = items.Count == 0
             ? [new DocxDiagnostic(DocxSeverity.Error, "E2001", $"Target '{targetId}' was not found.", TargetId: targetId)]
             : [];

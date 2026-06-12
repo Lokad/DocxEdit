@@ -1156,6 +1156,103 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void DumpCanTargetCommentBodyWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "C001.C0001");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Text);
+        Assert.Contains("comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-target=M.P0001", result.Text, StringComparison.Ordinal);
+        Assert.Contains("reference-target=M.P0001", result.Text, StringComparison.Ordinal);
+        Assert.Contains("text-length=20", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithCommentMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "3" }, item.CommentIds);
+        Assert.Equal(new[] { "C001.C0001" }, item.CommentBodyIds);
+        Assert.Contains("comments=\"3\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("comment-bodies=\"C001.C0001\"", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextCanTargetCommentBodyWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "comment:3");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal("C001.C0001", item.Id);
+        Assert.Equal("comment", item.Kind);
+        Assert.Equal("M.P0001", item.ParentId);
+        Assert.Equal(new[] { "3" }, item.CommentIds);
+        Assert.Equal(new[] { "C001.C0001" }, item.CommentBodyIds);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DocxChangeInfoUsesPropertyBasedPublicShape()
     {
         Assert.Contains(typeof(DocxChangeInfo).GetConstructors(), constructor => constructor.GetParameters().Length == 0);

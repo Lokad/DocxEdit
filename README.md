@@ -142,6 +142,8 @@ Implemented areas include:
 - opt-in bounded comment body snippets through `changes`;
 - comment body editing and deletion through explicit patch operations keyed by
   `comment:<id>` or comment body IDs;
+- comment anchor/context metadata and metadata-only comment body `dump`/`context`
+  targets;
 - bookmark and content-control read/context metadata with selector guidance;
 - safe bookmark/content-control patch operations for plain-text content controls and
   simple same-paragraph bookmark ranges;

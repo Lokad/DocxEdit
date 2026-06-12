@@ -208,6 +208,8 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> FieldKinds { get; init; } = [];
     public IReadOnlyList<string> HyperlinkIds { get; init; } = [];
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
+    public IReadOnlyList<string> CommentIds { get; init; } = [];
+    public IReadOnlyList<string> CommentBodyIds { get; init; } = [];
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }

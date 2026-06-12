@@ -1062,6 +1062,8 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> FieldKinds { get; init; } = [];
     public IReadOnlyList<string> HyperlinkIds { get; init; } = [];
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
+    public IReadOnlyList<string> CommentIds { get; init; } = [];
+    public IReadOnlyList<string> CommentBodyIds { get; init; } = [];
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -1071,6 +1073,11 @@ public sealed record DocxContextItem
     public bool HasNestedTable { get; init; }
 }
 ```
+
+Paragraph and cell context items include `CommentIds` and `CommentBodyIds` when
+comment anchors or references are attached to that target. Comment body targets such
+as `C001.C0001` and `comment:<id>` return a `Kind = "comment"` context item whose
+metadata links back to the anchor target and does not include comment body text.
 
 ---
 
@@ -1158,6 +1165,9 @@ runs:
 `dump --runs --json` also exposes the runs as structured `Runs[]` objects. Run IDs
 are renderer IDs and are not the same namespace as change IDs from `changes`.
 Hyperlink runs expose `HyperlinkRelationshipId` and `HyperlinkAnchor` when present.
+Comment body targets such as `C001.C0001` and `comment:<id>` dump metadata only:
+comment ID, comments story/part, anchor/reference target, reviewer metadata, and text
+length. They do not print comment body text.
 
 ### 9.5 `styles`
 
@@ -1209,7 +1219,7 @@ text. The default `MaxText` is `0`; callers must opt in to text snippets.
 
 ```text
 before M.P0003 paragraph story="main" text=""
-target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" fields="M.F0001" field-codes="REF ClientName \h" field-kinds="complex" hyperlinks="M.L0001" hyperlink-targets="https://example.test/report" text=""
+target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" fields="M.F0001" field-codes="REF ClientName \h" field-kinds="complex" hyperlinks="M.L0001" hyperlink-targets="https://example.test/report" comments="3" comment-bodies="C001.C0001" text=""
 after M.P0005 paragraph story="main" text=""
 ```
 

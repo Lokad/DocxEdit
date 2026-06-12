@@ -56,6 +56,8 @@ matters.
 Use `dump --runs` on a target to see run-level `markup=...`, `revision-id`, and
 `comment-id` annotations for nearby tracked-change/comment markup. With `--json`,
 `dump --runs` also exposes those annotations as structured `Runs` objects.
+Use `dump --id C001.C0001` or `dump --id comment:3` to inspect comment body
+metadata without printing the comment body text.
 Change IDs from `changes` identify markup records. Run IDs from `dump --runs` identify
 rendered run/marker lines and are a separate namespace.
 Use `docxedit dump report.docx --id M.P0004 --runs --json` when structured run
@@ -63,7 +65,9 @@ metadata is easier for an integration to consume than text output.
 
 `context` summarizes nearby modeled structure around one target without broad document
 text. Its default `--max-text` is `0`, so paragraph and cell text fields are present
-but empty. Use `--radius` to include same-kind neighbors and raise `--max-text` only
+but empty. Comment anchors are exposed as `comments` and `comment-bodies` fields, and
+comment body IDs such as `C001.C0001` or `comment:3` can be used as metadata-only
+targets. Use `--radius` to include same-kind neighbors and raise `--max-text` only
 when short snippets are needed.
 Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 `read --summary` prints package/story counts without listing every target, which is
