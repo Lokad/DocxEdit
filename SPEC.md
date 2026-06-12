@@ -2391,7 +2391,8 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
   candidate metadata IDs;
 * modern `commentsExtended.xml` paraId consistency;
 * complex field begin/separate/end balance, instruction-text containment, and dirty/lock flag validity;
-* DrawingML `a:blip` relationship references;
+* DrawingML `a:blip` relationship references, image target parts, and image media
+  content types;
 * duplicate DrawingML `wp:docPr` IDs within a Word part;
 * DrawingML `wp:extent` positivity and `a:srcRect` crop bounds;
 * basic table row/cell shape.
@@ -2449,6 +2450,7 @@ E9109 drawing wp:extent is missing or non-positive
 E9110 drawing a:srcRect crop values are malformed or collapse the visible area
 E9111 comment body, anchor, or reference IDs are missing, duplicated, or inconsistent
 E9112 field instruction text or dirty/lock flag metadata is malformed
+E9113 drawing image relationship target or media content type is invalid
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 ```
 

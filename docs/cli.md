@@ -155,12 +155,13 @@ non-rectangular tables unless `force true` is explicitly supplied.
 `validate` runs bounded structural package checks and WordprocessingML invariants:
 known part roots, paired bookmark/comment ranges, commentsExtended paraId consistency,
 duplicate semantic selectors, complex field begin/end balance, drawing relationship
-references, duplicate drawing property IDs, drawing extent/crop geometry, and basic
+references, image target/content-type checks, duplicate drawing property IDs,
+drawing extent/crop geometry, and basic
 table row/cell shape. This is
 not full ISO/IEC 29500 schema
 validation; it is intended to catch common corruption and relationship mistakes with
 stable diagnostics such as `E9103`, `E9104`, `E9105`, `E9106`, `E9107`, `E9108`,
-`E9109`, `E9110`, and `W9109`.
+`E9109`, `E9110`, `E9113`, and `W9109`.
 
 ## Patch
 

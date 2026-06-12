@@ -34,8 +34,10 @@ Current checks include:
 - modern `commentsExtended.xml` paraId consistency;
 - complex field begin/separate/end balance, instruction-text containment, and
   dirty/lock flag validity;
-- DrawingML `a:blip` relationship references;
+- DrawingML `a:blip` relationship references, image relationship target parts, and
+  image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;
+- DrawingML extent and crop geometry;
 - basic table row/cell shape.
 
 This remains layered internal validation rather than full ISO/IEC 29500 schema

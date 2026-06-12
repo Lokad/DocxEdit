@@ -324,11 +324,51 @@ internal static class DocxPackageValidator
         foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
         {
             string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed") ?? (string?)blip.Attribute(OoxmlNs.R + "link");
-            if (!string.IsNullOrWhiteSpace(relationshipId) && !relationships.ContainsKey(relationshipId))
+            if (string.IsNullOrWhiteSpace(relationshipId))
+            {
+                continue;
+            }
+
+            if (!relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship))
             {
                 diagnostics.Add(Error("E9105", $"Drawing references missing relationship '{relationshipId}'.", partName));
+                continue;
+            }
+
+            if (relationship.Type != OoxmlRelTypes.Image)
+            {
+                diagnostics.Add(Error("E9113", $"Drawing relationship '{relationshipId}' has type '{relationship.Type}', expected image relationship.", partName));
+                continue;
+            }
+
+            if (relationship.IsExternal)
+            {
+                continue;
+            }
+
+            if (relationship.ResolvedTarget is null)
+            {
+                diagnostics.Add(Error("E9113", $"Drawing image relationship '{relationshipId}' has no resolved internal target.", partName));
+                continue;
+            }
+
+            OoxmlPart? imagePart = package.GetPart(relationship.ResolvedTarget);
+            if (imagePart is null)
+            {
+                diagnostics.Add(Error("E9113", $"Drawing image relationship '{relationshipId}' targets missing part '{relationship.ResolvedTarget}'.", partName));
+                continue;
+            }
+
+            if (!IsImageContentType(imagePart.ContentType))
+            {
+                diagnostics.Add(Error("E9113", $"Drawing image relationship '{relationshipId}' targets part '{imagePart.Name}' with non-image content type '{imagePart.ContentType ?? "unknown"}'.", partName));
             }
         }
+    }
+
+    private static bool IsImageContentType(string? contentType)
+    {
+        return contentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static void ValidateDrawingProperties(XDocument document, string partName, List<DocxDiagnostic> diagnostics)

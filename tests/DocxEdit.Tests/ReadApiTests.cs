@@ -189,6 +189,23 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidDrawingImageTargets()
+    {
+        using MemoryStream stream = CreateDocxWithImageRelationshipIssues();
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9113" &&
+            diagnostic.Message.Contains("expected image relationship", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9113" &&
+            diagnostic.Message.Contains("non-image content type 'text/plain'", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsInvalidFieldBoundariesAndFlags()
     {
         using MemoryStream stream = CreateDocxWithBody("""
@@ -2431,6 +2448,50 @@ public static class ReadApiTests
                   </w:body>
                 </w:document>
                 """);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithImageRelationshipIssues()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="txt" ContentType="text/plain"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/image.png" TargetMode="External"/>
+                  <Relationship Id="rTextPart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/not-image.txt"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <w:body>
+                    <w:p>
+                      <w:r><w:drawing><a:blip r:embed="rWrongType"/></w:drawing></w:r>
+                      <w:r><w:drawing><a:blip r:embed="rTextPart"/></w:drawing></w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/media/not-image.txt", "not image data");
         }
 
         stream.Position = 0;
