@@ -42,6 +42,7 @@ internal static class DocxPackageValidator
             "/word/numbering.xml" => OoxmlNs.W + "numbering",
             "/word/settings.xml" => OoxmlNs.W + "settings",
             "/word/comments.xml" => OoxmlNs.W + "comments",
+            "/word/commentsExtended.xml" => OoxmlNs.W15 + "commentsEx",
             _ when partName.StartsWith("/word/header", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "hdr",
             _ when partName.StartsWith("/word/footer", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "ftr",
             _ => null
@@ -64,6 +65,11 @@ internal static class DocxPackageValidator
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
+        if (string.Equals(partName, "/word/commentsExtended.xml", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateCommentsExtended(package, partName, document, diagnostics, cancellationToken);
+        }
+
         ValidateTables(document, partName, diagnostics);
     }
 
@@ -159,6 +165,73 @@ internal static class DocxPackageValidator
         {
             diagnostics.Add(Error("E9107", $"Duplicate drawing docPr id '{group.Key}' appears {group.Count()} times.", partName));
         }
+    }
+
+    private static void ValidateCommentsExtended(
+        OoxmlPackage package,
+        string partName,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        HashSet<string> commentParaIds = ReadCommentParaIds(package, cancellationToken);
+        var extensionParaIds = document
+            .Descendants(OoxmlNs.W15 + "commentEx")
+            .Select(element => (ParaId: (string?)element.Attribute(OoxmlNs.W15 + "paraId"), Element: element))
+            .ToArray();
+
+        foreach ((string? paraId, XElement _) in extensionParaIds.Where(item => string.IsNullOrWhiteSpace(item.ParaId)))
+        {
+            diagnostics.Add(Error("E9108", "commentsExtended commentEx is missing w15:paraId.", partName));
+        }
+
+        foreach (IGrouping<string, string> group in extensionParaIds
+            .Select(item => item.ParaId)
+            .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+            .Select(paraId => paraId!)
+            .GroupBy(paraId => paraId, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            diagnostics.Add(Error("E9108", $"Duplicate commentsExtended paraId '{group.Key}' appears {group.Count()} times.", partName));
+        }
+
+        foreach (string paraId in extensionParaIds
+            .Select(item => item.ParaId)
+            .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+            .Select(paraId => paraId!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal))
+        {
+            if (!commentParaIds.Contains(paraId))
+            {
+                diagnostics.Add(Error("E9108", $"commentsExtended paraId '{paraId}' has no matching comment paragraph.", partName));
+            }
+        }
+    }
+
+    private static HashSet<string> ReadCommentParaIds(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        var paraIds = new HashSet<string>(StringComparer.Ordinal);
+        OoxmlPart? commentsPart = package.GetPart("/word/comments.xml");
+        if (commentsPart is null)
+        {
+            return paraIds;
+        }
+
+        using Stream stream = commentsPart.OpenRead();
+        XDocument comments = SafeXml.Load(stream, cancellationToken);
+        foreach (string paraId in comments
+            .Descendants(OoxmlNs.W + "comment")
+            .Descendants(OoxmlNs.W + "p")
+            .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
+            .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+            .Select(paraId => paraId!))
+        {
+            paraIds.Add(paraId);
+        }
+
+        return paraIds;
     }
 
     private static void ValidateTables(XDocument document, string partName, List<DocxDiagnostic> diagnostics)

@@ -136,11 +136,11 @@ visual column end, merge group ID, vertical-merge root cell, vertical merge, and
 nested-table metadata. Row operations still reject unsafe
 non-rectangular tables unless `force true` is explicitly supplied.
 `validate` runs bounded structural package checks and WordprocessingML invariants:
-known part roots, paired bookmark/comment ranges, complex field begin/end balance,
-drawing relationship references, duplicate drawing property IDs, and basic table
-row/cell shape. This is not full ISO/IEC 29500 schema validation; it is intended to
-catch common corruption and relationship mistakes with stable diagnostics such as
-`E9103`, `E9104`, `E9105`, `E9106`, and `E9107`.
+known part roots, paired bookmark/comment ranges, commentsExtended paraId consistency,
+complex field begin/end balance, drawing relationship references, duplicate drawing
+property IDs, and basic table row/cell shape. This is not full ISO/IEC 29500 schema
+validation; it is intended to catch common corruption and relationship mistakes with
+stable diagnostics such as `E9103`, `E9104`, `E9105`, `E9106`, `E9107`, and `E9108`.
 
 ## Patch
 

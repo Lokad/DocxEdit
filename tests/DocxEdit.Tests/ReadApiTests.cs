@@ -102,6 +102,48 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidCommentsExtendedMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="1" w:author="Reviewer">
+                    <w:p w15:paraId="00AAA111"><w:r><w:t>Comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+            """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00AAA111" w15:done="0"/>
+                  <w15:commentEx w15:paraId="00AAA111" w15:done="1"/>
+                  <w15:commentEx w15:paraId="00BBB222" w15:done="0"/>
+                  <w15:commentEx w15:done="0"/>
+                </w15:commentsEx>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.PartName == "/word/commentsExtended.xml" &&
+            diagnostic.Message.Contains("Duplicate commentsExtended paraId '00AAA111'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.Message.Contains("00BBB222", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("no matching comment paragraph", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.Message.Contains("missing w15:paraId", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ReadExtractsMergedAndNestedTableMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""

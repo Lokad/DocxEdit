@@ -41,3 +41,5 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9104`: complex field begin/end markers are unbalanced.
 - `E9105`: drawing references a missing relationship ID.
 - `E9106`: table or row is missing required row/cell structure.
+- `E9107`: duplicate drawing `wp:docPr` ID within one Word part.
+- `E9108`: `commentsExtended` metadata has missing, duplicate, or orphan paraId records.

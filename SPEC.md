@@ -2132,8 +2132,9 @@ Patch apply validation must check:
 without editing and report stable `E91xx` diagnostics with `PartName` metadata for:
 
 * expected roots for known WordprocessingML parts (`document`, `styles`, `numbering`,
-  `settings`, `comments`, headers, and footers);
+  `settings`, `comments`, `commentsExtended`, headers, and footers);
 * paired bookmark and comment range start/end IDs;
+* modern `commentsExtended.xml` paraId consistency;
 * complex field begin/end balance;
 * DrawingML `a:blip` relationship references;
 * duplicate DrawingML `wp:docPr` IDs within a Word part;
@@ -2187,6 +2188,7 @@ E9104 complex field begin/end markers are unbalanced
 E9105 drawing references a missing relationship ID
 E9106 table or row is missing required row/cell structure
 E9107 duplicate drawing wp:docPr ID within one Word part
+E9108 commentsExtended metadata has missing, duplicate, or orphan paraId records
 ```
 
 Unsupported or approximated feature diagnostics must be emitted as warnings during read/check/apply when they can affect the requested workflow. Repeated occurrences of the same unsupported feature in the same part should be aggregated into one warning unless the exact target list is useful for fixing the patch.

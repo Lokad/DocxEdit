@@ -28,8 +28,9 @@ specific OOXML part.
 Current checks include:
 
 - expected roots for known WordprocessingML parts such as the main document, styles,
-  numbering, settings, comments, headers, and footers;
+  numbering, settings, comments, commentsExtended, headers, and footers;
 - paired bookmark and comment range start/end IDs;
+- modern `commentsExtended.xml` paraId consistency;
 - complex field begin/end balance;
 - DrawingML `a:blip` relationship references;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;
