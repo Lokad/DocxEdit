@@ -36,11 +36,13 @@ public static class CliTests
         CliResult patchHelp = RunCli("help", "patch");
 
         Assert.Equal(0, help.ExitCode);
+        Assert.Equal(DocxHelp.RenderOverview(), help.Output);
         Assert.Contains("docxedit read report.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("docxedit context report.docx --id M.P0004", help.Output, StringComparison.Ordinal);
         Assert.Contains("docxedit apply report.docx edits.docxpatch --output report.edited.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("tracked-change and comment markup", help.Output, StringComparison.Ordinal);
         Assert.Equal(0, patchHelp.ExitCode);
+        Assert.Equal(DocxHelp.RenderTopic("patch"), patchHelp.Output);
         Assert.Contains("find <<<", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op set-cell", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("insert-after", patchHelp.Output, StringComparison.Ordinal);

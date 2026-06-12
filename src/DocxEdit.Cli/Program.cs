@@ -16,21 +16,18 @@ internal static class ProgramMain
         {
             if (args.Length == 2 && args[0] == "help")
             {
-                return args[1] switch
+                if (DocxHelp.TryRenderTopic(args[1], out string helpText))
                 {
-                    "patch" => WriteHelpAndReturn(WritePatchHelp),
-                    "dump" => WriteHelpAndReturn(WriteDumpHelp),
-                    "context" => WriteHelpAndReturn(WriteContextHelp),
-                    "changes" => WriteHelpAndReturn(WriteChangesHelp),
-                    "check" => WriteHelpAndReturn(WriteCheckHelp),
-                    "apply" => WriteHelpAndReturn(WriteApplyHelp),
-                    _ => InvalidUsage($"Unknown help topic '{args[1]}'.")
-                };
+                    Console.Write(helpText);
+                    return 0;
+                }
+
+                return InvalidUsage($"Unknown help topic '{args[1]}'.");
             }
 
             if (args.Length == 0 || IsHelp(args[0]))
             {
-                WriteHelp();
+                Console.Write(DocxHelp.RenderOverview());
                 return 0;
             }
 
@@ -85,11 +82,11 @@ internal static class ProgramMain
         }
         else if (options.Flags.Contains("--summary"))
         {
-            WriteReadSummary(result);
+            Console.Write(DocxTextRenderer.RenderReadSummary(result));
         }
         else
         {
-            Console.Write(result.Text);
+            Console.Write(DocxTextRenderer.RenderRead(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -114,10 +111,7 @@ internal static class ProgramMain
         }
         else
         {
-            foreach (string line in result.Lines)
-            {
-                Console.WriteLine(line);
-            }
+            Console.Write(DocxTextRenderer.RenderOutline(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -144,10 +138,7 @@ internal static class ProgramMain
         }
         else
         {
-            foreach (string match in result.Matches)
-            {
-                Console.WriteLine(match);
-            }
+            Console.Write(DocxTextRenderer.RenderFind(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -172,9 +163,9 @@ internal static class ProgramMain
         {
             WriteJson(result);
         }
-        else if (result.Text is not null)
+        else
         {
-            Console.WriteLine(result.Text);
+            Console.Write(DocxTextRenderer.RenderDump(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -202,7 +193,7 @@ internal static class ProgramMain
         }
         else
         {
-            Console.Write(result.Text);
+            Console.Write(DocxTextRenderer.RenderContext(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -224,11 +215,7 @@ internal static class ProgramMain
         }
         else
         {
-            foreach (DocxStyleInfo style in result.Styles.OrderBy(style => style.Type, StringComparer.Ordinal).ThenBy(style => style.StyleId, StringComparer.Ordinal))
-            {
-                string defaultText = style.IsDefault ? " default=true" : string.Empty;
-                Console.WriteLine($"{style.Type} styleId={style.StyleId} name=\"{EscapeText(style.Name)}\"{defaultText}");
-            }
+            Console.Write(DocxTextRenderer.RenderStyles(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -256,10 +243,7 @@ internal static class ProgramMain
         }
         else
         {
-            foreach (DocxImageInfo image in result.Images)
-            {
-                Console.WriteLine($"{image.Id} {image.PartName} {image.ContentType ?? "unknown"} {image.ByteLength} bytes");
-            }
+            Console.Write(DocxTextRenderer.RenderMedia(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -281,53 +265,7 @@ internal static class ProgramMain
         }
         else
         {
-            foreach (DocxChangeSummary summary in result.Summary)
-            {
-                Console.WriteLine($"{summary.Type} count={summary.Count}");
-            }
-
-            foreach (DocxChangeGroupSummary summary in result.GroupSummary)
-            {
-                Console.WriteLine($"summary group={summary.Group} key=\"{EscapeText(summary.Key)}\" type={summary.Type} count={summary.Count}");
-            }
-
-            foreach (DocxChangeTargetSummary summary in result.TargetSummary)
-            {
-                Console.WriteLine($"target-summary target={summary.TargetId} count={summary.Count} types=\"{EscapeText(FormatTypeSummary(summary.Summary))}\"");
-            }
-
-            foreach (DocxCommentThreadSummary summary in result.CommentSummary)
-            {
-                string anchorTarget = summary.AnchorTargetId is null ? "anchor-target=unknown" : $"anchor-target={summary.AnchorTargetId}";
-                string referenceTarget = summary.ReferenceTargetId is null ? string.Empty : $" reference-target={summary.ReferenceTargetId}";
-                string anchorStory = summary.AnchorStory is null ? string.Empty : $" anchor-story=\"{EscapeText(summary.AnchorStory)}\"";
-                string anchorPart = summary.AnchorPartName is null ? string.Empty : $" anchor-part={summary.AnchorPartName}";
-                string author = summary.Author is null ? string.Empty : $" author=\"{EscapeText(summary.Author)}\"";
-                string timestamp = summary.TimestampUtc is null ? string.Empty : $" timestamp-utc={summary.TimestampUtc:O}";
-                Console.WriteLine($"comment-summary comment-id={EscapeText(summary.CommentId)} {anchorTarget}{referenceTarget}{anchorStory}{anchorPart}{author}{timestamp} count={summary.Count} types=\"{EscapeText(FormatTypeSummary(summary.Summary))}\"");
-            }
-
-            foreach (DocxChangeInfo change in result.Changes)
-            {
-                string target = change.TargetId is null ? "target=unknown" : $"target={change.TargetId}";
-                string targetSource = $" target-source={change.TargetSource}";
-                string targetReason = change.TargetReason is null ? string.Empty : $" target-reason={change.TargetReason}";
-                string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
-                string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{EscapeText(change.TargetNote)}\"";
-                string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
-                string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
-                string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
-                string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
-                string commentId = change.CommentId is null ? string.Empty : $" comment-id={EscapeText(change.CommentId)}";
-                string commentAuthor = change.CommentAuthor is null ? string.Empty : $" comment-author=\"{EscapeText(change.CommentAuthor)}\"";
-                string commentTimestamp = change.CommentTimestampUtc is null ? string.Empty : $" comment-timestamp-utc={change.CommentTimestampUtc:O}";
-                string commentInitials = change.CommentInitials is null ? string.Empty : $" comment-initials=\"{EscapeText(change.CommentInitials)}\"";
-                string commentAnchorTarget = change.CommentAnchorTargetId is null ? string.Empty : $" comment-anchor-target={change.CommentAnchorTargetId}";
-                string commentReferenceTarget = change.CommentReferenceTargetId is null ? string.Empty : $" comment-reference-target={change.CommentReferenceTargetId}";
-                string commentAnchorStory = change.CommentAnchorStory is null ? string.Empty : $" comment-anchor-story=\"{EscapeText(change.CommentAnchorStory)}\"";
-                string commentAnchorPart = change.CommentAnchorPartName is null ? string.Empty : $" comment-anchor-part={change.CommentAnchorPartName}";
-                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} target-status={change.TargetStatus}{targetSource}{targetReason}{nearestTarget}{targetNote}{pairedChange} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}{commentId}{commentAuthor}{commentTimestamp}{commentInitials}{commentAnchorTarget}{commentReferenceTarget}{commentAnchorStory}{commentAnchorPart}");
-            }
+            Console.Write(DocxTextRenderer.RenderChanges(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -352,7 +290,7 @@ internal static class ProgramMain
         else
         {
             Console.WriteLine(result.Success ? "docxedit check: OK" : "docxedit check: FAILED");
-            WriteOperationSummary(result.Operations);
+            Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -378,7 +316,7 @@ internal static class ProgramMain
         else
         {
             Console.WriteLine(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED");
-            WriteOperationSummary(result.Operations);
+            Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -409,36 +347,6 @@ internal static class ProgramMain
     private static void WriteJson(object value)
     {
         Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
-    }
-
-    private static void WriteReadSummary(DocxReadResult result)
-    {
-        Console.WriteLine($"parts count={result.PartNames.Count}");
-        Console.WriteLine($"main-document-part={result.MainDocumentPartName ?? "unknown"}");
-        Console.WriteLine($"paragraphs count={result.Paragraphs.Count}");
-        Console.WriteLine($"tables count={result.Tables.Count}");
-        Console.WriteLine($"images count={result.Images.Count}");
-        Console.WriteLine($"sections count={result.Sections.Count}");
-        foreach (IGrouping<string, DocxParagraphInfo> group in result.Paragraphs
-            .GroupBy(paragraph => paragraph.Story)
-            .OrderBy(group => group.Key, StringComparer.Ordinal))
-        {
-            Console.WriteLine($"story=\"{EscapeText(group.Key)}\" paragraphs={group.Count()}");
-        }
-    }
-
-    private static void WriteOperationSummary(IReadOnlyList<DocxPatchOperationReport> operations)
-    {
-        foreach (DocxPatchOperationReport operation in operations)
-        {
-            string target = operation.Target is null ? "target=unknown" : $"target={operation.Target}";
-            Console.WriteLine($"operation index={operation.Index} name={operation.OperationName} {target} success={operation.Success}");
-        }
-    }
-
-    private static string FormatTypeSummary(IReadOnlyList<DocxChangeSummary> summaries)
-    {
-        return string.Join(",", summaries.Select(summary => $"{summary.Type}:{summary.Count}"));
     }
 
     private static DocxEditOptions ToEditOptions(ParsedOptions options)
@@ -507,11 +415,6 @@ internal static class ProgramMain
         }
     }
 
-    private static string EscapeText(string text)
-    {
-        return text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
-    }
-
     private static void EnsureParentDirectory(string path)
     {
         string? directory = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -542,277 +445,6 @@ internal static class ProgramMain
     private static bool IsHelp(string arg)
     {
         return arg is "-h" or "--help" or "help";
-    }
-
-    private static int WriteHelpAndReturn(Action writer)
-    {
-        writer();
-        return 0;
-    }
-
-    private static void WriteHelp()
-    {
-        Console.WriteLine("""
-            docxedit - read and patch .docx documents
-
-            Usage:
-              docxedit <command> [options]
-
-            Read / explore:
-              read       Produce an agent-friendly structural view of a .docx
-              outline    Show headings, tables, images, sections, headers, footers
-              find       Find text and print stable edit targets
-              dump       Dump one target in detail
-              context    Show nearby structure around one target without broad text
-              styles     List paragraph, character, and table styles
-              media      List embedded images
-              changes    List tracked-change and comment markup without printing private text
-
-            Patch:
-              check      Validate a .docxpatch file without writing output
-              apply      Apply a .docxpatch file and write a new .docx
-
-            Help:
-              help dump|context|changes|check|apply|patch
-
-            Examples:
-              docxedit read report.docx [--view final|original|markup]
-              docxedit read report.docx --summary
-              docxedit dump report.docx --id M.P0004 --runs
-              docxedit context report.docx --id M.P0004
-              docxedit media report.docx --extract media
-              docxedit changes report.docx
-              docxedit check report.docx edits.docxpatch
-              docxedit apply report.docx edits.docxpatch --output report.edited.docx
-            """);
-    }
-
-    private static void WriteContextHelp()
-    {
-        Console.WriteLine("""
-            docxedit context input.docx --id TARGET [options]
-
-            Summarize nearby modeled structure around one target without broad document
-            text. By default, --max-text is 0, so paragraph and cell text fields are
-            present but empty. Increase --max-text only when short snippets are needed.
-
-            Options:
-              --id M.P0001                 Target ID from read, outline, find, or changes
-              --radius N                   Number of same-kind neighbors to include
-              --headers-footers            Include header/footer stories
-              --view final|original|markup Text view when --max-text is greater than 0
-              --max-text N                 Maximum text per paragraph/cell; default 0
-              --json                       Print the result object as JSON
-              --diagnostics path           Write diagnostics JSON
-              --strict                     Return 3 when warnings are present
-
-            Examples:
-              docxedit context report.docx --id M.P0004
-              docxedit context report.docx --id M.T0001.R02.C03 --radius 1 --max-text 80
-              docxedit context report.docx --id M.P0004 --json
-            """);
-    }
-
-    private static void WriteDumpHelp()
-    {
-        Console.WriteLine("""
-            docxedit dump input.docx --id TARGET [options]
-
-            Dump one target by stable ID. Paragraph and cell dumps print visible text.
-            With --runs, paragraph dumps include run-level markup metadata such as
-            markup=inserted-run, markup=deleted-run, revision-id, author, timestamp-utc,
-            comment-id, and comment range/reference markers without printing comment body text.
-            With --json, the Runs array exposes the same run metadata as structured fields.
-            Change IDs from `changes` identify markup records; run IDs from dump identify
-            rendered run/marker lines and are not the same namespace.
-            In JSON output, inspect Runs[] for structured run metadata.
-
-            Options:
-              --id M.P0001                 Target ID from read, outline, find, or changes
-              --runs                       Include paragraph run lines and markup metadata
-              --view final|original|markup Text view for tracked insert/delete text
-              --max-text N                 Maximum text per rendered field
-              --json                       Print the result object as JSON
-              --diagnostics path           Write diagnostics JSON
-              --strict                     Return 3 when warnings are present
-
-            Examples:
-              docxedit dump report.docx --id M.P0004 --runs
-              docxedit dump report.docx --id M.P0004 --runs --view markup --max-text 200
-            """);
-    }
-
-    private static void WriteChangesHelp()
-    {
-        Console.WriteLine("""
-            docxedit changes input.docx [options]
-
-            List tracked-change and comment markup without printing revision or comment text.
-            Records include change IDs, type, story, part, target, revision/comment metadata,
-            text length, child element count, and comment anchor targets when known.
-
-            JSON output includes:
-              Summary        Counts by change type
-              GroupSummary   Counts by group=story|part|author|target and type
-              TargetSummary  Compact per-target type rollups
-              CommentSummary Compact per-comment anchor/type rollups
-              Changes        Individual private-text-free change records
-
-            Target notes:
-              target-status explains whether a record is targeted, linked by a comment
-              anchor, or targetless. target-source distinguishes exact ancestor matches
-              from adjacent-range heuristics. target-reason classifies targetless records,
-              and nearest-target is context only, not exact ownership. paired-change-id
-              links range starts/ends that share a revision or comment ID.
-              target=unknown means the markup is not inside or adjacent to a modeled
-              paragraph/table/section target. Comment body records may expose
-              comment-anchor-target and comment-reference-target when the main-story
-              anchor/reference can be correlated by comment ID.
-
-            Text output includes type counts, group summaries, target summaries, comment
-            summaries, and individual records.
-
-            Timestamp notes:
-              TimestampUtc and CommentTimestampUtc are nullable UTC ISO-8601 values.
-              Raw JSON uses UTC values such as +00:00. Some JSON consumers may display
-              parsed date values in local time, so inspect the raw JSON string when the
-              serialized timestamp offset matters.
-
-            Options:
-              --json                       Print the result object as JSON
-              --diagnostics path           Write diagnostics JSON
-              --strict                     Return 3 when warnings are present
-
-            Examples:
-              docxedit changes report.docx
-              docxedit changes report.docx --json
-            """);
-    }
-
-    private static void WriteCheckHelp()
-    {
-        Console.WriteLine("""
-            docxedit check input.docx edits.docxpatch [options]
-
-            Validate a patch against an input document without writing an output file.
-            Use check before apply to verify selectors, guards, assets, and track-change
-            constraints. Text output includes one operation line per patch operation.
-
-            Options:
-              --track-changes off|preserve|suggest|require
-              --author name
-              --timestamp-utc instant      UTC timestamp used for generated revisions
-              --json                       Print the result object as JSON
-              --report path                Write operation report JSON
-              --diagnostics path           Write diagnostics JSON
-              --strict                     Return 3 when warnings are present
-
-            Examples:
-              docxedit check report.docx edits.docxpatch
-              docxedit check report.docx edits.docxpatch --track-changes require --author Agent --timestamp-utc 2026-01-01T00:00:00Z
-            """);
-    }
-
-    private static void WriteApplyHelp()
-    {
-        Console.WriteLine("""
-            docxedit apply input.docx edits.docxpatch --output output.docx [options]
-
-            Apply a patch and write a new .docx. The input is never modified in place.
-            Text output includes one operation line per patch operation.
-
-            Options:
-              --output path, -o path       Output .docx path
-              --track-changes off|preserve|suggest|require
-              --author name
-              --timestamp-utc instant      UTC timestamp used for generated revisions
-              --json                       Print the result object as JSON
-              --report path                Write operation report JSON
-              --diagnostics path           Write diagnostics JSON
-              --strict                     Return 3 when warnings are present
-
-            Track-change modes:
-              off       Apply direct edits
-              preserve  Preserve existing markup while applying direct edits
-              suggest   Generate tracked replacements when supported, otherwise warn and edit directly
-              require   Generate tracked replacements and fail unsupported tracked shapes
-
-            Examples:
-              docxedit apply report.docx edits.docxpatch --output report.edited.docx
-              docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes preserve
-            """);
-    }
-
-    private static void WritePatchHelp()
-    {
-        Console.WriteLine("""
-            docxpatch 1
-
-            op replace-text
-            target M.P0004
-            expect-text <<<
-            current text
-            >>>
-            find <<<
-            current
-            >>>
-            with <<<
-            new text
-            >>>
-            end
-
-            op set-cell
-            target M.T0001.R02.C03
-            expect-text <<<
-            current cell text
-            >>>
-            expect-row-count 4
-            expect-column-count 3
-            text <<<
-            updated cell text
-            >>>
-            end
-
-            op insert-after
-            target M.P0004
-            text <<<
-            inserted paragraph text
-            >>>
-            end
-
-            op replace-image
-            target M.I0001
-            asset chart.png
-            alt Chart after update
-            end
-
-            op delete-row
-            target M.T0001.R02
-            expect-contains row text
-            end
-
-            Supported operations:
-              replace-text target/find/with, optional expect-text, preserve-runs, occurrence
-              replace-paragraph target/text, optional expect-text, style
-              insert-before, insert-after target/text, optional style
-              delete-block target, optional expect-text
-              set-style target/style
-              set-cell target/text, optional expect-text, expect-row-count, expect-column-count, force
-              append-row target plus repeated cell, optional expect-row-count, expect-column-count
-              insert-row-before, insert-row-after target plus repeated cell, optional expect-row-count, expect-column-count, expect-cell-count, force
-              delete-row target, optional expect-row-count, expect-column-count, expect-cell-count, expect-contains, force
-              replace-image target/asset, optional expect-content-type, alt
-              insert-image-after target/asset, optional expect-content-type, width, height, alt
-              set-image-alt target/alt, optional expect-content-type
-              delete-image target, optional expect-content-type
-              set-section-columns target/count, optional expect-columns, expect-orientation
-              set-section-orientation target/orientation, optional expect-columns, expect-orientation
-
-            Selectors may use explicit IDs, heading:"Text", heading:2:"Text", text:"contained text", bookmark:"Name", or content-control:"TagOrAlias" for paragraph targets.
-            delete-row expect-contains checks that the target row's final visible text contains the supplied value.
-            replace-image alt updates the image DrawingML description while replacing the media bytes.
-            Unsupported fields are rejected. expect-hash, preserve-size, and caption are not supported.
-            """);
     }
 
     private sealed record ParsedOptions(

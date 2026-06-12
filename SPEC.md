@@ -409,6 +409,61 @@ public sealed record DocxChangesResult : DocxOperationResult
 lengths, child counts, IDs, targets, stories, and parts, but it must not copy revision
 or comment body text into the result.
 
+### 5.1 Public integration surfaces
+
+The NuGet library must expose the agent-facing command guidance that the CLI uses.
+Integrators must not have to duplicate CLI-local help text.
+
+```csharp
+public static class DocxHelp
+{
+    public static DocxCommandCatalog Catalog { get; }
+    public static bool TryGetCommand(string name, out DocxCommandInfo command);
+    public static bool TryGetPatchOperation(string name, out DocxPatchOperationInfo operation);
+    public static string RenderOverview();
+    public static bool TryRenderTopic(string topic, out string text);
+    public static string RenderTopic(string topic);
+}
+```
+
+`DocxCommandCatalog` must include structured commands, options, examples, output
+fields, privacy notes, and patch operation specs. The CLI must render its overview
+and command-specific help from this catalog.
+
+The library must also expose stable plain-text renderers for public result objects:
+
+```csharp
+public static class DocxTextRenderer
+{
+    public static string RenderRead(DocxReadResult result);
+    public static string RenderReadSummary(DocxReadResult result);
+    public static string RenderOutline(DocxOutlineResult result);
+    public static string RenderFind(DocxFindResult result);
+    public static string RenderDump(DocxDumpResult result);
+    public static string RenderContext(DocxContextResult result);
+    public static string RenderStyles(DocxStylesResult result);
+    public static string RenderMedia(DocxMediaResult result);
+    public static string RenderChanges(DocxChangesResult result);
+    public static string RenderOperationSummary(IReadOnlyList<DocxPatchOperationReport> operations);
+}
+```
+
+Privacy-safe integration presets must be public:
+
+```csharp
+public static class DocxPrivacyPresets
+{
+    public static DocxReadOptions ReadSummary { get; }
+    public static DocxContextOptions ContextMetadataOnly { get; }
+    public static DocxChangesOptions ChangesMarkupOnly { get; }
+}
+```
+
+`ReadSummary` and `ContextMetadataOnly` use `MaxText = 0`. Consumers must prefer
+`DocxTextRenderer.RenderReadSummary`, `DocxTextRenderer.RenderContext`, and
+`DocxTextRenderer.RenderChanges` when they need privacy-safe agent output instead of
+serializing full result objects.
+
 ---
 
 ## 6. Internal package model
@@ -2273,7 +2328,8 @@ Public notes derived from private cases must be anonymized: record feature gaps,
 
 ## 24. CLI help requirements
 
-The CLI must be self-explanatory for a fresh coding agent.
+The CLI must be self-explanatory for a fresh coding agent. Help material belongs to
+the NuGet library through `DocxHelp`; the CLI is only one renderer of that catalog.
 
 `docxedit -h`:
 
@@ -2369,9 +2425,10 @@ Example shape:
 ```
 
 The public library exposes data models directly; JSON is a CLI rendering concern.
-Current CLI JSON uses `System.Text.Json` default property names, matching the public
-PascalCase result property names such as `Success`, `Diagnostics`, `Summary`,
-`TargetSummary`, `Runs`, and `Items`.
+Plain-text summaries are not CLI-only: reusable text renderers are exposed through
+`DocxTextRenderer`. Current CLI JSON uses `System.Text.Json` default property names,
+matching the public PascalCase result property names such as `Success`, `Diagnostics`,
+`Summary`, `TargetSummary`, `Runs`, and `Items`.
 
 ---
 

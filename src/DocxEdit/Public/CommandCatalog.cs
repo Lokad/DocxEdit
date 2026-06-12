@@ -1,0 +1,554 @@
+using System.Text;
+
+namespace DocxEdit;
+
+public sealed record DocxCommandCatalog
+{
+    public string ToolName { get; init; } = "docxedit";
+    public string Summary { get; init; } = "read and patch .docx documents";
+    public IReadOnlyList<DocxCommandInfo> Commands { get; init; } = [];
+    public IReadOnlyList<string> Examples { get; init; } = [];
+    public IReadOnlyList<DocxPatchOperationInfo> PatchOperations { get; init; } = [];
+}
+
+public sealed record DocxCommandInfo
+{
+    public string Name { get; init; } = string.Empty;
+    public string Category { get; init; } = string.Empty;
+    public string Summary { get; init; } = string.Empty;
+    public string Usage { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public IReadOnlyList<DocxOptionInfo> Options { get; init; } = [];
+    public IReadOnlyList<DocxOutputFieldInfo> OutputFields { get; init; } = [];
+    public IReadOnlyList<string> PrivacyNotes { get; init; } = [];
+    public IReadOnlyList<DocxHelpSection> Notes { get; init; } = [];
+    public IReadOnlyList<string> Examples { get; init; } = [];
+}
+
+public sealed record DocxOptionInfo(string Syntax, string Description);
+
+public sealed record DocxOutputFieldInfo(string Name, string Description);
+
+public sealed record DocxHelpSection(string Heading, IReadOnlyList<string> Lines);
+
+public sealed record DocxPatchOperationInfo
+{
+    public string Name { get; init; } = string.Empty;
+    public IReadOnlyList<string> RequiredFields { get; init; } = [];
+    public IReadOnlyList<string> OptionalFields { get; init; } = [];
+    public string Description { get; init; } = string.Empty;
+
+    public string RenderSummary()
+    {
+        string required = RequiredFields.Count == 0 ? string.Empty : string.Join("/", RequiredFields);
+        string optional = OptionalFields.Count == 0 ? string.Empty : $", optional {string.Join(", ", OptionalFields)}";
+        return string.IsNullOrWhiteSpace(required)
+            ? $"{Name}{optional}"
+            : $"{Name} {required}{optional}";
+    }
+}
+
+public static class DocxHelp
+{
+    private const string PatchExamples =
+        """
+        docxpatch 1
+
+        op replace-text
+        target M.P0004
+        expect-text <<<
+        current text
+        >>>
+        find <<<
+        current
+        >>>
+        with <<<
+        new text
+        >>>
+        end
+
+        op set-cell
+        target M.T0001.R02.C03
+        expect-text <<<
+        current cell text
+        >>>
+        expect-row-count 4
+        expect-column-count 3
+        text <<<
+        updated cell text
+        >>>
+        end
+
+        op insert-after
+        target M.P0004
+        text <<<
+        inserted paragraph text
+        >>>
+        end
+
+        op replace-image
+        target M.I0001
+        asset chart.png
+        alt Chart after update
+        end
+
+        op delete-row
+        target M.T0001.R02
+        expect-contains row text
+        end
+        """;
+
+    public static DocxCommandCatalog Catalog { get; } = BuildCatalog();
+
+    public static bool TryGetCommand(string name, out DocxCommandInfo command)
+    {
+        command = Catalog.Commands.FirstOrDefault(command =>
+            string.Equals(command.Name, name, StringComparison.Ordinal)) ?? new DocxCommandInfo();
+        return !string.IsNullOrEmpty(command.Name);
+    }
+
+    public static bool TryGetPatchOperation(string name, out DocxPatchOperationInfo operation)
+    {
+        operation = Catalog.PatchOperations.FirstOrDefault(operation =>
+            string.Equals(operation.Name, name, StringComparison.Ordinal)) ?? new DocxPatchOperationInfo();
+        return !string.IsNullOrEmpty(operation.Name);
+    }
+
+    public static string RenderOverview()
+    {
+        var builder = new StringBuilder();
+        builder.Append(Catalog.ToolName).Append(" - ").Append(Catalog.Summary).AppendLine();
+        builder.AppendLine();
+        builder.AppendLine("Usage:");
+        builder.Append("  ").Append(Catalog.ToolName).AppendLine(" <command> [options]");
+        AppendCommandGroup(builder, "Read / explore", "read");
+        AppendCommandGroup(builder, "Patch", "patch");
+        builder.AppendLine();
+        builder.AppendLine("Help:");
+        builder.AppendLine("  help dump|context|changes|check|apply|patch");
+        builder.AppendLine();
+        builder.AppendLine("Examples:");
+        foreach (string example in Catalog.Examples)
+        {
+            builder.Append("  ").AppendLine(example);
+        }
+
+        return builder.ToString();
+    }
+
+    public static bool TryRenderTopic(string topic, out string text)
+    {
+        if (string.Equals(topic, "patch", StringComparison.Ordinal))
+        {
+            text = RenderPatchHelp();
+            return true;
+        }
+
+        if (TryGetCommand(topic, out DocxCommandInfo command))
+        {
+            text = RenderCommandHelp(command);
+            return true;
+        }
+
+        text = string.Empty;
+        return false;
+    }
+
+    public static string RenderTopic(string topic)
+    {
+        if (TryRenderTopic(topic, out string text))
+        {
+            return text;
+        }
+
+        throw new ArgumentException($"Unknown help topic '{topic}'.", nameof(topic));
+    }
+
+    private static void AppendCommandGroup(StringBuilder builder, string title, string category)
+    {
+        builder.AppendLine();
+        builder.AppendLine(title + ":");
+        foreach (DocxCommandInfo command in Catalog.Commands.Where(command =>
+                     string.Equals(command.Category, category, StringComparison.Ordinal)))
+        {
+            builder.Append("  ").Append(command.Name.PadRight(10)).AppendLine(command.Summary);
+        }
+    }
+
+    private static string RenderCommandHelp(DocxCommandInfo command)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(command.Usage);
+        builder.AppendLine();
+        builder.AppendLine(command.Description);
+        AppendFields(builder, command.OutputFields);
+        AppendLines(builder, "Privacy notes:", command.PrivacyNotes);
+        foreach (DocxHelpSection section in command.Notes)
+        {
+            AppendLines(builder, section.Heading + ":", section.Lines);
+        }
+
+        AppendOptions(builder, command.Options);
+        AppendLines(builder, "Examples:", command.Examples, indent: "  ");
+        return builder.ToString();
+    }
+
+    private static string RenderPatchHelp()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(PatchExamples);
+        builder.AppendLine();
+        builder.AppendLine("Supported operations:");
+        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations)
+        {
+            builder.Append("  ").AppendLine(operation.RenderSummary());
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
+        builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
+        builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
+        builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
+        builder.AppendLine("Unsupported fields are rejected. expect-hash, preserve-size, and caption are not supported.");
+        return builder.ToString();
+    }
+
+    private static void AppendFields(StringBuilder builder, IReadOnlyList<DocxOutputFieldInfo> fields)
+    {
+        if (fields.Count == 0)
+        {
+            return;
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("JSON output includes:");
+        foreach (DocxOutputFieldInfo field in fields)
+        {
+            builder.Append("  ").Append(field.Name.PadRight(14)).AppendLine(field.Description);
+        }
+    }
+
+    private static void AppendOptions(StringBuilder builder, IReadOnlyList<DocxOptionInfo> options)
+    {
+        if (options.Count == 0)
+        {
+            return;
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("Options:");
+        foreach (DocxOptionInfo option in options)
+        {
+            builder.Append("  ").Append(option.Syntax.PadRight(28)).AppendLine(option.Description);
+        }
+    }
+
+    private static void AppendLines(
+        StringBuilder builder,
+        string heading,
+        IReadOnlyList<string> lines,
+        string indent = "")
+    {
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        builder.AppendLine();
+        builder.AppendLine(heading);
+        foreach (string line in lines)
+        {
+            builder.Append(indent).AppendLine(line);
+        }
+    }
+
+    private static DocxCommandCatalog BuildCatalog()
+    {
+        return new DocxCommandCatalog
+        {
+            Commands =
+            [
+                new()
+                {
+                    Name = "read",
+                    Category = "read",
+                    Summary = "Produce an agent-friendly structural view of a .docx",
+                    Usage = "docxedit read input.docx [--summary] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+                    Description = "Produce an agent-friendly structural view of a .docx.",
+                    Options =
+                    [
+                        new("--summary", "Print compact counts without broad document text"),
+                        new("--headers-footers", "Include header/footer stories"),
+                        new("--all-stories", "Include all modeled stories"),
+                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
+                        new("--max-text N", "Maximum text per rendered field"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    PrivacyNotes =
+                    [
+                        "Use --summary, or DocxTextRenderer.RenderReadSummary, when only structure counts are needed."
+                    ],
+                    Examples =
+                    [
+                        "docxedit read report.docx [--view final|original|markup]",
+                        "docxedit read report.docx --summary"
+                    ]
+                },
+                new()
+                {
+                    Name = "outline",
+                    Category = "read",
+                    Summary = "Show headings, tables, images, sections, headers, footers",
+                    Usage = "docxedit outline input.docx [--json] [--diagnostics <path>] [--strict]",
+                    Description = "Show headings, tables, images, sections, headers, and footers.",
+                    Options =
+                    [
+                        new("--headers-footers", "Include header/footer stories"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ]
+                },
+                new()
+                {
+                    Name = "find",
+                    Category = "read",
+                    Summary = "Find text and print stable edit targets",
+                    Usage = "docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+                    Description = "Find text and print stable edit targets.",
+                    Options =
+                    [
+                        new("--headers-footers", "Include header/footer stories"),
+                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
+                        new("--max-text N", "Maximum text per rendered field"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ]
+                },
+                new()
+                {
+                    Name = "dump",
+                    Category = "read",
+                    Summary = "Dump one target in detail",
+                    Usage = "docxedit dump input.docx --id TARGET [options]",
+                    Description = "Dump one target by stable ID. Paragraph and cell dumps print visible text. With --runs, paragraph dumps include run-level markup metadata such as markup=inserted-run, markup=deleted-run, revision-id, author, timestamp-utc, comment-id, and comment range/reference markers without printing comment body text. With --json, the Runs array exposes the same run metadata as structured fields. Change IDs from `changes` identify markup records; run IDs from dump identify rendered run/marker lines and are not the same namespace. In JSON output, inspect Runs[] for structured run metadata.",
+                    Options =
+                    [
+                        new("--id M.P0001", "Target ID from read, outline, find, or changes"),
+                        new("--runs", "Include paragraph run lines and markup metadata"),
+                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
+                        new("--max-text N", "Maximum text per rendered field"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    OutputFields =
+                    [
+                        new("Runs", "Structured run metadata when --runs is used")
+                    ],
+                    Examples =
+                    [
+                        "docxedit dump report.docx --id M.P0004 --runs",
+                        "docxedit dump report.docx --id M.P0004 --runs --view markup --max-text 200"
+                    ]
+                },
+                new()
+                {
+                    Name = "context",
+                    Category = "read",
+                    Summary = "Show nearby structure around one target without broad text",
+                    Usage = "docxedit context input.docx --id TARGET [options]",
+                    Description = "Summarize nearby modeled structure around one target without broad document text. By default, --max-text is 0, so paragraph and cell text fields are present but empty. Increase --max-text only when short snippets are needed.",
+                    Options =
+                    [
+                        new("--id M.P0001", "Target ID from read, outline, find, or changes"),
+                        new("--radius N", "Number of same-kind neighbors to include"),
+                        new("--headers-footers", "Include header/footer stories"),
+                        new("--view final|original|markup", "Text view when --max-text is greater than 0"),
+                        new("--max-text N", "Maximum text per paragraph/cell; default 0"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    PrivacyNotes =
+                    [
+                        "The default metadata-only context profile uses MaxText=0."
+                    ],
+                    Examples =
+                    [
+                        "docxedit context report.docx --id M.P0004",
+                        "docxedit context report.docx --id M.T0001.R02.C03 --radius 1 --max-text 80",
+                        "docxedit context report.docx --id M.P0004 --json"
+                    ]
+                },
+                new()
+                {
+                    Name = "styles",
+                    Category = "read",
+                    Summary = "List paragraph, character, and table styles",
+                    Usage = "docxedit styles input.docx [--json] [--diagnostics <path>] [--strict]",
+                    Description = "List paragraph, character, and table styles.",
+                    Options =
+                    [
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ]
+                },
+                new()
+                {
+                    Name = "media",
+                    Category = "read",
+                    Summary = "List embedded images",
+                    Usage = "docxedit media input.docx [--extract <dir>] [--json] [--diagnostics <path>] [--strict]",
+                    Description = "List embedded images.",
+                    Options =
+                    [
+                        new("--extract dir", "Extract embedded image parts to a directory"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ]
+                },
+                new()
+                {
+                    Name = "changes",
+                    Category = "read",
+                    Summary = "List tracked-change and comment markup without printing private text",
+                    Usage = "docxedit changes input.docx [options]",
+                    Description = "List tracked-change and comment markup without printing revision or comment text. Records include change IDs, type, story, part, target, revision/comment metadata, text length, child element count, and comment anchor targets when known.",
+                    Options =
+                    [
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    OutputFields =
+                    [
+                        new("Summary", "Counts by change type"),
+                        new("GroupSummary", "Counts by group=story|part|author|target and type"),
+                        new("TargetSummary", "Compact per-target type rollups"),
+                        new("CommentSummary", "Compact per-comment anchor/type rollups"),
+                        new("Changes", "Individual private-text-free change records")
+                    ],
+                    PrivacyNotes =
+                    [
+                        "The changes command is private-text-free: it reports metadata, IDs, text lengths, child counts, targets, stories, and parts without revision or comment body text."
+                    ],
+                    Notes =
+                    [
+                        new("Target notes",
+                        [
+                            "target-status explains whether a record is targeted, linked by a comment anchor, or targetless. target-source distinguishes exact ancestor matches from adjacent-range heuristics. target-reason classifies targetless records, and nearest-target is context only, not exact ownership. paired-change-id links range starts/ends that share a revision or comment ID.",
+                            "target=unknown means the markup is not inside or adjacent to a modeled paragraph/table/section target. Comment body records may expose comment-anchor-target and comment-reference-target when the main-story anchor/reference can be correlated by comment ID."
+                        ]),
+                        new("Text output",
+                        [
+                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records."
+                        ]),
+                        new("Timestamp notes",
+                        [
+                            "TimestampUtc and CommentTimestampUtc are nullable UTC ISO-8601 values. Raw JSON uses UTC values such as +00:00. Some JSON consumers may display parsed date values in local time, so inspect the raw JSON string when the serialized timestamp offset matters."
+                        ])
+                    ],
+                    Examples =
+                    [
+                        "docxedit changes report.docx",
+                        "docxedit changes report.docx --json"
+                    ]
+                },
+                new()
+                {
+                    Name = "check",
+                    Category = "patch",
+                    Summary = "Validate a .docxpatch file without writing output",
+                    Usage = "docxedit check input.docx edits.docxpatch [options]",
+                    Description = "Validate a patch against an input document without writing an output file. Use check before apply to verify selectors, guards, assets, and track-change constraints. Text output includes one operation line per patch operation.",
+                    Options =
+                    [
+                        new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
+                        new("--author name", "Author used for generated revisions"),
+                        new("--timestamp-utc instant", "UTC timestamp used for generated revisions"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--report path", "Write operation report JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    Examples =
+                    [
+                        "docxedit check report.docx edits.docxpatch",
+                        "docxedit check report.docx edits.docxpatch --track-changes require --author Agent --timestamp-utc 2026-01-01T00:00:00Z"
+                    ]
+                },
+                new()
+                {
+                    Name = "apply",
+                    Category = "patch",
+                    Summary = "Apply a .docxpatch file and write a new .docx",
+                    Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [options]",
+                    Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation.",
+                    Options =
+                    [
+                        new("--output path, -o path", "Output .docx path"),
+                        new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
+                        new("--author name", "Author used for generated revisions"),
+                        new("--timestamp-utc instant", "UTC timestamp used for generated revisions"),
+                        new("--json", "Print the result object as JSON"),
+                        new("--report path", "Write operation report JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    Notes =
+                    [
+                        new("Track-change modes",
+                        [
+                            "off       Apply direct edits",
+                            "preserve  Preserve existing markup while applying direct edits",
+                            "suggest   Generate tracked replacements when supported, otherwise warn and edit directly",
+                            "require   Generate tracked replacements and fail unsupported tracked shapes"
+                        ])
+                    ],
+                    Examples =
+                    [
+                        "docxedit apply report.docx edits.docxpatch --output report.edited.docx",
+                        "docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes preserve"
+                    ]
+                }
+            ],
+            Examples =
+            [
+                "docxedit read report.docx [--view final|original|markup]",
+                "docxedit read report.docx --summary",
+                "docxedit dump report.docx --id M.P0004 --runs",
+                "docxedit context report.docx --id M.P0004",
+                "docxedit media report.docx --extract media",
+                "docxedit changes report.docx",
+                "docxedit check report.docx edits.docxpatch",
+                "docxedit apply report.docx edits.docxpatch --output report.edited.docx"
+            ],
+            PatchOperations =
+            [
+                new() { Name = "replace-text", RequiredFields = ["target", "find", "with"], OptionalFields = ["expect-text", "preserve-runs", "occurrence"] },
+                new() { Name = "replace-paragraph", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "style"] },
+                new() { Name = "insert-before", RequiredFields = ["target", "text"], OptionalFields = ["style"] },
+                new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style"] },
+                new() { Name = "delete-block", RequiredFields = ["target"], OptionalFields = ["expect-text"] },
+                new() { Name = "set-style", RequiredFields = ["target", "style"] },
+                new() { Name = "set-cell", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "expect-row-count", "expect-column-count", "force"] },
+                new() { Name = "append-row", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count"] },
+                new() { Name = "insert-row-before", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },
+                new() { Name = "insert-row-after", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },
+                new() { Name = "delete-row", RequiredFields = ["target"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"] },
+                new() { Name = "replace-image", RequiredFields = ["target", "asset"], OptionalFields = ["expect-content-type", "alt"] },
+                new() { Name = "insert-image-after", RequiredFields = ["target", "asset"], OptionalFields = ["expect-content-type", "width", "height", "alt"] },
+                new() { Name = "set-image-alt", RequiredFields = ["target", "alt"], OptionalFields = ["expect-content-type"] },
+                new() { Name = "delete-image", RequiredFields = ["target"], OptionalFields = ["expect-content-type"] },
+                new() { Name = "set-section-columns", RequiredFields = ["target", "count"], OptionalFields = ["expect-columns", "expect-orientation"] },
+                new() { Name = "set-section-orientation", RequiredFields = ["target", "orientation"], OptionalFields = ["expect-columns", "expect-orientation"] }
+            ]
+        };
+    }
+}

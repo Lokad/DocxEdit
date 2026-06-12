@@ -60,4 +60,17 @@ DocxApplyResult result = new DocxEditor().Apply(applyInput, patch, edited);
 
 Input and output streams are left open by default. Set `LeaveInputOpen` or `LeaveOutputOpen` to `false` on the relevant options when the editor should dispose them.
 
+Agent-facing help, output formatting, and privacy-safe workflow presets are available from the library:
+
+```csharp
+string help = DocxHelp.RenderTopic("changes");
+
+await using Stream contextInput = File.OpenRead("report.docx");
+DocxContextResult context = new DocxEditor().Context(
+    contextInput,
+    "M.P0004",
+    DocxPrivacyPresets.ContextMetadataOnly);
+string contextText = DocxTextRenderer.RenderContext(context);
+```
+
 Private documents belong under ignored `private-cases/` and must never be committed.
