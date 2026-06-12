@@ -119,3 +119,6 @@ revision markup, and must have compatible direct run-property shape.
 `TrackChangesMode.Require` fails unsupported operations with `E6001` and unsupported
 shapes with `E6002`; `TrackChangesMode.Suggest` warns with `W4001` or `W4002` and
 applies the direct edit instead.
+Existing tracked-change and comment markup is preserved unless the targeted operation
+would directly replace that protected boundary. Generated revision IDs are allocated
+after existing `w:id` values to avoid collisions.

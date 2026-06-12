@@ -1934,6 +1934,9 @@ Revision metadata:
 * Use `DocxEditOptions.Author`.
 * Use `DocxEditOptions.TimestampUtc`.
 * Generate monotonically increasing `w:id` values by scanning existing revision IDs and incrementing from the max.
+* Preserve pre-existing tracked-change and comment markup unless the requested target
+  would directly replace a protected boundary; protected-boundary edits fail or fall
+  back according to `Require`/`Suggest`.
 
 ---
 

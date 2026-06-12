@@ -524,6 +524,62 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackedInsertionPreservesExistingTrackedChangesAndComments()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:ins w:id="9" w:author="Existing" w:date="2026-06-01T12:00:00Z">
+                        <w:r><w:t>Existing insertion </w:t></w:r>
+                      </w:ins>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Commenter">
+                    <w:p><w:r><w:t>Existing comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text New tracked paragraph
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Agent",
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string documentXml = ReadDocumentXml(output);
+        Assert.Contains("w:id=\"9\" w:author=\"Existing\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("commentRangeStart w:id=\"3\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("commentReference w:id=\"3\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"10\" w:author=\"Agent\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("New tracked paragraph", documentXml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("Existing comment", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        DocxChangesResult changes = new DocxEditor().Changes(output);
+        Assert.Contains(changes.Changes, change => change.Type == "inserted-run" && change.RevisionId == "9" && change.Author == "Existing");
+        Assert.Contains(changes.Changes, change => change.Type == "inserted-run" && change.RevisionId == "10" && change.Author == "Agent");
+        Assert.Contains(changes.CommentSummary, summary => summary.CommentId == "3");
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForDeletedParagraph()
     {
         using MemoryStream input = CreateDocxWithBody("""
