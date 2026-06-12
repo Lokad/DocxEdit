@@ -2395,7 +2395,9 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
   content types;
 * duplicate DrawingML `wp:docPr` IDs within a Word part;
 * DrawingML `wp:extent` positivity and `a:srcRect` crop bounds;
-* basic table row/cell shape.
+* basic table row/cell shape;
+* table visual-grid consistency for `gridSpan`, `gridBefore`, `gridAfter`,
+  `vMerge` continuations, and declared `tblGrid` width.
 
 Return warning:
 
@@ -2451,6 +2453,7 @@ E9110 drawing a:srcRect crop values are malformed or collapse the visible area
 E9111 comment body, anchor, or reference IDs are missing, duplicated, or inconsistent
 E9112 field instruction text or dirty/lock flag metadata is malformed
 E9113 drawing image relationship target or media content type is invalid
+E9114 table visual-grid metadata is inconsistent
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 ```
 

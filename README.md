@@ -178,8 +178,8 @@ Implemented areas include:
 - structural package validation through `validate`, including known part roots, paired
   ranges, complex field balance and field flag consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   image relationship target/content-type checks, drawing property ID uniqueness,
-  drawing extent/crop geometry, duplicate semantic selector warnings, and basic table
-  shape;
+  drawing extent/crop geometry, duplicate semantic selector warnings, basic table
+  shape, and table visual-grid consistency;
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic

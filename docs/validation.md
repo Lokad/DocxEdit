@@ -38,7 +38,9 @@ Current checks include:
   image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;
 - DrawingML extent and crop geometry;
-- basic table row/cell shape.
+- basic table row/cell shape;
+- table visual-grid consistency for `gridSpan`, `gridBefore`, `gridAfter`,
+  `vMerge` continuations, and declared `tblGrid` width.
 
 This remains layered internal validation rather than full ISO/IEC 29500 schema
 validation. It is designed to catch common corruption and relationship mistakes with

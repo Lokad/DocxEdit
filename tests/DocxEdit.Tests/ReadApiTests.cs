@@ -206,6 +206,58 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidTableVisualGrid()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>Root</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>Mismatch</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Overflow</w:t></w:r></w:p></w:tc>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="0"/></w:tcPr>
+                          <w:p><w:r><w:t>Invalid span</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>Orphan</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("does not match active restart span", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("exceeding declared tblGrid", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("invalid gridSpan", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("has no active restart", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsInvalidFieldBoundariesAndFlags()
     {
         using MemoryStream stream = CreateDocxWithBody("""

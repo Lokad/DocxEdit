@@ -58,5 +58,7 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9112`: field instruction text or dirty/lock flag metadata is malformed.
 - `E9113`: DrawingML image references use a non-image relationship, missing target
   part, or non-image media content type.
+- `E9114`: table visual-grid metadata is inconsistent, such as invalid `gridSpan`,
+  vertical merge continuation mismatch, or row width exceeding `tblGrid`.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.
