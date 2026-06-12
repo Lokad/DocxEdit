@@ -136,7 +136,7 @@ internal static class TextRenderers
 
         foreach (DocxImageInfo image in model.Images)
         {
-            builder.Append(image.Id).Append(" image part=").Append(image.PartName).Append(" content-type=").Append(image.ContentType ?? "unknown").Append(" bytes=").Append(image.ByteLength).AppendLine();
+            builder.Append(RenderImage(image)).AppendLine();
         }
 
         return builder.ToString();
@@ -162,7 +162,8 @@ internal static class TextRenderers
 
         foreach (DocxImageInfo image in model.Images)
         {
-            lines.Add($"{image.Id} image part={image.PartName}");
+            string target = image.ContainingTargetId is null ? "target=unknown" : $"target={image.ContainingTargetId}";
+            lines.Add($"{image.Id} image layout={Escape(image.LayoutKind)} {target} part={image.PartName}");
         }
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
@@ -455,6 +456,19 @@ internal static class TextRenderers
             ? string.Empty
             : $" source={Escape(list.Source)}";
         return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}";
+    }
+
+    private static string RenderImage(DocxImageInfo image)
+    {
+        string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={Escape(image.RelationshipId)}";
+        string target = image.ContainingTargetId is null ? " target=unknown" : $" target={image.ContainingTargetId}";
+        string size = image.WidthEmu is null || image.HeightEmu is null ? string.Empty : $" size-emu={image.WidthEmu}x{image.HeightEmu}";
+        string name = image.Name is null ? string.Empty : $" name=\"{Escape(image.Name)}\"";
+        string description = image.Description is null ? string.Empty : $" description=\"{Escape(image.Description)}\"";
+        string title = image.Title is null ? string.Empty : $" title=\"{Escape(image.Title)}\"";
+        string wrap = image.WrapMode is null ? string.Empty : $" wrap={Escape(image.WrapMode)}";
+        string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
+        return $"{image.Id} image layout={Escape(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}";
     }
 
     private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText, TargetAnnotations annotations)

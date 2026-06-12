@@ -107,14 +107,28 @@ public static class DocxTextRenderer
         var builder = new StringBuilder();
         foreach (DocxImageInfo image in result.Images)
         {
+            string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={EscapeText(image.RelationshipId)}";
+            string target = image.ContainingTargetId is null ? " target=unknown" : $" target={image.ContainingTargetId}";
+            string size = image.WidthEmu is null || image.HeightEmu is null ? string.Empty : $" size-emu={image.WidthEmu}x{image.HeightEmu}";
+            string description = image.Description is null ? string.Empty : $" description=\"{EscapeText(image.Description)}\"";
+            string wrap = image.WrapMode is null ? string.Empty : $" wrap={EscapeText(image.WrapMode)}";
+            string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
             builder.Append(image.Id)
-                .Append(' ')
+                .Append(" image layout=")
+                .Append(EscapeText(image.LayoutKind))
+                .Append(" part=")
                 .Append(image.PartName)
-                .Append(' ')
+                .Append(" content-type=")
                 .Append(image.ContentType ?? "unknown")
-                .Append(' ')
+                .Append(" bytes=")
                 .Append(image.ByteLength)
-                .AppendLine(" bytes");
+                .Append(relationshipId)
+                .Append(target)
+                .Append(size)
+                .Append(description)
+                .Append(wrap)
+                .Append(behind)
+                .AppendLine();
         }
 
         return builder.ToString();

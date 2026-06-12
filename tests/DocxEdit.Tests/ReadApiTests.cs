@@ -26,7 +26,7 @@ public static class ReadApiTests
         Assert.Equal("/word/media/image1.png", result.Images[0].PartName);
         Assert.Contains("M.P0001 heading level=1", result.Text, StringComparison.Ordinal);
         Assert.Contains("M.T0001 table rows=1 columns=2", result.Text, StringComparison.Ordinal);
-        Assert.Contains("M.I0001 image part=/word/media/image1.png", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.I0001 image layout=inline part=/word/media/image1.png", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -331,6 +331,57 @@ public static class ReadApiTests
         DocxImageInfo image = Assert.Single(result.Images);
         Assert.Equal("M.I0001", image.Id);
         Assert.Equal("/word/media/image1.png", image.PartName);
+        Assert.Equal("inline", image.LayoutKind);
+        Assert.Equal("rImage", image.RelationshipId);
+        Assert.Equal("M.P0002", image.ContainingTargetId);
+        Assert.Equal(914400, image.WidthEmu);
+        Assert.Equal(457200, image.HeightEmu);
+        Assert.Equal("Revenue chart", image.Description);
+    }
+
+    [Fact]
+    public static void ReadModelsAnchoredImageLayoutMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithImageBody("""
+                    <w:p>
+                      <w:r><w:t>Floating image</w:t></w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor behindDoc="1">
+                            <wp:extent cx="1000" cy="2000"/>
+                            <wp:wrapSquare/>
+                            <wp:docPr id="2" name="Floating picture" descr="Floating chart"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rImage"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        DocxImageInfo image = Assert.Single(result.Images);
+        Assert.Equal("anchor", image.LayoutKind);
+        Assert.Equal("M.P0001", image.ContainingTargetId);
+        Assert.Equal(1000, image.WidthEmu);
+        Assert.Equal(2000, image.HeightEmu);
+        Assert.Equal("wrapSquare", image.WrapMode);
+        Assert.True(image.BehindDoc);
+        Assert.Equal("Floating chart", image.Description);
+        Assert.Contains("layout=anchor", result.Text, StringComparison.Ordinal);
+        Assert.Contains("wrap=wrapSquare", result.Text, StringComparison.Ordinal);
+        Assert.Contains("behind-doc=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1007" && diagnostic.Fallback == "modeled-metadata");
     }
 
     [Fact]
@@ -1331,6 +1382,8 @@ public static class ReadApiTests
                       <w:r>
                         <w:drawing>
                           <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="Revenue chart" title="Chart title"/>
                             <a:graphic>
                               <a:graphicData>
                                 <pic:pic>
@@ -1419,6 +1472,50 @@ public static class ReadApiTests
                   </w:body>
                 </w:document>
                 """);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithImageBody(string bodyXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/media/image1.png", "fake-png");
         }
 
         stream.Position = 0;

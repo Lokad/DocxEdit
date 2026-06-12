@@ -295,7 +295,8 @@ public static class DocxHelp
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
                         new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
-                        new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, anchor, target part, containing target, and broken relationship flag")
+                        new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, anchor, target part, containing target, and broken relationship flag"),
+                        new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, and media part")
                     ],
                     Notes =
                     [
@@ -314,6 +315,10 @@ public static class DocxHelp
                         new("Hyperlinks",
                         [
                             "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, internal links expose anchor or target part, and broken relationship IDs are flagged."
+                        ]),
+                        new("Images",
+                        [
+                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported."
                         ])
                     ],
                     Examples =

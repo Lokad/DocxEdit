@@ -148,7 +148,7 @@ internal static class DocxDocumentScanner
         DocxRunInfo[] runs = ReadRuns(paragraph, textView);
         foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
         {
-            AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
+            AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, id, ref imageIndex);
         }
 
         string? styleId = ReadParagraphStyleId(paragraph);
@@ -304,13 +304,13 @@ internal static class DocxDocumentScanner
             int columnIndex = 1;
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
-                foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
-                {
-                    AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
-                }
-
                 int columnSpan = ReadCellColumnSpan(cell);
                 string cellId = $"{id}.R{rowIndex:00}.C{columnIndex:00}";
+                foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
+                {
+                    AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, cellId, ref imageIndex);
+                }
+
                 targets[cell] = cellId;
                 cells.Add(new DocxTableCellInfo(
                     cellId,
@@ -814,8 +814,17 @@ internal static class DocxDocumentScanner
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
         string imageIdPrefix,
+        string containingTargetId,
         ref int imageIndex)
     {
+        XElement? layout = drawing.Element(OoxmlNs.Wp + "inline") ?? drawing.Element(OoxmlNs.Wp + "anchor");
+        string layoutKind = layout?.Name.LocalName ?? "unknown";
+        XElement? extent = layout?.Element(OoxmlNs.Wp + "extent");
+        XElement? docProperties = layout?.Element(OoxmlNs.Wp + "docPr");
+        string? wrapMode = layout?.Elements().FirstOrDefault(element => element.Name.LocalName.StartsWith("wrap", StringComparison.Ordinal))?.Name.LocalName;
+        bool behindDoc = string.Equals((string?)layout?.Attribute("behindDoc"), "1", StringComparison.Ordinal) ||
+            string.Equals((string?)layout?.Attribute("behindDoc"), "true", StringComparison.OrdinalIgnoreCase);
+
         foreach (XElement blip in drawing.Descendants(OoxmlNs.A + "blip"))
         {
             string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed");
@@ -838,8 +847,25 @@ internal static class DocxDocumentScanner
                 continue;
             }
 
-            images.Add(new DocxImageInfo($"{imageIdPrefix}.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length));
+            images.Add(new DocxImageInfo($"{imageIdPrefix}.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length)
+            {
+                LayoutKind = layoutKind,
+                RelationshipId = relationshipId,
+                ContainingTargetId = containingTargetId,
+                WidthEmu = ReadLongAttribute(extent, "cx"),
+                HeightEmu = ReadLongAttribute(extent, "cy"),
+                Name = (string?)docProperties?.Attribute("name"),
+                Description = (string?)docProperties?.Attribute("descr"),
+                Title = (string?)docProperties?.Attribute("title"),
+                WrapMode = wrapMode,
+                BehindDoc = behindDoc
+            });
         }
+    }
+
+    private static long? ReadLongAttribute(XElement? element, string localName)
+    {
+        return long.TryParse((string?)element?.Attribute(localName), out long value) ? value : null;
     }
 
     private sealed record RunMarkup(

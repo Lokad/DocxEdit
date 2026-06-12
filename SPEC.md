@@ -791,11 +791,24 @@ public sealed record DocxImageInfo(
     string Id,
     string PartName,
     string? ContentType,
-    long ByteLength);
+    long ByteLength)
+{
+    public string LayoutKind { get; init; } = "unknown";
+    public string? RelationshipId { get; init; }
+    public string? ContainingTargetId { get; init; }
+    public long? WidthEmu { get; init; }
+    public long? HeightEmu { get; init; }
+    public string? Name { get; init; }
+    public string? Description { get; init; }
+    public string? Title { get; init; }
+    public string? WrapMode { get; init; }
+    public bool BehindDoc { get; init; }
+}
 ```
 
-The public image model is intentionally compact. Detailed drawing layout is preserved in
-OOXML but not exposed as editable public state.
+The public image model exposes compact DrawingML layout metadata for inline and
+anchored drawings. Detailed crop/positioning layout is preserved in OOXML but not
+fully exposed as editable public state.
 
 ### 8.7 Section model
 
@@ -1031,7 +1044,7 @@ M.T0001 table rows=2 columns=3
   M.T0001.R01.C01 text="Metric"
   M.T0001.R01.C02 text="Q3"
   M.T0001.R01.C03 text="Q4"
-M.I0001 image part=/word/media/image1.png content-type=image/png bytes=12345
+M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart"
 ```
 
 `read --summary` prints aggregate counts without listing every target:
@@ -1059,7 +1072,7 @@ headers, and footers.
 M.P0001 heading level=1 text="Executive Summary"
 M.T0001 table rows=4 columns=3
 M.S0001 section columns=2 orientation=landscape
-M.I0001 image part=/word/media/image1.png
+M.I0001 image layout=inline target=M.P0002 part=/word/media/image1.png
 M.B0001 bookmark name="ClientName" start=M.P0002 end=M.P0002
 M.CC0001 content-control kind=plain-text target=M.P0002 tag="client_name" alias="Client Name"
 M.F0001 field kind=complex target=M.P0002 code="REF ClientName \h"
@@ -1109,7 +1122,7 @@ Purpose: list images and allow CLI extraction to a directory.
 CLI output:
 
 ```text
-M.I0001 /word/media/image1.png image/png 12345 bytes
+M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart"
 ```
 
 ### 9.7 `changes`

@@ -95,6 +95,12 @@ IDs are flagged. `context` annotates nearby targets with `hyperlinks` and
 `hyperlink-targets`; `dump --runs` annotates hyperlink runs with
 `markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
 Hyperlink target/display editing remains outside the current patch DSL.
+Image records from `read`, `outline`, and `media` include `layout=inline` or
+`layout=anchor`, the media relationship ID, containing paragraph/cell target,
+DrawingML extent in EMUs, `docPr` description/title/name when present, wrap mode,
+and `behind-doc` for floating drawings. Replacement and alt-text operations preserve
+the existing drawing layout where supported; detailed crop and positioning edits are
+not yet exposed.
 
 ## Patch
 

@@ -95,7 +95,19 @@ public sealed record DocxStyleInfo(string StyleId, string Name, string Type, boo
     public int? NumberingLevel { get; init; }
 }
 
-public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength);
+public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength)
+{
+    public string LayoutKind { get; init; } = "unknown";
+    public string? RelationshipId { get; init; }
+    public string? ContainingTargetId { get; init; }
+    public long? WidthEmu { get; init; }
+    public long? HeightEmu { get; init; }
+    public string? Name { get; init; }
+    public string? Description { get; init; }
+    public string? Title { get; init; }
+    public string? WrapMode { get; init; }
+    public bool BehindDoc { get; init; }
+}
 
 public sealed record DocxChangeInfo
 {
