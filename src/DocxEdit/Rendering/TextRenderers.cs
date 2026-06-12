@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using DocxEdit.Model;
 
@@ -539,7 +540,23 @@ internal static class TextRenderers
         string title = image.Title is null ? string.Empty : $" title=\"{Escape(image.Title)}\"";
         string wrap = image.WrapMode is null ? string.Empty : $" wrap={Escape(image.WrapMode)}";
         string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
-        return $"{image.Id} image layout={Escape(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}";
+        string crop = RenderCrop(image);
+        return $"{image.Id} image layout={Escape(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}{crop}";
+    }
+
+    private static string RenderCrop(DocxImageInfo image)
+    {
+        return RenderPercent("crop-left-percent", image.CropLeftPercent) +
+            RenderPercent("crop-top-percent", image.CropTopPercent) +
+            RenderPercent("crop-right-percent", image.CropRightPercent) +
+            RenderPercent("crop-bottom-percent", image.CropBottomPercent);
+    }
+
+    private static string RenderPercent(string name, decimal? value)
+    {
+        return value is null
+            ? string.Empty
+            : $" {name}={value.Value.ToString("0.###", CultureInfo.InvariantCulture)}";
     }
 
     private static string RenderTable(DocxTableInfo table)

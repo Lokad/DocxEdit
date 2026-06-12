@@ -577,12 +577,13 @@ public static class ReadApiTests
                             <wp:docPr id="2" name="Floating picture" descr="Floating chart"/>
                             <a:graphic>
                               <a:graphicData>
-                                <pic:pic>
-                                  <pic:blipFill>
-                                    <a:blip r:embed="rImage"/>
-                                  </pic:blipFill>
-                                </pic:pic>
-                              </a:graphicData>
+                                  <pic:pic>
+                                    <pic:blipFill>
+                                      <a:blip r:embed="rImage"/>
+                                      <a:srcRect l="10000" t="5000" r="2500" b="0"/>
+                                    </pic:blipFill>
+                                  </pic:pic>
+                                </a:graphicData>
                             </a:graphic>
                           </wp:anchor>
                         </w:drawing>
@@ -601,10 +602,18 @@ public static class ReadApiTests
         Assert.Equal(2000, image.HeightEmu);
         Assert.Equal("wrapSquare", image.WrapMode);
         Assert.True(image.BehindDoc);
+        Assert.Equal(10m, image.CropLeftPercent);
+        Assert.Equal(5m, image.CropTopPercent);
+        Assert.Equal(2.5m, image.CropRightPercent);
+        Assert.Equal(0m, image.CropBottomPercent);
         Assert.Equal("Floating chart", image.Description);
         Assert.Contains("layout=anchor", result.Text, StringComparison.Ordinal);
         Assert.Contains("wrap=wrapSquare", result.Text, StringComparison.Ordinal);
         Assert.Contains("behind-doc=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-left-percent=10", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-top-percent=5", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-right-percent=2.5", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-bottom-percent=0", result.Text, StringComparison.Ordinal);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1007" && diagnostic.Fallback == "modeled-metadata");
     }
 

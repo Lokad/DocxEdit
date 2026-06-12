@@ -122,9 +122,10 @@ the displayed runs.
 Image records from `read`, `outline`, and `media` include `layout=inline` or
 `layout=anchor`, the media relationship ID, containing paragraph/cell target,
 DrawingML extent in EMUs, `docPr` description/title/name when present, wrap mode,
-and `behind-doc` for floating drawings. Replacement and alt-text operations preserve
-the existing drawing layout where supported; detailed crop and positioning edits are
-not yet exposed.
+`behind-doc` for floating drawings, and `crop-left-percent`/`crop-top-percent`/
+`crop-right-percent`/`crop-bottom-percent` when DrawingML crop metadata is present.
+Replacement and alt-text operations preserve the existing drawing layout where
+supported; detailed crop and positioning edits are not yet exposed.
 Table output includes table style ID, declared grid column count, header-row,
 merged-cell, and nested-table flags when present. Row lines include physical cell
 count, omitted grid columns (`grid-before`/`grid-after`), header status, and

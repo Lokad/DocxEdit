@@ -127,6 +127,10 @@ public sealed record DocxImageInfo(string Id, string PartName, string? ContentTy
     public string? Title { get; init; }
     public string? WrapMode { get; init; }
     public bool BehindDoc { get; init; }
+    public decimal? CropLeftPercent { get; init; }
+    public decimal? CropTopPercent { get; init; }
+    public decimal? CropRightPercent { get; init; }
+    public decimal? CropBottomPercent { get; init; }
 }
 
 public sealed record DocxChangeInfo

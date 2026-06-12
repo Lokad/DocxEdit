@@ -887,12 +887,18 @@ public sealed record DocxImageInfo(
     public string? Title { get; init; }
     public string? WrapMode { get; init; }
     public bool BehindDoc { get; init; }
+    public decimal? CropLeftPercent { get; init; }
+    public decimal? CropTopPercent { get; init; }
+    public decimal? CropRightPercent { get; init; }
+    public decimal? CropBottomPercent { get; init; }
 }
 ```
 
 The public image model exposes compact DrawingML layout metadata for inline and
-anchored drawings. Detailed crop/positioning layout is preserved in OOXML but not
-fully exposed as editable public state.
+anchored drawings. Crop percentages are read from DrawingML `a:srcRect` attributes
+when present and exposed as human-readable percentages, for example `10` for a 10%
+left crop. Detailed crop/positioning edits are preserved in OOXML where possible but
+not exposed as public patch operations.
 
 ### 8.7 Section model
 
@@ -1167,7 +1173,7 @@ M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
   M.T0001.R01.C01 physical-column=1 text="Metric"
   M.T0001.R01.C02 physical-column=2 text="Q3"
   M.T0001.R01.C03 physical-column=3 text="Q4"
-M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart"
+M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart" crop-left-percent=10 crop-top-percent=5
 ```
 
 `read --summary` prints aggregate counts without listing every target:

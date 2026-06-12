@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 using DocxEdit.Ooxml;
 
@@ -1003,6 +1004,10 @@ internal static class DocxDocumentScanner
                 continue;
             }
 
+            XElement? sourceRectangle = blip
+                .Ancestors(OoxmlNs.Pic + "blipFill")
+                .FirstOrDefault()
+                ?.Element(OoxmlNs.A + "srcRect");
             images.Add(new DocxImageInfo($"{imageIdPrefix}.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length)
             {
                 LayoutKind = layoutKind,
@@ -1014,7 +1019,11 @@ internal static class DocxDocumentScanner
                 Description = (string?)docProperties?.Attribute("descr"),
                 Title = (string?)docProperties?.Attribute("title"),
                 WrapMode = wrapMode,
-                BehindDoc = behindDoc
+                BehindDoc = behindDoc,
+                CropLeftPercent = ReadCropPercent(sourceRectangle, "l"),
+                CropTopPercent = ReadCropPercent(sourceRectangle, "t"),
+                CropRightPercent = ReadCropPercent(sourceRectangle, "r"),
+                CropBottomPercent = ReadCropPercent(sourceRectangle, "b")
             });
         }
     }
@@ -1022,6 +1031,26 @@ internal static class DocxDocumentScanner
     private static long? ReadLongAttribute(XElement? element, string localName)
     {
         return long.TryParse((string?)element?.Attribute(localName), out long value) ? value : null;
+    }
+
+    private static decimal? ReadCropPercent(XElement? element, string localName)
+    {
+        string? value = (string?)element?.Attribute(localName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (value.EndsWith("%", StringComparison.Ordinal))
+        {
+            return decimal.TryParse(value[..^1], NumberStyles.Number, CultureInfo.InvariantCulture, out decimal percent)
+                ? percent
+                : null;
+        }
+
+        return decimal.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out decimal perThousandPercent)
+            ? perThousandPercent / 1000m
+            : null;
     }
 
     private sealed record RunMarkup(

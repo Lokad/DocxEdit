@@ -158,7 +158,8 @@ Implemented areas include:
 - hyperlink patch operations for target URI/anchor updates, display text updates,
   insertion, and unlinking while preserving display runs;
 - check/apply operation reports with affected row/cell summaries for table edits;
-- inline and anchored image metadata with layout kind, size, wrap mode, alt text, and containing target;
+- inline and anchored image metadata with layout kind, size, wrap mode, crop percentages,
+  alt text, and containing target;
 - tracked-change output for simple text replacement, whole-paragraph replacement,
   paragraph insertion/deletion, paragraph style changes, and simple table-cell text
   replacement with author, timestamp, and revision IDs;
@@ -174,6 +175,6 @@ bookmark/content-control editing beyond plain-text controls, checkbox toggles, a
 simple same-paragraph bookmark ranges, field result recalculation and field-specific
 edit workflows beyond dirty/lock flags,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip, relative/UNC/file
-URI policies, frame/history edits, advanced floating-image layout edits and crop metadata, complex
+URI policies, frame/history edits, advanced floating-image layout and crop edit operations, complex
 merged/nested table edit transformations, full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

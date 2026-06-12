@@ -309,7 +309,7 @@ public static class DocxHelp
                         new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, and date settings"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
-                        new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, and media part"),
+                        new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, crop percentages, and media part"),
                         new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merges, and nested tables")
                     ],
                     Notes =
@@ -332,7 +332,7 @@ public static class DocxHelp
                         ]),
                         new("Images",
                         [
-                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported."
+                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported."
                         ]),
                         new("Tables",
                         [

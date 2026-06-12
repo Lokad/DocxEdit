@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace DocxEdit;
@@ -113,6 +114,7 @@ public static class DocxTextRenderer
             string description = image.Description is null ? string.Empty : $" description=\"{EscapeText(image.Description)}\"";
             string wrap = image.WrapMode is null ? string.Empty : $" wrap={EscapeText(image.WrapMode)}";
             string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
+            string crop = RenderCrop(image);
             builder.Append(image.Id)
                 .Append(" image layout=")
                 .Append(EscapeText(image.LayoutKind))
@@ -128,10 +130,26 @@ public static class DocxTextRenderer
                 .Append(description)
                 .Append(wrap)
                 .Append(behind)
+                .Append(crop)
                 .AppendLine();
         }
 
         return builder.ToString();
+    }
+
+    private static string RenderCrop(DocxImageInfo image)
+    {
+        return RenderPercent("crop-left-percent", image.CropLeftPercent) +
+            RenderPercent("crop-top-percent", image.CropTopPercent) +
+            RenderPercent("crop-right-percent", image.CropRightPercent) +
+            RenderPercent("crop-bottom-percent", image.CropBottomPercent);
+    }
+
+    private static string RenderPercent(string name, decimal? value)
+    {
+        return value is null
+            ? string.Empty
+            : $" {name}={value.Value.ToString("0.###", CultureInfo.InvariantCulture)}";
     }
 
     public static string RenderValidate(DocxValidateResult result)
