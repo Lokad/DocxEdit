@@ -113,6 +113,9 @@ public sealed record DocxChangeInfo
     public string? CommentReferenceTargetId { get; init; }
     public string? CommentAnchorStory { get; init; }
     public string? CommentAnchorPartName { get; init; }
+    public int? CommentTextLength { get; init; }
+    public string? CommentTextSnippet { get; init; }
+    public bool CommentTextTruncated { get; init; }
     public string TargetStatus { get; init; } = "targetless";
     public string TargetSource { get; init; } = "none";
     public string? TargetReason { get; init; }
@@ -141,6 +144,10 @@ public sealed record DocxCommentThreadSummary
     public string? AnchorPartName { get; init; }
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
+    public string? Initials { get; init; }
+    public int? TextLength { get; init; }
+    public string? TextSnippet { get; init; }
+    public bool TextTruncated { get; init; }
     public int Count { get; init; }
     public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
 }

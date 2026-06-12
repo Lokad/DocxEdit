@@ -424,11 +424,13 @@ public static class DocxHelp
                 {
                     Name = "changes",
                     Category = "read",
-                    Summary = "List tracked-change and comment markup without printing private text",
+                    Summary = "List tracked-change and comment markup; comment text is opt-in",
                     Usage = "docxedit changes input.docx [options]",
-                    Description = "List tracked-change and comment markup without printing revision or comment text. Records include change IDs, type, story, part, target, revision/comment metadata, text length, child element count, and comment anchor targets when known.",
+                    Description = "List tracked-change and comment markup. By default this does not print revision text or comment body text. Records include change IDs, type, story, part, target, revision/comment metadata, text length, child element count, and comment anchor targets when known. Use --include-comment-text only when short comment body snippets are needed.",
                     Options =
                     [
+                        new("--include-comment-text", "Include explicit comment body snippets in comment summaries and comment body records"),
+                        new("--max-comment-text N", "Maximum comment body snippet length when --include-comment-text is used; default 240"),
                         new("--json", "Print the result object as JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),
                         new("--strict", "Return 3 when warnings are present")
@@ -438,12 +440,13 @@ public static class DocxHelp
                         new("Summary", "Counts by change type"),
                         new("GroupSummary", "Counts by group=story|part|author|target and type"),
                         new("TargetSummary", "Compact per-target type rollups"),
-                        new("CommentSummary", "Compact per-comment anchor/type rollups"),
-                        new("Changes", "Individual private-text-free change records")
+                        new("CommentSummary", "Compact per-comment anchor/type rollups; may include TextSnippet only when requested"),
+                        new("Changes", "Individual change records; may include CommentTextSnippet only when requested")
                     ],
                     PrivacyNotes =
                     [
-                        "The changes command is private-text-free: it reports metadata, IDs, text lengths, child counts, targets, stories, and parts without revision or comment body text."
+                        "The default changes profile is private-text-free: it reports metadata, IDs, text lengths, child counts, targets, stories, and parts without revision or comment body text.",
+                        "Comment body text appears only when IncludeCommentText is set or --include-comment-text is passed. Keep MaxCommentText low for agent context."
                     ],
                     Notes =
                     [
@@ -454,7 +457,7 @@ public static class DocxHelp
                         ]),
                         new("Text output",
                         [
-                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records."
+                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
                         ]),
                         new("Timestamp notes",
                         [
@@ -464,7 +467,8 @@ public static class DocxHelp
                     Examples =
                     [
                         "docxedit changes report.docx",
-                        "docxedit changes report.docx --json"
+                        "docxedit changes report.docx --json",
+                        "docxedit changes report.docx --include-comment-text --max-comment-text 120"
                     ]
                 },
                 new()

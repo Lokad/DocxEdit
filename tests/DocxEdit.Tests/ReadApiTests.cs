@@ -581,6 +581,8 @@ public static class ReadApiTests
         Assert.Equal("main", comment.CommentAnchorStory);
         Assert.Equal("/word/document.xml", comment.CommentAnchorPartName);
         Assert.Equal(20, comment.TextLength);
+        Assert.Null(comment.CommentTextLength);
+        Assert.Null(comment.CommentTextSnippet);
         DocxChangeInfo commentEnd = Assert.Single(result.Changes, change => change.Type == "comment-range-end");
         Assert.Equal(commentEnd.Id, commentStart.PairedChangeId);
         Assert.Equal(commentStart.Id, commentEnd.PairedChangeId);
@@ -590,10 +592,61 @@ public static class ReadApiTests
         Assert.Equal("M.P0001", commentSummary.AnchorTargetId);
         Assert.Equal("M.P0001", commentSummary.ReferenceTargetId);
         Assert.Equal("Reviewer", commentSummary.Author);
+        Assert.Null(commentSummary.TextLength);
+        Assert.Null(commentSummary.TextSnippet);
         Assert.Contains(commentSummary.Summary, summary => summary.Type == "comment" && summary.Count == 1);
 
         string serialized = JsonSerializer.Serialize(result);
         Assert.DoesNotContain("Private comment text", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesCanIncludeBoundedCommentTextWhenExplicitlyRequested()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream, new DocxChangesOptions
+        {
+            IncludeCommentText = true,
+            MaxCommentText = 7
+        });
+
+        Assert.True(result.Success);
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal(20, comment.CommentTextLength);
+        Assert.Equal("Private", comment.CommentTextSnippet);
+        Assert.True(comment.CommentTextTruncated);
+
+        DocxChangeInfo commentStart = Assert.Single(result.Changes, change => change.Type == "comment-range-start");
+        Assert.Null(commentStart.CommentTextSnippet);
+
+        DocxCommentThreadSummary commentSummary = Assert.Single(result.CommentSummary);
+        Assert.Equal("RV", commentSummary.Initials);
+        Assert.Equal(20, commentSummary.TextLength);
+        Assert.Equal("Private", commentSummary.TextSnippet);
+        Assert.True(commentSummary.TextTruncated);
+
+        string rendered = DocxTextRenderer.RenderChanges(result);
+        Assert.Contains("comment-text-length=20", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-text=\"Private\"", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-text-truncated=true", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", rendered, StringComparison.Ordinal);
     }
 
     [Fact]

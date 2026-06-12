@@ -253,11 +253,15 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit changes input.docx [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit changes input.docx [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxChangesResult result = new DocxEditor().Changes(input);
+        DocxChangesResult result = new DocxEditor().Changes(input, new DocxChangesOptions
+        {
+            IncludeCommentText = options.Flags.Contains("--include-comment-text"),
+            MaxCommentText = options.MaxCommentText ?? 240
+        });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
         {
@@ -460,6 +464,7 @@ internal static class ProgramMain
         string? Id,
         string? ExtractPath,
         int? MaxText,
+        int? MaxCommentText,
         int? Radius,
         TrackChangesMode TrackChanges,
         string? Author,
@@ -481,6 +486,7 @@ internal static class ProgramMain
             string? id = null;
             string? extractPath = null;
             int? maxText = null;
+            int? maxCommentText = null;
             int? radius = null;
             TrackChangesMode trackChanges = TrackChangesMode.Off;
             string? author = null;
@@ -505,6 +511,7 @@ internal static class ProgramMain
                     case "--headers-footers":
                     case "--all-stories":
                     case "--summary":
+                    case "--include-comment-text":
                         flags.Add(arg);
                         break;
                     case "--diagnostics":
@@ -540,6 +547,19 @@ internal static class ProgramMain
                         }
 
                         maxText = parsedMaxText;
+                        break;
+                    case "--max-comment-text":
+                        if (!TryReadValue(args, ref i, out string? maxCommentTextValue))
+                        {
+                            return WithError(command, "Missing value for --max-comment-text.");
+                        }
+
+                        if (!int.TryParse(maxCommentTextValue, out int parsedMaxCommentText) || parsedMaxCommentText < 0)
+                        {
+                            return WithError(command, "Invalid value for --max-comment-text.");
+                        }
+
+                        maxCommentText = parsedMaxCommentText;
                         break;
                     case "--radius":
                         if (!TryReadValue(args, ref i, out string? radiusValue))
@@ -624,7 +644,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, radius, trackChanges, author, timestampUtc, textView, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, maxCommentText, radius, trackChanges, author, timestampUtc, textView, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -641,7 +661,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)

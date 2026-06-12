@@ -277,7 +277,7 @@ public sealed class DocxEditor
             return new DocxChangesResult { Success = false, Diagnostics = diagnostics };
         }
 
-        if (!TryDocumentOperation(() => DocxChangeScanner.Scan(package, cancellationToken), out IReadOnlyList<DocxChangeInfo>? changes, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxChangeScanner.Scan(package, options.IncludeCommentText, options.MaxCommentText, cancellationToken), out IReadOnlyList<DocxChangeInfo>? changes, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxChangesResult
             {

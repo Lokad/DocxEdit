@@ -36,11 +36,13 @@ internal static class DocxChangeScanner
 
     public static IReadOnlyList<DocxChangeInfo> Scan(
         OoxmlPackage package,
+        bool includeCommentText = false,
+        int maxCommentText = 240,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var changes = new List<DocxChangeInfo>();
-        IReadOnlyDictionary<string, CommentMetadata> comments = BuildCommentMap(package, cancellationToken);
+        IReadOnlyDictionary<string, CommentMetadata> comments = BuildCommentMap(package, includeCommentText, maxCommentText, cancellationToken);
         IReadOnlyDictionary<string, CommentAnchorMetadata> commentAnchors = BuildCommentAnchorMap(package, cancellationToken);
         int fallbackPartIndex = 1;
         foreach (OoxmlPart part in package.Parts.Values
@@ -62,6 +64,7 @@ internal static class DocxChangeScanner
                 comments.TryGetValue(commentId ?? string.Empty, out CommentMetadata? comment);
                 commentAnchors.TryGetValue(commentId ?? string.Empty, out CommentAnchorMetadata? commentAnchor);
                 TargetMetadata target = FindTarget(element, targets, commentAnchor?.AnchorTargetId);
+                bool isCommentBody = element.Name.LocalName == "comment";
                 changes.Add(new DocxChangeInfo
                 {
                     Id = $"{prefix}.CH{index++:0000}",
@@ -82,6 +85,9 @@ internal static class DocxChangeScanner
                     CommentReferenceTargetId = commentAnchor?.ReferenceTargetId,
                     CommentAnchorStory = commentAnchor?.Story,
                     CommentAnchorPartName = commentAnchor?.PartName,
+                    CommentTextLength = isCommentBody ? comment?.TextLength : null,
+                    CommentTextSnippet = isCommentBody ? comment?.TextSnippet : null,
+                    CommentTextTruncated = isCommentBody && comment?.TextTruncated == true,
                     TargetStatus = target.Status,
                     TargetSource = target.Source,
                     TargetReason = target.Reason,
@@ -127,6 +133,7 @@ internal static class DocxChangeScanner
             {
                 DocxChangeInfo? anchor = group.FirstOrDefault(change => change.CommentAnchorTargetId is not null);
                 DocxChangeInfo? metadata = group.FirstOrDefault(change => change.CommentAuthor is not null || change.CommentTimestampUtc is not null);
+                DocxChangeInfo? text = group.FirstOrDefault(change => change.CommentTextLength is not null || change.CommentTextSnippet is not null);
                 return new DocxCommentThreadSummary
                 {
                     CommentId = group.Key,
@@ -136,6 +143,10 @@ internal static class DocxChangeScanner
                     AnchorPartName = anchor?.CommentAnchorPartName,
                     Author = metadata?.CommentAuthor,
                     TimestampUtc = metadata?.CommentTimestampUtc,
+                    Initials = metadata?.CommentInitials,
+                    TextLength = text?.CommentTextLength,
+                    TextSnippet = text?.CommentTextSnippet,
+                    TextTruncated = text?.CommentTextTruncated == true,
                     Count = group.Count(),
                     Summary = Summarize(group.ToArray())
                 };
@@ -636,6 +647,8 @@ internal static class DocxChangeScanner
 
     private static IReadOnlyDictionary<string, CommentMetadata> BuildCommentMap(
         OoxmlPackage package,
+        bool includeCommentText,
+        int maxCommentText,
         CancellationToken cancellationToken)
     {
         if (package.MainDocumentPartName is null)
@@ -666,10 +679,14 @@ internal static class DocxChangeScanner
                     continue;
                 }
 
+                string? text = includeCommentText ? ReadCommentText(comment) : null;
                 comments[id] = new CommentMetadata(
                     (string?)comment.Attribute(OoxmlNs.W + "author"),
                     ParseDate((string?)comment.Attribute(OoxmlNs.W + "date")),
-                    (string?)comment.Attribute(OoxmlNs.W + "initials"));
+                    (string?)comment.Attribute(OoxmlNs.W + "initials"),
+                    text?.Length,
+                    text is null ? null : Truncate(text, maxCommentText),
+                    text is not null && maxCommentText >= 0 && text.Length > maxCommentText);
             }
         }
 
@@ -811,12 +828,71 @@ internal static class DocxChangeScanner
 
         return length;
     }
+
+    private static string ReadCommentText(XElement comment)
+    {
+        var builder = new System.Text.StringBuilder();
+        bool wroteParagraph = false;
+        foreach (XElement paragraph in comment.Elements(OoxmlNs.W + "p"))
+        {
+            if (wroteParagraph)
+            {
+                builder.Append('\n');
+            }
+
+            AppendText(paragraph, builder);
+            wroteParagraph = true;
+        }
+
+        if (wroteParagraph)
+        {
+            return builder.ToString();
+        }
+
+        AppendText(comment, builder);
+        return builder.ToString();
+    }
+
+    private static void AppendText(XElement container, System.Text.StringBuilder builder)
+    {
+        foreach (XElement descendant in container.Descendants())
+        {
+            if (descendant.Name == OoxmlNs.W + "t" ||
+                descendant.Name == OoxmlNs.W + "delText" ||
+                descendant.Name == OoxmlNs.W + "instrText")
+            {
+                builder.Append(descendant.Value);
+            }
+            else if (descendant.Name == OoxmlNs.W + "tab")
+            {
+                builder.Append('\t');
+            }
+            else if (descendant.Name == OoxmlNs.W + "br" ||
+                descendant.Name == OoxmlNs.W + "cr")
+            {
+                builder.Append('\n');
+            }
+        }
+    }
+
+    private static string Truncate(string text, int maxText)
+    {
+        if (maxText < 0 || text.Length <= maxText)
+        {
+            return text;
+        }
+
+        return text[..maxText];
+    }
 }
 
 internal sealed record CommentMetadata(
     string? Author,
     DateTimeOffset? TimestampUtc,
-    string? Initials);
+    string? Initials,
+    int? TextLength,
+    string? TextSnippet,
+    bool TextTruncated);
 
 internal sealed record CommentAnchorMetadata(
     string? AnchorTargetId,

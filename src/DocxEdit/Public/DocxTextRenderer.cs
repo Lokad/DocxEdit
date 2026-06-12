@@ -157,6 +157,10 @@ public static class DocxTextRenderer
             string anchorPart = summary.AnchorPartName is null ? string.Empty : $" anchor-part={summary.AnchorPartName}";
             string author = summary.Author is null ? string.Empty : $" author=\"{EscapeText(summary.Author)}\"";
             string timestamp = summary.TimestampUtc is null ? string.Empty : $" timestamp-utc={summary.TimestampUtc:O}";
+            string initials = summary.Initials is null ? string.Empty : $" initials=\"{EscapeText(summary.Initials)}\"";
+            string textLength = summary.TextLength is null ? string.Empty : $" comment-text-length={summary.TextLength}";
+            string textSnippet = summary.TextSnippet is null ? string.Empty : $" comment-text=\"{EscapeText(summary.TextSnippet)}\"";
+            string textTruncated = summary.TextTruncated ? " comment-text-truncated=true" : string.Empty;
             builder.Append("comment-summary comment-id=")
                 .Append(EscapeText(summary.CommentId))
                 .Append(' ')
@@ -166,6 +170,10 @@ public static class DocxTextRenderer
                 .Append(anchorPart)
                 .Append(author)
                 .Append(timestamp)
+                .Append(initials)
+                .Append(textLength)
+                .Append(textSnippet)
+                .Append(textTruncated)
                 .Append(" count=")
                 .Append(summary.Count)
                 .Append(" types=\"")
@@ -192,6 +200,9 @@ public static class DocxTextRenderer
             string commentReferenceTarget = change.CommentReferenceTargetId is null ? string.Empty : $" comment-reference-target={change.CommentReferenceTargetId}";
             string commentAnchorStory = change.CommentAnchorStory is null ? string.Empty : $" comment-anchor-story=\"{EscapeText(change.CommentAnchorStory)}\"";
             string commentAnchorPart = change.CommentAnchorPartName is null ? string.Empty : $" comment-anchor-part={change.CommentAnchorPartName}";
+            string commentTextLength = change.CommentTextLength is null ? string.Empty : $" comment-text-length={change.CommentTextLength}";
+            string commentTextSnippet = change.CommentTextSnippet is null ? string.Empty : $" comment-text=\"{EscapeText(change.CommentTextSnippet)}\"";
+            string commentTextTruncated = change.CommentTextTruncated ? " comment-text-truncated=true" : string.Empty;
             builder.Append(change.Id)
                 .Append(' ')
                 .Append(change.Type)
@@ -223,6 +234,9 @@ public static class DocxTextRenderer
                 .Append(commentReferenceTarget)
                 .Append(commentAnchorStory)
                 .Append(commentAnchorPart)
+                .Append(commentTextLength)
+                .Append(commentTextSnippet)
+                .Append(commentTextTruncated)
                 .AppendLine();
         }
 
@@ -268,6 +282,11 @@ public static class DocxTextRenderer
 
     private static string EscapeText(string text)
     {
-        return text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+        return text
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\t", "\\t", StringComparison.Ordinal);
     }
 }

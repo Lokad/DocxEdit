@@ -327,8 +327,16 @@ Read-only option classes share the same package-limit and `LeaveInputOpen` defau
 `DocxReadOptions`, `DocxFindOptions`, `DocxDumpOptions`, and `DocxContextOptions`
 also accept `DocxTextView` (`Final`, `Original`, or `Markup`) where visible text is
 rendered. `DocxContextOptions.MaxText` defaults to `0`; callers opt in when context
-items should include text snippets. `DocxChangesOptions` exposes only package loading
-limits and must remain private-text-free.
+items should include text snippets. `DocxChangesOptions` defaults to private-text-free
+change/comment metadata and requires explicit opt-in for comment body snippets:
+
+```csharp
+public sealed class DocxChangesOptions
+{
+    public bool IncludeCommentText { get; init; } = false;
+    public int MaxCommentText { get; init; } = 240;
+}
+```
 
 ### 5.3 Result model
 
@@ -405,9 +413,11 @@ public sealed record DocxChangesResult : DocxOperationResult
 }
 ```
 
-`Changes` must be private-text-free. It may report revision/comment metadata, text
-lengths, child counts, IDs, targets, stories, and parts, but it must not copy revision
-or comment body text into the result.
+`Changes` must be private-text-free by default. It may report revision/comment
+metadata, text lengths, child counts, IDs, targets, stories, and parts. It must not
+copy revision text into the result. Comment body snippets may appear only when
+`DocxChangesOptions.IncludeCommentText` is true, and then must be bounded by
+`MaxCommentText`.
 
 ### 5.1 Public integration surfaces
 
@@ -783,7 +793,9 @@ public sealed record DocxSectionInfo(
 ### 8.8 Tracked-change and comment markup model
 
 `DocxEditor.Changes` scans existing tracked-change, move, custom XML, property-change,
-and comment markup without exposing private revision or comment body text.
+and comment markup. The default result does not expose private revision or comment
+body text. Bounded comment body snippets are exposed only when
+`DocxChangesOptions.IncludeCommentText` is true.
 
 ```csharp
 public sealed record DocxChangeInfo
@@ -806,12 +818,37 @@ public sealed record DocxChangeInfo
     public string? CommentReferenceTargetId { get; init; }
     public string? CommentAnchorStory { get; init; }
     public string? CommentAnchorPartName { get; init; }
+    public int? CommentTextLength { get; init; }
+    public string? CommentTextSnippet { get; init; }
+    public bool CommentTextTruncated { get; init; }
     public string TargetStatus { get; init; } = "targetless";
     public string TargetSource { get; init; } = "none";
     public string? TargetReason { get; init; }
     public string? NearestTargetId { get; init; }
     public string? TargetNote { get; init; }
     public string? PairedChangeId { get; init; }
+}
+```
+
+`DocxCommentThreadSummary` exposes the same opt-in text snippet fields at the thread
+level:
+
+```csharp
+public sealed record DocxCommentThreadSummary
+{
+    public string CommentId { get; init; } = string.Empty;
+    public string? AnchorTargetId { get; init; }
+    public string? ReferenceTargetId { get; init; }
+    public string? AnchorStory { get; init; }
+    public string? AnchorPartName { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public string? Initials { get; init; }
+    public int? TextLength { get; init; }
+    public string? TextSnippet { get; init; }
+    public bool TextTruncated { get; init; }
+    public int Count { get; init; }
+    public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
 }
 ```
 
@@ -944,8 +981,9 @@ M.I0001 /word/media/image1.png image/png 12345 bytes
 
 ### 9.7 `changes`
 
-Purpose: list tracked-change and comment markup without printing private revision or
-comment text.
+Purpose: list tracked-change and comment markup. By default the command does not
+print private revision or comment text. `--include-comment-text` explicitly includes
+bounded comment body snippets.
 
 Plain output begins with summaries and ends with individual records:
 
@@ -956,6 +994,9 @@ target-summary target=M.P0004 count=2 types="inserted-run:1,deleted-run:1"
 comment-summary comment-id=3 anchor-target=M.P0004 reference-target=M.P0004 count=4 types="comment:1,comment-range-start:1,comment-range-end:1,comment-reference:1"
 M.CH0001 inserted-run story="main" part=/word/document.xml target=M.P0004 target-status=targeted target-source=ancestor text-length=8 children=1 revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00
 ```
+
+With `--include-comment-text`, comment summaries and comment body records add
+`comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
 
 JSON output includes `Summary`, `GroupSummary`, `TargetSummary`, `CommentSummary`,
 and `Changes`.
@@ -2412,7 +2453,8 @@ docxedit help patch
 
 `docxedit help changes` must describe `Summary`, `GroupSummary`, `TargetSummary`,
 `CommentSummary`, target status/source/reason fields, comment anchor fields,
-timestamp shape, and range `paired-change-id`.
+timestamp shape, range `paired-change-id`, and the explicit
+`--include-comment-text` / `--max-comment-text` privacy boundary.
 
 `docxedit help dump` must explain that `Runs[]` is structured JSON metadata and that
 dump run IDs are separate from `changes` change IDs.
@@ -2494,8 +2536,9 @@ The implementation is acceptable when all of the following are true:
 16. Unknown OOXML parts are preserved.
 17. Existing unsupported structures are preserved unless directly targeted.
 18. Track changes modes `Off`, `Preserve`, `Suggest`, and `Require` exist with the behavior specified above.
-19. `changes` exposes private-text-free summaries, target/comment rollups, comment
-    anchor joins, target localization metadata, and range pair links.
+19. `changes` exposes private-text-free summaries by default, target/comment
+    rollups, comment anchor joins, target localization metadata, range pair links,
+    and explicit opt-in bounded comment text snippets.
 20. `dump --runs --json` exposes structured run markup metadata.
 21. `context` can summarize nearby modeled structure with `MaxText = 0` by default.
 22. `check` and `apply` expose operation-level reports in JSON and compact plain text.

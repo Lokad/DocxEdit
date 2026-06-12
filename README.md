@@ -138,7 +138,8 @@ Implemented areas include:
 - bookmark and content-control selectors for safe paragraph targeting;
 - patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
 - no-content tracked-change and comment markup viewing through `changes`;
+- opt-in bounded comment body snippets through `changes`;
 - simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full visual numbering expansion and list-edit preservation, rich comment bodies, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.
+Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.

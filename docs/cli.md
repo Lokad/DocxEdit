@@ -15,17 +15,21 @@ dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
 - `context input.docx --id M.P0001 [--radius N] [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `styles input.docx [--json] [--diagnostics path] [--strict]`
 - `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
-- `changes input.docx [--json] [--diagnostics path] [--strict]`
+- `changes input.docx [--include-comment-text] [--max-comment-text N] [--json] [--diagnostics path] [--strict]`
 
-`changes` lists existing tracked-change and comment markup without printing revision or comment text. It reports counts, IDs, type, story, part, target, revision/comment metadata, text length, and child element count.
+`changes` lists existing tracked-change and comment markup. By default it does not
+print revision text or comment body text. It reports counts, IDs, type, story, part,
+target, revision/comment metadata, text length, and child element count.
 JSON output includes `Summary` counts by type, `GroupSummary` counts by
 `story`, `part`, `author`, and `target`, `TargetSummary` compact per-target
-rollups, `CommentSummary` compact per-comment rollups, and private-text-free
-`Changes` records.
+rollups, `CommentSummary` compact per-comment rollups, and `Changes` records.
+Comment body snippets appear only when `--include-comment-text` is passed; bound them
+with `--max-comment-text N`.
 Plain text output includes the same group summaries as lines like
 `summary group=story key="main" type=inserted-run count=1`.
 It also includes `target-summary` and `comment-summary` lines before individual
-records.
+records. With `--include-comment-text`, comment summaries and comment body records
+add `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
 
 Some records legitimately have `target=unknown`: for example package-level range
 markers or markup not inside or adjacent to a modeled paragraph, table, cell, or
