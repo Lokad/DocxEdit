@@ -64,6 +64,9 @@ public static class CliTests
         Assert.Contains("markup=inserted-run", dump.Output, StringComparison.Ordinal);
         Assert.Contains("Runs array", dump.Output, StringComparison.Ordinal);
         Assert.Contains("not the same namespace", dump.Output, StringComparison.Ordinal);
+        Assert.Contains("inspect Runs[]", dump.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("PowerShell", dump.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertFrom-Json", dump.Output, StringComparison.Ordinal);
         Assert.Equal(0, context.ExitCode);
         Assert.Contains("docxedit context input.docx --id TARGET", context.Output, StringComparison.Ordinal);
         Assert.Contains("--max-text is 0", context.Output, StringComparison.Ordinal);
@@ -75,7 +78,9 @@ public static class CliTests
         Assert.Contains("comment-anchor-target", changes.Output, StringComparison.Ordinal);
         Assert.Contains("target-source", changes.Output, StringComparison.Ordinal);
         Assert.Contains("paired-change-id", changes.Output, StringComparison.Ordinal);
-        Assert.Contains("PowerShell ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("Some JSON consumers", changes.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("PowerShell", changes.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
         Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);
         Assert.Contains("operation line", check.Output, StringComparison.Ordinal);

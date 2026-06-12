@@ -625,8 +625,7 @@ internal static class ProgramMain
             With --json, the Runs array exposes the same run metadata as structured fields.
             Change IDs from `changes` identify markup records; run IDs from dump identify
             rendered run/marker lines and are not the same namespace.
-            PowerShell extraction example:
-              docxedit dump report.docx --id M.P0004 --runs --json | ConvertFrom-Json | Select-Object -ExpandProperty Runs
+            In JSON output, inspect Runs[] for structured run metadata.
 
             Options:
               --id M.P0001                 Target ID from read, outline, find, or changes
@@ -675,8 +674,9 @@ internal static class ProgramMain
 
             Timestamp notes:
               TimestampUtc and CommentTimestampUtc are nullable UTC ISO-8601 values.
-              Raw JSON uses UTC values such as +00:00; PowerShell ConvertFrom-Json may
-              display them in the local timezone unless you inspect the raw JSON string.
+              Raw JSON uses UTC values such as +00:00. Some JSON consumers may display
+              parsed date values in local time, so inspect the raw JSON string when the
+              serialized timestamp offset matters.
 
             Options:
               --json                       Print the result object as JSON
@@ -686,7 +686,6 @@ internal static class ProgramMain
             Examples:
               docxedit changes report.docx
               docxedit changes report.docx --json
-              docxedit changes report.docx --json | ConvertFrom-Json
             """);
     }
 

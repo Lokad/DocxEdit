@@ -240,6 +240,12 @@ public sealed class DocxEditor
         DocxDumpOptions? options = null,
         CancellationToken cancellationToken = default);
 
+    public DocxContextResult Context(
+        Stream input,
+        string targetId,
+        DocxContextOptions? options = null,
+        CancellationToken cancellationToken = default);
+
     public DocxStylesResult Styles(
         Stream input,
         DocxStylesOptions? options = null,
@@ -248,6 +254,11 @@ public sealed class DocxEditor
     public DocxMediaResult Media(
         Stream input,
         DocxMediaOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    public DocxChangesResult Changes(
+        Stream input,
+        DocxChangesOptions? options = null,
         CancellationToken cancellationToken = default);
 
     public DocxPatch ParsePatch(
@@ -312,6 +323,13 @@ public sealed class DocxEditOptions
 }
 ```
 
+Read-only option classes share the same package-limit and `LeaveInputOpen` defaults.
+`DocxReadOptions`, `DocxFindOptions`, `DocxDumpOptions`, and `DocxContextOptions`
+also accept `DocxTextView` (`Final`, `Original`, or `Markup`) where visible text is
+rendered. `DocxContextOptions.MaxText` defaults to `0`; callers opt in when context
+items should include text snippets. `DocxChangesOptions` exposes only package loading
+limits and must remain private-text-free.
+
 ### 5.3 Result model
 
 Every public method must return diagnostics instead of throwing for expected document/patch problems.
@@ -356,6 +374,40 @@ public sealed record DocxPatchOperationReport(
     bool Success,
     IReadOnlyList<DocxDiagnostic> Diagnostics);
 ```
+
+Read/explore result records must expose structured data in addition to the CLI text
+renderings:
+
+```csharp
+public sealed record DocxDumpResult : DocxOperationResult
+{
+    public string TargetId { get; init; } = string.Empty;
+    public string? Text { get; init; }
+    public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
+}
+
+public sealed record DocxContextResult : DocxOperationResult
+{
+    public string TargetId { get; init; } = string.Empty;
+    public string Text { get; init; } = string.Empty;
+    public IReadOnlyList<DocxContextItem> Items { get; init; } = [];
+}
+
+public sealed record DocxChangesResult : DocxOperationResult
+{
+    public IReadOnlyList<string> PartNames { get; init; } = [];
+    public string? MainDocumentPartName { get; init; }
+    public IReadOnlyList<DocxChangeInfo> Changes { get; init; } = [];
+    public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
+    public IReadOnlyList<DocxChangeGroupSummary> GroupSummary { get; init; } = [];
+    public IReadOnlyList<DocxChangeTargetSummary> TargetSummary { get; init; } = [];
+    public IReadOnlyList<DocxCommentThreadSummary> CommentSummary { get; init; } = [];
+}
+```
+
+`Changes` must be private-text-free. It may report revision/comment metadata, text
+lengths, child counts, IDs, targets, stories, and parts, but it must not copy revision
+or comment body text into the result.
 
 ---
 
@@ -561,7 +613,6 @@ Use these forms:
 M.P0001                         main-story top-level paragraph
 M.T0001                         main-story top-level table
 M.T0001.R02.C03                 table cell
-M.T0001.R02.C03.P0001           paragraph inside a table cell
 M.I0001                         image in main story
 M.S0001                         section
 
@@ -579,38 +630,27 @@ Counters are 1-based and zero-padded.
 ### 8.3 Paragraph model
 
 ```csharp
-public sealed record DocxParagraphInfo
-{
-    public required string Id { get; init; }
-    public required string StoryId { get; init; }
-    public required string Text { get; init; }
-    public string? StyleId { get; init; }
-    public string? StyleName { get; init; }
-    public int? HeadingLevel { get; init; }
-    public bool ContainsField { get; init; }
-    public bool ContainsHyperlink { get; init; }
-    public bool ContainsCommentReference { get; init; }
-    public bool ContainsTrackedChange { get; init; }
-    public IReadOnlyList<DocxRunInfo> Runs { get; init; } = [];
-    public IReadOnlyList<string> ImageIds { get; init; } = [];
-}
+public sealed record DocxParagraphInfo(
+    string Id,
+    string Story,
+    string Text,
+    int? HeadingLevel,
+    DocxListInfo? List,
+    IReadOnlyList<DocxRunInfo> Runs);
+
+public sealed record DocxListInfo(string NumberingId, int Level);
 ```
 
 ### 8.4 Run model
 
 ```csharp
-public sealed record DocxRunInfo
+public sealed record DocxRunInfo(string Text)
 {
-    public required string Id { get; init; }
-    public required string Text { get; init; }
-    public string? StyleId { get; init; }
-    public bool Bold { get; init; }
-    public bool Italic { get; init; }
-    public bool Underline { get; init; }
-    public bool IsHyperlink { get; init; }
-    public bool IsFieldCode { get; init; }
-    public bool IsInsertedRevision { get; init; }
-    public bool IsDeletedRevision { get; init; }
+    public string? MarkupType { get; init; }
+    public string? RevisionId { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public string? CommentId { get; init; }
 }
 ```
 
@@ -627,69 +667,114 @@ Text extraction rules:
 ### 8.5 Table model
 
 ```csharp
-public sealed record DocxTableInfo
-{
-    public required string Id { get; init; }
-    public required string StoryId { get; init; }
-    public string? StyleId { get; init; }
-    public string? StyleName { get; init; }
-    public required int RowCount { get; init; }
-    public required int ColumnCount { get; init; }
-    public required IReadOnlyList<DocxTableCellInfo> Cells { get; init; }
-    public bool HasMergedCells { get; init; }
-}
+public sealed record DocxTableInfo(
+    string Id,
+    string Story,
+    int RowCount,
+    int ColumnCount,
+    IReadOnlyList<DocxTableCellInfo> Cells);
 ```
 
 Cell model:
 
 ```csharp
-public sealed record DocxTableCellInfo
-{
-    public required string Id { get; init; }
-    public required int RowIndex { get; init; }
-    public required int ColumnIndex { get; init; }
-    public required string Text { get; init; }
-    public int GridSpan { get; init; } = 1;
-    public bool IsVerticalMergeStart { get; init; }
-    public bool IsVerticalMergeContinuation { get; init; }
-}
+public sealed record DocxTableCellInfo(
+    string Id,
+    int RowIndex,
+    int ColumnIndex,
+    string Text,
+    int ColumnSpan,
+    string? VerticalMerge,
+    bool HasNestedTable);
 ```
 
 ### 8.6 Image model
 
 ```csharp
-public sealed record DocxImageInfo
-{
-    public required string Id { get; init; }
-    public required string StoryId { get; init; }
-    public required string RelationshipId { get; init; }
-    public required string RelationshipPartName { get; init; }
-    public required string TargetPartName { get; init; }
-    public required string ContentType { get; init; }
-    public string? FileName { get; init; }
-    public string? AltText { get; init; }
-    public long? WidthEmu { get; init; }
-    public long? HeightEmu { get; init; }
-    public bool IsInline { get; init; }
-    public bool IsFloating { get; init; }
-    public string? ParentParagraphId { get; init; }
-}
+public sealed record DocxImageInfo(
+    string Id,
+    string PartName,
+    string? ContentType,
+    long ByteLength);
 ```
 
-v0.1 must support replacing image bytes for both inline and floating images when a relationship-backed image is found. v0.1 must support inserting only inline images.
+The public image model is intentionally compact. Detailed drawing layout is preserved in
+OOXML but not exposed as editable public state.
 
 ### 8.7 Section model
 
 ```csharp
-public sealed record DocxSectionInfo
+public sealed record DocxSectionInfo(
+    string Id,
+    string Story,
+    int Columns,
+    string Orientation);
+```
+
+### 8.8 Tracked-change and comment markup model
+
+`DocxEditor.Changes` scans existing tracked-change, move, custom XML, property-change,
+and comment markup without exposing private revision or comment body text.
+
+```csharp
+public sealed record DocxChangeInfo
 {
-    public required string Id { get; init; }
-    public string? StartsAfterParagraphId { get; init; }
-    public string? PageOrientation { get; init; }
+    public string Id { get; init; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? TargetId { get; init; }
+    public string? Author { get; init; }
+    public DateTimeOffset? TimestampUtc { get; init; }
+    public string? RevisionId { get; init; }
+    public int TextLength { get; init; }
+    public int ChildElementCount { get; init; }
+    public string? CommentId { get; init; }
+    public string? CommentAuthor { get; init; }
+    public DateTimeOffset? CommentTimestampUtc { get; init; }
+    public string? CommentInitials { get; init; }
+    public string? CommentAnchorTargetId { get; init; }
+    public string? CommentReferenceTargetId { get; init; }
+    public string? CommentAnchorStory { get; init; }
+    public string? CommentAnchorPartName { get; init; }
+    public string TargetStatus { get; init; } = "targetless";
+    public string TargetSource { get; init; } = "none";
+    public string? TargetReason { get; init; }
+    public string? NearestTargetId { get; init; }
+    public string? TargetNote { get; init; }
+    public string? PairedChangeId { get; init; }
+}
+```
+
+`TargetStatus` is `targeted`, `comment-anchor`, or `targetless`. `TargetSource`
+distinguishes exact ancestor matches from adjacent range-boundary heuristics. For
+targetless records, `TargetReason`, `NearestTargetId`, and `TargetNote` provide
+context without claiming exact ownership. Range starts/ends that share a revision or
+comment ID expose `PairedChangeId`.
+
+### 8.9 Context model
+
+`DocxEditor.Context` summarizes nearby modeled structure around a target. Its default
+`MaxText` is `0`, making it safe for private-document navigation unless the caller
+explicitly requests text snippets.
+
+```csharp
+public sealed record DocxContextItem
+{
+    public string Id { get; init; } = string.Empty;
+    public string Kind { get; init; } = string.Empty;
+    public string Relation { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string? ParentId { get; init; }
+    public string Text { get; init; } = string.Empty;
+    public int? HeadingLevel { get; init; }
+    public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
-    public string? ColumnSpaceTwips { get; init; }
-    public int? PageWidthTwips { get; init; }
-    public int? PageHeightTwips { get; init; }
+    public int? RowIndex { get; init; }
+    public int? ColumnIndex { get; init; }
+    public int? ColumnSpan { get; init; }
+    public string? VerticalMerge { get; init; }
+    public bool HasNestedTable { get; init; }
 }
 ```
 
@@ -708,45 +793,26 @@ Purpose: produce a compact structural view.
 Example CLI output:
 
 ```text
-# docxedit read input.docx
-# Use: docxedit dump input.docx --id M.P0004 --runs
-# Use: docxedit check input.docx edits.docxpatch
-# Use: docxedit apply input.docx edits.docxpatch -o output.docx
+M.S0001 section columns=2 orientation=landscape
+M.P0001 heading level=1 text="Executive Summary"
+M.P0002 paragraph list numId=42 level=0 text="Revenue increased"
+M.T0001 table rows=2 columns=3
+  M.T0001.R01.C01 text="Metric"
+  M.T0001.R01.C02 text="Q3"
+  M.T0001.R01.C03 text="Q4"
+M.I0001 image part=/word/media/image1.png content-type=image/png bytes=12345
+```
 
-document:
-  stories: main, header[1], footer[1]
-  sections: 2
-  top-level-paragraphs: 18
-  top-level-tables: 3
-  images: 4
+`read --summary` prints aggregate counts without listing every target:
 
-[M.S0001] section
-  orientation: portrait
-  columns: 1
-
-[M.P0001] paragraph style="Title" styleId="Title"
-  text: "Q4 Board Report"
-
-[M.P0002] paragraph style="Subtitle" styleId="Subtitle"
-  text: "Prepared for the Executive Committee"
-
-[M.P0003] heading level=1 style="Heading 1" styleId="Heading1"
-  text: "Executive Summary"
-
-[M.P0004] paragraph style="Normal" styleId="Normal"
-  text: "Revenue increased by 8.4% compared with the prior quarter."
-
-[M.T0001] table style="Light Shading" styleId="LightShading" rows=4 cols=3
-  [M.T0001.R01.C01] text: "Metric"
-  [M.T0001.R01.C02] text: "Q3"
-  [M.T0001.R01.C03] text: "Q4"
-  [M.T0001.R02.C01] text: "Revenue"
-  [M.T0001.R02.C02] text: "$12.4m"
-  [M.T0001.R02.C03] text: "$13.5m"
-
-[M.P0010] paragraph style="Normal" styleId="Normal"
-  text: ""
-  image: M.I0001 rel=rId9 type=image/png inline width=2926080emu height=1645920emu alt="Revenue chart"
+```text
+parts count=50
+main-document-part=/word/document.xml
+paragraphs count=1510
+tables count=41
+images count=0
+sections count=4
+story="main" paragraphs=1510
 ```
 
 ### 9.2 `outline`
@@ -754,14 +820,10 @@ document:
 Purpose: show only sections, headings, tables, images, headers, and footers.
 
 ```text
-[M.S0001] section columns=1 orientation=portrait
-[M.P0001] title "Q4 Board Report"
-[M.P0003] H1 "Executive Summary"
-[M.T0001] table rows=4 cols=3 after=M.P0003
-[M.P0011] H1 "Financial Summary"
-[M.S0002] section columns=2 orientation=portrait
-[H001.P0001] header paragraph "Confidential"
-[F001.P0001] footer paragraph "Page "
+M.P0001 heading level=1 text="Executive Summary"
+M.T0001 table rows=4 columns=3
+M.S0001 section columns=2 orientation=landscape
+M.I0001 image part=/word/media/image1.png
 ```
 
 ### 9.3 `find`
@@ -769,14 +831,8 @@ Purpose: show only sections, headings, tables, images, headers, and footers.
 Purpose: find targetable text.
 
 ```text
-# docxedit find input.docx "Revenue"
-matches: 2
-
-[M.P0004] paragraph
-  text: "Revenue increased by 8.4% compared with the prior quarter."
-
-[M.T0001.R02.C01] table-cell
-  text: "Revenue"
+M.P0004 text="Revenue increased by 8.4% compared with the prior quarter."
+M.T0001.R02.C01 text="Revenue"
 ```
 
 ### 9.4 `dump`
@@ -784,52 +840,63 @@ matches: 2
 Purpose: inspect a single target in detail.
 
 ```text
-[M.P0004] paragraph style="Normal" styleId="Normal"
-text: "Revenue increased by 8.4% compared with the prior quarter."
-
+text="Revenue increased by 8.4% compared with the prior quarter."
 runs:
-  [M.P0004.R0001] text="Revenue increased by " bold=false italic=false
-  [M.P0004.R0002] text="8.4%" bold=true italic=false
-  [M.P0004.R0003] text=" compared with the prior quarter." bold=false italic=false
-
-flags:
-  contains-field: false
-  contains-hyperlink: false
-  contains-tracked-change: false
+  M.P0004.R0001 text="Revenue increased by "
+  M.P0004.R0002 markup=inserted-run revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00 text="8.4%"
 ```
+
+`dump --runs --json` also exposes the runs as structured `Runs[]` objects. Run IDs
+are renderer IDs and are not the same namespace as change IDs from `changes`.
 
 ### 9.5 `styles`
 
 Purpose: list styles by style ID and display name.
 
 ```text
-paragraph styles:
-  styleId="Normal" name="Normal"
-  styleId="Heading1" name="Heading 1"
-  styleId="Title" name="Title"
-
-character styles:
-  styleId="Hyperlink" name="Hyperlink"
-
-table styles:
-  styleId="LightShading" name="Light Shading"
+paragraph styleId=Normal name="Normal" default=true
+paragraph styleId=Heading1 name="Heading 1"
+character styleId=Emphasis name="Emphasis"
+table styleId=TableGrid name="Table Grid"
 ```
 
 ### 9.6 `media`
 
-Purpose: list images and allow stream-based extraction.
+Purpose: list images and allow CLI extraction to a directory.
 
 CLI output:
 
 ```text
-[M.I0001] image/png inline target="/word/media/image1.png" parent=M.P0010 width=2926080emu height=1645920emu alt="Revenue chart"
-[M.I0002] image/jpeg floating target="/word/media/image2.jpeg" parent=M.P0014 width=1828800emu height=1828800emu alt=""
+M.I0001 /word/media/image1.png image/png 12345 bytes
 ```
 
-Library extraction API should allow copying a media item to a caller-provided stream:
+### 9.7 `changes`
 
-```csharp
-public void CopyMediaTo(Stream input, string imageId, Stream output);
+Purpose: list tracked-change and comment markup without printing private revision or
+comment text.
+
+Plain output begins with summaries and ends with individual records:
+
+```text
+inserted-run count=1
+summary group=story key="main" type=inserted-run count=1
+target-summary target=M.P0004 count=2 types="inserted-run:1,deleted-run:1"
+comment-summary comment-id=3 anchor-target=M.P0004 reference-target=M.P0004 count=4 types="comment:1,comment-range-start:1,comment-range-end:1,comment-reference:1"
+M.CH0001 inserted-run story="main" part=/word/document.xml target=M.P0004 target-status=targeted target-source=ancestor text-length=8 children=1 revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00
+```
+
+JSON output includes `Summary`, `GroupSummary`, `TargetSummary`, `CommentSummary`,
+and `Changes`.
+
+### 9.8 `context`
+
+Purpose: summarize nearby modeled structure around one target without broad document
+text. The default `MaxText` is `0`; callers must opt in to text snippets.
+
+```text
+before M.P0003 paragraph story="main" text=""
+target M.P0004 paragraph story="main" text=""
+after M.P0005 paragraph story="main" text=""
 ```
 
 ---
@@ -888,7 +955,7 @@ Support two string forms.
 Quoted string:
 
 ```text
-target heading "Executive Summary"
+target heading:"Executive Summary"
 style "Normal"
 ```
 
@@ -927,11 +994,11 @@ target M.I0001
 target H001.P0001
 target F001.P0001
 
-target heading "Executive Summary"
-target paragraph containing "Revenue increased"
-target table after heading "Financial Summary"
-target bookmark "ClientName"
-target content-control tag "client_name"
+target heading:"Executive Summary"
+target heading:2:"Executive Summary"
+target text:"Revenue increased"
+target bookmark:"ClientName"
+target content-control:"client_name"
 ```
 
 Selector rules:
@@ -954,9 +1021,17 @@ exact visible text
 >>>
 
 expect-contains "visible substring"
+expect-row-count 4
+expect-column-count 3
+expect-cell-count 3
+expect-content-type image/png
+expect-columns 2
+expect-orientation landscape
 ```
 
-For destructive operations, `expect-text` is mandatory unless the operation has an equally specific structural guard. Destructive operations include:
+For destructive operations, callers should provide the most specific available guard.
+The parser accepts unguarded operations where documented, but fresh-agent workflows
+should prefer guards before `apply`. This especially applies to:
 
 ```text
 replace-text
@@ -995,7 +1070,7 @@ end
 Rules:
 
 * Target must be a paragraph.
-* `expect-text` is mandatory.
+* `expect-text` is optional but strongly recommended.
 * `find` must occur exactly once unless `occurrence` is specified.
 * If replacement is within a single run, split the run and preserve run properties.
 * If replacement spans simple adjacent runs, preserve the first matched run’s properties for the replacement.
@@ -1012,6 +1087,7 @@ Optional field:
 
 ```text
 occurrence 2
+preserve-runs true
 ```
 
 ### 11.2 `replace-paragraph`
@@ -1125,6 +1201,7 @@ end
 Rules:
 
 * Target must be a table cell.
+* `expect-text`, `expect-row-count`, and `expect-column-count` are supported guards.
 * Preserve `w:tcPr`.
 * Replace cell content with a single paragraph.
 * If the cell contains multiple paragraphs, nested tables, images, or fields, fail unless `force true` is supplied.
@@ -1150,6 +1227,7 @@ end
 Rules:
 
 * Target must be a table.
+* `expect-row-count` and `expect-column-count` are supported guards.
 * Only support rectangular tables without vertical merges in v0.1.
 * Clone the last row’s row properties and cell properties.
 * Number of `cell` fields must equal logical column count.
@@ -1190,6 +1268,8 @@ end
 Rules:
 
 * Target must be a table row.
+* `expect-row-count`, `expect-column-count`, `expect-cell-count`, and
+  `expect-contains` are supported guards.
 * Do not allow deleting the only row of a table.
 * Fail on merged-cell tables in v0.1 unless `force true`.
 
@@ -1199,7 +1279,6 @@ Rules:
 op replace-image
 target M.I0001
 asset "assets/revenue-chart.png"
-preserve-size true
 alt "Updated revenue chart"
 end
 ```
@@ -1211,9 +1290,10 @@ Rules:
 * CLI resolves asset paths relative to the patch file directory.
 * Support PNG and JPEG initially.
 * Detect content type from magic bytes, not only extension.
-* If `preserve-size true`, keep existing drawing extents.
-* If `preserve-size false`, compute image dimensions and convert to EMUs.
+* `expect-content-type` is a supported guard.
+* Preserve existing drawing extents when replacing media bytes.
 * Replacing a floating image’s bytes is allowed; changing floating layout is not.
+* `preserve-size` is not supported.
 * Update content type declarations as needed.
 
 ### 11.13 `insert-image-after`
@@ -1224,7 +1304,6 @@ target M.P0012
 asset "assets/architecture.png"
 width 5.5in
 alt "Architecture diagram"
-caption "Figure 3. Target architecture"
 end
 ```
 
@@ -1242,7 +1321,8 @@ Rules:
   * `emu`
 * If only width is given, preserve aspect ratio.
 * If neither width nor height is given, use image pixel dimensions at 96 DPI.
-* If `caption` is supplied, insert a following paragraph styled `Caption` if that style exists; otherwise `Normal`.
+* `expect-content-type` is a supported guard.
+* `caption` is not supported.
 
 ### 11.14 `set-image-alt`
 
@@ -1278,13 +1358,13 @@ Rules:
 op set-section-columns
 target M.S0002
 count 2
-space 0.3in
 end
 ```
 
 Rules:
 
 * Target must be a section.
+* `expect-columns` and `expect-orientation` are supported guards.
 * Support equal-width columns only.
 * `count` must be between 1 and 4 in v0.1.
 * Update or create `w:sectPr/w:cols`.
@@ -1326,7 +1406,7 @@ CLI:
 
 ```bash
 docxedit apply input.docx edits.docxpatch \
-  -o output.docx \
+  --output output.docx \
   --track-changes suggest \
   --author "Coding Agent"
 ```
@@ -1351,20 +1431,25 @@ Require
 
 Microsoft documents `w:trackRevisions` as the setting that specifies whether applications track document revisions; if omitted, revisions are not generated by changes to document contents. ([Microsoft Learn][8]) Microsoft also documents inserted run content as `w:ins`, which marks inline content as inserted revision content. ([Microsoft Learn][9])
 
-v0.1 tracked-change support:
+Current tracked-change generation support:
 
 ```text
-replace-text          supported when replacement is within one paragraph and not across protected boundaries
-replace-paragraph     supported as delete old runs + insert new runs
-insert-before         supported
-insert-after          supported
-delete-block          supported for paragraph deletion only
-set-cell              supported only when cell has a single simple paragraph
+replace-text          supported only for simple text-only matches in one paragraph
 ```
 
-Unsupported tracked-change operations in v0.1:
+The supported `replace-text` shape must not contain tabs or line breaks, must not cross
+protected OOXML boundaries, must not be inside existing revision markup, and must have
+compatible direct run-property shape.
+
+Unsupported tracked-change operations:
 
 ```text
+replace-paragraph
+insert-before
+insert-after
+delete-block
+set-style
+set-cell
 append-row
 insert-row-before
 insert-row-after
@@ -1410,24 +1495,11 @@ Example output rendered by CLI:
 
 ```text
 docxedit check: OK
-
-Input:
-  input.docx
-Patch:
-  edits.docxpatch
-
-Operations:
-  1 replace-text        M.P0004          OK
-  2 insert-after        heading(...)     OK
-  3 set-cell            M.T0001.R02.C03  OK
-  4 replace-image       M.I0001          OK
-
-Warnings:
-  W2101 M.P0004 contains multiple runs; replacement preserves the first matched run style.
-  W5103 document contains fields; output marks fields dirty but does not render-update fields.
-
-No output written.
+operation index=1 name=replace-text target=M.P0004 success=True
+operation index=2 name=insert-after target=M.P0005 success=True
 ```
+
+Use `--report <path>` for the full JSON operation report.
 
 ### 13.2 `apply`
 
@@ -1513,7 +1585,7 @@ Examples:
 
 ```text
 E1201 selector matched 0 targets:
-  target heading "Executive summary"
+  target heading:"Executive summary"
 
 Closest headings:
   M.P0003 heading level=1 text="Executive Summary"
@@ -1582,17 +1654,25 @@ Required commands:
 docxedit -h
 docxedit --help
 docxedit help patch
+docxedit help dump
+docxedit help context
+docxedit help changes
+docxedit help check
+docxedit help apply
 
 docxedit read input.docx
+docxedit read input.docx --summary
 docxedit outline input.docx
 docxedit find input.docx "some text"
 docxedit dump input.docx --id M.P0004 --runs
+docxedit context input.docx --id M.P0004
 docxedit styles input.docx
 docxedit media input.docx
-docxedit media input.docx --extract M.I0001 --out image.png
+docxedit media input.docx --extract media
+docxedit changes input.docx
 
 docxedit check input.docx edits.docxpatch
-docxedit apply input.docx edits.docxpatch -o output.docx
+docxedit apply input.docx edits.docxpatch --output output.docx
 ```
 
 Options for `apply`:
@@ -1613,8 +1693,11 @@ Options for read/probe commands:
 
 ```text
 --runs
+--summary
 --headers-footers
 --all-stories
+--view final|original|markup
+--radius <count>
 --max-text <chars>
 --diagnostics <path>
 --strict
@@ -1667,7 +1750,7 @@ end
 docxpatch 1
 
 op insert-after
-target heading "Executive Summary"
+target heading:"Executive Summary"
 style "Normal"
 text <<<
 The quarter closed ahead of plan, with growth concentrated in enterprise accounts.
@@ -1718,7 +1801,6 @@ docxpatch 1
 op replace-image
 target M.I0001
 asset "assets/revenue-chart.png"
-preserve-size true
 alt "Updated revenue chart"
 end
 ```
@@ -1731,7 +1813,6 @@ docxpatch 1
 op set-section-columns
 target M.S0002
 count 2
-space 0.3in
 end
 ```
 
@@ -2207,22 +2288,38 @@ Read / explore:
   outline    Show headings, tables, images, sections, headers, footers
   find       Find text and print stable edit targets
   dump       Dump one target in detail
+  context    Show nearby structure around one target without broad text
   styles     List paragraph, character, and table styles
-  media      List or extract embedded images
+  media      List embedded images
+  changes    List tracked-change and comment markup without printing private text
 
 Patch:
   check      Validate a .docxpatch file without writing output
   apply      Apply a .docxpatch file and write a new .docx
 
 Help:
-  help patch Show the .docxpatch syntax with examples
+  help dump|context|changes|check|apply|patch
 
 Examples:
-  docxedit read report.docx
-  docxedit find report.docx "Revenue"
+  docxedit read report.docx [--view final|original|markup]
+  docxedit read report.docx --summary
   docxedit dump report.docx --id M.P0004 --runs
+  docxedit context report.docx --id M.P0004
+  docxedit media report.docx --extract media
+  docxedit changes report.docx
   docxedit check report.docx edits.docxpatch
-  docxedit apply report.docx edits.docxpatch -o report.edited.docx
+  docxedit apply report.docx edits.docxpatch --output report.edited.docx
+```
+
+Command-specific help must exist for:
+
+```text
+docxedit help dump
+docxedit help context
+docxedit help changes
+docxedit help check
+docxedit help apply
+docxedit help patch
 ```
 
 `docxedit help patch` must include:
@@ -2234,6 +2331,16 @@ Examples:
 * operation examples
 * track-changes explanation
 * warning that `expect-hash` is unsupported
+* warning that `preserve-size` and `caption` are unsupported
+
+`docxedit help changes` must describe `Summary`, `GroupSummary`, `TargetSummary`,
+`CommentSummary`, target status/source/reason fields, comment anchor fields,
+timestamp shape, and range `paired-change-id`.
+
+`docxedit help dump` must explain that `Runs[]` is structured JSON metadata and that
+dump run IDs are separate from `changes` change IDs.
+
+`docxedit help context` must state that default `--max-text` is `0`.
 
 ---
 
@@ -2247,21 +2354,24 @@ Example shape:
 
 ```json
 {
-  "success": true,
-  "diagnostics": [],
-  "operations": [
+  "Success": true,
+  "Diagnostics": [],
+  "Operations": [
     {
-      "index": 1,
-      "operationName": "replace-text",
-      "target": "M.P0004",
-      "success": true,
-      "diagnostics": []
+      "Index": 1,
+      "OperationName": "replace-text",
+      "Target": "M.P0004",
+      "Success": true,
+      "Diagnostics": []
     }
   ]
 }
 ```
 
-The public library should expose data models directly; JSON is a CLI rendering concern.
+The public library exposes data models directly; JSON is a CLI rendering concern.
+Current CLI JSON uses `System.Text.Json` default property names, matching the public
+PascalCase result property names such as `Success`, `Diagnostics`, `Summary`,
+`TargetSummary`, `Runs`, and `Items`.
 
 ---
 
@@ -2291,7 +2401,7 @@ The implementation is acceptable when all of the following are true:
 1. `DocxEdit` production project has no NuGet dependencies.
 2. All public APIs operate on streams.
 3. Public operations observe cancellation tokens.
-4. CLI can read, find, dump, check, and apply patches.
+4. CLI can read, outline, find, dump, context, styles, media, changes, check, and apply.
 5. CLI can write diagnostics JSON and `--strict` returns exit code `3` on warnings.
 6. `.docxpatch` parser supports the specified block/heredoc syntax.
 7. `expect-hash` is not implemented and is rejected if present.
@@ -2306,11 +2416,18 @@ The implementation is acceptable when all of the following are true:
 16. Unknown OOXML parts are preserved.
 17. Existing unsupported structures are preserved unless directly targeted.
 18. Track changes modes `Off`, `Preserve`, `Suggest`, and `Require` exist with the behavior specified above.
-19. Golden tests prove deterministic read/probe output.
-20. Stream-only tests prove no file-system dependency in the library.
-21. Public edit-case validation tools can run at least one smoke case.
-22. Private-case tooling rejects tracked or out-of-directory confidential inputs.
-23. Optional Office tests can validate generated files on Windows when enabled.
+19. `changes` exposes private-text-free summaries, target/comment rollups, comment
+    anchor joins, target localization metadata, and range pair links.
+20. `dump --runs --json` exposes structured run markup metadata.
+21. `context` can summarize nearby modeled structure with `MaxText = 0` by default.
+22. `check` and `apply` expose operation-level reports in JSON and compact plain text.
+23. Command-specific help exists for `dump`, `context`, `changes`, `check`, `apply`,
+    and `patch`.
+24. Golden tests prove deterministic read/probe output.
+25. Stream-only tests prove no file-system dependency in the library.
+26. Public edit-case validation tools can run at least one smoke case.
+27. Private-case tooling rejects tracked or out-of-directory confidential inputs.
+28. Optional Office tests can validate generated files on Windows when enabled.
 
 ---
 
@@ -2322,7 +2439,7 @@ The implementation is acceptable when all of the following are true:
 4. Discover main document, styles, headers, footers, media.
 5. Implement logical scanner for paragraphs, tables, images, sections.
 6. Implement deterministic ID assignment.
-7. Implement read/outline/find/dump/styles/media renderers.
+7. Implement read/outline/find/dump/context/styles/media/changes renderers.
 8. Implement patch parser.
 9. Implement selector resolver.
 10. Implement guards.
@@ -2336,12 +2453,13 @@ The implementation is acceptable when all of the following are true:
 18. Implement `check` simulation.
 19. Implement `apply`.
 20. Implement CLI.
-21. Implement CLI diagnostics JSON and strict mode.
-22. Add golden tests.
-23. Add public edit-case validation tools.
-24. Add private-case validation guardrails.
-25. Add optional Office integration tests.
-26. Publish local `Lokad.DocxEdit` NuGet package and verify the CLI consumes the library through project reference only.
+21. Implement command-specific help and JSON output.
+22. Implement CLI diagnostics JSON and strict mode.
+23. Add golden tests.
+24. Add public edit-case validation tools.
+25. Add private-case validation guardrails and agent challenge probes.
+26. Add optional Office integration tests.
+27. Publish local `Lokad.DocxEdit` NuGet package and verify the CLI consumes the library through project reference only.
 
 The most important invariant throughout the implementation is:
 
