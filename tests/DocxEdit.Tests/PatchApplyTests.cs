@@ -1457,6 +1457,110 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyRenameBookmarkUpdatesNameAndInternalHyperlinkAnchors()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="OldName"/>
+                      <w:r><w:t>Target</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+                    <w:p>
+                      <w:hyperlink w:anchor="OldName"><w:r><w:t>Jump</w:t></w:r></w:hyperlink>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op rename-bookmark
+            target M.B0001
+            name NewName
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
+        Assert.Equal("NewName", bookmark.Name);
+        DocxHyperlinkInfo hyperlink = Assert.Single(read.Hyperlinks);
+        Assert.Equal("NewName", hyperlink.Anchor);
+        Assert.False(hyperlink.IsAnchorMissing);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:name=\"NewName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:anchor=\"NewName\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OldName", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyDeleteBookmarkRemovesMarkersAndPreservesText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Bookmarked</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-bookmark
+            target M.B0001
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Empty(read.Bookmarks);
+        Assert.Equal("Before Bookmarked After", Assert.Single(read.Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.DoesNotContain("bookmarkStart", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("bookmarkEnd", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckRenameBookmarkRejectsDuplicateName()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="First"/>
+                      <w:r><w:t>First</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Second"/>
+                      <w:r><w:t>Second</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op rename-bookmark
+            target M.B0001
+            name Second
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4311");
+    }
+
+    [Fact]
     public static void ApplySetCommentTextPreservesCommentMetadata()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(

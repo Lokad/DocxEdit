@@ -104,7 +104,9 @@ Patch operations can also target explicit bookmark/content-control IDs for safe 
 state symbol, `set-content-control-choice` selects dropdown/combo items by `value` or
 `display-text`, `set-content-control-date` updates date control `fullDate` values and
 displayed text, and `replace-bookmark-text` updates simple same-paragraph bookmark
-ranges while preserving the bookmark markers.
+ranges while preserving the bookmark markers. `rename-bookmark` renames bookmark
+markers and same-story internal hyperlink anchors when the old name is unambiguous;
+`delete-bookmark` removes only complete unreferenced bookmark markers.
 `read` and `outline` also list simple and complex field metadata. Field records
 include kind, field code, containing target, result text length, dirty/lock flags,
 and whether a complex begin/separate/end sequence is complete. `context` annotates

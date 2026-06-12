@@ -1666,6 +1666,23 @@ text Updated value
 end
 ```
 
+Rename a bookmark and matching same-story internal hyperlink anchors:
+
+```text
+op rename-bookmark
+target M.B0001
+name NewBookmarkName
+end
+```
+
+Remove complete unreferenced bookmark markers while preserving their content:
+
+```text
+op delete-bookmark
+target M.B0001
+end
+```
+
 Rules:
 
 * Content-control targets use IDs from `read` or `outline`, such as `M.CC0001`,
@@ -1686,6 +1703,12 @@ Rules:
 * `replace-bookmark-text` supports complete bookmark ranges whose start/end markers are
   direct siblings in the same paragraph and fails unsupported ranges instead of
   flattening surrounding OOXML.
+* `rename-bookmark` rejects invalid or duplicate new names, changes `w:bookmarkStart`
+  `w:name`, and rewrites same-story `w:hyperlink/@w:anchor` values that referenced
+  the old name when that old name is unambiguous.
+* `delete-bookmark` removes only the `w:bookmarkStart` and matching `w:bookmarkEnd`
+  markers for complete bookmarks. It fails if same-story internal hyperlink anchors
+  still reference the bookmark name.
 
 ### 11.6b Comment body operations
 
@@ -2091,6 +2114,8 @@ set-content-control-checkbox
 set-content-control-choice
 set-content-control-date
 replace-bookmark-text
+rename-bookmark
+delete-bookmark
 set-comment-text
 resolve-comment
 reopen-comment

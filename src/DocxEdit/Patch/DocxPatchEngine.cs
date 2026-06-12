@@ -100,6 +100,8 @@ internal static class DocxPatchEngine
                     "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
                     "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
+                    "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
+                    "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
                     "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
@@ -997,6 +999,116 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteRenameBookmark(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? name = ReadRequiredField(operation, "name", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!IsValidBookmarkName(name!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'name' must be a non-empty bookmark name without whitespace.", operation, target)];
+        }
+
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target!, cancellationToken);
+        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
+        }
+
+        if (bookmarkTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        string? oldName = (string?)bookmarkTarget.Start.Attribute(OoxmlNs.W + "name");
+        if (string.IsNullOrWhiteSpace(oldName))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' has no current name.", operation, target)];
+        }
+
+        if (string.Equals(oldName, name, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        if (BookmarkNameExists(bookmarkTarget.Document, bookmarkTarget.Start, name!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark name '{name}' already exists in part '{bookmarkTarget.PartName}'.", operation, target)];
+        }
+
+        if (CountBookmarkName(bookmarkTarget.Document, oldName) > 1 &&
+            HasInternalHyperlinkAnchor(bookmarkTarget.Document, oldName))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' has duplicate name '{oldName}' and same-part hyperlink anchors; rename would be ambiguous.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        bookmarkTarget.Start.SetAttributeValue(OoxmlNs.W + "name", name);
+        UpdateInternalHyperlinkAnchors(bookmarkTarget.Document, oldName, name!);
+        SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteBookmark(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target!, cancellationToken);
+        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
+        }
+
+        if (bookmarkTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (bookmarkTarget.End is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is incomplete and cannot be deleted safely.", operation, target)];
+        }
+
+        string? name = (string?)bookmarkTarget.Start.Attribute(OoxmlNs.W + "name");
+        if (!string.IsNullOrWhiteSpace(name) &&
+            HasInternalHyperlinkAnchor(bookmarkTarget.Document, name!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is referenced by same-part hyperlink anchors; update or remove those hyperlinks before deleting the bookmark.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        bookmarkTarget.Start.Remove();
+        bookmarkTarget.End.Remove();
+        SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCommentText(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -1595,6 +1707,44 @@ internal static class DocxPatchEngine
 
         feature = null;
         return false;
+    }
+
+    private static bool IsValidBookmarkName(string name)
+    {
+        return !string.IsNullOrWhiteSpace(name) && !name.Any(char.IsWhiteSpace);
+    }
+
+    private static int CountBookmarkName(XDocument document, string name)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Count(bookmark => string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal));
+    }
+
+    private static bool BookmarkNameExists(XDocument document, XElement excludedStart, string name)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Any(bookmark => bookmark != excludedStart &&
+                string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal));
+    }
+
+    private static bool HasInternalHyperlinkAnchor(XDocument document, string anchor)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Any(hyperlink => string.Equals((string?)hyperlink.Attribute(OoxmlNs.W + "anchor"), anchor, StringComparison.Ordinal));
+    }
+
+    private static void UpdateInternalHyperlinkAnchors(XDocument document, string oldName, string newName)
+    {
+        foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))
+        {
+            if (string.Equals((string?)hyperlink.Attribute(OoxmlNs.W + "anchor"), oldName, StringComparison.Ordinal))
+            {
+                hyperlink.SetAttributeValue(OoxmlNs.W + "anchor", newName);
+            }
+        }
     }
 
     private static CommentTarget? ResolveCommentTarget(

@@ -54,6 +54,8 @@ including nearby paragraph text.
 - `set-content-control-choice`: `target`, exactly one of `value` or `display-text`
 - `set-content-control-date`: `target`, `value`, optional `display-text`
 - `replace-bookmark-text`: `target`, `text`
+- `rename-bookmark`: `target`, `name`
+- `delete-bookmark`: `target`
 - `set-comment-text`: `target`, `text`
 - `resolve-comment`: `target`
 - `reopen-comment`: `target`
@@ -93,7 +95,10 @@ updates the displayed content. Use `set-content-control-date` with date controls
 updates `w:fullDate` to `value` and uses `display-text` for the visible content when
 provided. Use `replace-bookmark-text` with simple same-paragraph bookmark IDs such as
 `M.B0001`; the bookmark start/end markers are preserved and unsupported ranges fail
-instead of flattening surrounding XML.
+instead of flattening surrounding XML. Use `rename-bookmark` to change a bookmark
+name; DocxEdit rejects duplicate new names and updates same-story internal hyperlink
+anchors when the old name is unambiguous. Use `delete-bookmark` to remove complete
+unreferenced bookmark markers while preserving the bookmarked content.
 
 Comment operations target either `comment:<id>` from `changes` output or a comment
 body target such as `C001.C0001`. `set-comment-text` replaces the comment body with a
