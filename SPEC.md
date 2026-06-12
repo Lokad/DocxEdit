@@ -1792,6 +1792,18 @@ op set-field-lock
 target M.F0001
 locked true
 end
+
+op set-field-code
+target M.F0001
+expect-code REF OldBookmark \h
+code REF NewBookmark \h
+end
+
+op set-field-result
+target M.F0001
+expect-result Old cached result
+text New cached result
+end
 ```
 
 Rules:
@@ -1801,6 +1813,13 @@ Rules:
 * `target all` updates every modeled field in main/header/footer stories.
 * `set-field-dirty` updates `w:dirty` and `set-field-lock` updates `w:fldLock` on
   `w:fldSimple` or the complex field begin `w:fldChar`.
+* `set-field-code` updates `w:fldSimple/@w:instr`, supports an optional normalized
+  `expect-code` guard, preserves the cached result, and marks that field dirty.
+* `set-field-result` replaces the cached result runs inside `w:fldSimple`, supports
+  an optional exact `expect-result` guard, preserves the field code and field
+  boundary, and does not trigger document-level field-update marking when it is the
+  only patch operation.
+* Complex-field code/result replacement is not supported yet and fails with `E4313`.
 * DocxEdit does not recalculate field results.
 
 ### 11.6d Hyperlink operations
@@ -2258,6 +2277,8 @@ reopen-comment
 delete-comment
 set-field-dirty
 set-field-lock
+set-field-code
+set-field-result
 set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after

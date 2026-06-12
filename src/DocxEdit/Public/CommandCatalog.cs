@@ -358,7 +358,7 @@ public static class DocxHelp
                         ]),
                         new("Fields",
                         [
-                            "Read and context output surface simple and complex field metadata, including field code, result-text length, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, and DocxEdit can mark the document for field updates after edits, but Word remains responsible for recalculating field results."
+                            "Read and context output surface simple and complex field metadata, including field code, result-text length, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, and mark the document for field updates after edits, but Word remains responsible for recalculating field results."
                         ]),
                         new("Hyperlinks",
                         [
@@ -704,6 +704,8 @@ public static class DocxHelp
                 PreserveOnly("delete-comment", ["target"]),
                 PreserveOnly("set-field-dirty", ["target or all", "dirty"]),
                 PreserveOnly("set-field-lock", ["target or all", "locked"]),
+                PreserveOnly("set-field-code", ["target", "code"], ["expect-code"]),
+                PreserveOnly("set-field-result", ["target", "text"], ["expect-result"]),
                 PreserveOnly("set-hyperlink-target", ["target plus uri or anchor"], ["tooltip", "target-frame", "history"]),
                 PreserveOnly("set-hyperlink-text", ["target", "text"]),
                 PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip", "target-frame", "history"]),

@@ -111,6 +111,8 @@ internal static class DocxPatchEngine
                     "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
                     "set-field-dirty" => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken),
                     "set-field-lock" => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken),
+                    "set-field-code" => ExecuteSetFieldCode(package, operation, apply, cancellationToken),
+                    "set-field-result" => ExecuteSetFieldResult(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
@@ -150,6 +152,7 @@ internal static class DocxPatchEngine
         if (apply &&
             options.MarkFieldsDirtyWhenEditing &&
             patch.Operations.Count != 0 &&
+            patch.Operations.Any(operation => ShouldMarkFieldsDirtyAfterOperation(operation.OperationName)) &&
             diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
         {
             diagnostics.AddRange(MarkFieldsDirty(package, cancellationToken));
@@ -173,6 +176,11 @@ internal static class DocxPatchEngine
             "delete-block" or
             "set-style" or
             "set-cell";
+    }
+
+    private static bool ShouldMarkFieldsDirtyAfterOperation(string operationName)
+    {
+        return operationName is not "set-field-result";
     }
 
     private static TableOperationSnapshot? CaptureTableOperationSnapshot(
@@ -1395,6 +1403,129 @@ internal static class DocxPatchEngine
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + attributeName, value!.Value ? "true" : "false");
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
         return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetFieldCode(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? code = ReadRequiredField(operation, "code", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-code");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
+        }
+
+        if (fieldTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 fields: {target}.", operation, target)];
+        }
+
+        if (fieldTarget.Element.Name != OoxmlNs.W + "fldSimple")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4313", $"Field code replacement for {target} currently supports only simple w:fldSimple fields.", operation, target)];
+        }
+
+        string current = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+        if (expected is not null && !string.Equals(current, NormalizeFieldCodeForGuard(expected), StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "instr", code!);
+        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", "true");
+        SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetFieldResult(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-result");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
+        }
+
+        if (fieldTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 fields: {target}.", operation, target)];
+        }
+
+        if (fieldTarget.Element.Name != OoxmlNs.W + "fldSimple")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4313", $"Cached-result replacement for {target} currently supports only simple w:fldSimple fields.", operation, target)];
+        }
+
+        string current = ReadVisibleText(fieldTarget.Element);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceSimpleFieldResult(fieldTarget.Element, text!);
+        SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
+        return [];
+    }
+
+    private static string NormalizeFieldCodeForGuard(string code)
+    {
+        return string.Join(
+            " ",
+            code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static void ReplaceSimpleFieldResult(XElement field, string text)
+    {
+        XElement? firstRunProperties = field
+            .Elements(OoxmlNs.W + "r")
+            .Elements(OoxmlNs.W + "rPr")
+            .FirstOrDefault();
+        field.RemoveNodes();
+        var run = new XElement(OoxmlNs.W + "r");
+        if (firstRunProperties is not null)
+        {
+            run.Add(new XElement(firstRunProperties));
+        }
+
+        foreach (XNode node in CreateTextNodes(text))
+        {
+            run.Add(node);
+        }
+
+        field.Add(run);
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetHyperlinkTarget(

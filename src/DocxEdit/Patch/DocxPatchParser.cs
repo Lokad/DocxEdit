@@ -24,6 +24,8 @@ internal static class DocxPatchParser
         ["delete-comment"] = new(["target"], [], []),
         ["set-field-dirty"] = new(["target", "dirty"], ["dirty"], []),
         ["set-field-lock"] = new(["target", "locked"], ["locked"], []),
+        ["set-field-code"] = new(["target", "expect-code", "code"], [], []),
+        ["set-field-result"] = new(["target", "expect-result", "text"], [], []),
         ["set-hyperlink-target"] = new(["target", "uri", "anchor", "tooltip", "target-frame", "history"], ["history"], []),
         ["set-hyperlink-text"] = new(["target", "text"], [], []),
         ["insert-hyperlink-after"] = new(["target", "text", "uri", "anchor", "tooltip", "target-frame", "history"], ["history"], []),

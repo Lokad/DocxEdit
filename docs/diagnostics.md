@@ -22,6 +22,8 @@ Common code ranges:
 - `W4002`: `TrackChangesMode.Suggest` warning for a `replace-text` shape that cannot be represented as simple tracked-change output; the edit is applied directly.
 - `E4312`: comment resolution state cannot be edited because the comment body shape
   cannot safely host modern resolution metadata.
+- `E4313`: field code/result replacement was requested for a field shape that is not
+  safely editable by the requested operation.
 
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,

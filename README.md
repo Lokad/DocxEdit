@@ -158,7 +158,8 @@ Implemented areas include:
   checkbox state, dropdown/combo selections, date values, bookmark rename/delete,
   and simple same-paragraph bookmark ranges;
 - simple and complex field read/context metadata, explicit dirty/lock flag patch
-  operations for one field or all modeled fields, and field-update marking after edits;
+  operations for one field or all modeled fields, simple-field code/result patching,
+  and field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, broken relationship IDs,
   URI scheme validation, missing/duplicate internal anchors, target frames, history flags,
   and aggregate diagnostics for invalid URI/anchor states;
@@ -184,8 +185,8 @@ Known limits include exotic/custom visual numbering expansion beyond determinist
 decimal, letter, roman, bullet, and nested `lvlText` labels, selected-range comment
 creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text controls, checkbox toggles,
-dropdown/combo selections, date values, bookmark rename/delete, and simple same-paragraph bookmark ranges, field result recalculation and field-specific
-edit workflows beyond dirty/lock flags,
+dropdown/combo selections, date values, bookmark rename/delete, and simple same-paragraph bookmark ranges, field result recalculation and complex-field
+edit workflows beyond dirty/lock flags and simple-field code/result edits,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,
 relative/UNC/file URI policies, advanced floating-image edit operations beyond
 size/wrap/position/crop metadata, complex

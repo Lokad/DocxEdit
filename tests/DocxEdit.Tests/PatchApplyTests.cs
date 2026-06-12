@@ -252,6 +252,132 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetSimpleFieldCodeMarksFieldDirty()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" REF OldBookmark \h " w:dirty="false">
+                        <w:r><w:t>Old result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-code
+            target M.F0001
+            expect-code REF OldBookmark \h
+            code REF NewBookmark \h
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { MarkFieldsDirtyWhenEditing = false });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
+        Assert.Equal("REF NewBookmark \\h", field.Code);
+        Assert.True(field.IsDirty);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:instr=\"REF NewBookmark \\h\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:dirty=\"true\"", xml, StringComparison.Ordinal);
+        Assert.Contains("Old result", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplySetSimpleFieldResultPreservesCodeAndDoesNotMarkFieldsDirty()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" REF ClientName \h ">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            expect-result Old cached result
+            text New cached result
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("New cached result", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
+        Assert.Equal("REF ClientName \\h", field.Code);
+        Assert.Equal(17, field.ResultTextLength);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:instr=\" REF ClientName \\h \"", xml, StringComparison.Ordinal);
+        Assert.Contains("New cached result", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.False(EntryExists(output, "word/settings.xml"));
+    }
+
+    [Fact]
+    public static void CheckSetFieldResultRejectsComplexFields()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            text 2
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4313");
+    }
+
+    [Fact]
+    public static void CheckSetFieldCodeRejectsMismatchedGuard()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE ">
+                        <w:r><w:t>June 12</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-code
+            target M.F0001
+            expect-code REF Missing
+            code REF Present
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201");
+    }
+
+    [Fact]
     public static void ReadWorksWithNonSeekableInputStream()
     {
         using MemoryStream seekable = CreateDocx("Revenue increased.");

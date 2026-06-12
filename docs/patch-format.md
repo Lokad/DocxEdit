@@ -63,6 +63,8 @@ including nearby paragraph text.
 - `delete-comment`: `target`
 - `set-field-dirty`: `target`, `dirty`
 - `set-field-lock`: `target`, `locked`
+- `set-field-code`: `target`, `code`; optional `expect-code`
+- `set-field-result`: `target`, `text`; optional `expect-result`
 - `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
 - `set-hyperlink-text`: `target`, `text`
 - `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
@@ -121,7 +123,13 @@ Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
 `H001.F0001`, or `F001.F0001`. `set-field-dirty` updates `w:dirty` and
 `set-field-lock` updates `w:fldLock` on `w:fldSimple` or the complex field begin
 `w:fldChar`; use `target all` to update every modeled field in main/header/footer
-stories. DocxEdit does not recalculate field results.
+stories. `set-field-code` updates `w:fldSimple/@w:instr`, supports optional
+normalized `expect-code`, preserves the cached result, and marks that field dirty.
+`set-field-result` replaces the cached result runs inside `w:fldSimple`, supports
+optional exact `expect-result`, preserves the field code/boundary, and avoids
+document-level field-update marking when it is the only patch operation. Complex
+field code/result edits fail with `E4313`. DocxEdit does not recalculate field
+results.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
 `M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and
