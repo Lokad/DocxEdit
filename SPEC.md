@@ -1504,7 +1504,39 @@ Rules:
 * If ambiguous, fail and list candidates.
 * Preserve paragraph content.
 
-### 11.6a Hyperlink operations
+### 11.6a Bookmark and content-control text operations
+
+Update a plain-text content control:
+
+```text
+op set-content-control-text
+target M.CC0001
+text Updated value
+end
+```
+
+Replace a simple bookmark range while preserving markers:
+
+```text
+op replace-bookmark-text
+target M.B0001
+text Updated value
+end
+```
+
+Rules:
+
+* Content-control targets use IDs from `read` or `outline`, such as `M.CC0001`,
+  `H001.CC0001`, or `F001.CC0001`.
+* `set-content-control-text` supports plain-text controls (`w:sdtPr/w:text`) and
+  preserves the `w:sdt` wrapper and properties.
+* Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
+  or `F001.B0001`.
+* `replace-bookmark-text` supports complete bookmark ranges whose start/end markers are
+  direct siblings in the same paragraph and fails unsupported ranges instead of
+  flattening surrounding OOXML.
+
+### 11.6b Hyperlink operations
 
 Update an existing hyperlink destination:
 
@@ -1819,6 +1851,8 @@ insert-before
 insert-after
 delete-block
 set-style
+set-content-control-text
+replace-bookmark-text
 set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after

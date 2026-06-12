@@ -94,6 +94,8 @@ internal static class DocxPatchEngine
                     "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
                     "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
                     "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
+                    "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
+                    "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
@@ -442,6 +444,108 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetContentControlText(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
+        }
+
+        if (controlTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!IsPlainTextContentControl(controlTarget.ContentControl))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a plain-text content control.", operation, target)];
+        }
+
+        XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
+        if (content is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceContentControlText(content, text!);
+        SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceBookmarkText(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target!, cancellationToken);
+        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
+        }
+
+        if (bookmarkTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (bookmarkTarget.End is null ||
+            bookmarkTarget.Start.Parent is null ||
+            bookmarkTarget.Start.Parent != bookmarkTarget.End.Parent ||
+            bookmarkTarget.Start.Parent.Name != OoxmlNs.W + "p")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is not a simple same-paragraph range.", operation, target)];
+        }
+
+        XNode[] nodes = bookmarkTarget.Start.NodesAfterSelf()
+            .TakeWhile(node => node != bookmarkTarget.End)
+            .ToArray();
+        if (ContainsProtectedBookmarkReplacementNode(nodes, out string? protectedFeature))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' replacement would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        foreach (XNode node in nodes)
+        {
+            node.Remove();
+        }
+
+        bookmarkTarget.Start.AddAfterSelf(CreateSimpleRun(text!));
+        SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetHyperlinkTarget(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -730,6 +834,53 @@ internal static class DocxPatchEngine
         return document
             .Descendants(OoxmlNs.W + "hyperlink")
             .Count(hyperlink => string.Equals((string?)hyperlink.Attribute(OoxmlNs.R + "id"), relationshipId, StringComparison.Ordinal));
+    }
+
+    private static bool IsPlainTextContentControl(XElement contentControl)
+    {
+        return contentControl
+            .Element(OoxmlNs.W + "sdtPr")
+            ?.Element(OoxmlNs.W + "text") is not null;
+    }
+
+    private static void ReplaceContentControlText(XElement content, string text)
+    {
+        bool blockLevel = content.Elements(OoxmlNs.W + "p").Any();
+        content.RemoveNodes();
+        if (blockLevel)
+        {
+            content.Add(CreateSimpleParagraph(text));
+        }
+        else
+        {
+            content.Add(CreateSimpleRun(text));
+        }
+    }
+
+    private static bool ContainsProtectedBookmarkReplacementNode(IEnumerable<XNode> nodes, out string? feature)
+    {
+        foreach (XElement element in nodes.OfType<XElement>().SelectMany(ElementAndDescendants))
+        {
+            if (ProtectedTextEditElements.TryGetValue(element.Name, out string? protectedFeature) &&
+                element.Name != OoxmlNs.W + "bookmarkStart" &&
+                element.Name != OoxmlNs.W + "bookmarkEnd")
+            {
+                feature = protectedFeature;
+                return true;
+            }
+        }
+
+        feature = null;
+        return false;
+    }
+
+    private static IEnumerable<XElement> ElementAndDescendants(XElement element)
+    {
+        yield return element;
+        foreach (XElement descendant in element.Descendants())
+        {
+            yield return descendant;
+        }
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceImage(
@@ -2050,6 +2201,22 @@ internal static class DocxPatchEngine
             int.TryParse(target[3..], out hyperlinkOrdinal);
     }
 
+    private static bool TryParseMainBookmarkTarget(string target, out int bookmarkOrdinal)
+    {
+        bookmarkOrdinal = 0;
+        return target.Length == 7 &&
+            target.StartsWith("M.B", StringComparison.Ordinal) &&
+            int.TryParse(target[3..], out bookmarkOrdinal);
+    }
+
+    private static bool TryParseMainContentControlTarget(string target, out int contentControlOrdinal)
+    {
+        contentControlOrdinal = 0;
+        return target.Length == 8 &&
+            target.StartsWith("M.CC", StringComparison.Ordinal) &&
+            int.TryParse(target[4..], out contentControlOrdinal);
+    }
+
     private static bool TryParseStoryImageTarget(
         string target,
         char storyPrefix,
@@ -2086,6 +2253,44 @@ internal static class DocxPatchEngine
 
         return int.TryParse(target[1..4], out storyOrdinal) &&
             int.TryParse(target[6..], out hyperlinkOrdinal);
+    }
+
+    private static bool TryParseStoryBookmarkTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int bookmarkOrdinal)
+    {
+        storyOrdinal = 0;
+        bookmarkOrdinal = 0;
+        if (target.Length != 10 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".B")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..], out bookmarkOrdinal);
+    }
+
+    private static bool TryParseStoryContentControlTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int contentControlOrdinal)
+    {
+        storyOrdinal = 0;
+        contentControlOrdinal = 0;
+        if (target.Length != 11 ||
+            target[0] != storyPrefix ||
+            target[4..7] != ".CC")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[7..], out contentControlOrdinal);
     }
 
     private static bool TryParseMainSectionTarget(string target, out int sectionOrdinal)
@@ -2839,6 +3044,116 @@ internal static class DocxPatchEngine
             TryParseStoryHyperlinkTarget(target, 'F', out _, out _);
     }
 
+    private static bool IsSupportedContentControlTargetShape(string target)
+    {
+        return TryParseMainContentControlTarget(target, out _) ||
+            TryParseStoryContentControlTarget(target, 'H', out _, out _) ||
+            TryParseStoryContentControlTarget(target, 'F', out _, out _);
+    }
+
+    private static bool IsSupportedBookmarkTargetShape(string target)
+    {
+        return TryParseMainBookmarkTarget(target, out _) ||
+            TryParseStoryBookmarkTarget(target, 'H', out _, out _) ||
+            TryParseStoryBookmarkTarget(target, 'F', out _, out _);
+    }
+
+    private static ContentControlTarget? ResolveContentControlTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainContentControlTarget(target, out int mainControlOrdinal))
+        {
+            return package.MainDocumentPartName is null
+                ? null
+                : FindContentControlTarget(package, package.MainDocumentPartName, mainControlOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryContentControlTarget(target, 'H', out int headerOrdinal, out int headerControlOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
+            return partName is null ? null : FindContentControlTarget(package, partName, headerControlOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryContentControlTarget(target, 'F', out int footerOrdinal, out int footerControlOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
+            return partName is null ? null : FindContentControlTarget(package, partName, footerControlOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static ContentControlTarget? FindContentControlTarget(
+        OoxmlPackage package,
+        string partName,
+        int contentControlOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (contentControlOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+        XElement? contentControl = document
+            .Descendants(OoxmlNs.W + "sdt")
+            .ElementAtOrDefault(contentControlOrdinal - 1);
+        return contentControl is null ? null : new ContentControlTarget(partName, document, contentControl);
+    }
+
+    private static BookmarkTarget? ResolveBookmarkTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainBookmarkTarget(target, out int mainBookmarkOrdinal))
+        {
+            return package.MainDocumentPartName is null
+                ? null
+                : FindBookmarkTarget(package, package.MainDocumentPartName, mainBookmarkOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryBookmarkTarget(target, 'H', out int headerOrdinal, out int headerBookmarkOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
+            return partName is null ? null : FindBookmarkTarget(package, partName, headerBookmarkOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryBookmarkTarget(target, 'F', out int footerOrdinal, out int footerBookmarkOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
+            return partName is null ? null : FindBookmarkTarget(package, partName, footerBookmarkOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static BookmarkTarget? FindBookmarkTarget(
+        OoxmlPackage package,
+        string partName,
+        int bookmarkOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (bookmarkOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+        XElement? start = document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .ElementAtOrDefault(bookmarkOrdinal - 1);
+        string? ooxmlId = (string?)start?.Attribute(OoxmlNs.W + "id");
+        XElement? end = ooxmlId is null
+            ? null
+            : document
+                .Descendants(OoxmlNs.W + "bookmarkEnd")
+                .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), ooxmlId, StringComparison.Ordinal));
+        return start is null ? null : new BookmarkTarget(partName, document, start, end);
+    }
+
     private static HyperlinkTarget? ResolveHyperlinkTarget(
         OoxmlPackage package,
         string target,
@@ -3428,6 +3743,17 @@ internal static class DocxPatchEngine
         return paragraph;
     }
 
+    private static XElement CreateSimpleRun(string text)
+    {
+        var run = new XElement(OoxmlNs.W + "r");
+        foreach (XNode node in CreateTextNodes(text))
+        {
+            run.Add(node);
+        }
+
+        return run;
+    }
+
     private static void SetParagraphStyle(XElement paragraph, string style)
     {
         XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
@@ -3863,6 +4189,10 @@ internal sealed record PatchExecutionResult(
     bool Success,
     IReadOnlyList<DocxDiagnostic> Diagnostics,
     IReadOnlyList<DocxPatchOperationReport> Reports);
+
+internal sealed record ContentControlTarget(string PartName, XDocument Document, XElement ContentControl);
+
+internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
 
 internal sealed record HyperlinkTarget(string PartName, XDocument Document, XElement Hyperlink);
 

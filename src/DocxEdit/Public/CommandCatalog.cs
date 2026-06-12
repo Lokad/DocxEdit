@@ -320,7 +320,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata. Bookmark and content-control selectors can still be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets."
+                            "Read and context output surface bookmark names/ranges and content-control metadata. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
                         ]),
                         new("Fields",
                         [
@@ -621,6 +621,8 @@ public static class DocxHelp
                 new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style", "copy-paragraph-properties"] },
                 new() { Name = "delete-block", RequiredFields = ["target"], OptionalFields = ["expect-text"] },
                 new() { Name = "set-style", RequiredFields = ["target", "style"] },
+                new() { Name = "set-content-control-text", RequiredFields = ["target", "text"] },
+                new() { Name = "replace-bookmark-text", RequiredFields = ["target", "text"] },
                 new() { Name = "set-hyperlink-target", RequiredFields = ["target plus uri or anchor"], OptionalFields = ["tooltip"] },
                 new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },
                 new() { Name = "insert-hyperlink-after", RequiredFields = ["target", "text plus uri or anchor"], OptionalFields = ["tooltip"] },

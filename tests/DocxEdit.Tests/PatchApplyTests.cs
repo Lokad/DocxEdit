@@ -976,6 +976,82 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetContentControlTextPreservesWrapper()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="client-name"/>
+                          <w:alias w:val="Client Name"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Old Client</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text New Client
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("New Client", Assert.Single(read.Paragraphs).Text);
+        DocxContentControlInfo control = Assert.Single(read.ContentControls);
+        Assert.Equal("plain-text", control.Kind);
+        Assert.Equal("client-name", control.Tag);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:sdt>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tag w:val=\"client-name\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReplaceBookmarkTextPreservesMarkers()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text New Client
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("Before New Client After", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkEnd w:id=\"4\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old Client", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertBeforeParagraphAddsParagraphAtTargetPosition()
     {
         using MemoryStream input = CreateDocxWithBody("""

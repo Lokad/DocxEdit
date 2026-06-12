@@ -10,6 +10,8 @@ internal static class DocxPatchParser
         ["insert-after"] = new(["target", "style", "copy-paragraph-properties", "text"], ["copy-paragraph-properties"], []),
         ["delete-block"] = new(["target", "expect-text"], [], []),
         ["set-style"] = new(["target", "style"], [], []),
+        ["set-content-control-text"] = new(["target", "text"], [], []),
+        ["replace-bookmark-text"] = new(["target", "text"], [], []),
         ["set-hyperlink-target"] = new(["target", "uri", "anchor", "tooltip"], [], []),
         ["set-hyperlink-text"] = new(["target", "text"], [], []),
         ["insert-hyperlink-after"] = new(["target", "text", "uri", "anchor", "tooltip"], [], []),

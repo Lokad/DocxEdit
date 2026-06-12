@@ -79,6 +79,10 @@ part, containing target, and text length. `context` annotates nearby targets wit
 `content-control-aliases` so agents can connect selector names to stable target IDs.
 If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector
 diagnostics list candidate paragraph IDs; retry with an explicit ID.
+Patch operations can also target explicit bookmark/content-control IDs for safe shapes:
+`set-content-control-text` updates plain-text controls while preserving the wrapper,
+and `replace-bookmark-text` updates simple same-paragraph bookmark ranges while
+preserving the bookmark markers.
 `read` and `outline` also list simple and complex field metadata. Field records
 include kind, field code, containing target, result text length, dirty/lock flags,
 and whether a complex begin/separate/end sequence is complete. `context` annotates
