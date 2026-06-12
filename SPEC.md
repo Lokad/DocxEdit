@@ -954,8 +954,9 @@ operation explicitly accepts the metadata ID.
 ### 8.9 Field model
 
 `DocxEditor.Read` exposes simple fields and complex `fldChar` begin/separate/end
-sequences as metadata. DocxEdit preserves field XML and can mark documents for field
-updates after edits, but it does not evaluate or recalculate field results.
+sequences as metadata. DocxEdit preserves field XML, can set dirty/lock flags on
+existing fields, and can mark documents for field updates after edits, but it does
+not evaluate or recalculate field results.
 
 ```csharp
 public sealed record DocxFieldInfo
@@ -974,8 +975,8 @@ public sealed record DocxFieldInfo
 ```
 
 Field IDs use the `F` namespace, for example `M.F0001`. They are metadata IDs, not
-patch edit targets. Use `TargetId` for nearby edits unless a later patch operation
-explicitly accepts field metadata IDs.
+general text edit targets. `set-field-dirty` and `set-field-lock` explicitly accept
+field metadata IDs.
 
 ### 8.10 Hyperlink model
 
@@ -1641,7 +1642,29 @@ Rules:
 * Comment creation, resolution metadata creation for legacy comments, and full
   threaded comment workflows are out of scope for v0.1.
 
-### 11.6c Hyperlink operations
+### 11.6c Field flag operations
+
+```text
+op set-field-dirty
+target M.F0001
+dirty true
+end
+
+op set-field-lock
+target M.F0001
+locked true
+end
+```
+
+Rules:
+
+* Field targets use IDs from `read` or `outline`, such as `M.F0001`, `H001.F0001`,
+  or `F001.F0001`.
+* `set-field-dirty` updates `w:dirty` and `set-field-lock` updates `w:fldLock` on
+  `w:fldSimple` or the complex field begin `w:fldChar`.
+* DocxEdit does not recalculate field results.
+
+### 11.6d Hyperlink operations
 
 Update an existing hyperlink destination:
 
@@ -1966,6 +1989,8 @@ set-comment-text
 resolve-comment
 reopen-comment
 delete-comment
+set-field-dirty
+set-field-lock
 set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after

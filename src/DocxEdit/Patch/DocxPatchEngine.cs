@@ -102,6 +102,8 @@ internal static class DocxPatchEngine
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
                     "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
                     "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
+                    "set-field-dirty" => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken),
+                    "set-field-lock" => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
@@ -993,6 +995,44 @@ internal static class DocxPatchEngine
         commentTarget.Comment.Remove();
         SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
         RemoveCommentAnchors(package, commentId, cancellationToken);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetFieldFlag(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string fieldName,
+        string attributeName,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        _ = ReadRequiredField(operation, fieldName, diagnostics);
+        bool? value = ReadBooleanField(operation, fieldName, diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
+        }
+
+        if (fieldTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 fields: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + attributeName, value!.Value ? "true" : "false");
+        SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
         return [];
     }
 
@@ -3134,6 +3174,14 @@ internal static class DocxPatchEngine
             int.TryParse(target[3..], out hyperlinkOrdinal);
     }
 
+    private static bool TryParseMainFieldTarget(string target, out int fieldOrdinal)
+    {
+        fieldOrdinal = 0;
+        return target.Length == 7 &&
+            target.StartsWith("M.F", StringComparison.Ordinal) &&
+            int.TryParse(target[3..], out fieldOrdinal);
+    }
+
     private static bool TryParseMainBookmarkTarget(string target, out int bookmarkOrdinal)
     {
         bookmarkOrdinal = 0;
@@ -3186,6 +3234,25 @@ internal static class DocxPatchEngine
 
         return int.TryParse(target[1..4], out storyOrdinal) &&
             int.TryParse(target[6..], out hyperlinkOrdinal);
+    }
+
+    private static bool TryParseStoryFieldTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int fieldOrdinal)
+    {
+        storyOrdinal = 0;
+        fieldOrdinal = 0;
+        if (target.Length != 10 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".F")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..], out fieldOrdinal);
     }
 
     private static bool TryParseStoryBookmarkTarget(
@@ -3984,6 +4051,13 @@ internal static class DocxPatchEngine
             TryParseStoryContentControlTarget(target, 'F', out _, out _);
     }
 
+    private static bool IsSupportedFieldTargetShape(string target)
+    {
+        return TryParseMainFieldTarget(target, out _) ||
+            TryParseStoryFieldTarget(target, 'H', out _, out _) ||
+            TryParseStoryFieldTarget(target, 'F', out _, out _);
+    }
+
     private static bool IsSupportedBookmarkTargetShape(string target)
     {
         return TryParseMainBookmarkTarget(target, out _) ||
@@ -4013,6 +4087,106 @@ internal static class DocxPatchEngine
         {
             string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
             return partName is null ? null : FindContentControlTarget(package, partName, footerControlOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static FieldTarget? ResolveFieldTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainFieldTarget(target, out int mainFieldOrdinal))
+        {
+            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+            XElement? field = FindField(body, mainFieldOrdinal);
+            return field is null || package.MainDocumentPartName is null
+                ? null
+                : new FieldTarget(package.MainDocumentPartName, document, field);
+        }
+
+        if (TryParseStoryFieldTarget(target, 'H', out int headerOrdinal, out int headerFieldOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
+            return partName is null ? null : FindFieldTarget(package, partName, headerFieldOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryFieldTarget(target, 'F', out int footerOrdinal, out int footerFieldOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
+            return partName is null ? null : FindFieldTarget(package, partName, footerFieldOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static FieldTarget? FindFieldTarget(
+        OoxmlPackage package,
+        string partName,
+        int fieldOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (fieldOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
+        XElement? field = FindField(root, fieldOrdinal);
+        return field is null ? null : new FieldTarget(partName, document, field);
+    }
+
+    private static XElement? FindField(XElement root, int fieldOrdinal)
+    {
+        if (fieldOrdinal < 1)
+        {
+            return null;
+        }
+
+        int index = 0;
+        var stack = new Stack<XElement>();
+        foreach (XElement element in root.Descendants())
+        {
+            if (element.Name == OoxmlNs.W + "fldSimple")
+            {
+                index++;
+                if (index == fieldOrdinal)
+                {
+                    return element;
+                }
+
+                continue;
+            }
+
+            if (element.Name != OoxmlNs.W + "fldChar")
+            {
+                continue;
+            }
+
+            string? fieldCharType = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
+            if (string.Equals(fieldCharType, "begin", StringComparison.Ordinal))
+            {
+                stack.Push(element);
+            }
+            else if (string.Equals(fieldCharType, "end", StringComparison.Ordinal) && stack.Count > 0)
+            {
+                XElement begin = stack.Pop();
+                index++;
+                if (index == fieldOrdinal)
+                {
+                    return begin;
+                }
+            }
+        }
+
+        foreach (XElement incompleteBegin in stack)
+        {
+            index++;
+            if (index == fieldOrdinal)
+            {
+                return incompleteBegin;
+            }
         }
 
         return null;
@@ -5132,6 +5306,8 @@ internal sealed record CommentTarget(string PartName, XDocument Document, XEleme
 internal sealed record CommentExtensionTarget(string PartName, XDocument Document, XElement CommentExtension);
 
 internal sealed record HyperlinkTarget(string PartName, XDocument Document, XElement Hyperlink);
+
+internal sealed record FieldTarget(string PartName, XDocument Document, XElement Element);
 
 internal sealed record ImageBlipTarget(string PartName, XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
 

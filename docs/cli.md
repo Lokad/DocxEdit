@@ -107,9 +107,9 @@ ranges while preserving the bookmark markers.
 include kind, field code, containing target, result text length, dirty/lock flags,
 and whether a complex begin/separate/end sequence is complete. `context` annotates
 nearby targets with `fields`, `field-codes`, and `field-kinds`. DocxEdit preserves
-field XML and can mark the document for field updates after edits through
-`MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field
-results.
+field XML, can set field dirty/lock flags through `set-field-dirty` and
+`set-field-lock`, and can mark the document for field updates after edits through
+`MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field results.
 Hyperlink records are listed by `read` and `outline`. External hyperlinks expose
 their URI, internal links expose an anchor or target part, and broken relationship
 IDs are flagged. `context` annotates nearby targets with `hyperlinks` and

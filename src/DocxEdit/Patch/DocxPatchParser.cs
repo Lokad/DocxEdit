@@ -17,6 +17,8 @@ internal static class DocxPatchParser
         ["resolve-comment"] = new(["target"], [], []),
         ["reopen-comment"] = new(["target"], [], []),
         ["delete-comment"] = new(["target"], [], []),
+        ["set-field-dirty"] = new(["target", "dirty"], ["dirty"], []),
+        ["set-field-lock"] = new(["target", "locked"], ["locked"], []),
         ["set-hyperlink-target"] = new(["target", "uri", "anchor", "tooltip"], [], []),
         ["set-hyperlink-text"] = new(["target", "text"], [], []),
         ["insert-hyperlink-after"] = new(["target", "text", "uri", "anchor", "tooltip"], [], []),

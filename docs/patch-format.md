@@ -56,6 +56,8 @@ including nearby paragraph text.
 - `resolve-comment`: `target`
 - `reopen-comment`: `target`
 - `delete-comment`: `target`
+- `set-field-dirty`: `target`, `dirty`
+- `set-field-lock`: `target`, `locked`
 - `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`
 - `set-hyperlink-text`: `target`, `text`
 - `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`
@@ -94,6 +96,11 @@ comment already has a `w15:paraId` and extension record; unsupported shapes fail
 `E4312` instead of inventing modern comment metadata. `delete-comment` removes the
 comment body, matching range/reference markers from document stories, and matching
 `commentsExtended.xml` records when present.
+
+Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
+`H001.F0001`, or `F001.F0001`. `set-field-dirty` updates `w:dirty` and
+`set-field-lock` updates `w:fldLock` on `w:fldSimple` or the complex field begin
+`w:fldChar`. DocxEdit does not recalculate field results.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
 `M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and

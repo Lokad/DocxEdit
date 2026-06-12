@@ -166,6 +166,53 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetFieldFlagsUpdatesSimpleAndComplexFields()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE " w:dirty="false" w:fldLock="0">
+                        <w:r><w:t>June 12</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin" w:dirty="false" w:fldLock="0"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-dirty
+            target M.F0001
+            dirty true
+            end
+
+            op set-field-lock
+            target M.F0002
+            locked true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { MarkFieldsDirtyWhenEditing = false });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.True(read.Fields[0].IsDirty);
+        Assert.False(read.Fields[0].IsLocked);
+        Assert.False(read.Fields[1].IsDirty);
+        Assert.True(read.Fields[1].IsLocked);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:fldSimple w:instr=\" DATE \" w:dirty=\"true\" w:fldLock=\"0\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:fldChar w:fldCharType=\"begin\" w:dirty=\"false\" w:fldLock=\"true\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ReadWorksWithNonSeekableInputStream()
     {
         using MemoryStream seekable = CreateDocx("Revenue increased.");

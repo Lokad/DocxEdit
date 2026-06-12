@@ -324,7 +324,7 @@ public static class DocxHelp
                         ]),
                         new("Fields",
                         [
-                            "Read and context output surface simple and complex field metadata, including field code and result-text length. DocxEdit preserves field XML and can mark the document for field updates after edits, but Word remains responsible for recalculating field results."
+                            "Read and context output surface simple and complex field metadata, including field code, result-text length, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on existing fields, and DocxEdit can mark the document for field updates after edits, but Word remains responsible for recalculating field results."
                         ]),
                         new("Hyperlinks",
                         [
@@ -663,6 +663,8 @@ public static class DocxHelp
                 new() { Name = "resolve-comment", RequiredFields = ["target"] },
                 new() { Name = "reopen-comment", RequiredFields = ["target"] },
                 new() { Name = "delete-comment", RequiredFields = ["target"] },
+                new() { Name = "set-field-dirty", RequiredFields = ["target", "dirty"] },
+                new() { Name = "set-field-lock", RequiredFields = ["target", "locked"] },
                 new() { Name = "set-hyperlink-target", RequiredFields = ["target plus uri or anchor"], OptionalFields = ["tooltip"] },
                 new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },
                 new() { Name = "insert-hyperlink-after", RequiredFields = ["target", "text plus uri or anchor"], OptionalFields = ["tooltip"] },
