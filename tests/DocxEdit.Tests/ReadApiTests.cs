@@ -1250,6 +1250,9 @@ public static class ReadApiTests
         Assert.Equal("M.P0001", external.TargetId);
         Assert.Equal("rLink", external.RelationshipId);
         Assert.Equal("https://example.test/report", external.Uri);
+        Assert.Equal("https", external.UriScheme);
+        Assert.True(external.IsUriValid);
+        Assert.Null(external.UriValidationReason);
         Assert.True(external.IsExternal);
         Assert.False(external.IsBroken);
         Assert.Equal("Open example", external.Tooltip);
@@ -1257,6 +1260,8 @@ public static class ReadApiTests
 
         DocxHyperlinkInfo internalLink = result.Hyperlinks[1];
         Assert.Equal("Section1", internalLink.Anchor);
+        Assert.True(internalLink.IsAnchorMissing);
+        Assert.False(internalLink.IsAnchorDuplicate);
         Assert.False(internalLink.IsExternal);
         Assert.False(internalLink.IsBroken);
 
@@ -1267,10 +1272,85 @@ public static class ReadApiTests
 
         Assert.Contains("M.L0001 hyperlink", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-scheme=https", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-valid=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor=\"Section1\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("broken=True", result.Text, StringComparison.Ordinal);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1002" && diagnostic.Fallback == "modeled-metadata");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1015" && diagnostic.Fallback == "broken-relationship");
+    }
+
+    [Fact]
+    public static void ReadValidatesHyperlinkDestinations()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Known"/>
+                      <w:r><w:t>Anchor</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Dup"/>
+                      <w:r><w:t>First duplicate</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="3" w:name="Dup"/>
+                      <w:r><w:t>Second duplicate</w:t></w:r>
+                      <w:bookmarkEnd w:id="3"/>
+                    </w:p>
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rUnsafe"><w:r><w:t>Unsafe</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rRelative"><w:r><w:t>Relative</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Missing"><w:r><w:t>Missing</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Known"><w:r><w:t>Known</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Dup"><w:r><w:t>Duplicate</w:t></w:r></w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+                  <Relationship Id="rRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../relative/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        DocxHyperlinkInfo unsafeLink = result.Hyperlinks.Single(link => link.RelationshipId == "rUnsafe");
+        Assert.Equal("javascript", unsafeLink.UriScheme);
+        Assert.False(unsafeLink.IsUriValid);
+        Assert.Equal("unsupported-uri-scheme", unsafeLink.UriValidationReason);
+
+        DocxHyperlinkInfo relativeLink = result.Hyperlinks.Single(link => link.RelationshipId == "rRelative");
+        Assert.Null(relativeLink.UriScheme);
+        Assert.False(relativeLink.IsUriValid);
+        Assert.Equal("malformed-or-relative-uri", relativeLink.UriValidationReason);
+
+        DocxHyperlinkInfo missing = result.Hyperlinks.Single(link => link.Anchor == "Missing");
+        Assert.True(missing.IsAnchorMissing);
+        Assert.False(missing.IsAnchorDuplicate);
+
+        DocxHyperlinkInfo known = result.Hyperlinks.Single(link => link.Anchor == "Known");
+        Assert.False(known.IsAnchorMissing);
+        Assert.False(known.IsAnchorDuplicate);
+
+        DocxHyperlinkInfo duplicate = result.Hyperlinks.Single(link => link.Anchor == "Dup");
+        Assert.False(duplicate.IsAnchorMissing);
+        Assert.True(duplicate.IsAnchorDuplicate);
+
+        Assert.Contains("uri-valid=false", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=unsupported-uri-scheme", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=malformed-or-relative-uri", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-duplicate=true", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

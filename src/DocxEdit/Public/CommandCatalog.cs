@@ -308,7 +308,7 @@ public static class DocxHelp
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
                         new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, and date settings"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
-                        new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, anchor, target part, containing target, and broken relationship flag"),
+                        new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, and media part"),
                         new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merges, and nested tables")
                     ],
@@ -328,7 +328,7 @@ public static class DocxHelp
                         ]),
                         new("Hyperlinks",
                         [
-                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, internal links expose anchor or target part, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, update display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
+                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Internal links expose anchor or target part plus missing/duplicate anchor flags, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, update display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
                         ]),
                         new("Images",
                         [

@@ -981,7 +981,9 @@ field metadata IDs.
 ### 8.10 Hyperlink model
 
 `DocxEditor.Read` exposes hyperlink metadata for external relationship links,
-internal anchors, and broken relationship IDs.
+internal anchors, relationship targets, and broken relationship IDs. External
+targets include URI scheme validation metadata. Internal anchors include
+missing-bookmark and duplicate-bookmark flags.
 
 ```csharp
 public sealed record DocxHyperlinkInfo
@@ -992,7 +994,12 @@ public sealed record DocxHyperlinkInfo
     public string? TargetId { get; init; }
     public string? RelationshipId { get; init; }
     public string? Uri { get; init; }
+    public string? UriScheme { get; init; }
+    public bool? IsUriValid { get; init; }
+    public string? UriValidationReason { get; init; }
     public string? Anchor { get; init; }
+    public bool? IsAnchorMissing { get; init; }
+    public bool? IsAnchorDuplicate { get; init; }
     public string? Tooltip { get; init; }
     public string? TargetPartName { get; init; }
     public bool IsExternal { get; init; }
@@ -1003,8 +1010,13 @@ public sealed record DocxHyperlinkInfo
 
 Hyperlink IDs use the `L` namespace, for example `M.L0001`. They are metadata IDs,
 not patch edit targets. `Uri` is populated for external hyperlink relationships,
-`Anchor` is populated for internal anchors, and `IsBroken` flags missing relationship
-IDs.
+`UriScheme`, `IsUriValid`, and `UriValidationReason` report whether the external
+target is an allowed absolute `http`, `https`, or `mailto` URI. Relative or malformed
+external targets use `UriValidationReason = "malformed-or-relative-uri"`;
+unsupported absolute schemes use `UriValidationReason = "unsupported-uri-scheme"`.
+`Anchor` is populated for internal anchors, `IsAnchorMissing` flags anchors without a
+matching bookmark, `IsAnchorDuplicate` flags anchors that match multiple bookmarks,
+and `IsBroken` flags missing relationship IDs.
 
 ### 8.11 Tracked-change and comment markup model
 
@@ -1149,7 +1161,7 @@ M.P0002 paragraph list numId=42 level=0 abstractNumId=7 format=decimal level-tex
 M.B0001 bookmark name="ClientName" ooxml-id=1 story="main" part=/word/document.xml start=M.P0002 end=M.P0002 complete=True
 M.CC0001 content-control kind=plain-text story="main" part=/word/document.xml target=M.P0002 tag="client_name" alias="Client Name" text-length=4
 M.F0001 field kind=complex story="main" part=/word/document.xml target=M.P0002 code="REF ClientName \h" result-text-length=4 dirty=True complete=True
-M.L0001 hyperlink story="main" part=/word/document.xml target=M.P0002 relationship-id=rLink uri="https://example.test/report" external=True broken=False display-text-length=6
+M.L0001 hyperlink story="main" part=/word/document.xml target=M.P0002 relationship-id=rLink uri="https://example.test/report" uri-scheme=https uri-valid=true external=True broken=False display-text-length=6
 M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
   M.T0001.R01 row cells=3 header=true
   M.T0001.R01.C01 physical-column=1 text="Metric"

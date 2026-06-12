@@ -113,7 +113,12 @@ internal static class TextRenderers
             string target = hyperlink.TargetId is null ? " target=unknown" : $" target={hyperlink.TargetId}";
             string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={Escape(hyperlink.RelationshipId)}";
             string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{Escape(hyperlink.Uri)}\"";
+            string uriScheme = hyperlink.UriScheme is null ? string.Empty : $" uri-scheme={Escape(hyperlink.UriScheme)}";
+            string uriValid = hyperlink.IsUriValid is null ? string.Empty : $" uri-valid={hyperlink.IsUriValid.Value.ToString().ToLowerInvariant()}";
+            string uriReason = hyperlink.UriValidationReason is null ? string.Empty : $" uri-reason={Escape(hyperlink.UriValidationReason)}";
             string anchor = hyperlink.Anchor is null ? string.Empty : $" anchor=\"{Escape(hyperlink.Anchor)}\"";
+            string anchorMissing = hyperlink.IsAnchorMissing is null ? string.Empty : $" anchor-missing={hyperlink.IsAnchorMissing.Value.ToString().ToLowerInvariant()}";
+            string anchorDuplicate = hyperlink.IsAnchorDuplicate is null ? string.Empty : $" anchor-duplicate={hyperlink.IsAnchorDuplicate.Value.ToString().ToLowerInvariant()}";
             string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{Escape(hyperlink.Tooltip)}\"";
             string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
             builder.Append(hyperlink.Id)
@@ -124,7 +129,12 @@ internal static class TextRenderers
                 .Append(target)
                 .Append(relationshipId)
                 .Append(uri)
+                .Append(uriScheme)
+                .Append(uriValid)
+                .Append(uriReason)
                 .Append(anchor)
+                .Append(anchorMissing)
+                .Append(anchorDuplicate)
                 .Append(tooltip)
                 .Append(targetPart)
                 .Append(" external=")

@@ -335,7 +335,12 @@ public sealed record DocxHyperlinkInfo
     public string? TargetId { get; init; }
     public string? RelationshipId { get; init; }
     public string? Uri { get; init; }
+    public string? UriScheme { get; init; }
+    public bool? IsUriValid { get; init; }
+    public string? UriValidationReason { get; init; }
     public string? Anchor { get; init; }
+    public bool? IsAnchorMissing { get; init; }
+    public bool? IsAnchorDuplicate { get; init; }
     public string? Tooltip { get; init; }
     public string? TargetPartName { get; init; }
     public bool IsExternal { get; init; }

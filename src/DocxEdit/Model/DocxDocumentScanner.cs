@@ -564,12 +564,23 @@ internal static class DocxDocumentScanner
         IReadOnlyDictionary<string, OoxmlRelationship> relationships)
     {
         var hyperlinks = new List<DocxHyperlinkInfo>();
+        IReadOnlyDictionary<string, int> bookmarkNameCounts = document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Select(bookmark => (string?)bookmark.Attribute(OoxmlNs.W + "name"))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .GroupBy(name => name!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
         int hyperlinkIndex = 1;
         foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))
         {
             string? relationshipId = (string?)hyperlink.Attribute(OoxmlNs.R + "id");
             relationships.TryGetValue(relationshipId ?? string.Empty, out OoxmlRelationship? relationship);
             string? anchor = (string?)hyperlink.Attribute(OoxmlNs.W + "anchor");
+            string? externalUri = relationship?.IsExternal == true ? relationship.Target : null;
+            HyperlinkUriValidation uriValidation = ValidateHyperlinkUri(externalUri);
+            int anchorCount = !string.IsNullOrWhiteSpace(anchor) && bookmarkNameCounts.TryGetValue(anchor, out int resolvedAnchorCount)
+                ? resolvedAnchorCount
+                : 0;
             hyperlinks.Add(new DocxHyperlinkInfo
             {
                 Id = $"{idPrefix}.L{hyperlinkIndex++:0000}",
@@ -577,8 +588,13 @@ internal static class DocxDocumentScanner
                 PartName = partName,
                 TargetId = FindTargetId(hyperlink, targets),
                 RelationshipId = relationshipId,
-                Uri = relationship?.IsExternal == true ? relationship.Target : null,
+                Uri = externalUri,
+                UriScheme = uriValidation.Scheme,
+                IsUriValid = uriValidation.IsValid,
+                UriValidationReason = uriValidation.Reason,
                 Anchor = anchor,
+                IsAnchorMissing = string.IsNullOrWhiteSpace(anchor) ? null : anchorCount == 0,
+                IsAnchorDuplicate = string.IsNullOrWhiteSpace(anchor) ? null : anchorCount > 1,
                 Tooltip = (string?)hyperlink.Attribute(OoxmlNs.W + "tooltip"),
                 TargetPartName = relationship?.IsExternal == false ? relationship.ResolvedTarget : null,
                 IsExternal = relationship?.IsExternal == true,
@@ -588,6 +604,26 @@ internal static class DocxDocumentScanner
         }
 
         return hyperlinks;
+    }
+
+    private static HyperlinkUriValidation ValidateHyperlinkUri(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+        {
+            return HyperlinkUriValidation.None;
+        }
+
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsed))
+        {
+            return new HyperlinkUriValidation(null, false, "malformed-or-relative-uri");
+        }
+
+        string scheme = parsed.Scheme;
+        bool valid = scheme is "http" or "https" or "mailto";
+        return new HyperlinkUriValidation(
+            scheme,
+            valid,
+            valid ? null : "unsupported-uri-scheme");
     }
 
     private static string? FindTargetId(XElement element, IReadOnlyDictionary<XElement, string> targets)
@@ -1010,6 +1046,11 @@ internal static class DocxDocumentScanner
     }
 
     private sealed record StyleNumbering(string NumberingId, int Level, string Source);
+
+    private sealed record HyperlinkUriValidation(string? Scheme, bool? IsValid, string? Reason)
+    {
+        public static HyperlinkUriValidation None { get; } = new(null, null, null);
+    }
 
     private sealed class ComplexFieldBuilder(XElement startElement, string? targetId)
     {
