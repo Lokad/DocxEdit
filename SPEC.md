@@ -973,6 +973,7 @@ public sealed record DocxContentControlInfo
     public string? DateFormat { get; init; }
     public string? DateLanguage { get; init; }
     public string? DateCalendar { get; init; }
+    public string? DateValue { get; init; }
     public int TextLength { get; init; }
 }
 
@@ -1646,6 +1647,16 @@ value south
 end
 ```
 
+Update a date content control:
+
+```text
+op set-content-control-date
+target M.CC0004
+value 2026-07-01T00:00:00Z
+display-text 2026-07-01
+end
+```
+
 Replace a simple bookmark range while preserving markers:
 
 ```text
@@ -1667,6 +1678,9 @@ Rules:
   (`w:sdtPr/w:dropDownList` or `w:comboBox`), requires exactly one of `value` or
   `display-text`, verifies a matching `w:listItem`, and updates the displayed content
   while preserving the `w:sdt` wrapper and properties.
+* `set-content-control-date` supports date controls (`w:sdtPr/w:date`), updates
+  `w:fullDate` to `value`, and updates the displayed content to `display-text` when
+  provided or `value` otherwise while preserving the `w:sdt` wrapper and properties.
 * Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
   or `F001.B0001`.
 * `replace-bookmark-text` supports complete bookmark ranges whose start/end markers are
@@ -2075,6 +2089,7 @@ Known preserve-only operations:
 set-content-control-text
 set-content-control-checkbox
 set-content-control-choice
+set-content-control-date
 replace-bookmark-text
 set-comment-text
 resolve-comment

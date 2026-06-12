@@ -1180,6 +1180,7 @@ public static class ReadApiTests
                             <w:dateFormat w:val="yyyy-MM-dd"/>
                             <w:lid w:val="en-US"/>
                             <w:calendar w:val="gregorian"/>
+                            <w:fullDate w:val="2026-06-12T00:00:00Z"/>
                           </w:date>
                         </w:sdtPr>
                         <w:sdtContent><w:r><w:t>2026-06-12</w:t></w:r></w:sdtContent>
@@ -1202,10 +1203,12 @@ public static class ReadApiTests
         Assert.Equal("yyyy-MM-dd", date.DateFormat);
         Assert.Equal("en-US", date.DateLanguage);
         Assert.Equal("gregorian", date.DateCalendar);
+        Assert.Equal("2026-06-12T00:00:00Z", date.DateValue);
         Assert.Contains("kind=checkbox", result.Text, StringComparison.Ordinal);
         Assert.Contains("checked=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("list-items=2", result.Text, StringComparison.Ordinal);
         Assert.Contains("date-format=\"yyyy-MM-dd\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("date-value=\"2026-06-12T00:00:00Z\"", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

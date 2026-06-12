@@ -13,6 +13,7 @@ internal static class DocxPatchParser
         ["set-content-control-text"] = new(["target", "text"], [], []),
         ["set-content-control-checkbox"] = new(["target", "checked"], [], []),
         ["set-content-control-choice"] = new(["target", "value", "display-text"], [], []),
+        ["set-content-control-date"] = new(["target", "value", "display-text"], [], []),
         ["replace-bookmark-text"] = new(["target", "text"], [], []),
         ["set-comment-text"] = new(["target", "text"], [], []),
         ["resolve-comment"] = new(["target"], [], []),

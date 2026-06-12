@@ -328,6 +328,7 @@ public sealed record DocxContentControlInfo
     public string? DateFormat { get; init; }
     public string? DateLanguage { get; init; }
     public string? DateCalendar { get; init; }
+    public string? DateValue { get; init; }
     public int TextLength { get; init; }
 }
 

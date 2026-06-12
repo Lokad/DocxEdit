@@ -539,6 +539,7 @@ internal static class DocxDocumentScanner
                 DateFormat = ReadNestedSdtProperty(properties, "date", "dateFormat"),
                 DateLanguage = ReadNestedSdtProperty(properties, "date", "lid"),
                 DateCalendar = ReadNestedSdtProperty(properties, "date", "calendar"),
+                DateValue = ReadNestedSdtProperty(properties, "date", "fullDate"),
                 TextLength = ReadText(content, textView).Length
             });
         }

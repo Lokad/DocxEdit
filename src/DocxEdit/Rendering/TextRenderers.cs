@@ -61,6 +61,7 @@ internal static class TextRenderers
             string dateFormat = control.DateFormat is null ? string.Empty : $" date-format=\"{Escape(control.DateFormat)}\"";
             string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={Escape(control.DateLanguage)}";
             string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={Escape(control.DateCalendar)}";
+            string dateValue = control.DateValue is null ? string.Empty : $" date-value=\"{Escape(control.DateValue)}\"";
             builder.Append(control.Id)
                 .Append(" content-control kind=")
                 .Append(Escape(control.Kind))
@@ -80,6 +81,7 @@ internal static class TextRenderers
                 .Append(dateFormat)
                 .Append(dateLanguage)
                 .Append(dateCalendar)
+                .Append(dateValue)
                 .Append(" text-length=")
                 .Append(control.TextLength)
                 .AppendLine();

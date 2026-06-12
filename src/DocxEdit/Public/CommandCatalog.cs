@@ -339,7 +339,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata, including checkbox state, dropdown/combo item counts, and date settings. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, dropdown/combo selections, and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
+                            "Read and context output surface bookmark names/ranges and content-control metadata, including checkbox state, dropdown/combo item counts, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, dropdown/combo selections, date values, and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
                         ]),
                         new("Fields",
                         [
@@ -678,6 +678,7 @@ public static class DocxHelp
                 PreserveOnly("set-content-control-text", ["target", "text"]),
                 PreserveOnly("set-content-control-checkbox", ["target", "checked"]),
                 PreserveOnly("set-content-control-choice", ["target plus value or display-text"]),
+                PreserveOnly("set-content-control-date", ["target", "value"], ["display-text"]),
                 PreserveOnly("replace-bookmark-text", ["target", "text"]),
                 PreserveOnly("set-comment-text", ["target", "text"]),
                 PreserveOnly("resolve-comment", ["target"]),

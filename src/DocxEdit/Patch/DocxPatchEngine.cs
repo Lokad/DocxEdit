@@ -98,6 +98,7 @@ internal static class DocxPatchEngine
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
                     "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
                     "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
+                    "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
@@ -889,6 +890,57 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetContentControlDate(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? value = ReadRequiredField(operation, "value", diagnostics);
+        string? displayText = operation.Fields.GetValueOrDefault("display-text");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
+        }
+
+        if (controlTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        XElement? date = controlTarget.ContentControl
+            .Element(OoxmlNs.W + "sdtPr")
+            ?.Element(OoxmlNs.W + "date");
+        if (date is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a date content control.", operation, target)];
+        }
+
+        XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
+        if (content is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetContentControlDateValue(date, value!);
+        ReplaceContentControlText(content, displayText ?? value!);
+        SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceBookmarkText(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -1500,6 +1552,18 @@ internal static class DocxPatchEngine
         }
 
         return null;
+    }
+
+    private static void SetContentControlDateValue(XElement date, string value)
+    {
+        XElement? fullDate = date.Element(OoxmlNs.W + "fullDate");
+        if (fullDate is null)
+        {
+            fullDate = new XElement(OoxmlNs.W + "fullDate");
+            date.Add(fullDate);
+        }
+
+        fullDate.SetAttributeValue(OoxmlNs.W + "val", value);
     }
 
     private static void ReplaceContentControlText(XElement content, string text)

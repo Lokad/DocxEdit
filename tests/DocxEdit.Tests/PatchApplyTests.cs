@@ -1384,6 +1384,45 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetContentControlDateUpdatesValueAndDisplay()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:date>
+                            <w:dateFormat w:val="yyyy-MM-dd"/>
+                            <w:fullDate w:val="2026-06-12T00:00:00Z"/>
+                          </w:date>
+                          <w:tag w:val="deadline"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>2026-06-12</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-date
+            target M.CC0001
+            value 2026-07-01T00:00:00Z
+            display-text 2026-07-01
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxContentControlInfo control = Assert.Single(read.ContentControls);
+        Assert.Equal("date", control.Kind);
+        Assert.Equal("2026-07-01T00:00:00Z", control.DateValue);
+        Assert.Equal("2026-07-01", Assert.Single(read.Paragraphs).Text);
+    }
+
+    [Fact]
     public static void ApplyReplaceBookmarkTextPreservesMarkers()
     {
         using MemoryStream input = CreateDocxWithBody("""

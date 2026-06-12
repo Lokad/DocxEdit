@@ -52,6 +52,7 @@ including nearby paragraph text.
 - `set-content-control-text`: `target`, `text`
 - `set-content-control-checkbox`: `target`, `checked`
 - `set-content-control-choice`: `target`, exactly one of `value` or `display-text`
+- `set-content-control-date`: `target`, `value`, optional `display-text`
 - `replace-bookmark-text`: `target`, `text`
 - `set-comment-text`: `target`, `text`
 - `resolve-comment`: `target`
@@ -88,9 +89,11 @@ Use `set-content-control-checkbox` with checkbox controls and `checked true|fals
 it updates `w:checked` and the displayed state symbol. The wrapper and `w:sdtPr`
 metadata are preserved. Use `set-content-control-choice` with dropdown or combo box
 controls and exactly one of `value` or `display-text`; it verifies the list item and
-updates the displayed content. Use `replace-bookmark-text` with simple same-paragraph
-bookmark IDs such as `M.B0001`; the bookmark start/end markers are preserved and
-unsupported ranges fail instead of flattening surrounding XML.
+updates the displayed content. Use `set-content-control-date` with date controls; it
+updates `w:fullDate` to `value` and uses `display-text` for the visible content when
+provided. Use `replace-bookmark-text` with simple same-paragraph bookmark IDs such as
+`M.B0001`; the bookmark start/end markers are preserved and unsupported ranges fail
+instead of flattening surrounding XML.
 
 Comment operations target either `comment:<id>` from `changes` output or a comment
 body target such as `C001.C0001`. `set-comment-text` replaces the comment body with a
