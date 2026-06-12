@@ -1020,6 +1020,9 @@ public sealed record DocxChangeInfo
     public string? CommentAuthor { get; init; }
     public DateTimeOffset? CommentTimestampUtc { get; init; }
     public string? CommentInitials { get; init; }
+    public string? CommentParaId { get; init; }
+    public string? CommentParentParaId { get; init; }
+    public bool? CommentResolved { get; init; }
     public string? CommentAnchorTargetId { get; init; }
     public string? CommentReferenceTargetId { get; init; }
     public string? CommentAnchorStory { get; init; }
@@ -1036,8 +1039,11 @@ public sealed record DocxChangeInfo
 }
 ```
 
-`DocxCommentThreadSummary` exposes the same opt-in text snippet fields at the thread
-level:
+`CommentParaId`, `CommentParentParaId`, and `CommentResolved` are populated from
+Word's modern `commentsExtended.xml` metadata when it is present. They are safe
+metadata fields and do not expose comment body text. `DocxCommentThreadSummary`
+exposes the same resolution fields and the same opt-in text snippet fields at the
+thread level:
 
 ```csharp
 public sealed record DocxCommentThreadSummary
@@ -1050,6 +1056,9 @@ public sealed record DocxCommentThreadSummary
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
     public string? Initials { get; init; }
+    public string? ParaId { get; init; }
+    public string? ParentParaId { get; init; }
+    public bool? Resolved { get; init; }
     public int? TextLength { get; init; }
     public string? TextSnippet { get; init; }
     public bool TextTruncated { get; init; }
@@ -1584,6 +1593,14 @@ target comment:3
 text Updated review note
 end
 
+op resolve-comment
+target comment:3
+end
+
+op reopen-comment
+target C001.C0001
+end
+
 op delete-comment
 target C001.C0001
 end
@@ -1595,10 +1612,14 @@ Rules:
   as `C001.C0001`.
 * `set-comment-text` replaces the body with one paragraph and preserves comment
   metadata such as author, initials, timestamp, and OOXML comment ID.
+* `resolve-comment` and `reopen-comment` toggle the matching `commentsExtended.xml`
+  `w15:done` flag when the comment has a `w15:paraId` and matching modern extension
+  record. Unsupported shapes fail with `E4312`.
 * `delete-comment` removes the comment body and matching `commentRangeStart`,
-  `commentRangeEnd`, and `commentReference` markers from document stories.
-* Comment creation, resolution state, and full threaded comment workflows are out of
-  scope for v0.1.
+  `commentRangeEnd`, and `commentReference` markers from document stories, plus
+  matching `commentsExtended.xml` records when present.
+* Comment creation, resolution metadata creation for legacy comments, and full
+  threaded comment workflows are out of scope for v0.1.
 
 ### 11.6c Hyperlink operations
 
@@ -1921,6 +1942,8 @@ Unsupported tracked-change operations:
 set-content-control-text
 replace-bookmark-text
 set-comment-text
+resolve-comment
+reopen-comment
 delete-comment
 set-hyperlink-target
 set-hyperlink-text

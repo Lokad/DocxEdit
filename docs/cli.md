@@ -33,7 +33,9 @@ records. With `--include-comment-text`, comment summaries and comment body recor
 add `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
 Patch operations can target `comment:<id>` or comment body IDs such as
 `C001.C0001`: `set-comment-text` replaces a comment body under explicit patch
-control, and `delete-comment` removes the comment body plus matching
+control, `resolve-comment` and `reopen-comment` toggle modern `commentsExtended`
+resolution metadata when the comment already has a `w15:paraId` and matching
+extension record, and `delete-comment` removes the comment body plus matching
 range/reference markers.
 
 Some records legitimately have `target=unknown`: for example package-level range
@@ -49,6 +51,9 @@ start record. Comment records are linked by `comment-id`; when possible, comment
 body records also include `comment-anchor-target`, `comment-reference-target`,
 `comment-anchor-story`, and `comment-anchor-part` so an agent can navigate from the
 comment-story record back to the main document anchor without printing comment text.
+Modern Word comment resolution metadata appears as `comment-para-id`,
+`comment-parent-para-id`, and `comment-resolved` on records, and as `para-id`,
+`parent-para-id`, and `resolved` on `comment-summary` lines.
 `TimestampUtc` and `CommentTimestampUtc` serialize as nullable UTC ISO-8601 values.
 Raw JSON uses UTC values such as `+00:00`; JSON consumers that parse dates may display
 those values in a local timezone, so inspect the raw serialized value when the offset

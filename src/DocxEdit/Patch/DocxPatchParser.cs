@@ -13,6 +13,8 @@ internal static class DocxPatchParser
         ["set-content-control-text"] = new(["target", "text"], [], []),
         ["replace-bookmark-text"] = new(["target", "text"], [], []),
         ["set-comment-text"] = new(["target", "text"], [], []),
+        ["resolve-comment"] = new(["target"], [], []),
+        ["reopen-comment"] = new(["target"], [], []),
         ["delete-comment"] = new(["target"], [], []),
         ["set-hyperlink-target"] = new(["target", "uri", "anchor", "tooltip"], [], []),
         ["set-hyperlink-text"] = new(["target", "text"], [], []),

@@ -9,6 +9,7 @@ internal static class OoxmlNs
     public static readonly XNamespace Rel = "http://schemas.openxmlformats.org/package/2006/relationships";
     public static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     public static readonly XNamespace Wp = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+    public static readonly XNamespace W15 = "http://schemas.microsoft.com/office/word/2012/wordml";
     public static readonly XNamespace Pic = "http://schemas.openxmlformats.org/drawingml/2006/picture";
     public static readonly XNamespace Ct = "http://schemas.openxmlformats.org/package/2006/content-types";
     public static readonly XNamespace Xml = "http://www.w3.org/XML/1998/namespace";
@@ -24,6 +25,7 @@ internal static class OoxmlRelTypes
     public const string Numbering = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering";
     public const string Settings = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
     public const string Comments = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
+    public const string CommentsExtended = "http://schemas.microsoft.com/office/2011/relationships/commentsExtended";
     public const string Hyperlink = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 }
 

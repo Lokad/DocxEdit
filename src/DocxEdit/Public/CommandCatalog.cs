@@ -523,7 +523,7 @@ public static class DocxHelp
                         ]),
                         new("Text output",
                         [
-                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
+                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. Modern Word comment resolution metadata appears as para-id, parent-para-id, resolved, comment-para-id, comment-parent-para-id, and comment-resolved when commentsExtended data is present. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
                         ]),
                         new("Timestamp notes",
                         [
@@ -659,6 +659,8 @@ public static class DocxHelp
                 new() { Name = "set-content-control-text", RequiredFields = ["target", "text"] },
                 new() { Name = "replace-bookmark-text", RequiredFields = ["target", "text"] },
                 new() { Name = "set-comment-text", RequiredFields = ["target", "text"] },
+                new() { Name = "resolve-comment", RequiredFields = ["target"] },
+                new() { Name = "reopen-comment", RequiredFields = ["target"] },
                 new() { Name = "delete-comment", RequiredFields = ["target"] },
                 new() { Name = "set-hyperlink-target", RequiredFields = ["target plus uri or anchor"], OptionalFields = ["tooltip"] },
                 new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },

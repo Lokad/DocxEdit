@@ -925,6 +925,51 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ChangesExposeCommentResolutionMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00ABCDEF" w15:paraIdParent="00112233" w15:done="1"/>
+                </w15:commentsEx>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal("00ABCDEF", comment.CommentParaId);
+        Assert.Equal("00112233", comment.CommentParentParaId);
+        Assert.True(comment.CommentResolved);
+        Assert.Null(comment.CommentTextSnippet);
+        DocxCommentThreadSummary summary = Assert.Single(result.CommentSummary);
+        Assert.Equal("00ABCDEF", summary.ParaId);
+        Assert.Equal("00112233", summary.ParentParaId);
+        Assert.True(summary.Resolved);
+        string rendered = DocxTextRenderer.RenderChanges(result);
+        Assert.Contains("resolved=true", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-resolved=true", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ChangesClassifiesTargetlessRecords()
     {
         using MemoryStream stream = CreateDocxWithBody("""
@@ -1896,29 +1941,51 @@ public static class ReadApiTests
         Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1004" && diagnostic.Feature == "comment");
     }
 
-    private static MemoryStream CreateDocxWithBodyAndComments(string bodyXml, string commentsXml)
+    private static MemoryStream CreateDocxWithBodyAndComments(
+        string bodyXml,
+        string commentsXml,
+        string? commentsExtendedXml = null)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            AddEntry(archive, "[Content_Types].xml", """
+            string contentTypesXml = commentsExtendedXml is null
+                ? """
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                   <Default Extension="xml" ContentType="application/xml"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
                   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
                 </Types>
-                """);
+                """
+                : """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+                  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExtended+xml"/>
+                </Types>
+                """;
+            AddEntry(archive, "[Content_Types].xml", contentTypesXml);
             AddEntry(archive, "_rels/.rels", """
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
                 </Relationships>
                 """);
-            AddEntry(archive, "word/_rels/document.xml.rels", """
+            string relationshipsXml = commentsExtendedXml is null
+                ? """
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
                 </Relationships>
-                """);
+                """
+                : """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+                  <Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
+                </Relationships>
+                """;
+            AddEntry(archive, "word/_rels/document.xml.rels", relationshipsXml);
             AddEntry(archive, "word/document.xml", """
                 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
                   <w:body>
@@ -1929,6 +1996,10 @@ public static class ReadApiTests
                 </w:document>
                 """);
             AddEntry(archive, "word/comments.xml", commentsXml);
+            if (commentsExtendedXml is not null)
+            {
+                AddEntry(archive, "word/commentsExtended.xml", commentsExtendedXml);
+            }
         }
 
         stream.Position = 0;

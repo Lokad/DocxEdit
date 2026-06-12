@@ -81,6 +81,9 @@ internal static class DocxChangeScanner
                     CommentAuthor = comment?.Author,
                     CommentTimestampUtc = comment?.TimestampUtc,
                     CommentInitials = comment?.Initials,
+                    CommentParaId = comment?.ParaId,
+                    CommentParentParaId = comment?.ParentParaId,
+                    CommentResolved = comment?.Resolved,
                     CommentAnchorTargetId = commentAnchor?.AnchorTargetId,
                     CommentReferenceTargetId = commentAnchor?.ReferenceTargetId,
                     CommentAnchorStory = commentAnchor?.Story,
@@ -144,6 +147,9 @@ internal static class DocxChangeScanner
                     Author = metadata?.CommentAuthor,
                     TimestampUtc = metadata?.CommentTimestampUtc,
                     Initials = metadata?.CommentInitials,
+                    ParaId = metadata?.CommentParaId,
+                    ParentParaId = metadata?.CommentParentParaId,
+                    Resolved = metadata?.CommentResolved,
                     TextLength = text?.CommentTextLength,
                     TextSnippet = text?.CommentTextSnippet,
                     TextTruncated = text?.CommentTextTruncated == true,
@@ -657,6 +663,7 @@ internal static class DocxChangeScanner
         }
 
         var comments = new Dictionary<string, CommentMetadata>(StringComparer.Ordinal);
+        IReadOnlyDictionary<string, CommentExtensionMetadata> commentExtensions = BuildCommentExtensionMap(package, cancellationToken);
         foreach (OoxmlRelationship relationship in package
             .GetRelationships(package.MainDocumentPartName, cancellationToken)
             .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
@@ -679,11 +686,16 @@ internal static class DocxChangeScanner
                     continue;
                 }
 
+                string? paraId = ReadCommentParaId(comment);
+                commentExtensions.TryGetValue(paraId ?? string.Empty, out CommentExtensionMetadata? extension);
                 string? text = includeCommentText ? ReadCommentText(comment) : null;
                 comments[id] = new CommentMetadata(
                     (string?)comment.Attribute(OoxmlNs.W + "author"),
                     ParseDate((string?)comment.Attribute(OoxmlNs.W + "date")),
                     (string?)comment.Attribute(OoxmlNs.W + "initials"),
+                    paraId,
+                    extension?.ParentParaId,
+                    extension?.Resolved,
                     text?.Length,
                     text is null ? null : Truncate(text, maxCommentText),
                     text is not null && maxCommentText >= 0 && text.Length > maxCommentText);
@@ -691,6 +703,47 @@ internal static class DocxChangeScanner
         }
 
         return comments;
+    }
+
+    private static IReadOnlyDictionary<string, CommentExtensionMetadata> BuildCommentExtensionMap(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return new Dictionary<string, CommentExtensionMetadata>(StringComparer.Ordinal);
+        }
+
+        var extensions = new Dictionary<string, CommentExtensionMetadata>(StringComparer.Ordinal);
+        foreach (OoxmlRelationship relationship in package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsExtended && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget!);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XElement commentExtension in document.Descendants(OoxmlNs.W15 + "commentEx"))
+            {
+                string? paraId = (string?)commentExtension.Attribute(OoxmlNs.W15 + "paraId");
+                if (string.IsNullOrWhiteSpace(paraId))
+                {
+                    continue;
+                }
+
+                extensions[paraId] = new CommentExtensionMetadata(
+                    (string?)commentExtension.Attribute(OoxmlNs.W15 + "paraIdParent"),
+                    ParseBoolean((string?)commentExtension.Attribute(OoxmlNs.W15 + "done")));
+            }
+        }
+
+        return extensions;
     }
 
     private static IReadOnlyDictionary<string, CommentAnchorMetadata> BuildCommentAnchorMap(
@@ -794,6 +847,28 @@ internal static class DocxChangeScanner
             : null;
     }
 
+    private static string? ReadCommentParaId(XElement comment)
+    {
+        return (string?)comment
+            .Elements(OoxmlNs.W + "p")
+            .FirstOrDefault()
+            ?.Attribute(OoxmlNs.W15 + "paraId");
+    }
+
+    private static bool? ParseBoolean(string? value)
+    {
+        return value?.Trim() switch
+        {
+            "1" => true,
+            "true" => true,
+            "0" => false,
+            "false" => false,
+            null => null,
+            "" => null,
+            _ => null
+        };
+    }
+
     private static bool IsCommentElement(XElement element)
     {
         return element.Name.Namespace == OoxmlNs.W &&
@@ -890,9 +965,16 @@ internal sealed record CommentMetadata(
     string? Author,
     DateTimeOffset? TimestampUtc,
     string? Initials,
+    string? ParaId,
+    string? ParentParaId,
+    bool? Resolved,
     int? TextLength,
     string? TextSnippet,
     bool TextTruncated);
+
+internal sealed record CommentExtensionMetadata(
+    string? ParentParaId,
+    bool? Resolved);
 
 internal sealed record CommentAnchorMetadata(
     string? AnchorTargetId,

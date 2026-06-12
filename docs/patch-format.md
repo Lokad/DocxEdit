@@ -52,6 +52,8 @@ including nearby paragraph text.
 - `set-content-control-text`: `target`, `text`
 - `replace-bookmark-text`: `target`, `text`
 - `set-comment-text`: `target`, `text`
+- `resolve-comment`: `target`
+- `reopen-comment`: `target`
 - `delete-comment`: `target`
 - `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`
 - `set-hyperlink-text`: `target`, `text`
@@ -83,8 +85,12 @@ are preserved and unsupported ranges fail instead of flattening surrounding XML.
 
 Comment operations target either `comment:<id>` from `changes` output or a comment
 body target such as `C001.C0001`. `set-comment-text` replaces the comment body with a
-single paragraph while preserving comment metadata. `delete-comment` removes the
-comment body and the matching range/reference markers from document stories.
+single paragraph while preserving comment metadata. `resolve-comment` and
+`reopen-comment` toggle the matching `commentsExtended.xml` `w15:done` flag when the
+comment already has a `w15:paraId` and extension record; unsupported shapes fail with
+`E4312` instead of inventing modern comment metadata. `delete-comment` removes the
+comment body, matching range/reference markers from document stories, and matching
+`commentsExtended.xml` records when present.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
 `M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and

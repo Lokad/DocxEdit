@@ -145,6 +145,9 @@ public sealed record DocxChangeInfo
     public string? CommentAuthor { get; init; }
     public DateTimeOffset? CommentTimestampUtc { get; init; }
     public string? CommentInitials { get; init; }
+    public string? CommentParaId { get; init; }
+    public string? CommentParentParaId { get; init; }
+    public bool? CommentResolved { get; init; }
     public string? CommentAnchorTargetId { get; init; }
     public string? CommentReferenceTargetId { get; init; }
     public string? CommentAnchorStory { get; init; }
@@ -181,6 +184,9 @@ public sealed record DocxCommentThreadSummary
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
     public string? Initials { get; init; }
+    public string? ParaId { get; init; }
+    public string? ParentParaId { get; init; }
+    public bool? Resolved { get; init; }
     public int? TextLength { get; init; }
     public string? TextSnippet { get; init; }
     public bool TextTruncated { get; init; }

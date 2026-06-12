@@ -145,6 +145,8 @@ Implemented areas include:
   `comment:<id>` or comment body IDs;
 - comment anchor/context metadata and metadata-only comment body `dump`/`context`
   targets;
+- comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
+  `reopen-comment` for comments that already have modern extension records;
 - bookmark and content-control read/context metadata with selector guidance;
 - safe bookmark/content-control patch operations for plain-text content controls and
   simple same-paragraph bookmark ranges;
@@ -163,8 +165,8 @@ Implemented areas include:
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic
-decimal, letter, roman, bullet, and nested `lvlText` labels, comment
-creation/resolution workflows and full threaded comment models, advanced
+decimal, letter, roman, bullet, and nested `lvlText` labels, comment creation,
+resolution creation when modern extension metadata is absent, and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text controls and simple same-paragraph
 bookmark ranges, field result recalculation and field-specific edit workflows,
 advanced hyperlink validation beyond absolute external URIs and simple internal

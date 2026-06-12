@@ -98,6 +98,8 @@ internal static class DocxPatchEngine
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
+                    "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
+                    "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
                     "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
@@ -859,6 +861,52 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetCommentResolved(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool resolved,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        CommentTarget? commentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        if (diagnostic is not null)
+        {
+            return [diagnostic];
+        }
+
+        if (commentTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
+        }
+
+        CommentExtensionTarget? extensionTarget = ResolveCommentExtensionTarget(package, commentTarget.Comment, operation, target!, cancellationToken, out diagnostic);
+        if (diagnostic is not null)
+        {
+            return [diagnostic];
+        }
+
+        if (extensionTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no commentsExtended resolution metadata.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        extensionTarget.CommentExtension.SetAttributeValue(OoxmlNs.W15 + "done", resolved ? "1" : "0");
+        SaveDocumentPart(package, extensionTarget.PartName, extensionTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteComment(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -889,6 +937,7 @@ internal static class DocxPatchEngine
         }
 
         string commentId = (string?)commentTarget.Comment.Attribute(OoxmlNs.W + "id") ?? string.Empty;
+        RemoveCommentExtensionRecords(package, commentTarget.Comment, cancellationToken);
         commentTarget.Comment.Remove();
         SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
         RemoveCommentAnchors(package, commentId, cancellationToken);
@@ -1323,10 +1372,100 @@ internal static class DocxPatchEngine
             .ToArray();
     }
 
+    private static IReadOnlyList<string> GetCommentsExtendedPartNames(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return [];
+        }
+
+        return package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsExtended && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .Select(relationship => relationship.ResolvedTarget!)
+            .ToArray();
+    }
+
+    private static CommentExtensionTarget? ResolveCommentExtensionTarget(
+        OoxmlPackage package,
+        XElement comment,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out DocxDiagnostic? diagnostic)
+    {
+        diagnostic = null;
+        string? paraId = ReadCommentParaId(comment);
+        if (string.IsNullOrWhiteSpace(paraId))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no w15:paraId, so resolution state cannot be edited safely.", operation, target);
+            return null;
+        }
+
+        IReadOnlyList<string> partNames = GetCommentsExtendedPartNames(package, cancellationToken);
+        if (partNames.Count == 0)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no commentsExtended part, so resolution state cannot be edited safely.", operation, target);
+            return null;
+        }
+
+        foreach (string partName in partNames)
+        {
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement? commentExtension = document
+                .Descendants(OoxmlNs.W15 + "commentEx")
+                .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W15 + "paraId"), paraId, StringComparison.Ordinal));
+            if (commentExtension is not null)
+            {
+                return new CommentExtensionTarget(partName, document, commentExtension);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadCommentParaId(XElement comment)
+    {
+        return (string?)comment
+            .Elements(OoxmlNs.W + "p")
+            .FirstOrDefault()
+            ?.Attribute(OoxmlNs.W15 + "paraId");
+    }
+
     private static void ReplaceCommentText(XElement comment, string text)
     {
         comment.RemoveNodes();
         comment.Add(CreateSimpleParagraph(text));
+    }
+
+    private static void RemoveCommentExtensionRecords(OoxmlPackage package, XElement comment, CancellationToken cancellationToken)
+    {
+        string? paraId = ReadCommentParaId(comment);
+        if (string.IsNullOrWhiteSpace(paraId))
+        {
+            return;
+        }
+
+        foreach (string partName in GetCommentsExtendedPartNames(package, cancellationToken))
+        {
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement[] extensionRecords = document
+                .Descendants(OoxmlNs.W15 + "commentEx")
+                .Where(element => string.Equals((string?)element.Attribute(OoxmlNs.W15 + "paraId"), paraId, StringComparison.Ordinal))
+                .ToArray();
+            if (extensionRecords.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (XElement extensionRecord in extensionRecords)
+            {
+                extensionRecord.Remove();
+            }
+
+            SaveDocumentPart(package, partName, document);
+        }
     }
 
     private static void RemoveCommentAnchors(OoxmlPackage package, string commentId, CancellationToken cancellationToken)
@@ -4889,6 +5028,8 @@ internal sealed record ContentControlTarget(string PartName, XDocument Document,
 internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
 
 internal sealed record CommentTarget(string PartName, XDocument Document, XElement Comment);
+
+internal sealed record CommentExtensionTarget(string PartName, XDocument Document, XElement CommentExtension);
 
 internal sealed record HyperlinkTarget(string PartName, XDocument Document, XElement Hyperlink);
 
