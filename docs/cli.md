@@ -34,10 +34,9 @@ add `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
 Patch operations can create comments on modeled paragraph IDs with `add-comment`.
 Existing comment operations can target `comment:<id>` or comment body IDs such as
 `C001.C0001`: `set-comment-text` replaces a comment body under explicit patch
-control, `resolve-comment` and `reopen-comment` toggle modern `commentsExtended`
-resolution metadata when the comment already has a `w15:paraId` and matching
-extension record, and `delete-comment` removes the comment body plus matching
-range/reference markers.
+control, `resolve-comment` and `reopen-comment` create or update modern
+`commentsExtended` resolution metadata for basic comments, and `delete-comment`
+removes the comment body plus matching range/reference markers.
 
 Some records legitimately have `target=unknown`: for example package-level range
 markers or markup not inside or adjacent to a modeled paragraph, table, cell, or

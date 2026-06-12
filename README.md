@@ -149,7 +149,8 @@ Implemented areas include:
 - comment anchor/context metadata and metadata-only comment body `dump`/`context`
   targets;
 - comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
-  `reopen-comment` for comments that already have modern extension records;
+  `reopen-comment` workflows that create or update modern extension records for
+  basic comments;
 - bookmark and content-control read/context metadata with selector guidance, including
   duplicate selector candidate IDs, checkbox state, dropdown/combo item counts, and
   date settings;
@@ -181,7 +182,7 @@ Implemented areas include:
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic
 decimal, letter, roman, bullet, and nested `lvlText` labels, selected-range comment
-creation, resolution creation when modern extension metadata is absent, and full threaded comment models, advanced
+creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text controls, checkbox toggles,
 dropdown/combo selections, date values, bookmark rename/delete, and simple same-paragraph bookmark ranges, field result recalculation and field-specific
 edit workflows beyond dirty/lock flags,

@@ -10,6 +10,7 @@ internal static class DocxPatchEngine
 {
     private const string SettingsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
     private const string CommentsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml";
+    private const string CommentsExtendedContentType = "application/vnd.ms-word.commentsExtended+xml";
 
     private static readonly IReadOnlyDictionary<XName, string> ProtectedTextEditElements = new Dictionary<XName, string>
     {
@@ -1256,7 +1257,25 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
         }
 
-        CommentExtensionTarget? extensionTarget = ResolveCommentExtensionTarget(package, commentTarget.Comment, operation, target!, cancellationToken, out diagnostic);
+        DocxDiagnostic? commentsExtendedDiagnostic = ValidateExistingCommentsExtendedPart(package, cancellationToken);
+        if (commentsExtendedDiagnostic is not null)
+        {
+            return [commentsExtendedDiagnostic];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        CommentExtensionTarget? extensionTarget = ResolveOrCreateCommentExtensionTarget(
+            package,
+            commentTarget,
+            operation,
+            target!,
+            cancellationToken,
+            out diagnostic,
+            out bool commentDocumentChanged);
         if (diagnostic is not null)
         {
             return [diagnostic];
@@ -1267,12 +1286,12 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no commentsExtended resolution metadata.", operation, target)];
         }
 
-        if (!apply)
+        extensionTarget.CommentExtension.SetAttributeValue(OoxmlNs.W15 + "done", resolved ? "1" : "0");
+        if (commentDocumentChanged)
         {
-            return [];
+            SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
         }
 
-        extensionTarget.CommentExtension.SetAttributeValue(OoxmlNs.W15 + "done", resolved ? "1" : "0");
         SaveDocumentPart(package, extensionTarget.PartName, extensionTarget.Document);
         return [];
     }
@@ -1967,12 +1986,19 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        return package
+        var partNames = package
             .GetRelationships(package.MainDocumentPartName, cancellationToken)
             .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsExtended && relationship.ResolvedTarget is not null)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .Select(relationship => relationship.ResolvedTarget!)
-            .ToArray();
+            .ToList();
+        if (package.GetPart("/word/commentsExtended.xml") is not null &&
+            !partNames.Contains("/word/commentsExtended.xml", StringComparer.Ordinal))
+        {
+            partNames.Add("/word/commentsExtended.xml");
+        }
+
+        return partNames;
     }
 
     private static DocxDiagnostic? ValidateExistingCommentsPart(OoxmlPackage package, CancellationToken cancellationToken)
@@ -1983,6 +2009,26 @@ internal static class DocxPatchEngine
             if (root.Name != OoxmlNs.W + "comments")
             {
                 return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Comments part '{partName}' has root '{root.Name.LocalName}', expected 'comments'.", PartName: partName);
+            }
+        }
+
+        return null;
+    }
+
+    private static DocxDiagnostic? ValidateExistingCommentsExtendedPart(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        foreach (string partName in GetCommentsExtendedPartNames(package, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
+            if (root.Name != OoxmlNs.W15 + "commentsEx")
+            {
+                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"commentsExtended part '{partName}' has root '{root.Name.LocalName}', expected 'commentsEx'.", PartName: partName);
             }
         }
 
@@ -2112,6 +2158,160 @@ internal static class DocxPatchEngine
         }
 
         return null;
+    }
+
+    private static CommentExtensionTarget? ResolveOrCreateCommentExtensionTarget(
+        OoxmlPackage package,
+        CommentTarget commentTarget,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out DocxDiagnostic? diagnostic,
+        out bool commentDocumentChanged)
+    {
+        diagnostic = null;
+        commentDocumentChanged = false;
+        string? paraId = ReadCommentParaId(commentTarget.Comment);
+        if (string.IsNullOrWhiteSpace(paraId))
+        {
+            XElement? firstParagraph = commentTarget.Comment.Elements(OoxmlNs.W + "p").FirstOrDefault();
+            if (firstParagraph is null)
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no body paragraph for resolution metadata.", operation, target);
+                return null;
+            }
+
+            paraId = AllocateCommentParaId(package, cancellationToken);
+            EnsureNamespaceDeclaration(commentTarget.Document.Root, "w15", OoxmlNs.W15);
+            firstParagraph.SetAttributeValue(OoxmlNs.W15 + "paraId", paraId);
+            commentDocumentChanged = true;
+        }
+
+        foreach (string partName in GetCommentsExtendedPartNames(package, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement? commentExtension = document
+                .Descendants(OoxmlNs.W15 + "commentEx")
+                .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W15 + "paraId"), paraId, StringComparison.Ordinal));
+            if (commentExtension is not null)
+            {
+                return new CommentExtensionTarget(partName, document, commentExtension);
+            }
+        }
+
+        CommentsExtendedPartTarget extensionPart = ResolveOrCreateCommentsExtendedPart(package, cancellationToken);
+        var extension = new XElement(OoxmlNs.W15 + "commentEx", new XAttribute(OoxmlNs.W15 + "paraId", paraId));
+        extensionPart.Root.Add(extension);
+        return new CommentExtensionTarget(extensionPart.PartName, extensionPart.Document, extension);
+    }
+
+    private static CommentsExtendedPartTarget ResolveOrCreateCommentsExtendedPart(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        string? commentsExtendedPartName = GetCommentsExtendedPartNames(package, cancellationToken).FirstOrDefault();
+        if (commentsExtendedPartName is null)
+        {
+            commentsExtendedPartName = "/word/commentsExtended.xml";
+            if (package.GetPart(commentsExtendedPartName) is null)
+            {
+                byte[] bytes = Encoding.UTF8.GetBytes("""
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" />
+                    """);
+                package.AddPart(commentsExtendedPartName, CommentsExtendedContentType, bytes);
+            }
+
+            string relationshipId = OoxmlIds.AllocateRelationshipId(package
+                .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+                .Select(relationship => relationship.Id));
+            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsExtended, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsExtendedPartName));
+        }
+        else if (package.GetPart(commentsExtendedPartName) is null)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" />
+                """);
+            package.AddPart(commentsExtendedPartName, CommentsExtendedContentType, bytes);
+        }
+
+        XDocument document = LoadDocumentPart(package, commentsExtendedPartName, cancellationToken, out XElement root);
+        if (root.Name != OoxmlNs.W15 + "commentsEx")
+        {
+            throw new InvalidDataException($"commentsExtended part '{commentsExtendedPartName}' has root '{root.Name.LocalName}', expected 'commentsEx'.");
+        }
+
+        EnsureNamespaceDeclaration(root, "w15", OoxmlNs.W15);
+        return new CommentsExtendedPartTarget(commentsExtendedPartName, document, root);
+    }
+
+    private static string AllocateCommentParaId(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (string paraId in document
+                .Descendants(OoxmlNs.W + "p")
+                .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
+                .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+                .Select(paraId => paraId!))
+            {
+                used.Add(paraId);
+            }
+        }
+
+        foreach (string partName in GetCommentsExtendedPartNames(package, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XElement extension in document.Descendants(OoxmlNs.W15 + "commentEx"))
+            {
+                foreach (string paraId in new[] { (string?)extension.Attribute(OoxmlNs.W15 + "paraId"), (string?)extension.Attribute(OoxmlNs.W15 + "paraIdParent") }
+                    .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+                    .Select(paraId => paraId!))
+                {
+                    used.Add(paraId);
+                }
+            }
+        }
+
+        for (uint id = 1; id < uint.MaxValue; id++)
+        {
+            string candidate = id.ToString("X8", System.Globalization.CultureInfo.InvariantCulture);
+            if (!used.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidDataException("Unable to allocate a unique comment paraId.");
+    }
+
+    private static void EnsureNamespaceDeclaration(XElement? root, string prefix, XNamespace ns)
+    {
+        if (root is not null && root.GetNamespaceOfPrefix(prefix) != ns)
+        {
+            root.SetAttributeValue(XNamespace.Xmlns + prefix, ns.NamespaceName);
+        }
     }
 
     private static string? ReadCommentParaId(XElement comment)
@@ -6724,6 +6924,8 @@ internal sealed record ContentControlChoice(string DisplayText);
 internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
 
 internal sealed record CommentsPartTarget(string PartName, XDocument Document, XElement Root);
+
+internal sealed record CommentsExtendedPartTarget(string PartName, XDocument Document, XElement Root);
 
 internal sealed record CommentTarget(string PartName, XDocument Document, XElement Comment);
 

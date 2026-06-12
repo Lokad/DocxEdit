@@ -1770,13 +1770,14 @@ Rules:
 * `set-comment-text` replaces the body with one paragraph and preserves comment
   metadata such as author, initials, timestamp, and OOXML comment ID.
 * `resolve-comment` and `reopen-comment` toggle the matching `commentsExtended.xml`
-  `w15:done` flag when the comment has a `w15:paraId` and matching modern extension
-  record. Unsupported shapes fail with `E4312`.
+  `w15:done` flag. When a basic comment lacks modern metadata, DocxEdit adds a
+  `w15:paraId`, creates `/word/commentsExtended.xml` and the main-document
+  relationship/content-type override when needed, and appends a matching
+  `w15:commentEx` record. Unsupported body shapes fail with `E4312`.
 * `delete-comment` removes the comment body and matching `commentRangeStart`,
   `commentRangeEnd`, and `commentReference` markers from document stories, plus
   matching `commentsExtended.xml` records when present.
-* Selected-range comment creation, resolution metadata creation for legacy comments
-  or newly created basic comments, and full threaded comment workflows are out of
+* Selected-range comment creation and full threaded comment workflows are out of
   scope for v0.1.
 
 ### 11.6c Field flag operations

@@ -1813,6 +1813,95 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyResolveCommentCreatesExtendedMetadataWhenMissing()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op resolve-comment
+            target comment:3
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxCommentThreadSummary summary = Assert.Single(new DocxEditor().Changes(output).CommentSummary);
+        Assert.Equal("3", summary.CommentId);
+        Assert.True(summary.Resolved);
+        Assert.Equal("00000001", summary.ParaId);
+
+        output.Position = 0;
+        string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("w15:paraId=\"00000001\"", commentsXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string commentsExtendedXml = ReadEntry(output, "word/commentsExtended.xml");
+        Assert.Contains("w15:commentEx w15:paraId=\"00000001\" w15:done=\"1\"", commentsExtendedXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        Assert.Contains("relationships/commentsExtended", ReadEntry(output, "word/_rels/document.xml.rels"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("vnd.ms-word.commentsExtended+xml", ReadEntry(output, "[Content_Types].xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReopenCommentCreatesUnresolvedExtendedMetadataWhenMissing()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op reopen-comment
+            target comment:3
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxCommentThreadSummary summary = Assert.Single(new DocxEditor().Changes(output).CommentSummary);
+        Assert.False(summary.Resolved);
+        output.Position = 0;
+        Assert.Contains("w15:done=\"0\"", ReadEntry(output, "word/commentsExtended.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyDeleteCommentRemovesExtendedMetadata()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(

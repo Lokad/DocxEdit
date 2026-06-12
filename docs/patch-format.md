@@ -112,11 +112,10 @@ the whole paragraph with matching range/reference markers. It accepts optional
 operations target either `comment:<id>` from `changes` output or a comment body target
 such as `C001.C0001`. `set-comment-text` replaces the comment body with a single
 paragraph while preserving comment metadata. `resolve-comment` and
-`reopen-comment` toggle the matching `commentsExtended.xml` `w15:done` flag when the
-comment already has a `w15:paraId` and extension record; unsupported shapes fail with
-`E4312` instead of inventing modern comment metadata. `delete-comment` removes the
-comment body, matching range/reference markers from document stories, and matching
-`commentsExtended.xml` records when present.
+`reopen-comment` create or update the matching `commentsExtended.xml` `w15:done`
+flag for basic comments; unsupported body shapes fail with `E4312`. `delete-comment`
+removes the comment body, matching range/reference markers from document stories, and
+matching `commentsExtended.xml` records when present.
 
 Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
 `H001.F0001`, or `F001.F0001`. `set-field-dirty` updates `w:dirty` and

@@ -20,9 +20,8 @@ Common code ranges:
 - `W91xx`: validation warning from `validate`.
 - `W4001`: `TrackChangesMode.Suggest` warning for an operation without tracked-change output; the edit is applied directly.
 - `W4002`: `TrackChangesMode.Suggest` warning for a `replace-text` shape that cannot be represented as simple tracked-change output; the edit is applied directly.
-- `E4312`: comment resolution state cannot be edited because the comment lacks
-  modern `w15:paraId`/`commentsExtended` metadata or no matching extension record
-  exists.
+- `E4312`: comment resolution state cannot be edited because the comment body shape
+  cannot safely host modern resolution metadata.
 
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,
