@@ -280,7 +280,11 @@ internal static class ProgramMain
             foreach (DocxChangeInfo change in result.Changes)
             {
                 string target = change.TargetId is null ? "target=unknown" : $"target={change.TargetId}";
+                string targetSource = $" target-source={change.TargetSource}";
+                string targetReason = change.TargetReason is null ? string.Empty : $" target-reason={change.TargetReason}";
+                string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
                 string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{EscapeText(change.TargetNote)}\"";
+                string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
                 string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
                 string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
                 string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
@@ -292,7 +296,7 @@ internal static class ProgramMain
                 string commentReferenceTarget = change.CommentReferenceTargetId is null ? string.Empty : $" comment-reference-target={change.CommentReferenceTargetId}";
                 string commentAnchorStory = change.CommentAnchorStory is null ? string.Empty : $" comment-anchor-story=\"{EscapeText(change.CommentAnchorStory)}\"";
                 string commentAnchorPart = change.CommentAnchorPartName is null ? string.Empty : $" comment-anchor-part={change.CommentAnchorPartName}";
-                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} target-status={change.TargetStatus}{targetNote} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}{commentId}{commentAuthor}{commentTimestamp}{commentInitials}{commentAnchorTarget}{commentReferenceTarget}{commentAnchorStory}{commentAnchorPart}");
+                Console.WriteLine($"{change.Id} {change.Type} story=\"{EscapeText(change.Story)}\" part={change.PartName} {target} target-status={change.TargetStatus}{targetSource}{targetReason}{nearestTarget}{targetNote}{pairedChange} text-length={change.TextLength} children={change.ChildElementCount}{revision}{author}{timestamp}{commentId}{commentAuthor}{commentTimestamp}{commentInitials}{commentAnchorTarget}{commentReferenceTarget}{commentAnchorStory}{commentAnchorPart}");
             }
         }
 
@@ -563,6 +567,8 @@ internal static class ProgramMain
             With --json, the Runs array exposes the same run metadata as structured fields.
             Change IDs from `changes` identify markup records; run IDs from dump identify
             rendered run/marker lines and are not the same namespace.
+            PowerShell extraction example:
+              docxedit dump report.docx --id M.P0004 --runs --json | ConvertFrom-Json | Select-Object -ExpandProperty Runs
 
             Options:
               --id M.P0001                 Target ID from read, outline, find, or changes
@@ -597,7 +603,11 @@ internal static class ProgramMain
 
             Target notes:
               target-status explains whether a record is targeted, linked by a comment
-              anchor, or targetless. target=unknown means the markup is not inside or adjacent to a modeled
+              anchor, or targetless. target-source distinguishes exact ancestor matches
+              from adjacent-range heuristics. target-reason classifies targetless records,
+              and nearest-target is context only, not exact ownership. paired-change-id
+              links range starts/ends that share a revision or comment ID.
+              target=unknown means the markup is not inside or adjacent to a modeled
               paragraph/table/section target. Comment body records may expose
               comment-anchor-target and comment-reference-target when the main-story
               anchor/reference can be correlated by comment ID.

@@ -29,8 +29,13 @@ records.
 Some records legitimately have `target=unknown`: for example package-level range
 markers or markup not inside or adjacent to a modeled paragraph, table, cell, or
 section target. Each record has `target-status` (`targeted`, `comment-anchor`, or
-`targetless`) and targetless records include a short `target-note`. Comment records
-are linked by `comment-id`; when possible, comment
+`targetless`), `target-source` (`ancestor`, `adjacent-range`, `comment-anchor`, or
+`none`), and optional `target-reason`, `nearest-target`, and `target-note` fields.
+`nearest-target` is context only, not exact ownership. Body-level range boundaries
+that are linked by adjacent-target heuristics use `target-source=adjacent-range`.
+Range start/end records that share a revision or comment ID expose
+`paired-change-id`, which helps recover sparse end-marker metadata from the matching
+start record. Comment records are linked by `comment-id`; when possible, comment
 body records also include `comment-anchor-target`, `comment-reference-target`,
 `comment-anchor-story`, and `comment-anchor-part` so an agent can navigate from the
 comment-story record back to the main document anchor without printing comment text.
@@ -42,6 +47,14 @@ Use `dump --runs` on a target to see run-level `markup=...`, `revision-id`, and
 `dump --runs` also exposes those annotations as structured `Runs` objects.
 Change IDs from `changes` identify markup records. Run IDs from `dump --runs` identify
 rendered run/marker lines and are a separate namespace.
+To extract structured run metadata in PowerShell:
+
+```powershell
+docxedit dump report.docx --id M.P0004 --runs --json |
+  ConvertFrom-Json |
+  Select-Object -ExpandProperty Runs
+```
+
 Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 `read --summary` prints package/story counts without listing every target, which is
 useful for large-document validation.

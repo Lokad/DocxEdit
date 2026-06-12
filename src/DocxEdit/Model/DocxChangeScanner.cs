@@ -61,14 +61,14 @@ internal static class DocxChangeScanner
                 string? commentId = ReadCommentId(element);
                 comments.TryGetValue(commentId ?? string.Empty, out CommentMetadata? comment);
                 commentAnchors.TryGetValue(commentId ?? string.Empty, out CommentAnchorMetadata? commentAnchor);
-                string? targetId = FindTarget(element, targets);
+                TargetMetadata target = FindTarget(element, targets, commentAnchor?.AnchorTargetId);
                 changes.Add(new DocxChangeInfo
                 {
                     Id = $"{prefix}.CH{index++:0000}",
                     Type = ChangeTypes[element.Name.LocalName],
                     Story = story,
                     PartName = part.Name,
-                    TargetId = targetId,
+                    TargetId = target.TargetId,
                     Author = ReadRevisionAuthor(element),
                     TimestampUtc = ReadRevisionTimestamp(element),
                     RevisionId = ReadRevisionId(element),
@@ -82,13 +82,16 @@ internal static class DocxChangeScanner
                     CommentReferenceTargetId = commentAnchor?.ReferenceTargetId,
                     CommentAnchorStory = commentAnchor?.Story,
                     CommentAnchorPartName = commentAnchor?.PartName,
-                    TargetStatus = GetTargetStatus(targetId, commentAnchor?.AnchorTargetId),
-                    TargetNote = GetTargetNote(targetId, commentAnchor?.AnchorTargetId)
+                    TargetStatus = target.Status,
+                    TargetSource = target.Source,
+                    TargetReason = target.Reason,
+                    NearestTargetId = target.NearestTargetId,
+                    TargetNote = target.Note
                 });
             }
         }
 
-        return changes;
+        return PairRangeBoundaries(changes);
     }
 
     public static IReadOnlyList<DocxChangeSummary> Summarize(IReadOnlyList<DocxChangeInfo> changes)
@@ -169,34 +172,80 @@ internal static class DocxChangeScanner
             : change.TargetId ?? change.CommentAnchorTargetId;
     }
 
-    private static string GetTargetStatus(string? targetId, string? commentAnchorTargetId)
+    private static IReadOnlyList<DocxChangeInfo> PairRangeBoundaries(IReadOnlyList<DocxChangeInfo> changes)
     {
-        if (targetId is not null)
+        var starts = new Dictionary<RangeBoundaryKey, Queue<DocxChangeInfo>>();
+        var paired = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (DocxChangeInfo change in changes)
         {
-            return "targeted";
+            RangeBoundaryMetadata? boundary = GetRangeBoundaryMetadata(change);
+            if (boundary is null)
+            {
+                continue;
+            }
+
+            if (boundary.IsStart)
+            {
+                if (!starts.TryGetValue(boundary.Key, out Queue<DocxChangeInfo>? queue))
+                {
+                    queue = new Queue<DocxChangeInfo>();
+                    starts[boundary.Key] = queue;
+                }
+
+                queue.Enqueue(change);
+                continue;
+            }
+
+            if (starts.TryGetValue(boundary.Key, out Queue<DocxChangeInfo>? matchingStarts) &&
+                matchingStarts.Count > 0)
+            {
+                DocxChangeInfo start = matchingStarts.Dequeue();
+                paired[start.Id] = change.Id;
+                paired[change.Id] = start.Id;
+            }
         }
 
-        if (commentAnchorTargetId is not null)
+        if (paired.Count == 0)
         {
-            return "comment-anchor";
+            return changes;
         }
 
-        return "targetless";
+        return changes
+            .Select(change => paired.TryGetValue(change.Id, out string? pairedChangeId)
+                ? change with { PairedChangeId = pairedChangeId }
+                : change)
+            .ToArray();
     }
 
-    private static string? GetTargetNote(string? targetId, string? commentAnchorTargetId)
+    private static RangeBoundaryMetadata? GetRangeBoundaryMetadata(DocxChangeInfo change)
     {
-        if (targetId is not null)
+        string? key = change.Type switch
+        {
+            "comment-range-start" or "comment-range-end" => change.CommentId,
+            "move-from-range-start" or "move-from-range-end" => change.RevisionId,
+            "move-to-range-start" or "move-to-range-end" => change.RevisionId,
+            "custom-xml-insert-range-start" or "custom-xml-insert-range-end" => change.RevisionId,
+            "custom-xml-delete-range-start" or "custom-xml-delete-range-end" => change.RevisionId,
+            _ => null
+        };
+
+        if (string.IsNullOrWhiteSpace(key))
         {
             return null;
         }
 
-        if (commentAnchorTargetId is not null)
+        string pairKind = change.Type switch
         {
-            return "Linked through matching comment anchor metadata.";
-        }
-
-        return "No modeled paragraph, table, cell, section, or comment anchor target was found; the markup may be body-level, package-level, or inside an unsupported structure.";
+            "comment-range-start" or "comment-range-end" => "comment-range",
+            "move-from-range-start" or "move-from-range-end" => "move-from-range",
+            "move-to-range-start" or "move-to-range-end" => "move-to-range",
+            "custom-xml-insert-range-start" or "custom-xml-insert-range-end" => "custom-xml-insert-range",
+            "custom-xml-delete-range-start" or "custom-xml-delete-range-end" => "custom-xml-delete-range",
+            _ => change.Type
+        };
+        bool isStart = change.Type.EndsWith("-start", StringComparison.Ordinal);
+        return new RangeBoundaryMetadata(new RangeBoundaryKey(change.PartName, pairKind, key), isStart);
     }
 
     private static string NormalizeGroupKey(string? key)
@@ -381,13 +430,52 @@ internal static class DocxChangeScanner
         return targets;
     }
 
-    private static string? FindTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    private static TargetMetadata FindTarget(
+        XElement element,
+        IReadOnlyDictionary<XElement, string> targets,
+        string? commentAnchorTargetId)
     {
-        return FindNearestTarget(element, targets) ??
-            FindAdjacentRangeTarget(element, targets);
+        string? ancestorTargetId = FindAncestorTarget(element, targets);
+        if (ancestorTargetId is not null)
+        {
+            return new TargetMetadata(ancestorTargetId, "targeted", "ancestor", null, null, null);
+        }
+
+        string? adjacentRangeTargetId = FindAdjacentRangeTarget(element, targets);
+        if (adjacentRangeTargetId is not null)
+        {
+            return new TargetMetadata(
+                adjacentRangeTargetId,
+                "targeted",
+                "adjacent-range",
+                "range-boundary",
+                null,
+                "Range boundary is outside a modeled block; target is the nearest adjacent modeled block and should be treated as context.");
+        }
+
+        if (commentAnchorTargetId is not null)
+        {
+            return new TargetMetadata(
+                null,
+                "comment-anchor",
+                "comment-anchor",
+                null,
+                null,
+                "Linked through matching comment anchor metadata.");
+        }
+
+        string? nearestTargetId = FindNearestSurroundingTarget(element, targets);
+        string reason = GetTargetlessReason(element);
+        return new TargetMetadata(
+            null,
+            "targetless",
+            "none",
+            reason,
+            nearestTargetId,
+            GetTargetlessNote(reason, nearestTargetId));
     }
 
-    private static string? FindNearestTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    private static string? FindAncestorTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
     {
         foreach (XElement candidate in element.AncestorsAndSelf())
         {
@@ -398,6 +486,81 @@ internal static class DocxChangeScanner
         }
 
         return null;
+    }
+
+    private static string? FindNearestSurroundingTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    {
+        string? bestTargetId = null;
+        int bestDistance = int.MaxValue;
+
+        int distance = 1;
+        foreach (XElement sibling in element.ElementsBeforeSelf().Reverse())
+        {
+            if (TryFindTargetInSubtree(sibling, targets, preferLast: true, out string? targetId) &&
+                distance < bestDistance)
+            {
+                bestTargetId = targetId;
+                bestDistance = distance;
+            }
+
+            distance++;
+        }
+
+        distance = 1;
+        foreach (XElement sibling in element.ElementsAfterSelf())
+        {
+            if (TryFindTargetInSubtree(sibling, targets, preferLast: false, out string? targetId) &&
+                distance < bestDistance)
+            {
+                bestTargetId = targetId;
+                bestDistance = distance;
+            }
+
+            distance++;
+        }
+
+        return bestTargetId;
+    }
+
+    private static string GetTargetlessReason(XElement element)
+    {
+        if (IsRangeBoundaryElement(element))
+        {
+            return "range-boundary-no-adjacent-target";
+        }
+
+        if (element.Parent?.Name == OoxmlNs.W + "body")
+        {
+            return "body-level-markup";
+        }
+
+        if (element.Ancestors(OoxmlNs.W + "comments").Any())
+        {
+            return "comment-story";
+        }
+
+        if (element.Ancestors(OoxmlNs.W + "body").Any())
+        {
+            return "unmodeled-body-structure";
+        }
+
+        return "unmodeled-word-part";
+    }
+
+    private static string GetTargetlessNote(string reason, string? nearestTargetId)
+    {
+        string note = reason switch
+        {
+            "range-boundary-no-adjacent-target" => "Range boundary is outside a modeled block and no adjacent modeled block was found.",
+            "body-level-markup" => "Markup is a direct child of the document body rather than a modeled paragraph, table, cell, or section.",
+            "comment-story" => "Markup is in a comment story without a modeled comment or main-story anchor target.",
+            "unmodeled-body-structure" => "Markup is inside a body structure that DocxEdit does not model as an edit target.",
+            _ => "Markup is in a Word XML part but outside the currently modeled edit-target structures."
+        };
+
+        return nearestTargetId is null
+            ? note
+            : $"{note} nearest-target={nearestTargetId} is context only, not exact ownership.";
     }
 
     private static string? FindAdjacentRangeTarget(XElement element, IReadOnlyDictionary<XElement, string> targets)
@@ -538,7 +701,7 @@ internal static class DocxChangeScanner
                     continue;
                 }
 
-                string? targetId = FindTarget(element, targets);
+                string? targetId = FindTarget(element, targets, commentAnchorTargetId: null).TargetId;
                 if (!anchors.TryGetValue(commentId, out CommentAnchorBuilder? anchor))
                 {
                     anchor = new CommentAnchorBuilder(story, part.Name);
@@ -660,6 +823,18 @@ internal sealed record CommentAnchorMetadata(
     string? ReferenceTargetId,
     string? Story,
     string? PartName);
+
+internal sealed record TargetMetadata(
+    string? TargetId,
+    string Status,
+    string Source,
+    string? Reason,
+    string? NearestTargetId,
+    string? Note);
+
+internal sealed record RangeBoundaryMetadata(RangeBoundaryKey Key, bool IsStart);
+
+internal sealed record RangeBoundaryKey(string PartName, string Kind, string Id);
 
 internal sealed class CommentAnchorBuilder(string? story, string? partName)
 {

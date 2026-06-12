@@ -100,7 +100,11 @@ public sealed record DocxChangeInfo
     public string? CommentAnchorStory { get; init; }
     public string? CommentAnchorPartName { get; init; }
     public string TargetStatus { get; init; } = "targetless";
+    public string TargetSource { get; init; } = "none";
+    public string? TargetReason { get; init; }
+    public string? NearestTargetId { get; init; }
     public string? TargetNote { get; init; }
+    public string? PairedChangeId { get; init; }
 }
 
 public sealed record DocxChangeSummary(string Type, int Count);

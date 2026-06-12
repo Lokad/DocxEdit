@@ -67,6 +67,8 @@ public static class CliTests
         Assert.Contains("TargetSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("CommentSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("comment-anchor-target", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("target-source", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("paired-change-id", changes.Output, StringComparison.Ordinal);
         Assert.Contains("PowerShell ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
         Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);
@@ -218,6 +220,7 @@ public static class CliTests
         Assert.Contains("summary group=target key=\"M.P0001\" type=deleted-run count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("target-summary target=M.P0001 count=2", result.Output, StringComparison.Ordinal);
         Assert.Contains("target-status=targeted", result.Output, StringComparison.Ordinal);
+        Assert.Contains("target-source=ancestor", result.Output, StringComparison.Ordinal);
         Assert.Contains("M.CH0001 inserted-run", result.Output, StringComparison.Ordinal);
         Assert.Contains("text-length=8", result.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("Inserted", result.Output, StringComparison.Ordinal);

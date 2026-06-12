@@ -313,6 +313,7 @@ public static class ReadApiTests
         Assert.Equal("/word/document.xml", insertion.PartName);
         Assert.Equal("M.P0001", insertion.TargetId);
         Assert.Equal("targeted", insertion.TargetStatus);
+        Assert.Equal("ancestor", insertion.TargetSource);
         Assert.Null(insertion.TargetNote);
         Assert.Equal("Alice", insertion.Author);
         Assert.Equal("9", insertion.RevisionId);
@@ -321,6 +322,13 @@ public static class ReadApiTests
 
         DocxChangeInfo cellChange = Assert.Single(result.Changes, change => change.Type == "cell-properties-change");
         Assert.Equal("M.T0001.R01.C01", cellChange.TargetId);
+
+        DocxChangeInfo customRangeStart = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start");
+        DocxChangeInfo customRangeEnd = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end");
+        Assert.Equal("adjacent-range", customRangeStart.TargetSource);
+        Assert.Equal("range-boundary", customRangeStart.TargetReason);
+        Assert.Equal(customRangeEnd.Id, customRangeStart.PairedChangeId);
+        Assert.Equal(customRangeStart.Id, customRangeEnd.PairedChangeId);
 
         string serialized = JsonSerializer.Serialize(result);
         Assert.DoesNotContain("Inserted", serialized, StringComparison.Ordinal);
@@ -358,6 +366,7 @@ public static class ReadApiTests
 
         DocxChangeInfo commentStart = Assert.Single(result.Changes, change => change.Type == "comment-range-start");
         Assert.Equal("M.P0001", commentStart.TargetId);
+        Assert.Equal("ancestor", commentStart.TargetSource);
         Assert.Null(commentStart.RevisionId);
         Assert.Equal("3", commentStart.CommentId);
         Assert.Equal("M.P0001", commentStart.CommentAnchorTargetId);
@@ -377,6 +386,9 @@ public static class ReadApiTests
         Assert.Equal("main", comment.CommentAnchorStory);
         Assert.Equal("/word/document.xml", comment.CommentAnchorPartName);
         Assert.Equal(20, comment.TextLength);
+        DocxChangeInfo commentEnd = Assert.Single(result.Changes, change => change.Type == "comment-range-end");
+        Assert.Equal(commentEnd.Id, commentStart.PairedChangeId);
+        Assert.Equal(commentStart.Id, commentEnd.PairedChangeId);
         Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "comment" && summary.Count == 1);
         DocxCommentThreadSummary commentSummary = Assert.Single(result.CommentSummary);
         Assert.Equal("3", commentSummary.CommentId);
@@ -396,6 +408,7 @@ public static class ReadApiTests
                     <w:del w:id="44" w:author="Reviewer">
                       <w:r><w:delText>Body level deletion</w:delText></w:r>
                     </w:del>
+                    <w:p><w:r><w:t>Nearby modeled paragraph</w:t></w:r></w:p>
             """);
         var editor = new DocxEditor();
 
@@ -405,7 +418,11 @@ public static class ReadApiTests
         Assert.Equal("deleted-run", deletion.Type);
         Assert.Null(deletion.TargetId);
         Assert.Equal("targetless", deletion.TargetStatus);
-        Assert.Contains("No modeled paragraph", deletion.TargetNote, StringComparison.Ordinal);
+        Assert.Equal("none", deletion.TargetSource);
+        Assert.Equal("body-level-markup", deletion.TargetReason);
+        Assert.Equal("M.P0001", deletion.NearestTargetId);
+        Assert.Contains("direct child of the document body", deletion.TargetNote, StringComparison.Ordinal);
+        Assert.Contains("nearest-target=M.P0001", deletion.TargetNote, StringComparison.Ordinal);
         Assert.Contains(result.TargetSummary, summary => summary.TargetId == "(none)" && summary.Count == 1);
     }
 
@@ -496,10 +513,21 @@ public static class ReadApiTests
         DocxChangesResult result = editor.Changes(stream);
 
         Assert.True(result.Success);
-        Assert.Equal("M.P0001", Assert.Single(result.Changes, change => change.Type == "move-from-range-start").TargetId);
-        Assert.Equal("M.P0001", Assert.Single(result.Changes, change => change.Type == "move-from-range-end").TargetId);
-        Assert.Equal("M.T0001", Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start").TargetId);
-        Assert.Equal("M.T0001", Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end").TargetId);
+        DocxChangeInfo moveStart = Assert.Single(result.Changes, change => change.Type == "move-from-range-start");
+        DocxChangeInfo moveEnd = Assert.Single(result.Changes, change => change.Type == "move-from-range-end");
+        DocxChangeInfo customStart = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start");
+        DocxChangeInfo customEnd = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end");
+
+        Assert.Equal("M.P0001", moveStart.TargetId);
+        Assert.Equal("M.P0001", moveEnd.TargetId);
+        Assert.Equal("M.T0001", customStart.TargetId);
+        Assert.Equal("M.T0001", customEnd.TargetId);
+        Assert.Equal("adjacent-range", moveStart.TargetSource);
+        Assert.Equal("adjacent-range", moveEnd.TargetSource);
+        Assert.Equal(moveEnd.Id, moveStart.PairedChangeId);
+        Assert.Equal(moveStart.Id, moveEnd.PairedChangeId);
+        Assert.Equal(customEnd.Id, customStart.PairedChangeId);
+        Assert.Equal(customStart.Id, customEnd.PairedChangeId);
     }
 
     [Fact]
