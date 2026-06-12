@@ -4,45 +4,72 @@ DocxEdit is a stream-first .NET library and local CLI for inspecting and editing
 
 The package identity is `Lokad.DocxEdit`. The production library has no NuGet dependencies beyond the .NET platform libraries.
 
-## Status
+## DocxPatch DSL
 
-This is a pre-release editor. It supports useful structural reads and a focused set of edits, but it is not a complete WordprocessingML implementation.
+The core editing interface is `.docxpatch`: a small text DSL for describing Word document edits without touching raw WordprocessingML. The CLI helps an agent discover stable targets in the document, then the patch file describes what should change.
 
-Implemented areas include:
+First, inspect the document and locate a target:
 
-- safe ZIP/package loading without filesystem extraction;
-- stable IDs for paragraphs, tables, cells, images, sections, headers, and footers;
-- direct paragraph numbering/list metadata (`numId` and level);
-- merged/nested table read metadata;
-- styles, media, outline, find, dump, and tracked-change markup summaries;
-- bookmark and content-control selectors for safe paragraph targeting;
-- patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
-- no-content tracked-change and comment markup viewing through `changes`;
-- simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
-- post-edit validation for touched XML parts before writing output.
-
-Known limits include full numbering definition/style expansion, rich comment bodies, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.
-
-## Build And Test
-
-```powershell
-dotnet build DocxEdit.slnx
-dotnet test DocxEdit.slnx
-dotnet pack src/DocxEdit/DocxEdit.csproj -c Release
+```text
+docxedit --help
+docxedit read report.docx --summary
+docxedit find report.docx "old wording"
+docxedit dump report.docx --id M.P0004 --runs
 ```
 
-Generated packages are written under ignored `artifacts/nuget/`.
+Then write a patch against the stable target ID:
 
-## CLI Quick Start
+```text
+docxpatch 1
 
-```powershell
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- read report.docx
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- changes report.docx
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- check report.docx edits.docxpatch
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- apply report.docx edits.docxpatch -o report.edited.docx
+op replace-text
+target M.P0004
+expect-text <<<
+old wording in the paragraph
+>>>
+find old wording
+with new wording
+end
 ```
 
-See [docs/cli.md](docs/cli.md), [docs/patch-format.md](docs/patch-format.md), [docs/diagnostics.md](docs/diagnostics.md), and [docs/validation.md](docs/validation.md).
+Validate before writing a new `.docx`:
+
+```text
+docxedit check report.docx edits.docxpatch
+docxedit apply report.docx edits.docxpatch --output report.edited.docx
+```
+
+Patch operations are explicit and guarded. A table-cell edit can assert the expected table shape:
+
+```text
+op set-cell
+target M.T0001.R02.C03
+expect-row-count 4
+expect-column-count 3
+text <<<
+updated cell text
+>>>
+end
+```
+
+Image edits use document image IDs and external assets:
+
+```text
+op replace-image
+target M.I0001
+asset chart.png
+expect-content-type image/png
+alt Updated chart
+end
+```
+
+Track-change behavior is controlled at check/apply time:
+
+```text
+docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes require --author Agent
+```
+
+Fresh agents are expected to rely on `docxedit help patch`, `docxedit help changes`, and `docxedit help dump` for the exact syntax. For product integrations, the same guidance is available from the NuGet library through `DocxHelp.Catalog`, and the CLI text output is reusable through `DocxTextRenderer`.
 
 ## Library Quick Start
 
@@ -73,4 +100,44 @@ DocxContextResult context = new DocxEditor().Context(
 string contextText = DocxTextRenderer.RenderContext(context);
 ```
 
-Private documents belong under ignored `private-cases/` and must never be committed.
+## CLI Quick Start
+
+```powershell
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- read report.docx
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- changes report.docx
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- check report.docx edits.docxpatch
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- apply report.docx edits.docxpatch -o report.edited.docx
+```
+
+## Documentation
+
+See [docs/cli.md](docs/cli.md), [docs/patch-format.md](docs/patch-format.md), [docs/diagnostics.md](docs/diagnostics.md), and [docs/validation.md](docs/validation.md).
+
+## Build And Test
+
+```powershell
+dotnet build DocxEdit.slnx
+dotnet test DocxEdit.slnx
+dotnet pack src/DocxEdit/DocxEdit.csproj -c Release
+```
+
+Generated packages are written under ignored `artifacts/nuget/`.
+
+## Status
+
+This is a pre-release editor. It supports useful structural reads and a focused set of edits, but it is not a complete WordprocessingML implementation.
+
+Implemented areas include:
+
+- safe ZIP/package loading without filesystem extraction;
+- stable IDs for paragraphs, tables, cells, images, sections, headers, and footers;
+- direct paragraph numbering/list metadata (`numId` and level);
+- merged/nested table read metadata;
+- styles, media, outline, find, dump, and tracked-change markup summaries;
+- bookmark and content-control selectors for safe paragraph targeting;
+- patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
+- no-content tracked-change and comment markup viewing through `changes`;
+- simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
+- post-edit validation for touched XML parts before writing output.
+
+Known limits include full numbering definition/style expansion, rich comment bodies, full bookmark/content-control models, fields, hyperlinks, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.
