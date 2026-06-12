@@ -31,6 +31,10 @@ Plain text output includes the same group summaries as lines like
 It also includes `target-summary` and `comment-summary` lines before individual
 records. With `--include-comment-text`, comment summaries and comment body records
 add `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
+Patch operations can target `comment:<id>` or comment body IDs such as
+`C001.C0001`: `set-comment-text` replaces a comment body under explicit patch
+control, and `delete-comment` removes the comment body plus matching
+range/reference markers.
 
 Some records legitimately have `target=unknown`: for example package-level range
 markers or markup not inside or adjacent to a modeled paragraph, table, cell, or

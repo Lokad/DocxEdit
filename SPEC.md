@@ -1536,7 +1536,31 @@ Rules:
   direct siblings in the same paragraph and fails unsupported ranges instead of
   flattening surrounding OOXML.
 
-### 11.6b Hyperlink operations
+### 11.6b Comment body operations
+
+```text
+op set-comment-text
+target comment:3
+text Updated review note
+end
+
+op delete-comment
+target C001.C0001
+end
+```
+
+Rules:
+
+* Comment targets use `comment:<id>` from `changes` output or comment body IDs such
+  as `C001.C0001`.
+* `set-comment-text` replaces the body with one paragraph and preserves comment
+  metadata such as author, initials, timestamp, and OOXML comment ID.
+* `delete-comment` removes the comment body and matching `commentRangeStart`,
+  `commentRangeEnd`, and `commentReference` markers from document stories.
+* Comment creation, resolution state, and full threaded comment workflows are out of
+  scope for v0.1.
+
+### 11.6c Hyperlink operations
 
 Update an existing hyperlink destination:
 
@@ -1853,6 +1877,8 @@ delete-block
 set-style
 set-content-control-text
 replace-bookmark-text
+set-comment-text
+delete-comment
 set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after

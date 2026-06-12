@@ -96,6 +96,8 @@ internal static class DocxPatchEngine
                     "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
+                    "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
+                    "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
@@ -546,6 +548,77 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetCommentText(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        CommentTarget? commentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        if (diagnostic is not null)
+        {
+            return [diagnostic];
+        }
+
+        if (commentTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceCommentText(commentTarget.Comment, text!);
+        SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteComment(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        CommentTarget? commentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        if (diagnostic is not null)
+        {
+            return [diagnostic];
+        }
+
+        if (commentTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        string commentId = (string?)commentTarget.Comment.Attribute(OoxmlNs.W + "id") ?? string.Empty;
+        commentTarget.Comment.Remove();
+        SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
+        RemoveCommentAnchors(package, commentId, cancellationToken);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetHyperlinkTarget(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -872,6 +945,156 @@ internal static class DocxPatchEngine
 
         feature = null;
         return false;
+    }
+
+    private static CommentTarget? ResolveCommentTarget(
+        OoxmlPackage package,
+        string target,
+        DocxPatchOperation operation,
+        CancellationToken cancellationToken,
+        out DocxDiagnostic? diagnostic)
+    {
+        diagnostic = null;
+        if (target.StartsWith("comment:", StringComparison.Ordinal))
+        {
+            string commentId = target["comment:".Length..].Trim();
+            if (commentId.Length == 0)
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E1203", "Comment target must be comment:<id> or C001.C0001.", operation, target);
+                return null;
+            }
+
+            return FindCommentTargetById(package, commentId, cancellationToken);
+        }
+
+        if (TryParseCommentBodyTarget(target, out int storyOrdinal, out int commentOrdinal))
+        {
+            string? partName = GetCommentsPartNames(package, cancellationToken).ElementAtOrDefault(storyOrdinal - 1);
+            return partName is null ? null : FindCommentTargetByOrdinal(package, partName, commentOrdinal, cancellationToken);
+        }
+
+        diagnostic = Diagnostic(DocxSeverity.Error, "E1203", "Comment target must be comment:<id> or C001.C0001.", operation, target);
+        return null;
+    }
+
+    private static bool TryParseCommentBodyTarget(string target, out int storyOrdinal, out int commentOrdinal)
+    {
+        storyOrdinal = 0;
+        commentOrdinal = 0;
+        if (target.Length != 10 ||
+            target[0] != 'C' ||
+            target[4..6] != ".C")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..], out commentOrdinal) &&
+            storyOrdinal > 0 &&
+            commentOrdinal > 0;
+    }
+
+    private static CommentTarget? FindCommentTargetById(
+        OoxmlPackage package,
+        string commentId,
+        CancellationToken cancellationToken)
+    {
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement? comment = document
+                .Descendants(OoxmlNs.W + "comment")
+                .FirstOrDefault(comment => string.Equals((string?)comment.Attribute(OoxmlNs.W + "id"), commentId, StringComparison.Ordinal));
+            if (comment is not null)
+            {
+                return new CommentTarget(partName, document, comment);
+            }
+        }
+
+        return null;
+    }
+
+    private static CommentTarget? FindCommentTargetByOrdinal(
+        OoxmlPackage package,
+        string partName,
+        int commentOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (commentOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+        XElement? comment = document
+            .Descendants(OoxmlNs.W + "comment")
+            .ElementAtOrDefault(commentOrdinal - 1);
+        return comment is null ? null : new CommentTarget(partName, document, comment);
+    }
+
+    private static IReadOnlyList<string> GetCommentsPartNames(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return [];
+        }
+
+        return package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .Select(relationship => relationship.ResolvedTarget!)
+            .ToArray();
+    }
+
+    private static void ReplaceCommentText(XElement comment, string text)
+    {
+        comment.RemoveNodes();
+        comment.Add(CreateSimpleParagraph(text));
+    }
+
+    private static void RemoveCommentAnchors(OoxmlPackage package, string commentId, CancellationToken cancellationToken)
+    {
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
+                part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(part.Name, "/word/comments.xml", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            bool changed = false;
+            foreach (XElement marker in document
+                .Descendants()
+                .Where(element => element.Name == OoxmlNs.W + "commentRangeStart" || element.Name == OoxmlNs.W + "commentRangeEnd")
+                .Where(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), commentId, StringComparison.Ordinal))
+                .ToArray())
+            {
+                marker.Remove();
+                changed = true;
+            }
+
+            foreach (XElement reference in document
+                .Descendants(OoxmlNs.W + "commentReference")
+                .Where(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), commentId, StringComparison.Ordinal))
+                .ToArray())
+            {
+                XElement? run = reference.Ancestors(OoxmlNs.W + "r").FirstOrDefault();
+                reference.Remove();
+                if (run is not null && !run.Elements().Any() && string.IsNullOrEmpty(run.Value))
+                {
+                    run.Remove();
+                }
+
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SaveDocumentPart(package, part.Name, document);
+            }
+        }
     }
 
     private static IEnumerable<XElement> ElementAndDescendants(XElement element)
@@ -4193,6 +4416,8 @@ internal sealed record PatchExecutionResult(
 internal sealed record ContentControlTarget(string PartName, XDocument Document, XElement ContentControl);
 
 internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
+
+internal sealed record CommentTarget(string PartName, XDocument Document, XElement Comment);
 
 internal sealed record HyperlinkTarget(string PartName, XDocument Document, XElement Hyperlink);
 

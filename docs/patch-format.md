@@ -51,6 +51,8 @@ including nearby paragraph text.
 - `set-style`: `target`, `style`
 - `set-content-control-text`: `target`, `text`
 - `replace-bookmark-text`: `target`, `text`
+- `set-comment-text`: `target`, `text`
+- `delete-comment`: `target`
 - `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`
 - `set-hyperlink-text`: `target`, `text`
 - `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`
@@ -78,6 +80,11 @@ Use `set-content-control-text` with plain-text content-control IDs such as `M.CC
 The wrapper and `w:sdtPr` metadata are preserved. Use `replace-bookmark-text` with
 simple same-paragraph bookmark IDs such as `M.B0001`; the bookmark start/end markers
 are preserved and unsupported ranges fail instead of flattening surrounding XML.
+
+Comment operations target either `comment:<id>` from `changes` output or a comment
+body target such as `C001.C0001`. `set-comment-text` replaces the comment body with a
+single paragraph while preserving comment metadata. `delete-comment` removes the
+comment body and the matching range/reference markers from document stories.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
 `M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and

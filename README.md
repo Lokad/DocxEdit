@@ -140,6 +140,8 @@ Implemented areas include:
 - patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
 - no-content tracked-change and comment markup viewing through `changes`;
 - opt-in bounded comment body snippets through `changes`;
+- comment body editing and deletion through explicit patch operations keyed by
+  `comment:<id>` or comment body IDs;
 - bookmark and content-control read/context metadata with selector guidance;
 - safe bookmark/content-control patch operations for plain-text content controls and
   simple same-paragraph bookmark ranges;
@@ -154,4 +156,4 @@ Implemented areas include:
   ranges, complex field balance, drawing relationships, and basic table shape;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full visual numbering expansion beyond surfaced metadata, comment editing and full threaded comment models, advanced bookmark/content-control editing beyond plain-text controls and simple same-paragraph bookmark ranges, field result recalculation and field-specific edit workflows, advanced hyperlink validation beyond absolute external URIs and simple internal anchors, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.
+Known limits include full visual numbering expansion beyond surfaced metadata, comment creation/resolution workflows and full threaded comment models, advanced bookmark/content-control editing beyond plain-text controls and simple same-paragraph bookmark ranges, field result recalculation and field-specific edit workflows, advanced hyperlink validation beyond absolute external URIs and simple internal anchors, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

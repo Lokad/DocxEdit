@@ -623,6 +623,8 @@ public static class DocxHelp
                 new() { Name = "set-style", RequiredFields = ["target", "style"] },
                 new() { Name = "set-content-control-text", RequiredFields = ["target", "text"] },
                 new() { Name = "replace-bookmark-text", RequiredFields = ["target", "text"] },
+                new() { Name = "set-comment-text", RequiredFields = ["target", "text"] },
+                new() { Name = "delete-comment", RequiredFields = ["target"] },
                 new() { Name = "set-hyperlink-target", RequiredFields = ["target plus uri or anchor"], OptionalFields = ["tooltip"] },
                 new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },
                 new() { Name = "insert-hyperlink-after", RequiredFields = ["target", "text plus uri or anchor"], OptionalFields = ["tooltip"] },
