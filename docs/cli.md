@@ -92,15 +92,17 @@ style-level numbering defaults when present.
 `read` and `outline` list bookmark and content-control metadata when present.
 Bookmark records include name, OOXML ID, story, part, start/end targets, and whether
 the range is complete. Content-control records include kind, tag, alias, lock, story,
-part, containing target, and text length. `context` annotates nearby targets with
+part, containing target, text length, checkbox state, dropdown/combo item count, and
+date settings when present. `context` annotates nearby targets with
 `bookmark-names`, `content-controls`, `content-control-tags`, and
 `content-control-aliases` so agents can connect selector names to stable target IDs.
 If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector
 diagnostics list candidate paragraph IDs; retry with an explicit ID.
 Patch operations can also target explicit bookmark/content-control IDs for safe shapes:
 `set-content-control-text` updates plain-text controls while preserving the wrapper,
-and `replace-bookmark-text` updates simple same-paragraph bookmark ranges while
-preserving the bookmark markers.
+`set-content-control-checkbox` toggles checkbox controls and updates their displayed
+state symbol, and `replace-bookmark-text` updates simple same-paragraph bookmark
+ranges while preserving the bookmark markers.
 `read` and `outline` also list simple and complex field metadata. Field records
 include kind, field code, containing target, result text length, dirty/lock flags,
 and whether a complex begin/separate/end sequence is complete. `context` annotates

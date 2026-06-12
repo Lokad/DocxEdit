@@ -53,6 +53,13 @@ internal static class TextRenderers
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
             string locked = control.Lock is null ? string.Empty : $" lock={Escape(control.Lock)}";
+            string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
+            string checkedSymbol = control.CheckedSymbol is null ? string.Empty : $" checked-symbol=\"{Escape(control.CheckedSymbol)}\"";
+            string uncheckedSymbol = control.UncheckedSymbol is null ? string.Empty : $" unchecked-symbol=\"{Escape(control.UncheckedSymbol)}\"";
+            string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
+            string dateFormat = control.DateFormat is null ? string.Empty : $" date-format=\"{Escape(control.DateFormat)}\"";
+            string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={Escape(control.DateLanguage)}";
+            string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={Escape(control.DateCalendar)}";
             builder.Append(control.Id)
                 .Append(" content-control kind=")
                 .Append(Escape(control.Kind))
@@ -65,6 +72,13 @@ internal static class TextRenderers
                 .Append(tag)
                 .Append(alias)
                 .Append(locked)
+                .Append(checkedValue)
+                .Append(checkedSymbol)
+                .Append(uncheckedSymbol)
+                .Append(listItems)
+                .Append(dateFormat)
+                .Append(dateLanguage)
+                .Append(dateCalendar)
                 .Append(" text-length=")
                 .Append(control.TextLength)
                 .AppendLine();
@@ -196,7 +210,9 @@ internal static class TextRenderers
             string target = control.TargetId is null ? "unknown" : control.TargetId;
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
-            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}");
+            string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
+            string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
+            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{checkedValue}{listItems}");
         }
 
         foreach (DocxFieldInfo field in model.Fields)

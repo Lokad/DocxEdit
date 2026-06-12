@@ -933,8 +933,17 @@ public sealed record DocxContentControlInfo
     public string? Tag { get; init; }
     public string? Alias { get; init; }
     public string? Lock { get; init; }
+    public bool? Checked { get; init; }
+    public string? CheckedSymbol { get; init; }
+    public string? UncheckedSymbol { get; init; }
+    public IReadOnlyList<DocxContentControlListItemInfo> ListItems { get; init; } = [];
+    public string? DateFormat { get; init; }
+    public string? DateLanguage { get; init; }
+    public string? DateCalendar { get; init; }
     public int TextLength { get; init; }
 }
+
+public sealed record DocxContentControlListItemInfo(string? DisplayText, string? Value);
 ```
 
 Bookmark IDs use the `B` namespace and content-control IDs use the `CC` namespace,
@@ -1564,6 +1573,15 @@ text Updated value
 end
 ```
 
+Toggle a checkbox content control:
+
+```text
+op set-content-control-checkbox
+target M.CC0002
+checked true
+end
+```
+
 Replace a simple bookmark range while preserving markers:
 
 ```text
@@ -1579,6 +1597,8 @@ Rules:
   `H001.CC0001`, or `F001.CC0001`.
 * `set-content-control-text` supports plain-text controls (`w:sdtPr/w:text`) and
   preserves the `w:sdt` wrapper and properties.
+* `set-content-control-checkbox` supports checkbox controls (`w:sdtPr/w:checkBox`),
+  updates `w:checked`, and updates the displayed state symbol.
 * Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
   or `F001.B0001`.
 * `replace-bookmark-text` supports complete bookmark ranges whose start/end markers are
@@ -1940,6 +1960,7 @@ Unsupported tracked-change operations:
 
 ```text
 set-content-control-text
+set-content-control-checkbox
 replace-bookmark-text
 set-comment-text
 resolve-comment

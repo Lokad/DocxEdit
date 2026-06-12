@@ -50,6 +50,7 @@ including nearby paragraph text.
 - `delete-block`: `target`, optional `expect-text`
 - `set-style`: `target`, `style`
 - `set-content-control-text`: `target`, `text`
+- `set-content-control-checkbox`: `target`, `checked`
 - `replace-bookmark-text`: `target`, `text`
 - `set-comment-text`: `target`, `text`
 - `resolve-comment`: `target`
@@ -79,9 +80,11 @@ field overrides the copied paragraph style while preserving the other copied
 properties.
 
 Use `set-content-control-text` with plain-text content-control IDs such as `M.CC0001`.
-The wrapper and `w:sdtPr` metadata are preserved. Use `replace-bookmark-text` with
-simple same-paragraph bookmark IDs such as `M.B0001`; the bookmark start/end markers
-are preserved and unsupported ranges fail instead of flattening surrounding XML.
+Use `set-content-control-checkbox` with checkbox controls and `checked true|false`;
+it updates `w:checked` and the displayed state symbol. The wrapper and `w:sdtPr`
+metadata are preserved. Use `replace-bookmark-text` with simple same-paragraph
+bookmark IDs such as `M.B0001`; the bookmark start/end markers are preserved and
+unsupported ranges fail instead of flattening surrounding XML.
 
 Comment operations target either `comment:<id>` from `changes` output or a comment
 body target such as `C001.C0001`. `set-comment-text` replaces the comment body with a

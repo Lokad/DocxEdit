@@ -306,7 +306,7 @@ public static class DocxHelp
                     OutputFields =
                     [
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
-                        new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length"),
+                        new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, and date settings"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, anchor, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, and media part"),
@@ -320,7 +320,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
+                            "Read and context output surface bookmark names/ranges and content-control metadata, including checkbox state, dropdown/combo item counts, and date settings. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
                         ]),
                         new("Fields",
                         [
@@ -657,6 +657,7 @@ public static class DocxHelp
                     TrackChangesNote = "Suggest/Require emit paragraph property revisions with w:pPrChange."
                 },
                 new() { Name = "set-content-control-text", RequiredFields = ["target", "text"] },
+                new() { Name = "set-content-control-checkbox", RequiredFields = ["target", "checked"] },
                 new() { Name = "replace-bookmark-text", RequiredFields = ["target", "text"] },
                 new() { Name = "set-comment-text", RequiredFields = ["target", "text"] },
                 new() { Name = "resolve-comment", RequiredFields = ["target"] },

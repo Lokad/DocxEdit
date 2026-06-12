@@ -1045,6 +1045,69 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadModelsAdvancedContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:checkBox>
+                            <w:checked w:val="1"/>
+                            <w:checkedState w:val="2612"/>
+                            <w:uncheckedState w:val="2610"/>
+                          </w:checkBox>
+                          <w:tag w:val="accepted"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Checked</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:dropDownList>
+                            <w:listItem w:displayText="North" w:value="north"/>
+                            <w:listItem w:displayText="South" w:value="south"/>
+                          </w:dropDownList>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:date>
+                            <w:dateFormat w:val="yyyy-MM-dd"/>
+                            <w:lid w:val="en-US"/>
+                            <w:calendar w:val="gregorian"/>
+                          </w:date>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>2026-06-12</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxContentControlInfo checkbox = result.ContentControls.Single(control => control.Kind == "checkbox");
+        Assert.True(checkbox.Checked);
+        Assert.Equal("2612", checkbox.CheckedSymbol);
+        Assert.Equal("2610", checkbox.UncheckedSymbol);
+        DocxContentControlInfo dropdown = result.ContentControls.Single(control => control.Kind == "dropdown-list");
+        Assert.Equal(2, dropdown.ListItems.Count);
+        Assert.Equal("North", dropdown.ListItems[0].DisplayText);
+        Assert.Equal("north", dropdown.ListItems[0].Value);
+        DocxContentControlInfo date = result.ContentControls.Single(control => control.Kind == "date");
+        Assert.Equal("yyyy-MM-dd", date.DateFormat);
+        Assert.Equal("en-US", date.DateLanguage);
+        Assert.Equal("gregorian", date.DateCalendar);
+        Assert.Contains("kind=checkbox", result.Text, StringComparison.Ordinal);
+        Assert.Contains("checked=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("list-items=2", result.Text, StringComparison.Ordinal);
+        Assert.Contains("date-format=\"yyyy-MM-dd\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ContextAnnotatesTargetsWithBookmarkAndContentControlMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""

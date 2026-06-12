@@ -1250,6 +1250,47 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetContentControlCheckboxUpdatesStateAndDisplay()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:checkBox>
+                            <w:checked w:val="0"/>
+                            <w:checkedState w:val="2612"/>
+                            <w:uncheckedState w:val="2610"/>
+                          </w:checkBox>
+                          <w:tag w:val="accepted"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Unchecked</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-checkbox
+            target M.CC0001
+            checked true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxContentControlInfo control = Assert.Single(read.ContentControls);
+        Assert.True(control.Checked);
+        Assert.Equal(char.ConvertFromUtf32(0x2612), Assert.Single(read.Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:checked w:val=\"1\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyReplaceBookmarkTextPreservesMarkers()
     {
         using MemoryStream input = CreateDocxWithBody("""

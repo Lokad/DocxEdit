@@ -11,6 +11,7 @@ internal static class DocxPatchParser
         ["delete-block"] = new(["target", "expect-text"], [], []),
         ["set-style"] = new(["target", "style"], [], []),
         ["set-content-control-text"] = new(["target", "text"], [], []),
+        ["set-content-control-checkbox"] = new(["target", "checked"], [], []),
         ["replace-bookmark-text"] = new(["target", "text"], [], []),
         ["set-comment-text"] = new(["target", "text"], [], []),
         ["resolve-comment"] = new(["target"], [], []),

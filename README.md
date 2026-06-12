@@ -147,9 +147,10 @@ Implemented areas include:
   targets;
 - comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
   `reopen-comment` for comments that already have modern extension records;
-- bookmark and content-control read/context metadata with selector guidance;
-- safe bookmark/content-control patch operations for plain-text content controls and
-  simple same-paragraph bookmark ranges;
+- bookmark and content-control read/context metadata with selector guidance, including
+  checkbox state, dropdown/combo item counts, and date settings;
+- safe bookmark/content-control patch operations for plain-text content controls,
+  checkbox state, and simple same-paragraph bookmark ranges;
 - simple and complex field read/context metadata with field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, and broken relationship IDs;
 - hyperlink patch operations for target URI/anchor updates, display text updates,
@@ -167,8 +168,8 @@ Implemented areas include:
 Known limits include exotic/custom visual numbering expansion beyond deterministic
 decimal, letter, roman, bullet, and nested `lvlText` labels, comment creation,
 resolution creation when modern extension metadata is absent, and full threaded comment models, advanced
-bookmark/content-control editing beyond plain-text controls and simple same-paragraph
-bookmark ranges, field result recalculation and field-specific edit workflows,
+bookmark/content-control editing beyond plain-text controls, checkbox toggles, and
+simple same-paragraph bookmark ranges, field result recalculation and field-specific edit workflows,
 advanced hyperlink validation beyond absolute external URIs and simple internal
 anchors, advanced floating-image layout edits and crop metadata, complex
 merged/nested table edit transformations, full tracked-change edit coverage, and full

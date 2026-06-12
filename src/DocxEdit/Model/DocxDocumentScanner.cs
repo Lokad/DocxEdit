@@ -458,6 +458,13 @@ internal static class DocxDocumentScanner
                 Tag = ReadSdtProperty(properties, "tag"),
                 Alias = ReadSdtProperty(properties, "alias"),
                 Lock = ReadSdtProperty(properties, "lock"),
+                Checked = ReadContentControlChecked(properties),
+                CheckedSymbol = ReadContentControlStateSymbol(properties, "checkedState"),
+                UncheckedSymbol = ReadContentControlStateSymbol(properties, "uncheckedState"),
+                ListItems = ReadContentControlListItems(properties),
+                DateFormat = ReadNestedSdtProperty(properties, "date", "dateFormat"),
+                DateLanguage = ReadNestedSdtProperty(properties, "date", "lid"),
+                DateCalendar = ReadNestedSdtProperty(properties, "date", "calendar"),
                 TextLength = ReadText(content, textView).Length
             });
         }
@@ -669,6 +676,58 @@ internal static class DocxDocumentScanner
     {
         XElement? element = properties?.Elements().FirstOrDefault(element => element.Name.LocalName == localName);
         return (string?)element?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static string? ReadNestedSdtProperty(XElement? properties, string parentLocalName, string localName)
+    {
+        XElement? element = properties
+            ?.Elements()
+            .FirstOrDefault(element => element.Name.LocalName == parentLocalName)
+            ?.Elements()
+            .FirstOrDefault(element => element.Name.LocalName == localName);
+        return (string?)element?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static bool? ReadContentControlChecked(XElement? properties)
+    {
+        XElement? checkBox = properties?.Element(OoxmlNs.W + "checkBox");
+        XElement? checkedElement = checkBox?.Element(OoxmlNs.W + "checked");
+        if (checkedElement is null)
+        {
+            return null;
+        }
+
+        string? value = (string?)checkedElement.Attribute(OoxmlNs.W + "val");
+        return value switch
+        {
+            "1" or "true" or "on" => true,
+            "0" or "false" or "off" => false,
+            _ => null
+        };
+    }
+
+    private static string? ReadContentControlStateSymbol(XElement? properties, string stateLocalName)
+    {
+        return (string?)properties
+            ?.Element(OoxmlNs.W + "checkBox")
+            ?.Element(OoxmlNs.W + stateLocalName)
+            ?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static IReadOnlyList<DocxContentControlListItemInfo> ReadContentControlListItems(XElement? properties)
+    {
+        XElement? list = properties?.Element(OoxmlNs.W + "dropDownList") ?? properties?.Element(OoxmlNs.W + "comboBox");
+        if (list is null)
+        {
+            return [];
+        }
+
+        return list
+            .Elements(OoxmlNs.W + "listItem")
+            .Select(item => new DocxContentControlListItemInfo(
+                (string?)item.Attribute(OoxmlNs.W + "displayText"),
+                (string?)item.Attribute(OoxmlNs.W + "value")))
+            .ToArray();
     }
 
     private static string ReadText(XElement container, DocxTextView textView)

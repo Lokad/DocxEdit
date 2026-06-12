@@ -96,6 +96,7 @@ internal static class DocxPatchEngine
                     "delete-block" => ExecuteDeleteBlock(package, operation, options, apply, cancellationToken),
                     "set-style" => ExecuteSetStyle(package, operation, options, apply, cancellationToken),
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
+                    "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
@@ -770,6 +771,57 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetContentControlCheckbox(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        _ = ReadRequiredField(operation, "checked", diagnostics);
+        bool? checkedValue = ReadBooleanField(operation, "checked", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
+        }
+
+        if (controlTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        XElement? checkBox = controlTarget.ContentControl
+            .Element(OoxmlNs.W + "sdtPr")
+            ?.Element(OoxmlNs.W + "checkBox");
+        if (checkBox is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a checkbox content control.", operation, target)];
+        }
+
+        XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
+        if (content is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetCheckboxChecked(checkBox, checkedValue!.Value);
+        ReplaceContentControlText(content, GetCheckboxDisplaySymbol(checkBox, checkedValue.Value));
+        SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceBookmarkText(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -1239,6 +1291,54 @@ internal static class DocxPatchEngine
         return contentControl
             .Element(OoxmlNs.W + "sdtPr")
             ?.Element(OoxmlNs.W + "text") is not null;
+    }
+
+    private static void SetCheckboxChecked(XElement checkBox, bool checkedValue)
+    {
+        XElement? checkedElement = checkBox.Element(OoxmlNs.W + "checked");
+        if (checkedElement is null)
+        {
+            checkedElement = new XElement(OoxmlNs.W + "checked");
+            checkBox.Add(checkedElement);
+        }
+
+        checkedElement.SetAttributeValue(OoxmlNs.W + "val", checkedValue ? "1" : "0");
+    }
+
+    private static string GetCheckboxDisplaySymbol(XElement checkBox, bool checkedValue)
+    {
+        string stateElementName = checkedValue ? "checkedState" : "uncheckedState";
+        string? stateValue = (string?)checkBox
+            .Element(OoxmlNs.W + stateElementName)
+            ?.Attribute(OoxmlNs.W + "val");
+        return TryDecodeStateSymbol(stateValue, out string? symbol)
+            ? symbol!
+            : char.ConvertFromUtf32(checkedValue ? 0x2612 : 0x2610);
+    }
+
+    private static bool TryDecodeStateSymbol(string? value, out string? symbol)
+    {
+        symbol = null;
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        if (value.Length == 1)
+        {
+            symbol = value;
+            return true;
+        }
+
+        if (value.All(Uri.IsHexDigit) &&
+            int.TryParse(value, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int codePoint) &&
+            codePoint > 0)
+        {
+            symbol = char.ConvertFromUtf32(codePoint);
+            return true;
+        }
+
+        return false;
     }
 
     private static void ReplaceContentControlText(XElement content, string text)

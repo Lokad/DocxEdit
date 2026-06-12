@@ -301,8 +301,17 @@ public sealed record DocxContentControlInfo
     public string? Tag { get; init; }
     public string? Alias { get; init; }
     public string? Lock { get; init; }
+    public bool? Checked { get; init; }
+    public string? CheckedSymbol { get; init; }
+    public string? UncheckedSymbol { get; init; }
+    public IReadOnlyList<DocxContentControlListItemInfo> ListItems { get; init; } = [];
+    public string? DateFormat { get; init; }
+    public string? DateLanguage { get; init; }
+    public string? DateCalendar { get; init; }
     public int TextLength { get; init; }
 }
+
+public sealed record DocxContentControlListItemInfo(string? DisplayText, string? Value);
 
 public sealed record DocxFieldInfo
 {
