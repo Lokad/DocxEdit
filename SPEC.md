@@ -2027,7 +2027,33 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, crop, and other layout metadata.
 
-### 11.17 `set-image-crop`
+### 11.17 `set-image-wrap`
+
+```text
+op set-image-wrap
+target M.I0001
+mode top-bottom
+dist-top 1pt
+dist-right 2pt
+end
+```
+
+Rules:
+
+* Update anchored DrawingML `wp:wrap*` mode and anchor wrap-distance attributes
+  without replacing media bytes.
+* At least one of `mode`, `dist-top`, `dist-bottom`, `dist-left`, or `dist-right` is
+  required.
+* Supported modes are `none`, `square`, `tight`, `through`, and `top-bottom`, plus
+  their `wp:wrap*` element names.
+* Distance fields accept the same `in`, `cm`, `pt`, `px`, and `emu` units as image
+  dimensions and are written as EMUs.
+* Inline images fail with an explicit diagnostic instead of being converted to
+  anchored images.
+* `expect-content-type` is a supported guard.
+* Preserve image bytes, size, crop, and position metadata.
+
+### 11.18 `set-image-crop`
 
 ```text
 op set-image-crop
@@ -2051,7 +2077,7 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, size, and layout.
 
-### 11.18 `delete-image`
+### 11.19 `delete-image`
 
 ```text
 op delete-image
@@ -2191,6 +2217,7 @@ insert-image-after
 set-image-alt
 set-image-metadata
 set-image-size
+set-image-wrap
 set-image-crop
 delete-image
 set-section-columns

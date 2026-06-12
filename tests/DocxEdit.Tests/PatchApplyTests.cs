@@ -2529,6 +2529,59 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetImageWrapUpdatesAnchorModeAndDistances()
+    {
+        using MemoryStream input = CreateDocxWithAnchoredImage();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-wrap
+            target M.I0001
+            mode top-bottom
+            dist-top 1pt
+            dist-right 2pt
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal("wrapTopAndBottom", image.WrapMode);
+        Assert.Equal(12_700, image.WrapDistanceTopEmu);
+        Assert.Equal(20, image.WrapDistanceBottomEmu);
+        Assert.Equal(30, image.WrapDistanceLeftEmu);
+        Assert.Equal(25_400, image.WrapDistanceRightEmu);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<wp:wrapTopAndBottom", xml, StringComparison.Ordinal);
+        Assert.Contains("distT=\"12700\"", xml, StringComparison.Ordinal);
+        Assert.Contains("distR=\"25400\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("wrapSquare", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetImageWrapRejectsInlineImage()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-wrap
+            target M.I0001
+            mode square
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E5205");
+    }
+
+    [Fact]
     public static void ApplySetImageCropUpdatesSourceRectangle()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
@@ -3376,6 +3429,67 @@ public static class PatchApplyTests
                 </w:document>
                 """);
             AddEntry(archive, partName, mediaBytes);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithAnchoredImage()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor distT="10" distB="20" distL="30" distR="40">
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:wrapSquare/>
+                            <wp:docPr id="1" name="Picture 1" descr="Old chart"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rImage"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/media/image1.png", "old-png");
         }
 
         stream.Position = 0;

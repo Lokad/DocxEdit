@@ -37,6 +37,7 @@ internal static class DocxPatchParser
         ["set-image-alt"] = new(["target", "expect-content-type", "alt"], [], []),
         ["set-image-metadata"] = new(["target", "expect-content-type", "alt", "title", "name"], [], []),
         ["set-image-size"] = new(["target", "expect-content-type", "width", "height"], [], []),
+        ["set-image-wrap"] = new(["target", "expect-content-type", "mode", "dist-top", "dist-bottom", "dist-left", "dist-right"], [], []),
         ["set-image-crop"] = new(["target", "expect-content-type", "left-percent", "top-percent", "right-percent", "bottom-percent"], [], []),
         ["delete-image"] = new(["target", "expect-content-type"], [], []),
         ["set-section-columns"] = new(["target", "expect-columns", "expect-orientation", "count", "space"], [], ["expect-columns", "count"]),

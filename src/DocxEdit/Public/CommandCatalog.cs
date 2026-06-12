@@ -241,6 +241,7 @@ public static class DocxHelp
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("set-image-size updates DrawingML extents without replacing media bytes.");
+        builder.AppendLine("set-image-wrap updates anchored DrawingML wrap mode and wrap distances.");
         builder.AppendLine("set-image-crop updates DrawingML a:srcRect crop percentages without replacing media bytes.");
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash, preserve-size, and caption are not supported.");
@@ -353,7 +354,7 @@ public static class DocxHelp
                         ]),
                         new("Images",
                         [
-                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, set-image-metadata updates docPr name/description/title, set-image-size updates extents, and set-image-crop updates a:srcRect percentages."
+                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, set-image-metadata updates docPr name/description/title, set-image-size updates extents, set-image-wrap updates anchored wrap mode/distances, and set-image-crop updates a:srcRect percentages."
                         ]),
                         new("Tables",
                         [
@@ -711,6 +712,7 @@ public static class DocxHelp
                 PreserveOnly("set-image-alt", ["target", "alt"], ["expect-content-type"]),
                 PreserveOnly("set-image-metadata", ["target plus alt, title, or name"], ["expect-content-type"]),
                 PreserveOnly("set-image-size", ["target plus width or height"], ["expect-content-type"]),
+                PreserveOnly("set-image-wrap", ["target plus mode or distance"], ["expect-content-type"]),
                 PreserveOnly("set-image-crop", ["target plus one crop percentage"], ["expect-content-type"]),
                 PreserveOnly("delete-image", ["target"], ["expect-content-type"]),
                 PreserveOnly("set-section-columns", ["target", "count"], ["expect-columns", "expect-orientation"]),

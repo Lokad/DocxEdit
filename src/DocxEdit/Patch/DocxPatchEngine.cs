@@ -122,6 +122,7 @@ internal static class DocxPatchEngine
                     "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
                     "set-image-metadata" => ExecuteSetImageMetadata(package, operation, apply, cancellationToken),
                     "set-image-size" => ExecuteSetImageSize(package, operation, apply, cancellationToken),
+                    "set-image-wrap" => ExecuteSetImageWrap(package, operation, apply, cancellationToken),
                     "set-image-crop" => ExecuteSetImageCrop(package, operation, apply, cancellationToken),
                     "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                     "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
@@ -2832,6 +2833,89 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageWrap(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        bool hasWrapField =
+            operation.Fields.ContainsKey("mode") ||
+            operation.Fields.ContainsKey("dist-top") ||
+            operation.Fields.ContainsKey("dist-bottom") ||
+            operation.Fields.ContainsKey("dist-left") ||
+            operation.Fields.ContainsKey("dist-right");
+        if (!hasWrapField)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-wrap' requires 'mode' or at least one distance field.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-wrap target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
+        }
+
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
+        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        {
+            return [diagnostic!];
+        }
+
+        if (imageContainer!.Name != OoxmlNs.Wp + "anchor")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' is inline; wrap metadata is only editable on anchored images.", operation, target)];
+        }
+
+        string? mode = null;
+        if (operation.Fields.TryGetValue("mode", out string? modeText) &&
+            !TryNormalizeWrapMode(modeText, out mode))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5209", $"Unsupported image wrap mode '{modeText}'.", operation, target)];
+        }
+
+        if (!TryReadWrapDistanceField(operation, "dist-top", diagnostics, out long? distanceTop) ||
+            !TryReadWrapDistanceField(operation, "dist-bottom", diagnostics, out long? distanceBottom) ||
+            !TryReadWrapDistanceField(operation, "dist-left", diagnostics, out long? distanceLeft) ||
+            !TryReadWrapDistanceField(operation, "dist-right", diagnostics, out long? distanceRight))
+        {
+            return diagnostics;
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        if (mode is not null)
+        {
+            SetImageWrapMode(imageContainer, mode);
+        }
+
+        SetImageWrapDistance(imageContainer, "distT", distanceTop);
+        SetImageWrapDistance(imageContainer, "distB", distanceBottom);
+        SetImageWrapDistance(imageContainer, "distL", distanceLeft);
+        SetImageWrapDistance(imageContainer, "distR", distanceRight);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageCrop(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -3063,6 +3147,68 @@ internal static class DocxPatchEngine
 
         transformExtent.SetAttributeValue("cx", widthEmus);
         transformExtent.SetAttributeValue("cy", heightEmus);
+    }
+
+    private static bool TryNormalizeWrapMode(string text, out string? mode)
+    {
+        mode = text switch
+        {
+            "none" or "wrapNone" => "wrapNone",
+            "square" or "wrapSquare" => "wrapSquare",
+            "tight" or "wrapTight" => "wrapTight",
+            "through" or "wrapThrough" => "wrapThrough",
+            "top-bottom" or "topAndBottom" or "wrapTopAndBottom" => "wrapTopAndBottom",
+            _ => null
+        };
+        return mode is not null;
+    }
+
+    private static bool TryReadWrapDistanceField(
+        DocxPatchOperation operation,
+        string fieldName,
+        List<DocxDiagnostic> diagnostics,
+        out long? value)
+    {
+        value = null;
+        if (!operation.Fields.TryGetValue(fieldName, out string? text))
+        {
+            return true;
+        }
+
+        if (!OoxmlUnits.TryParseDimension(text, out long emus))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5209", $"Image wrap distance field '{fieldName}' must be a non-negative dimension.", operation, operation.Fields.GetValueOrDefault("target")));
+            return false;
+        }
+
+        value = emus;
+        return true;
+    }
+
+    private static void SetImageWrapMode(XElement anchor, string mode)
+    {
+        anchor.Elements()
+            .Where(element => element.Name.Namespace == OoxmlNs.Wp && element.Name.LocalName.StartsWith("wrap", StringComparison.Ordinal))
+            .Remove();
+        XElement wrap = new(OoxmlNs.Wp + mode);
+        XElement? insertAfter = anchor.Element(OoxmlNs.Wp + "effectExtent") ??
+            anchor.Element(OoxmlNs.Wp + "extent");
+        if (insertAfter is null)
+        {
+            anchor.AddFirst(wrap);
+        }
+        else
+        {
+            insertAfter.AddAfterSelf(wrap);
+        }
+    }
+
+    private static void SetImageWrapDistance(XElement anchor, string attributeName, long? value)
+    {
+        if (value is not null)
+        {
+            anchor.SetAttributeValue(attributeName, value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
     }
 
     private static ImageCrop ReadImageCrop(XElement? sourceRectangle)
