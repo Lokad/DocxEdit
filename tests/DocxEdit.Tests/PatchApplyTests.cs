@@ -2795,6 +2795,46 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyReplaceImagePreservesAnchoredLayoutAndCropMetadata()
+    {
+        using MemoryStream input = CreateDocxWithAnchoredImage();
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", "new-png", null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            asset chart.png
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("new-png", ReadEntry(output, "word/media/image1.png"));
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal("anchor", image.LayoutKind);
+        Assert.Equal(914400, image.WidthEmu);
+        Assert.Equal(457200, image.HeightEmu);
+        Assert.Equal("wrapSquare", image.WrapMode);
+        Assert.Equal(10L, image.WrapDistanceTopEmu);
+        Assert.Equal(20L, image.WrapDistanceBottomEmu);
+        Assert.Equal(30L, image.WrapDistanceLeftEmu);
+        Assert.Equal(40L, image.WrapDistanceRightEmu);
+        Assert.Equal("column", image.HorizontalPositionRelativeFrom);
+        Assert.Equal(123L, image.HorizontalPositionOffsetEmu);
+        Assert.Equal("paragraph", image.VerticalPositionRelativeFrom);
+        Assert.Equal("top", image.VerticalPositionAlign);
+        Assert.Equal(1m, image.CropLeftPercent);
+        Assert.Equal(2m, image.CropTopPercent);
+        Assert.Equal(3m, image.CropRightPercent);
+        Assert.Equal(4m, image.CropBottomPercent);
+    }
+
+    [Fact]
     public static void CheckReplaceImageRejectsFailedContentTypeGuard()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
@@ -3947,6 +3987,8 @@ public static class PatchApplyTests
                       <w:r>
                         <w:drawing>
                           <wp:anchor distT="10" distB="20" distL="30" distR="40">
+                            <wp:positionH relativeFrom="column"><wp:posOffset>123</wp:posOffset></wp:positionH>
+                            <wp:positionV relativeFrom="paragraph"><wp:align>top</wp:align></wp:positionV>
                             <wp:extent cx="914400" cy="457200"/>
                             <wp:wrapSquare/>
                             <wp:docPr id="1" name="Picture 1" descr="Old chart"/>
@@ -3955,6 +3997,7 @@ public static class PatchApplyTests
                                 <pic:pic>
                                   <pic:blipFill>
                                     <a:blip r:embed="rImage"/>
+                                    <a:srcRect l="1000" t="2000" r="3000" b="4000"/>
                                   </pic:blipFill>
                                 </pic:pic>
                               </a:graphicData>
