@@ -2502,6 +2502,56 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetImageCropUpdatesSourceRectangle()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-crop
+            target M.I0001
+            left-percent 12.5
+            top-percent 5
+            right-percent 2.25
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal(12.5m, image.CropLeftPercent);
+        Assert.Equal(5m, image.CropTopPercent);
+        Assert.Equal(2.25m, image.CropRightPercent);
+        Assert.Null(image.CropBottomPercent);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<a:srcRect l=\"12500\" t=\"5000\" r=\"2250\" />", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetImageCropRejectsEmptyHorizontalCrop()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-crop
+            target M.I0001
+            left-percent 60
+            right-percent 40
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E5208");
+    }
+
+    [Fact]
     public static void ApplyDeleteImageRemovesDrawingAndPreservesParagraph()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");

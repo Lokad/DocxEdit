@@ -121,6 +121,7 @@ internal static class DocxPatchEngine
                     "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
                     "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
                     "set-image-metadata" => ExecuteSetImageMetadata(package, operation, apply, cancellationToken),
+                    "set-image-crop" => ExecuteSetImageCrop(package, operation, apply, cancellationToken),
                     "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                     "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
                     "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, apply, cancellationToken),
@@ -2773,6 +2774,81 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageCrop(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        bool hasCropField =
+            operation.Fields.ContainsKey("left-percent") ||
+            operation.Fields.ContainsKey("top-percent") ||
+            operation.Fields.ContainsKey("right-percent") ||
+            operation.Fields.ContainsKey("bottom-percent");
+        if (!hasCropField)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-crop' requires at least one crop field.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-crop target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
+        }
+
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
+        XElement? blipFill = imageTarget.Blip.Ancestors(OoxmlNs.Pic + "blipFill").FirstOrDefault();
+        if (blipFill is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' does not have editable DrawingML crop metadata.", operation, target)];
+        }
+
+        ImageCrop crop = ReadImageCrop(blipFill.Element(OoxmlNs.A + "srcRect"));
+        if (!TryReadCropPercentField(operation, "left-percent", crop.Left, diagnostics, out int left) ||
+            !TryReadCropPercentField(operation, "top-percent", crop.Top, diagnostics, out int top) ||
+            !TryReadCropPercentField(operation, "right-percent", crop.Right, diagnostics, out int right) ||
+            !TryReadCropPercentField(operation, "bottom-percent", crop.Bottom, diagnostics, out int bottom))
+        {
+            return diagnostics;
+        }
+
+        crop = new ImageCrop(left, top, right, bottom);
+        if (crop.Left + crop.Right >= 100_000)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5208", "Image crop left-percent plus right-percent must be less than 100.", operation, target)];
+        }
+
+        if (crop.Top + crop.Bottom >= 100_000)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5208", "Image crop top-percent plus bottom-percent must be less than 100.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetImageCrop(blipFill, crop);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        return [];
+    }
+
     private static bool TryGetImageDrawingContainer(
         ImageBlipTarget imageTarget,
         string target,
@@ -2823,6 +2899,97 @@ internal static class DocxPatchEngine
         {
             docPr.SetAttributeValue("name", name);
         }
+    }
+
+    private static ImageCrop ReadImageCrop(XElement? sourceRectangle)
+    {
+        return new ImageCrop(
+            ReadCropPerThousandPercent(sourceRectangle, "l"),
+            ReadCropPerThousandPercent(sourceRectangle, "t"),
+            ReadCropPerThousandPercent(sourceRectangle, "r"),
+            ReadCropPerThousandPercent(sourceRectangle, "b"));
+    }
+
+    private static int ReadCropPerThousandPercent(XElement? sourceRectangle, string localName)
+    {
+        string? value = (string?)sourceRectangle?.Attribute(localName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        if (value.EndsWith("%", StringComparison.Ordinal) &&
+            decimal.TryParse(value[..^1], System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out decimal percent))
+        {
+            return PercentToPerThousand(percent);
+        }
+
+        return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int perThousandPercent)
+            ? Math.Clamp(perThousandPercent, 0, 100_000)
+            : 0;
+    }
+
+    private static bool TryReadCropPercentField(
+        DocxPatchOperation operation,
+        string fieldName,
+        int currentValue,
+        List<DocxDiagnostic> diagnostics,
+        out int value)
+    {
+        value = currentValue;
+        if (!operation.Fields.TryGetValue(fieldName, out string? text))
+        {
+            return true;
+        }
+
+        if (!decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out decimal percent) ||
+            percent is < 0m or > 100m)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5208", $"Image crop field '{fieldName}' must be a percentage from 0 to 100.", operation, operation.Fields.GetValueOrDefault("target")));
+            return false;
+        }
+
+        value = PercentToPerThousand(percent);
+        return true;
+    }
+
+    private static int PercentToPerThousand(decimal percent)
+    {
+        return (int)Math.Round(percent * 1000m, MidpointRounding.AwayFromZero);
+    }
+
+    private static void SetImageCrop(XElement blipFill, ImageCrop crop)
+    {
+        XElement? sourceRectangle = blipFill.Element(OoxmlNs.A + "srcRect");
+        if (crop.Left == 0 && crop.Top == 0 && crop.Right == 0 && crop.Bottom == 0)
+        {
+            sourceRectangle?.Remove();
+            return;
+        }
+
+        if (sourceRectangle is null)
+        {
+            sourceRectangle = new XElement(OoxmlNs.A + "srcRect");
+            XElement? blip = blipFill.Element(OoxmlNs.A + "blip");
+            if (blip is null)
+            {
+                blipFill.AddFirst(sourceRectangle);
+            }
+            else
+            {
+                blip.AddAfterSelf(sourceRectangle);
+            }
+        }
+
+        SetCropAttribute(sourceRectangle, "l", crop.Left);
+        SetCropAttribute(sourceRectangle, "t", crop.Top);
+        SetCropAttribute(sourceRectangle, "r", crop.Right);
+        SetCropAttribute(sourceRectangle, "b", crop.Bottom);
+    }
+
+    private static void SetCropAttribute(XElement sourceRectangle, string localName, int value)
+    {
+        sourceRectangle.SetAttributeValue(localName, value == 0 ? null : value.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteImage(
@@ -5717,6 +5884,8 @@ internal sealed record HyperlinkTarget(string PartName, XDocument Document, XEle
 internal sealed record FieldTarget(string PartName, XDocument Document, XElement Element);
 
 internal sealed record ImageBlipTarget(string PartName, XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
+
+internal readonly record struct ImageCrop(int Left, int Top, int Right, int Bottom);
 
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
 

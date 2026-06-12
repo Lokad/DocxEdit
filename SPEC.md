@@ -924,8 +924,8 @@ anchored drawings. Anchored drawings expose wrap distances, relative positioning
 relative height, overlap flags, and aspect-ratio locks when present. Crop percentages
 are read from DrawingML `a:srcRect` attributes when present and exposed as
 human-readable percentages, for example `10` for a 10% left crop. Detailed
-crop/positioning edits are preserved in OOXML where possible but not exposed as
-public patch operations.
+positioning edits are preserved in OOXML where possible but not exposed as public
+patch operations; crop percentages can be edited through `set-image-crop`.
 
 ### 8.7 Section model
 
@@ -2006,7 +2006,31 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, size, layout, and crop metadata.
 
-### 11.16 `delete-image`
+### 11.16 `set-image-crop`
+
+```text
+op set-image-crop
+target M.I0001
+left-percent 12.5
+top-percent 5
+right-percent 0
+end
+```
+
+Rules:
+
+* Update DrawingML `a:srcRect` crop percentages without replacing media bytes.
+* At least one of `left-percent`, `top-percent`, `right-percent`, or
+  `bottom-percent` is required.
+* Omitted crop sides keep their current value.
+* Zero-valued crop sides are removed from `a:srcRect`; if all sides are zero, remove
+  `a:srcRect`.
+* Opposing side sums (`left-percent` + `right-percent`, `top-percent` +
+  `bottom-percent`) must remain below 100.
+* `expect-content-type` is a supported guard.
+* Preserve image bytes, size, and layout.
+
+### 11.17 `delete-image`
 
 ```text
 op delete-image
@@ -2145,6 +2169,7 @@ replace-image
 insert-image-after
 set-image-alt
 set-image-metadata
+set-image-crop
 delete-image
 set-section-columns
 set-section-orientation
