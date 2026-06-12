@@ -294,7 +294,8 @@ public static class DocxHelp
                     [
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
                         new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length"),
-                        new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness")
+                        new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
+                        new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, anchor, target part, containing target, and broken relationship flag")
                     ],
                     Notes =
                     [
@@ -309,6 +310,10 @@ public static class DocxHelp
                         new("Fields",
                         [
                             "Read and context output surface simple and complex field metadata, including field code and result-text length. DocxEdit preserves field XML and can mark the document for field updates after edits, but Word remains responsible for recalculating field results."
+                        ]),
+                        new("Hyperlinks",
+                        [
+                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, internal links expose anchor or target part, and broken relationship IDs are flagged."
                         ])
                     ],
                     Examples =

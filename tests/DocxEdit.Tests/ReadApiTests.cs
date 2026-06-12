@@ -833,6 +833,120 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadModelsExternalInternalAndBrokenHyperlinks()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink" w:tooltip="Open example">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Section1">
+                        <w:r><w:t>Internal</w:t></w:r>
+                      </w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rMissing">
+                        <w:r><w:t>Broken</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.Hyperlinks.Count);
+        DocxHyperlinkInfo external = result.Hyperlinks[0];
+        Assert.Equal("M.L0001", external.Id);
+        Assert.Equal("M.P0001", external.TargetId);
+        Assert.Equal("rLink", external.RelationshipId);
+        Assert.Equal("https://example.test/report", external.Uri);
+        Assert.True(external.IsExternal);
+        Assert.False(external.IsBroken);
+        Assert.Equal("Open example", external.Tooltip);
+        Assert.Equal(8, external.DisplayTextLength);
+
+        DocxHyperlinkInfo internalLink = result.Hyperlinks[1];
+        Assert.Equal("Section1", internalLink.Anchor);
+        Assert.False(internalLink.IsExternal);
+        Assert.False(internalLink.IsBroken);
+
+        DocxHyperlinkInfo broken = result.Hyperlinks[2];
+        Assert.Equal("rMissing", broken.RelationshipId);
+        Assert.True(broken.IsBroken);
+        Assert.Null(broken.Uri);
+
+        Assert.Contains("M.L0001 hyperlink", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor=\"Section1\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("broken=True", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1002" && diagnostic.Fallback == "modeled-metadata");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1015" && diagnostic.Fallback == "broken-relationship");
+    }
+
+    [Fact]
+    public static void DumpRunsAnnotatesHyperlinkMarkup()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P0001", new DocxDumpOptions { IncludeRuns = true });
+
+        Assert.True(result.Success);
+        DocxDumpRunInfo run = Assert.Single(result.Runs);
+        Assert.Equal("hyperlink", run.MarkupType);
+        Assert.Equal("rLink", run.HyperlinkRelationshipId);
+        Assert.Contains("markup=hyperlink", result.Text, StringComparison.Ordinal);
+        Assert.Contains("hyperlink-relationship-id=rLink", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithHyperlinkMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "M.L0001" }, item.HyperlinkIds);
+        Assert.Equal(new[] { "https://example.test/report" }, item.HyperlinkTargets);
+        Assert.Contains("hyperlinks=\"M.L0001\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("hyperlink-targets=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DumpRunsAnnotateTrackedChangeAndCommentMarkup()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

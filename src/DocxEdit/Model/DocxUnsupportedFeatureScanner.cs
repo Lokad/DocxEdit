@@ -83,7 +83,7 @@ internal static class DocxUnsupportedFeatureScanner
         using Stream stream = part.OpenRead();
         XDocument document = SafeXml.Load(stream, cancellationToken);
         AddWarningIfAny(diagnostics, "W1001", "tracked-changes", "selected-text-view", CountAny(document, RevisionElements), partName, story, "Tracked-change markup is present; read text can use final, original, or lightweight markup views. Use the changes command for markup metadata.");
-        AddWarningIfAny(diagnostics, "W1002", "hyperlink", "plain-text", Count(document, OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are preserved as text but are not modeled as link metadata.");
+        AddWarningIfAny(diagnostics, "W1002", "hyperlink", "modeled-metadata", Count(document, OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are surfaced as metadata and preserved; hyperlink editing is limited.");
         AddWarningIfAny(diagnostics, "W1003", "field", "modeled-metadata", CountAny(document, [OoxmlNs.W + "fldSimple", OoxmlNs.W + "fldChar", OoxmlNs.W + "instrText"]), partName, story, "Fields are surfaced as metadata and preserved; DocxEdit does not evaluate field results.");
         AddWarningIfAny(diagnostics, "W1004", "comment", "changes-metadata", CountAny(document, [OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", OoxmlNs.W + "commentReference"]), partName, story, "Comment anchors are surfaced by changes metadata; comment text is not exposed by the read model.");
         AddWarningIfAny(diagnostics, "W1005", "bookmark", "modeled-metadata", CountAny(document, [OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are surfaced as metadata and preserved; bookmark range editing is limited.");
@@ -104,6 +104,9 @@ internal static class DocxUnsupportedFeatureScanner
             .GetRelationships(partName, cancellationToken)
             .Count(relationship => relationship.IsExternal && relationship.Type == OoxmlRelTypes.Image);
         AddWarningIfAny(diagnostics, "W1008", "external-image", "omit-from-editable-images", externalImages, partName, story, "External images are not fetched and are not listed as editable images.");
+
+        int brokenHyperlinks = CountBrokenHyperlinks(document, package.GetRelationships(partName, cancellationToken));
+        AddWarningIfAny(diagnostics, "W1015", "hyperlink", "broken-relationship", brokenHyperlinks, partName, story, "Hyperlink relationship IDs are missing from the part relationship table.");
     }
 
     private static int Count(XDocument document, XName name)
@@ -137,6 +140,15 @@ internal static class DocxUnsupportedFeatureScanner
         return sectionProperties > 1
             ? sectionProperties
             : paragraphSectionBreaks;
+    }
+
+    private static int CountBrokenHyperlinks(XDocument document, IReadOnlyList<OoxmlRelationship> relationships)
+    {
+        var relationshipIds = relationships.Select(relationship => relationship.Id).ToHashSet(StringComparer.Ordinal);
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.R + "id"))
+            .Count(id => !string.IsNullOrWhiteSpace(id) && !relationshipIds.Contains(id));
     }
 
     private static void AddWarningIfAny(

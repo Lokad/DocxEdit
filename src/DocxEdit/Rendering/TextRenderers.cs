@@ -94,6 +94,34 @@ internal static class TextRenderers
                 .AppendLine();
         }
 
+        foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
+        {
+            string target = hyperlink.TargetId is null ? " target=unknown" : $" target={hyperlink.TargetId}";
+            string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={Escape(hyperlink.RelationshipId)}";
+            string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{Escape(hyperlink.Uri)}\"";
+            string anchor = hyperlink.Anchor is null ? string.Empty : $" anchor=\"{Escape(hyperlink.Anchor)}\"";
+            string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{Escape(hyperlink.Tooltip)}\"";
+            string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
+            builder.Append(hyperlink.Id)
+                .Append(" hyperlink story=\"")
+                .Append(Escape(hyperlink.Story))
+                .Append("\" part=")
+                .Append(hyperlink.PartName)
+                .Append(target)
+                .Append(relationshipId)
+                .Append(uri)
+                .Append(anchor)
+                .Append(tooltip)
+                .Append(targetPart)
+                .Append(" external=")
+                .Append(hyperlink.IsExternal)
+                .Append(" broken=")
+                .Append(hyperlink.IsBroken)
+                .Append(" display-text-length=")
+                .Append(hyperlink.DisplayTextLength)
+                .AppendLine();
+        }
+
         foreach (DocxTableInfo table in model.Tables)
         {
             builder.Append(table.Id).Append(" table rows=").Append(table.RowCount).Append(" columns=").Append(table.ColumnCount).AppendLine();
@@ -158,6 +186,13 @@ internal static class TextRenderers
             lines.Add($"{field.Id} field kind={Escape(field.Kind)} target={target} code=\"{Escape(field.Code)}\"");
         }
 
+        foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
+        {
+            string target = hyperlink.TargetId is null ? "unknown" : hyperlink.TargetId;
+            string destination = hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName ?? "unknown";
+            lines.Add($"{hyperlink.Id} hyperlink target={target} destination=\"{Escape(destination)}\" broken={hyperlink.IsBroken}");
+        }
+
         return lines;
     }
 
@@ -207,6 +242,8 @@ internal static class TextRenderers
                 string author = run.Author is null ? string.Empty : $" author=\"{Escape(run.Author)}\"";
                 string timestamp = run.TimestampUtc is null ? string.Empty : $" timestamp-utc={run.TimestampUtc:O}";
                 string commentId = run.CommentId is null ? string.Empty : $" comment-id={Escape(run.CommentId)}";
+                string hyperlinkRelationshipId = run.HyperlinkRelationshipId is null ? string.Empty : $" hyperlink-relationship-id={Escape(run.HyperlinkRelationshipId)}";
+                string hyperlinkAnchor = run.HyperlinkAnchor is null ? string.Empty : $" hyperlink-anchor=\"{Escape(run.HyperlinkAnchor)}\"";
                 builder.Append("  ")
                     .Append(paragraph.Id)
                     .Append(".R")
@@ -216,6 +253,8 @@ internal static class TextRenderers
                     .Append(author)
                     .Append(timestamp)
                     .Append(commentId)
+                    .Append(hyperlinkRelationshipId)
+                    .Append(hyperlinkAnchor)
                     .Append(" text=\"")
                     .Append(Escape(Truncate(run.Text, maxText)))
                     .AppendLine("\"");
@@ -253,7 +292,9 @@ internal static class TextRenderers
                 RevisionId = run.RevisionId,
                 Author = run.Author,
                 TimestampUtc = run.TimestampUtc,
-                CommentId = run.CommentId
+                CommentId = run.CommentId,
+                HyperlinkRelationshipId = run.HyperlinkRelationshipId,
+                HyperlinkAnchor = run.HyperlinkAnchor
             })
             .ToArray();
     }
@@ -340,6 +381,8 @@ internal static class TextRenderers
             string fieldIds = item.FieldIds.Count == 0 ? string.Empty : $" fields=\"{Escape(string.Join(",", item.FieldIds))}\"";
             string fieldCodes = item.FieldCodes.Count == 0 ? string.Empty : $" field-codes=\"{Escape(string.Join(",", item.FieldCodes))}\"";
             string fieldKinds = item.FieldKinds.Count == 0 ? string.Empty : $" field-kinds=\"{Escape(string.Join(",", item.FieldKinds))}\"";
+            string hyperlinkIds = item.HyperlinkIds.Count == 0 ? string.Empty : $" hyperlinks=\"{Escape(string.Join(",", item.HyperlinkIds))}\"";
+            string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{Escape(string.Join(",", item.HyperlinkTargets))}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
@@ -367,6 +410,8 @@ internal static class TextRenderers
                 .Append(fieldIds)
                 .Append(fieldCodes)
                 .Append(fieldKinds)
+                .Append(hyperlinkIds)
+                .Append(hyperlinkTargets)
                 .Append(rowCount)
                 .Append(columnCount)
                 .Append(row)
@@ -486,6 +531,8 @@ internal static class TextRenderers
         var fieldIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var fieldCodes = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var fieldKinds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var hyperlinkIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var hyperlinkTargets = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
             AddAnnotation(contentControlIds, control.TargetId, control.Id);
@@ -500,6 +547,12 @@ internal static class TextRenderers
             AddAnnotation(fieldKinds, field.TargetId, field.Kind);
         }
 
+        foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
+        {
+            AddAnnotation(hyperlinkIds, hyperlink.TargetId, hyperlink.Id);
+            AddAnnotation(hyperlinkTargets, hyperlink.TargetId, hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName);
+        }
+
         return new TargetAnnotations(
             ToArrayDictionary(bookmarkNames),
             ToArrayDictionary(contentControlIds),
@@ -507,7 +560,9 @@ internal static class TextRenderers
             ToArrayDictionary(contentControlAliases),
             ToArrayDictionary(fieldIds),
             ToArrayDictionary(fieldCodes),
-            ToArrayDictionary(fieldKinds));
+            ToArrayDictionary(fieldKinds),
+            ToArrayDictionary(hyperlinkIds),
+            ToArrayDictionary(hyperlinkTargets));
     }
 
     private static DocxContextItem ApplyAnnotations(DocxContextItem item, TargetAnnotations annotations)
@@ -520,7 +575,9 @@ internal static class TextRenderers
             ContentControlAliases = LookupAnnotations(annotations.ContentControlAliasesByTarget, item.Id),
             FieldIds = LookupAnnotations(annotations.FieldIdsByTarget, item.Id),
             FieldCodes = LookupAnnotations(annotations.FieldCodesByTarget, item.Id),
-            FieldKinds = LookupAnnotations(annotations.FieldKindsByTarget, item.Id)
+            FieldKinds = LookupAnnotations(annotations.FieldKindsByTarget, item.Id),
+            HyperlinkIds = LookupAnnotations(annotations.HyperlinkIdsByTarget, item.Id),
+            HyperlinkTargets = LookupAnnotations(annotations.HyperlinkTargetsByTarget, item.Id)
         };
     }
 
@@ -654,5 +711,7 @@ internal static class TextRenderers
         IReadOnlyDictionary<string, string[]> ContentControlAliasesByTarget,
         IReadOnlyDictionary<string, string[]> FieldIdsByTarget,
         IReadOnlyDictionary<string, string[]> FieldCodesByTarget,
-        IReadOnlyDictionary<string, string[]> FieldKindsByTarget);
+        IReadOnlyDictionary<string, string[]> FieldKindsByTarget,
+        IReadOnlyDictionary<string, string[]> HyperlinkIdsByTarget,
+        IReadOnlyDictionary<string, string[]> HyperlinkTargetsByTarget);
 }

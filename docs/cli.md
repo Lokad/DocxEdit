@@ -89,6 +89,12 @@ nearby targets with `fields`, `field-codes`, and `field-kinds`. DocxEdit preserv
 field XML and can mark the document for field updates after edits through
 `MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field
 results.
+Hyperlink records are listed by `read` and `outline`. External hyperlinks expose
+their URI, internal links expose an anchor or target part, and broken relationship
+IDs are flagged. `context` annotates nearby targets with `hyperlinks` and
+`hyperlink-targets`; `dump --runs` annotates hyperlink runs with
+`markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
+Hyperlink target/display editing remains outside the current patch DSL.
 
 ## Patch
 

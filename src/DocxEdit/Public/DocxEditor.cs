@@ -50,7 +50,8 @@ public sealed class DocxEditor
             Sections = model.Sections,
             Bookmarks = model.Bookmarks,
             ContentControls = model.ContentControls,
-            Fields = model.Fields
+            Fields = model.Fields,
+            Hyperlinks = model.Hyperlinks
         };
     }
 

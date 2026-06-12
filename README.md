@@ -141,7 +141,8 @@ Implemented areas include:
 - opt-in bounded comment body snippets through `changes`;
 - bookmark and content-control read/context metadata with selector guidance;
 - simple and complex field read/context metadata with field-update marking after edits;
+- hyperlink read/context/dump metadata for external links, internal anchors, and broken relationship IDs;
 - simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, hyperlinks, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.
+Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, hyperlink editing, floating images, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.

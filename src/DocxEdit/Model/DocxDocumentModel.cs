@@ -7,7 +7,8 @@ internal sealed record DocxDocumentModel(
     IReadOnlyList<DocxSectionInfo> Sections,
     IReadOnlyList<DocxBookmarkInfo> Bookmarks,
     IReadOnlyList<DocxContentControlInfo> ContentControls,
-    IReadOnlyList<DocxFieldInfo> Fields)
+    IReadOnlyList<DocxFieldInfo> Fields,
+    IReadOnlyList<DocxHyperlinkInfo> Hyperlinks)
 {
-    public static DocxDocumentModel Empty { get; } = new([], [], [], [], [], [], []);
+    public static DocxDocumentModel Empty { get; } = new([], [], [], [], [], [], [], []);
 }

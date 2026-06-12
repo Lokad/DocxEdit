@@ -18,6 +18,7 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxBookmarkInfo> Bookmarks { get; init; } = [];
     public IReadOnlyList<DocxContentControlInfo> ContentControls { get; init; } = [];
     public IReadOnlyList<DocxFieldInfo> Fields { get; init; } = [];
+    public IReadOnlyList<DocxHyperlinkInfo> Hyperlinks { get; init; } = [];
 }
 
 public sealed record DocxOutlineResult : DocxOperationResult
@@ -164,6 +165,8 @@ public sealed record DocxDumpRunInfo
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
     public string? CommentId { get; init; }
+    public string? HyperlinkRelationshipId { get; init; }
+    public string? HyperlinkAnchor { get; init; }
 }
 
 public sealed record DocxContextItem
@@ -185,6 +188,8 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> FieldIds { get; init; } = [];
     public IReadOnlyList<string> FieldCodes { get; init; } = [];
     public IReadOnlyList<string> FieldKinds { get; init; } = [];
+    public IReadOnlyList<string> HyperlinkIds { get; init; } = [];
+    public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -222,6 +227,8 @@ public sealed record DocxRunInfo(string Text)
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
     public string? CommentId { get; init; }
+    public string? HyperlinkRelationshipId { get; init; }
+    public string? HyperlinkAnchor { get; init; }
 }
 
 public sealed record DocxBookmarkInfo
@@ -262,6 +269,22 @@ public sealed record DocxFieldInfo
     public bool? IsDirty { get; init; }
     public bool? IsLocked { get; init; }
     public bool IsComplete { get; init; }
+}
+
+public sealed record DocxHyperlinkInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? TargetId { get; init; }
+    public string? RelationshipId { get; init; }
+    public string? Uri { get; init; }
+    public string? Anchor { get; init; }
+    public string? Tooltip { get; init; }
+    public string? TargetPartName { get; init; }
+    public bool IsExternal { get; init; }
+    public bool IsBroken { get; init; }
+    public int DisplayTextLength { get; init; }
 }
 
 public sealed record DocxTableInfo(

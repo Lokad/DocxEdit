@@ -27,7 +27,8 @@ internal static class DocxDocumentScanner
         var bookmarks = new List<DocxBookmarkInfo>();
         var contentControls = new List<DocxContentControlInfo>();
         var fields = new List<DocxFieldInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, cancellationToken);
+        var hyperlinks = new List<DocxHyperlinkInfo>();
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -40,7 +41,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
                 }
             }
 
@@ -52,12 +53,12 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
                 }
             }
         }
 
-        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls, fields);
+        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks);
     }
 
     private static void ScanStory(
@@ -75,6 +76,7 @@ internal static class DocxDocumentScanner
         List<DocxBookmarkInfo> bookmarks,
         List<DocxContentControlInfo> contentControls,
         List<DocxFieldInfo> fields,
+        List<DocxHyperlinkInfo> hyperlinks,
         CancellationToken cancellationToken)
     {
         OoxmlPart part = package.GetPart(partName)
@@ -127,6 +129,7 @@ internal static class DocxDocumentScanner
         bookmarks.AddRange(ReadBookmarks(document, partName, story, idPrefix, targets));
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
         fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
+        hyperlinks.AddRange(ReadHyperlinks(document, partName, story, idPrefix, textView, targets, relationships));
     }
 
     private static DocxParagraphInfo ReadParagraph(
@@ -182,7 +185,24 @@ internal static class DocxDocumentScanner
                         (string?)child.Attribute(OoxmlNs.W + "id"),
                         (string?)child.Attribute(OoxmlNs.W + "author"),
                         ParseDate((string?)child.Attribute(OoxmlNs.W + "date")),
+                        null,
+                        null,
                         null));
+                }
+            }
+            else if (child.Name == OoxmlNs.W + "hyperlink")
+            {
+                var hyperlinkMarkup = new RunMarkup(
+                    "hyperlink",
+                    null,
+                    null,
+                    null,
+                    null,
+                    (string?)child.Attribute(OoxmlNs.R + "id"),
+                    (string?)child.Attribute(OoxmlNs.W + "anchor"));
+                foreach (XElement run in child.Elements(OoxmlNs.W + "r"))
+                {
+                    AddRunIfVisible(runs, run, textView, hyperlinkMarkup);
                 }
             }
             else if (IsCommentMarker(child))
@@ -213,7 +233,9 @@ internal static class DocxDocumentScanner
             RevisionId = markup.RevisionId,
             Author = markup.Author,
             TimestampUtc = markup.TimestampUtc,
-            CommentId = markup.CommentId
+            CommentId = markup.CommentId,
+            HyperlinkRelationshipId = markup.HyperlinkRelationshipId,
+            HyperlinkAnchor = markup.HyperlinkAnchor
         });
     }
 
@@ -222,7 +244,7 @@ internal static class DocxDocumentScanner
         XElement? commentReference = run.Descendants(OoxmlNs.W + "commentReference").FirstOrDefault();
         if (commentReference is not null)
         {
-            return new RunMarkup("comment-reference", null, null, null, (string?)commentReference.Attribute(OoxmlNs.W + "id"));
+            return new RunMarkup("comment-reference", null, null, null, (string?)commentReference.Attribute(OoxmlNs.W + "id"), null, null);
         }
 
         return null;
@@ -462,6 +484,42 @@ internal static class DocxDocumentScanner
         }
 
         return fields;
+    }
+
+    private static IReadOnlyList<DocxHyperlinkInfo> ReadHyperlinks(
+        XDocument document,
+        string partName,
+        string story,
+        string idPrefix,
+        DocxTextView textView,
+        IReadOnlyDictionary<XElement, string> targets,
+        IReadOnlyDictionary<string, OoxmlRelationship> relationships)
+    {
+        var hyperlinks = new List<DocxHyperlinkInfo>();
+        int hyperlinkIndex = 1;
+        foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))
+        {
+            string? relationshipId = (string?)hyperlink.Attribute(OoxmlNs.R + "id");
+            relationships.TryGetValue(relationshipId ?? string.Empty, out OoxmlRelationship? relationship);
+            string? anchor = (string?)hyperlink.Attribute(OoxmlNs.W + "anchor");
+            hyperlinks.Add(new DocxHyperlinkInfo
+            {
+                Id = $"{idPrefix}.L{hyperlinkIndex++:0000}",
+                Story = story,
+                PartName = partName,
+                TargetId = FindTargetId(hyperlink, targets),
+                RelationshipId = relationshipId,
+                Uri = relationship?.IsExternal == true ? relationship.Target : null,
+                Anchor = anchor,
+                Tooltip = (string?)hyperlink.Attribute(OoxmlNs.W + "tooltip"),
+                TargetPartName = relationship?.IsExternal == false ? relationship.ResolvedTarget : null,
+                IsExternal = relationship?.IsExternal == true,
+                IsBroken = !string.IsNullOrWhiteSpace(relationshipId) && relationship is null,
+                DisplayTextLength = ReadText(hyperlink, textView).Length
+            });
+        }
+
+        return hyperlinks;
     }
 
     private static string? FindTargetId(XElement element, IReadOnlyDictionary<XElement, string> targets)
@@ -789,16 +847,20 @@ internal static class DocxDocumentScanner
         string? RevisionId,
         string? Author,
         DateTimeOffset? TimestampUtc,
-        string? CommentId)
+        string? CommentId,
+        string? HyperlinkRelationshipId,
+        string? HyperlinkAnchor)
     {
-        public static RunMarkup Empty { get; } = new(null, null, null, null, null);
+        public static RunMarkup Empty { get; } = new(null, null, null, null, null, null, null);
 
         public bool IsEmpty =>
             MarkupType is null &&
             RevisionId is null &&
             Author is null &&
             TimestampUtc is null &&
-            CommentId is null;
+            CommentId is null &&
+            HyperlinkRelationshipId is null &&
+            HyperlinkAnchor is null;
     }
 
     private sealed record StyleNumbering(string NumberingId, int Level, string Source);
