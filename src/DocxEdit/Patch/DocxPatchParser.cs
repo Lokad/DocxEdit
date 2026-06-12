@@ -31,6 +31,7 @@ internal static class DocxPatchParser
         ["replace-image"] = new(["target", "asset", "expect-content-type", "alt"], [], []),
         ["insert-image-after"] = new(["target", "asset", "expect-content-type", "width", "height", "alt"], [], []),
         ["set-image-alt"] = new(["target", "expect-content-type", "alt"], [], []),
+        ["set-image-metadata"] = new(["target", "expect-content-type", "alt", "title", "name"], [], []),
         ["delete-image"] = new(["target", "expect-content-type"], [], []),
         ["set-section-columns"] = new(["target", "expect-columns", "expect-orientation", "count", "space"], [], ["expect-columns", "count"]),
         ["set-section-orientation"] = new(["target", "expect-columns", "expect-orientation", "orientation"], [], ["expect-columns"])

@@ -69,6 +69,7 @@ including nearby paragraph text.
 - `replace-image`: `target`, `asset`, optional `expect-content-type`, `alt`
 - `insert-image-after`: `target`, `asset`, optional `expect-content-type`, `width`, `height`, `alt`
 - `set-image-alt`: `target`, `alt`, optional `expect-content-type`
+- `set-image-metadata`: `target`, at least one of `alt`, `title`, or `name`, optional `expect-content-type`
 - `delete-image`: `target`, optional `expect-content-type`
 - `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
 - `set-section-orientation`: `target`, `orientation`, optional `expect-columns`, `expect-orientation`
@@ -125,7 +126,8 @@ resolved row's final visible text contains the supplied value exactly.
 
 `replace-image` `alt` updates the target inline or anchored DrawingML object's
 description while replacing the media bytes. Use `set-image-alt` when only the
-description should change.
+description should change. Use `set-image-metadata` to update DrawingML `docPr`
+description (`alt`), `title`, and `name` without replacing media bytes.
 
 Tracked output is intentionally narrow. It supports simple `replace-text`,
 whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes,

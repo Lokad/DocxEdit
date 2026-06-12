@@ -1926,7 +1926,26 @@ Rules:
 * Update alt text on drawing properties where present.
 * Preserve image bytes and size.
 
-### 11.15 `delete-image`
+### 11.15 `set-image-metadata`
+
+```text
+op set-image-metadata
+target M.I0001
+alt "Updated revenue chart"
+title "Revenue chart"
+name "Revenue picture"
+end
+```
+
+Rules:
+
+* Update DrawingML `wp:docPr` `descr`, `title`, and `name` without replacing media
+  bytes.
+* Require at least one of `alt`, `title`, or `name`.
+* `expect-content-type` is a supported guard.
+* Preserve image bytes, size, layout, and crop metadata.
+
+### 11.16 `delete-image`
 
 ```text
 op delete-image
@@ -2060,6 +2079,7 @@ delete-row
 replace-image
 insert-image-after
 set-image-alt
+set-image-metadata
 delete-image
 set-section-columns
 set-section-orientation

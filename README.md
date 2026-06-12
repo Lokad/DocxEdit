@@ -139,7 +139,8 @@ Implemented areas include:
   vertical-merge root cells;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
 - bookmark and content-control selectors for safe paragraph targeting;
-- patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
+- patch operations for paragraph text, blocks, styles, simple main/header/footer tables,
+  inline images and image metadata, and basic sections;
 - no-content tracked-change and comment markup viewing through `changes`;
 - opt-in bounded comment body snippets through `changes`;
 - comment body editing and deletion through explicit patch operations keyed by

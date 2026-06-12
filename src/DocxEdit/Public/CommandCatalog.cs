@@ -239,6 +239,7 @@ public static class DocxHelp
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
+        builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash, preserve-size, and caption are not supported.");
         return builder.ToString();
@@ -350,7 +351,7 @@ public static class DocxHelp
                         ]),
                         new("Images",
                         [
-                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported."
+                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, and set-image-metadata updates docPr name/description/title."
                         ]),
                         new("Tables",
                         [
@@ -702,6 +703,7 @@ public static class DocxHelp
                 PreserveOnly("replace-image", ["target", "asset"], ["expect-content-type", "alt"]),
                 PreserveOnly("insert-image-after", ["target", "asset"], ["expect-content-type", "width", "height", "alt"]),
                 PreserveOnly("set-image-alt", ["target", "alt"], ["expect-content-type"]),
+                PreserveOnly("set-image-metadata", ["target plus alt, title, or name"], ["expect-content-type"]),
                 PreserveOnly("delete-image", ["target"], ["expect-content-type"]),
                 PreserveOnly("set-section-columns", ["target", "count"], ["expect-columns", "expect-orientation"]),
                 PreserveOnly("set-section-orientation", ["target", "orientation"], ["expect-columns", "expect-orientation"])

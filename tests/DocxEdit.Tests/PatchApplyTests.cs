@@ -2291,6 +2291,32 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetImageMetadataUpdatesDrawingProperties()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-metadata
+            target M.I0001
+            alt Updated chart
+            title Revenue chart
+            name Revenue picture
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal("Updated chart", image.Description);
+        Assert.Equal("Revenue chart", image.Title);
+        Assert.Equal("Revenue picture", image.Name);
+    }
+
+    [Fact]
     public static void ApplyDeleteImageRemovesDrawingAndPreservesParagraph()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");

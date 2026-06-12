@@ -116,6 +116,7 @@ internal static class DocxPatchEngine
                     "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
                     "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
                     "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
+                    "set-image-metadata" => ExecuteSetImageMetadata(package, operation, apply, cancellationToken),
                     "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                     "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
                     "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, apply, cancellationToken),
@@ -2422,6 +2423,58 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageMetadata(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? alt = operation.Fields.GetValueOrDefault("alt");
+        string? title = operation.Fields.GetValueOrDefault("title");
+        string? name = operation.Fields.GetValueOrDefault("name");
+        if (alt is null && title is null && name is null)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-metadata' requires at least one of 'alt', 'title', or 'name'.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-metadata target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
+        }
+
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
+        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        {
+            return [diagnostic!];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetImageMetadata(imageContainer!, target!, alt, title, name);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        return [];
+    }
+
     private static bool TryGetImageDrawingContainer(
         ImageBlipTarget imageTarget,
         string target,
@@ -2444,6 +2497,11 @@ internal static class DocxPatchEngine
 
     private static void SetImageAlt(XElement container, string alt, string target)
     {
+        SetImageMetadata(container, target, alt, title: null, name: null);
+    }
+
+    private static void SetImageMetadata(XElement container, string target, string? alt, string? title, string? name)
+    {
         XElement? docPr = container.Element(OoxmlNs.Wp + "docPr");
         if (docPr is null)
         {
@@ -2453,7 +2511,20 @@ internal static class DocxPatchEngine
             container.AddFirst(docPr);
         }
 
-        docPr.SetAttributeValue("descr", alt);
+        if (alt is not null)
+        {
+            docPr.SetAttributeValue("descr", alt);
+        }
+
+        if (title is not null)
+        {
+            docPr.SetAttributeValue("title", title);
+        }
+
+        if (name is not null)
+        {
+            docPr.SetAttributeValue("name", name);
+        }
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteImage(

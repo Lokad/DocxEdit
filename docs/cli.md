@@ -126,9 +126,9 @@ DrawingML extent in EMUs, `docPr` description/title/name when present, wrap mode
 `behind-doc` for floating drawings, wrap distances, anchor relative positioning,
 relative height, overlap/aspect-lock flags, and `crop-left-percent`/
 `crop-top-percent`/`crop-right-percent`/`crop-bottom-percent` when DrawingML crop
-metadata is present. Replacement and alt-text operations preserve the existing
-drawing layout where supported; detailed crop and positioning edits are not yet
-exposed.
+metadata is present. Replacement, alt-text, and docPr metadata operations preserve
+the existing drawing layout where supported; detailed crop and positioning edits are
+not yet exposed.
 Table output includes table style ID, declared grid column count, header-row,
 merged-cell, and nested-table flags when present. Row lines include physical cell
 count, omitted grid columns (`grid-before`/`grid-after`), header status, and
