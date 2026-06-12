@@ -55,10 +55,31 @@ internal static class DocxStyleScanner
             string name = (string?)style.Element(OoxmlNs.W + "name")?.Attribute(OoxmlNs.W + "val")
                 ?? styleId;
             bool isDefault = IsTrue((string?)style.Attribute(OoxmlNs.W + "default"));
-            styles.Add(new DocxStyleInfo(styleId, name, type, isDefault));
+            XElement? numberingProperties = style
+                .Element(OoxmlNs.W + "pPr")
+                ?.Element(OoxmlNs.W + "numPr");
+            string? numberingId = (string?)numberingProperties
+                ?.Element(OoxmlNs.W + "numId")
+                ?.Attribute(OoxmlNs.W + "val");
+            int? numberingLevel = TryReadInt((string?)numberingProperties
+                ?.Element(OoxmlNs.W + "ilvl")
+                ?.Attribute(OoxmlNs.W + "val"));
+            styles.Add(new DocxStyleInfo(styleId, name, type, isDefault)
+            {
+                BasedOnStyleId = (string?)style.Element(OoxmlNs.W + "basedOn")?.Attribute(OoxmlNs.W + "val"),
+                NextStyleId = (string?)style.Element(OoxmlNs.W + "next")?.Attribute(OoxmlNs.W + "val"),
+                LinkedStyleId = (string?)style.Element(OoxmlNs.W + "link")?.Attribute(OoxmlNs.W + "val"),
+                NumberingId = numberingId,
+                NumberingLevel = numberingLevel
+            });
         }
 
         return styles;
+    }
+
+    private static int? TryReadInt(string? value)
+    {
+        return int.TryParse(value, out int parsed) ? parsed : null;
     }
 
     private static bool IsTrue(string? value)

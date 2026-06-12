@@ -82,7 +82,14 @@ public sealed record DocxPatchOperationReport(
     bool Success,
     IReadOnlyList<DocxDiagnostic> Diagnostics);
 
-public sealed record DocxStyleInfo(string StyleId, string Name, string Type, bool IsDefault);
+public sealed record DocxStyleInfo(string StyleId, string Name, string Type, bool IsDefault)
+{
+    public string? BasedOnStyleId { get; init; }
+    public string? NextStyleId { get; init; }
+    public string? LinkedStyleId { get; init; }
+    public string? NumberingId { get; init; }
+    public int? NumberingLevel { get; init; }
+}
 
 public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength);
 
@@ -158,6 +165,9 @@ public sealed record DocxContextItem
     public string? ParentId { get; init; }
     public string Text { get; init; } = string.Empty;
     public int? HeadingLevel { get; init; }
+    public string? StyleId { get; init; }
+    public string? StyleName { get; init; }
+    public DocxListInfo? List { get; init; }
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -173,9 +183,20 @@ public sealed record DocxParagraphInfo(
     string Text,
     int? HeadingLevel,
     DocxListInfo? List,
-    IReadOnlyList<DocxRunInfo> Runs);
+    IReadOnlyList<DocxRunInfo> Runs)
+{
+    public string? StyleId { get; init; }
+    public string? StyleName { get; init; }
+}
 
-public sealed record DocxListInfo(string NumberingId, int Level);
+public sealed record DocxListInfo(string NumberingId, int Level)
+{
+    public string? AbstractNumberingId { get; init; }
+    public string? Format { get; init; }
+    public string? LevelText { get; init; }
+    public string? ParagraphStyleId { get; init; }
+    public string Source { get; init; } = "direct";
+}
 
 public sealed record DocxRunInfo(string Text)
 {

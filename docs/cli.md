@@ -63,6 +63,13 @@ when short snippets are needed.
 Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 `read --summary` prints package/story counts without listing every target, which is
 useful for large-document validation.
+Paragraph lines may include `styleId=...` and resolved list metadata. List metadata
+starts with the concrete `numId` and zero-based level, then includes resolved
+`abstractNumId`, numbering `format`, `level-text`, paragraph style link, and
+`source=style` or `source=style-inherited` when the list comes from paragraph style
+inheritance rather than direct paragraph numbering.
+`styles` output includes inheritance links such as `based-on`, `next`, `linked`, and
+style-level numbering defaults when present.
 
 ## Patch
 

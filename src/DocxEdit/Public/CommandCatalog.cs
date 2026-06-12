@@ -290,6 +290,13 @@ public static class DocxHelp
                     [
                         "Use --summary, or DocxTextRenderer.RenderReadSummary, when only structure counts are needed."
                     ],
+                    Notes =
+                    [
+                        new("List and style metadata",
+                        [
+                            "Paragraph records may include StyleId, StyleName, and resolved List metadata. List metadata reports concrete numbering ID, zero-based level, abstract numbering ID, format, level text, paragraph style link, and source=style or source=style-inherited when numbering comes from style inheritance."
+                        ])
+                    ],
                     Examples =
                     [
                         "docxedit read report.docx [--view final|original|markup]",
@@ -390,7 +397,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "List paragraph, character, and table styles",
                     Usage = "docxedit styles input.docx [--json] [--diagnostics <path>] [--strict]",
-                    Description = "List paragraph, character, and table styles.",
+                    Description = "List paragraph, character, and table styles. Output includes inheritance links such as based-on, next, linked, and style-level numbering defaults when present.",
                     Options =
                     [
                         new("--json", "Print the result object as JSON"),

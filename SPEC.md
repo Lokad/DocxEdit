@@ -691,10 +691,24 @@ public sealed record DocxParagraphInfo(
     string Text,
     int? HeadingLevel,
     DocxListInfo? List,
-    IReadOnlyList<DocxRunInfo> Runs);
+    IReadOnlyList<DocxRunInfo> Runs)
+{
+    public string? StyleId { get; init; }
+    public string? StyleName { get; init; }
+}
 
-public sealed record DocxListInfo(string NumberingId, int Level);
+public sealed record DocxListInfo(string NumberingId, int Level)
+{
+    public string? AbstractNumberingId { get; init; }
+    public string? Format { get; init; }
+    public string? LevelText { get; init; }
+    public string? ParagraphStyleId { get; init; }
+    public string Source { get; init; } = "direct";
+}
 ```
+
+`DocxListInfo` resolves direct paragraph numbering and paragraph-style numbering when
+available. `Source` is `direct`, `style`, or `style-inherited`.
 
 ### 8.4 Run model
 
@@ -823,6 +837,9 @@ public sealed record DocxContextItem
     public string? ParentId { get; init; }
     public string Text { get; init; } = string.Empty;
     public int? HeadingLevel { get; init; }
+    public string? StyleId { get; init; }
+    public string? StyleName { get; init; }
+    public DocxListInfo? List { get; init; }
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -849,8 +866,8 @@ Example CLI output:
 
 ```text
 M.S0001 section columns=2 orientation=landscape
-M.P0001 heading level=1 text="Executive Summary"
-M.P0002 paragraph list numId=42 level=0 text="Revenue increased"
+M.P0001 heading level=1 styleId=Heading1 text="Executive Summary"
+M.P0002 paragraph list numId=42 level=0 abstractNumId=7 format=decimal level-text="%1." text="Revenue increased"
 M.T0001 table rows=2 columns=3
   M.T0001.R01.C01 text="Metric"
   M.T0001.R01.C02 text="Q3"
@@ -910,7 +927,7 @@ Purpose: list styles by style ID and display name.
 
 ```text
 paragraph styleId=Normal name="Normal" default=true
-paragraph styleId=Heading1 name="Heading 1"
+paragraph styleId=Heading1 name="Heading 1" based-on=Normal next=Normal
 character styleId=Emphasis name="Emphasis"
 table styleId=TableGrid name="Table Grid"
 ```
@@ -2101,14 +2118,18 @@ Read styles from `/word/styles.xml`.
 For each style:
 
 ```csharp
-public sealed record DocxStyleInfo
+public sealed record DocxStyleInfo(string StyleId, string Name, string Type, bool IsDefault)
 {
-    public required string StyleId { get; init; }
-    public required string Type { get; init; } // paragraph, character, table, numbering
-    public string? Name { get; init; }
-    public bool IsDefault { get; init; }
+    public string? BasedOnStyleId { get; init; }
+    public string? NextStyleId { get; init; }
+    public string? LinkedStyleId { get; init; }
+    public string? NumberingId { get; init; }
+    public int? NumberingLevel { get; init; }
 }
 ```
+
+The public style list includes paragraph, character, and table styles. Numbering styles
+may influence resolved paragraph list metadata but are not listed as editable styles.
 
 Style resolution rules:
 

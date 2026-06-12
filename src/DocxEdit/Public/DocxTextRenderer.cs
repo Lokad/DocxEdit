@@ -74,6 +74,12 @@ public static class DocxTextRenderer
                      .ThenBy(style => style.StyleId, StringComparer.Ordinal))
         {
             string defaultText = style.IsDefault ? " default=true" : string.Empty;
+            string basedOn = style.BasedOnStyleId is null ? string.Empty : $" based-on={EscapeText(style.BasedOnStyleId)}";
+            string next = style.NextStyleId is null ? string.Empty : $" next={EscapeText(style.NextStyleId)}";
+            string linked = style.LinkedStyleId is null ? string.Empty : $" linked={EscapeText(style.LinkedStyleId)}";
+            string numbering = style.NumberingId is null
+                ? string.Empty
+                : $" numbering numId={EscapeText(style.NumberingId)} level={style.NumberingLevel ?? 0}";
             builder.Append(style.Type)
                 .Append(" styleId=")
                 .Append(style.StyleId)
@@ -81,6 +87,10 @@ public static class DocxTextRenderer
                 .Append(EscapeText(style.Name))
                 .Append('"')
                 .Append(defaultText)
+                .Append(basedOn)
+                .Append(next)
+                .Append(linked)
+                .Append(numbering)
                 .AppendLine();
         }
 

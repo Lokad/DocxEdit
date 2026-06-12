@@ -224,6 +224,103 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadResolvesNumberingDefinitionMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr>
+                          <w:ilvl w:val="1"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>Nested bullet</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="1">
+                      <w:numFmt w:val="bullet"/>
+                      <w:lvlText w:val="o"/>
+                      <w:pStyle w:val="BulletStyle"/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9">
+                    <w:abstractNumId w:val="7"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxListInfo list = Assert.Single(result.Paragraphs).List!;
+        Assert.Equal("9", list.NumberingId);
+        Assert.Equal(1, list.Level);
+        Assert.Equal("7", list.AbstractNumberingId);
+        Assert.Equal("bullet", list.Format);
+        Assert.Equal("o", list.LevelText);
+        Assert.Equal("BulletStyle", list.ParagraphStyleId);
+        Assert.Equal("direct", list.Source);
+        Assert.Contains("list numId=9 level=1 abstractNumId=7 format=bullet level-text=\"o\" paragraph-style=BulletStyle", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadResolvesStyleLinkedNumbering()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr>
+                      <w:r><w:t>Styled list item</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="ListParagraph">
+                    <w:name w:val="List Paragraph"/>
+                    <w:basedOn w:val="Normal"/>
+                    <w:pPr>
+                      <w:numPr>
+                        <w:ilvl w:val="0"/>
+                        <w:numId w:val="11"/>
+                      </w:numPr>
+                    </w:pPr>
+                  </w:style>
+                </w:styles>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="2">
+                    <w:lvl w:ilvl="0">
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="11">
+                    <w:abstractNumId w:val="2"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
+        Assert.Equal("ListParagraph", paragraph.StyleId);
+        Assert.Equal("List Paragraph", paragraph.StyleName);
+        Assert.NotNull(paragraph.List);
+        Assert.Equal("style", paragraph.List.Source);
+        Assert.Equal("decimal", paragraph.List.Format);
+        Assert.Contains("styleId=ListParagraph list numId=11 level=0 abstractNumId=2 format=decimal level-text=\"%1.\" source=style", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void MediaListsReferencedImagesOnly()
     {
         using MemoryStream stream = CreateDocx();
@@ -275,6 +372,54 @@ public static class ReadApiTests
         Assert.Contains(result.Styles, style => style.StyleId == "Normal" && style.Type == "paragraph" && style.IsDefault);
         Assert.Contains(result.Styles, style => style.StyleId == "Emphasis" && style.Type == "character");
         Assert.Contains(result.Styles, style => style.StyleId == "TableGrid" && style.Type == "table");
+    }
+
+    [Fact]
+    public static void StylesExposeInheritanceLinksAndNumberingDefaults()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p><w:r><w:t>Styled paragraph</w:t></w:r></w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="Base">
+                    <w:name w:val="Base"/>
+                  </w:style>
+                  <w:style w:type="paragraph" w:styleId="Derived">
+                    <w:name w:val="Derived"/>
+                    <w:basedOn w:val="Base"/>
+                    <w:next w:val="NextStyle"/>
+                    <w:link w:val="DerivedChar"/>
+                    <w:pPr>
+                      <w:numPr>
+                        <w:ilvl w:val="2"/>
+                        <w:numId w:val="44"/>
+                      </w:numPr>
+                    </w:pPr>
+                  </w:style>
+                  <w:style w:type="character" w:styleId="DerivedChar">
+                    <w:name w:val="Derived Char"/>
+                  </w:style>
+                </w:styles>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxStylesResult result = editor.Styles(stream);
+
+        DocxStyleInfo style = result.Styles.Single(style => style.StyleId == "Derived");
+        Assert.Equal("Base", style.BasedOnStyleId);
+        Assert.Equal("NextStyle", style.NextStyleId);
+        Assert.Equal("DerivedChar", style.LinkedStyleId);
+        Assert.Equal("44", style.NumberingId);
+        Assert.Equal(2, style.NumberingLevel);
+        string stylesText = DocxTextRenderer.RenderStyles(result);
+        Assert.Contains("styleId=Derived", stylesText, StringComparison.Ordinal);
+        Assert.Contains("based-on=Base", stylesText, StringComparison.Ordinal);
+        Assert.Contains("numbering numId=44 level=2", stylesText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -949,6 +1094,51 @@ public static class ReadApiTests
                   </w:body>
                 </w:document>
                 """);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithStylesAndNumbering(
+        string bodyXml,
+        string stylesXml,
+        string numberingXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/styles.xml", stylesXml);
+            AddEntry(archive, "word/numbering.xml", numberingXml);
         }
 
         stream.Position = 0;

@@ -16,10 +16,13 @@ internal static class TextRenderers
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
         {
             string kind = paragraph.HeadingLevel is null ? "paragraph" : $"heading level={paragraph.HeadingLevel}";
+            string style = paragraph.StyleId is null
+                ? string.Empty
+                : $" styleId={Escape(paragraph.StyleId)}";
             string list = paragraph.List is null
                 ? string.Empty
-                : $" list numId={paragraph.List.NumberingId} level={paragraph.List.Level}";
-            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(list).Append(" text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
+                : RenderList(paragraph.List);
+            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(style).Append(list).Append(" text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
         }
 
         foreach (DocxTableInfo table in model.Tables)
@@ -237,6 +240,8 @@ internal static class TextRenderers
             string story = string.IsNullOrWhiteSpace(item.Story) ? string.Empty : $" story=\"{Escape(item.Story)}\"";
             string parent = item.ParentId is null ? string.Empty : $" parent={item.ParentId}";
             string heading = item.HeadingLevel is null ? string.Empty : $" heading-level={item.HeadingLevel}";
+            string style = item.StyleId is null ? string.Empty : $" styleId={Escape(item.StyleId)}";
+            string list = item.List is null ? string.Empty : RenderList(item.List);
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
@@ -255,6 +260,8 @@ internal static class TextRenderers
                 .Append(story)
                 .Append(parent)
                 .Append(heading)
+                .Append(style)
+                .Append(list)
                 .Append(rowCount)
                 .Append(columnCount)
                 .Append(row)
@@ -277,9 +284,27 @@ internal static class TextRenderers
             .Select(style =>
             {
                 string defaultText = style.IsDefault ? " default=true" : string.Empty;
-                return $"{style.Type} styleId={style.StyleId} name=\"{Escape(style.Name)}\"{defaultText}";
+                string basedOn = style.BasedOnStyleId is null ? string.Empty : $" based-on={Escape(style.BasedOnStyleId)}";
+                string next = style.NextStyleId is null ? string.Empty : $" next={Escape(style.NextStyleId)}";
+                string linked = style.LinkedStyleId is null ? string.Empty : $" linked={Escape(style.LinkedStyleId)}";
+                string numbering = style.NumberingId is null
+                    ? string.Empty
+                    : $" numbering numId={Escape(style.NumberingId)} level={style.NumberingLevel ?? 0}";
+                return $"{style.Type} styleId={style.StyleId} name=\"{Escape(style.Name)}\"{defaultText}{basedOn}{next}{linked}{numbering}";
             })
             .ToArray();
+    }
+
+    private static string RenderList(DocxListInfo list)
+    {
+        string abstractId = list.AbstractNumberingId is null ? string.Empty : $" abstractNumId={Escape(list.AbstractNumberingId)}";
+        string format = list.Format is null ? string.Empty : $" format={Escape(list.Format)}";
+        string levelText = list.LevelText is null ? string.Empty : $" level-text=\"{Escape(list.LevelText)}\"";
+        string paragraphStyle = list.ParagraphStyleId is null ? string.Empty : $" paragraph-style={Escape(list.ParagraphStyleId)}";
+        string source = string.Equals(list.Source, "direct", StringComparison.Ordinal)
+            ? string.Empty
+            : $" source={Escape(list.Source)}";
+        return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}";
     }
 
     private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText)
@@ -350,7 +375,10 @@ internal static class TextRenderers
             Relation = relation,
             Story = paragraph.Story,
             Text = Truncate(paragraph.Text, maxText),
-            HeadingLevel = paragraph.HeadingLevel
+            HeadingLevel = paragraph.HeadingLevel,
+            StyleId = paragraph.StyleId,
+            StyleName = paragraph.StyleName,
+            List = paragraph.List
         };
     }
 

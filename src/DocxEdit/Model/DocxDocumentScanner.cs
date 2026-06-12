@@ -17,11 +17,14 @@ internal static class DocxDocumentScanner
             return DocxDocumentModel.Empty;
         }
 
+        IReadOnlyList<DocxStyleInfo> styles = DocxStyleScanner.Scan(package, cancellationToken);
+        IReadOnlyDictionary<string, DocxStyleInfo> stylesById = styles.ToDictionary(style => style.StyleId, StringComparer.Ordinal);
+        DocxNumberingCatalog numbering = DocxNumberingCatalog.Scan(package, cancellationToken);
         var paragraphs = new List<DocxParagraphInfo>();
         var tables = new List<DocxTableInfo>();
         var images = new List<DocxImageInfo>();
         var sections = new List<DocxSectionInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, paragraphs, tables, images, sections, cancellationToken);
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -34,7 +37,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, paragraphs, tables, images, sections, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, cancellationToken);
                 }
             }
 
@@ -46,7 +49,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, paragraphs, tables, images, sections, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, cancellationToken);
                 }
             }
         }
@@ -60,6 +63,8 @@ internal static class DocxDocumentScanner
         string idPrefix,
         string story,
         DocxTextView textView,
+        IReadOnlyDictionary<string, DocxStyleInfo> stylesById,
+        DocxNumberingCatalog numbering,
         List<DocxParagraphInfo> paragraphs,
         List<DocxTableInfo> tables,
         List<DocxImageInfo> images,
@@ -88,7 +93,7 @@ internal static class DocxDocumentScanner
             XElement? sectionProperties = null;
             if (block.Name == OoxmlNs.W + "p")
             {
-                paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, textView, package, relationships, images, idPrefix, ref imageIndex));
+                paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, textView, package, relationships, stylesById, numbering, images, idPrefix, ref imageIndex));
                 sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
             }
             else if (block.Name == OoxmlNs.W + "tbl")
@@ -114,6 +119,8 @@ internal static class DocxDocumentScanner
         DocxTextView textView,
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
+        IReadOnlyDictionary<string, DocxStyleInfo> stylesById,
+        DocxNumberingCatalog numbering,
         List<DocxImageInfo> images,
         string imageIdPrefix,
         ref int imageIndex)
@@ -124,13 +131,19 @@ internal static class DocxDocumentScanner
             AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, ref imageIndex);
         }
 
+        string? styleId = ReadParagraphStyleId(paragraph);
+        stylesById.TryGetValue(styleId ?? string.Empty, out DocxStyleInfo? style);
         return new DocxParagraphInfo(
             id,
             story,
             ReadText(paragraph, textView),
             ReadHeadingLevel(paragraph),
-            ReadListInfo(paragraph),
-            runs);
+            ReadListInfo(paragraph, styleId, stylesById, numbering),
+            runs)
+        {
+            StyleId = styleId,
+            StyleName = style?.Name
+        };
     }
 
     private static DocxRunInfo[] ReadRuns(XElement paragraph, DocxTextView textView)
@@ -376,10 +389,7 @@ internal static class DocxDocumentScanner
 
     private static int? ReadHeadingLevel(XElement paragraph)
     {
-        string? styleId = (string?)paragraph
-            .Element(OoxmlNs.W + "pPr")
-            ?.Element(OoxmlNs.W + "pStyle")
-            ?.Attribute(OoxmlNs.W + "val");
+        string? styleId = ReadParagraphStyleId(paragraph);
         if (styleId is null)
         {
             return null;
@@ -391,7 +401,19 @@ internal static class DocxDocumentScanner
             : null;
     }
 
-    private static DocxListInfo? ReadListInfo(XElement paragraph)
+    private static string? ReadParagraphStyleId(XElement paragraph)
+    {
+        return (string?)paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "pStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static DocxListInfo? ReadListInfo(
+        XElement paragraph,
+        string? styleId,
+        IReadOnlyDictionary<string, DocxStyleInfo> stylesById,
+        DocxNumberingCatalog numbering)
     {
         XElement? numberingProperties = paragraph
             .Element(OoxmlNs.W + "pPr")
@@ -399,18 +421,55 @@ internal static class DocxDocumentScanner
         string? numberingId = (string?)numberingProperties
             ?.Element(OoxmlNs.W + "numId")
             ?.Attribute(OoxmlNs.W + "val");
-        if (string.IsNullOrWhiteSpace(numberingId))
+        string? levelText = (string?)numberingProperties
+            ?.Element(OoxmlNs.W + "ilvl")
+            ?.Attribute(OoxmlNs.W + "val");
+        if (!string.IsNullOrWhiteSpace(numberingId))
+        {
+            int level = int.TryParse(levelText, out int parsedLevel) && parsedLevel >= 0
+                ? parsedLevel
+                : ResolveStyleNumbering(styleId, stylesById)?.Level ?? 0;
+            return numbering.Resolve(numberingId, level, "direct");
+        }
+
+        StyleNumbering? styleNumbering = ResolveStyleNumbering(styleId, stylesById);
+        return styleNumbering is null
+            ? null
+            : numbering.Resolve(styleNumbering.NumberingId, styleNumbering.Level, styleNumbering.Source);
+    }
+
+    private static StyleNumbering? ResolveStyleNumbering(
+        string? styleId,
+        IReadOnlyDictionary<string, DocxStyleInfo> stylesById)
+    {
+        if (string.IsNullOrWhiteSpace(styleId))
         {
             return null;
         }
 
-        string? levelText = (string?)numberingProperties
-            ?.Element(OoxmlNs.W + "ilvl")
-            ?.Attribute(OoxmlNs.W + "val");
-        int level = int.TryParse(levelText, out int parsedLevel) && parsedLevel >= 0
-            ? parsedLevel
-            : 0;
-        return new DocxListInfo(numberingId, level);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        string? current = styleId;
+        bool inherited = false;
+        while (!string.IsNullOrWhiteSpace(current) && visited.Add(current))
+        {
+            if (!stylesById.TryGetValue(current, out DocxStyleInfo? style))
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(style.NumberingId))
+            {
+                return new StyleNumbering(
+                    style.NumberingId,
+                    style.NumberingLevel ?? 0,
+                    inherited ? "style-inherited" : "style");
+            }
+
+            current = style.BasedOnStyleId;
+            inherited = true;
+        }
+
+        return null;
     }
 
     private static DocxSectionInfo ReadSection(XElement sectionProperties, string id, string story)
@@ -477,4 +536,6 @@ internal static class DocxDocumentScanner
             TimestampUtc is null &&
             CommentId is null;
     }
+
+    private sealed record StyleNumbering(string NumberingId, int Level, string Source);
 }
