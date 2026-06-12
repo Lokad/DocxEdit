@@ -82,6 +82,13 @@ part, containing target, and text length. `context` annotates nearby targets wit
 `content-control-aliases` so agents can connect selector names to stable target IDs.
 If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector
 diagnostics list candidate paragraph IDs; retry with an explicit ID.
+`read` and `outline` also list simple and complex field metadata. Field records
+include kind, field code, containing target, result text length, dirty/lock flags,
+and whether a complex begin/separate/end sequence is complete. `context` annotates
+nearby targets with `fields`, `field-codes`, and `field-kinds`. DocxEdit preserves
+field XML and can mark the document for field updates after edits through
+`MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field
+results.
 
 ## Patch
 

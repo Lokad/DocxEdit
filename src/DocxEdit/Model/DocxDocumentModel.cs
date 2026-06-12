@@ -6,7 +6,8 @@ internal sealed record DocxDocumentModel(
     IReadOnlyList<DocxImageInfo> Images,
     IReadOnlyList<DocxSectionInfo> Sections,
     IReadOnlyList<DocxBookmarkInfo> Bookmarks,
-    IReadOnlyList<DocxContentControlInfo> ContentControls)
+    IReadOnlyList<DocxContentControlInfo> ContentControls,
+    IReadOnlyList<DocxFieldInfo> Fields)
 {
-    public static DocxDocumentModel Empty { get; } = new([], [], [], [], [], []);
+    public static DocxDocumentModel Empty { get; } = new([], [], [], [], [], [], []);
 }

@@ -758,6 +758,81 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadModelsSimpleAndComplexFieldMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE " w:dirty="true" w:fldLock="1">
+                        <w:r><w:t>June 12, 2026</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>
+                      <w:r><w:instrText> REF  ClientName \h </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>Client result</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Fields.Count);
+        DocxFieldInfo simple = result.Fields[0];
+        Assert.Equal("M.F0001", simple.Id);
+        Assert.Equal("simple", simple.Kind);
+        Assert.Equal("DATE", simple.Code);
+        Assert.Equal("M.P0001", simple.TargetId);
+        Assert.Equal(13, simple.ResultTextLength);
+        Assert.True(simple.IsDirty);
+        Assert.True(simple.IsLocked);
+        Assert.True(simple.IsComplete);
+
+        DocxFieldInfo complex = result.Fields[1];
+        Assert.Equal("M.F0002", complex.Id);
+        Assert.Equal("complex", complex.Kind);
+        Assert.Equal(@"REF ClientName \h", complex.Code);
+        Assert.Equal("M.P0002", complex.TargetId);
+        Assert.Equal(13, complex.ResultTextLength);
+        Assert.True(complex.IsDirty);
+        Assert.Null(complex.IsLocked);
+        Assert.True(complex.IsComplete);
+
+        Assert.Contains("M.F0001 field kind=simple", result.Text, StringComparison.Ordinal);
+        Assert.Contains("code=\"DATE\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains(@"code=""REF ClientName \\h""", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1003" && diagnostic.Fallback == "modeled-metadata");
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithFieldMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "M.F0001" }, item.FieldIds);
+        Assert.Equal(new[] { "PAGE" }, item.FieldCodes);
+        Assert.Equal(new[] { "complex" }, item.FieldKinds);
+        Assert.Contains("fields=\"M.F0001\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("field-codes=\"PAGE\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("field-kinds=\"complex\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DumpRunsAnnotateTrackedChangeAndCommentMarkup()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

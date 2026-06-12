@@ -293,7 +293,8 @@ public static class DocxHelp
                     OutputFields =
                     [
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
-                        new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length")
+                        new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length"),
+                        new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness")
                     ],
                     Notes =
                     [
@@ -304,6 +305,10 @@ public static class DocxHelp
                         new("Bookmarks and content controls",
                         [
                             "Read and context output surface bookmark names/ranges and content-control metadata. Bookmark and content-control selectors can still be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets."
+                        ]),
+                        new("Fields",
+                        [
+                            "Read and context output surface simple and complex field metadata, including field code and result-text length. DocxEdit preserves field XML and can mark the document for field updates after edits, but Word remains responsible for recalculating field results."
                         ])
                     ],
                     Examples =

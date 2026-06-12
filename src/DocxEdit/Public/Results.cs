@@ -17,6 +17,7 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxSectionInfo> Sections { get; init; } = [];
     public IReadOnlyList<DocxBookmarkInfo> Bookmarks { get; init; } = [];
     public IReadOnlyList<DocxContentControlInfo> ContentControls { get; init; } = [];
+    public IReadOnlyList<DocxFieldInfo> Fields { get; init; } = [];
 }
 
 public sealed record DocxOutlineResult : DocxOperationResult
@@ -181,6 +182,9 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> ContentControlIds { get; init; } = [];
     public IReadOnlyList<string> ContentControlTags { get; init; } = [];
     public IReadOnlyList<string> ContentControlAliases { get; init; } = [];
+    public IReadOnlyList<string> FieldIds { get; init; } = [];
+    public IReadOnlyList<string> FieldCodes { get; init; } = [];
+    public IReadOnlyList<string> FieldKinds { get; init; } = [];
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -244,6 +248,20 @@ public sealed record DocxContentControlInfo
     public string? Alias { get; init; }
     public string? Lock { get; init; }
     public int TextLength { get; init; }
+}
+
+public sealed record DocxFieldInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? TargetId { get; init; }
+    public string Kind { get; init; } = "unknown";
+    public string Code { get; init; } = string.Empty;
+    public int ResultTextLength { get; init; }
+    public bool? IsDirty { get; init; }
+    public bool? IsLocked { get; init; }
+    public bool IsComplete { get; init; }
 }
 
 public sealed record DocxTableInfo(

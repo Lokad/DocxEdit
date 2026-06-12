@@ -22,6 +22,7 @@ public static class DocxTextRenderer
         builder.Append("sections count=").Append(result.Sections.Count).AppendLine();
         builder.Append("bookmarks count=").Append(result.Bookmarks.Count).AppendLine();
         builder.Append("content-controls count=").Append(result.ContentControls.Count).AppendLine();
+        builder.Append("fields count=").Append(result.Fields.Count).AppendLine();
         foreach (IGrouping<string, DocxParagraphInfo> group in result.Paragraphs
                      .GroupBy(paragraph => paragraph.Story)
                      .OrderBy(group => group.Key, StringComparer.Ordinal))

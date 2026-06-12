@@ -70,6 +70,30 @@ internal static class TextRenderers
                 .AppendLine();
         }
 
+        foreach (DocxFieldInfo field in model.Fields)
+        {
+            string target = field.TargetId is null ? " target=unknown" : $" target={field.TargetId}";
+            string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
+            string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
+            builder.Append(field.Id)
+                .Append(" field kind=")
+                .Append(Escape(field.Kind))
+                .Append(" story=\"")
+                .Append(Escape(field.Story))
+                .Append("\" part=")
+                .Append(field.PartName)
+                .Append(target)
+                .Append(" code=\"")
+                .Append(Escape(field.Code))
+                .Append("\" result-text-length=")
+                .Append(field.ResultTextLength)
+                .Append(dirty)
+                .Append(locked)
+                .Append(" complete=")
+                .Append(field.IsComplete)
+                .AppendLine();
+        }
+
         foreach (DocxTableInfo table in model.Tables)
         {
             builder.Append(table.Id).Append(" table rows=").Append(table.RowCount).Append(" columns=").Append(table.ColumnCount).AppendLine();
@@ -126,6 +150,12 @@ internal static class TextRenderers
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
             lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}");
+        }
+
+        foreach (DocxFieldInfo field in model.Fields)
+        {
+            string target = field.TargetId is null ? "unknown" : field.TargetId;
+            lines.Add($"{field.Id} field kind={Escape(field.Kind)} target={target} code=\"{Escape(field.Code)}\"");
         }
 
         return lines;
@@ -307,6 +337,9 @@ internal static class TextRenderers
             string contentControlIds = item.ContentControlIds.Count == 0 ? string.Empty : $" content-controls=\"{Escape(string.Join(",", item.ContentControlIds))}\"";
             string contentControlTags = item.ContentControlTags.Count == 0 ? string.Empty : $" content-control-tags=\"{Escape(string.Join(",", item.ContentControlTags))}\"";
             string contentControlAliases = item.ContentControlAliases.Count == 0 ? string.Empty : $" content-control-aliases=\"{Escape(string.Join(",", item.ContentControlAliases))}\"";
+            string fieldIds = item.FieldIds.Count == 0 ? string.Empty : $" fields=\"{Escape(string.Join(",", item.FieldIds))}\"";
+            string fieldCodes = item.FieldCodes.Count == 0 ? string.Empty : $" field-codes=\"{Escape(string.Join(",", item.FieldCodes))}\"";
+            string fieldKinds = item.FieldKinds.Count == 0 ? string.Empty : $" field-kinds=\"{Escape(string.Join(",", item.FieldKinds))}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
@@ -331,6 +364,9 @@ internal static class TextRenderers
                 .Append(contentControlIds)
                 .Append(contentControlTags)
                 .Append(contentControlAliases)
+                .Append(fieldIds)
+                .Append(fieldCodes)
+                .Append(fieldKinds)
                 .Append(rowCount)
                 .Append(columnCount)
                 .Append(row)
@@ -447,6 +483,9 @@ internal static class TextRenderers
         var contentControlIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var contentControlTags = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var contentControlAliases = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var fieldIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var fieldCodes = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var fieldKinds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
             AddAnnotation(contentControlIds, control.TargetId, control.Id);
@@ -454,11 +493,21 @@ internal static class TextRenderers
             AddAnnotation(contentControlAliases, control.TargetId, control.Alias);
         }
 
+        foreach (DocxFieldInfo field in model.Fields)
+        {
+            AddAnnotation(fieldIds, field.TargetId, field.Id);
+            AddAnnotation(fieldCodes, field.TargetId, field.Code);
+            AddAnnotation(fieldKinds, field.TargetId, field.Kind);
+        }
+
         return new TargetAnnotations(
             ToArrayDictionary(bookmarkNames),
             ToArrayDictionary(contentControlIds),
             ToArrayDictionary(contentControlTags),
-            ToArrayDictionary(contentControlAliases));
+            ToArrayDictionary(contentControlAliases),
+            ToArrayDictionary(fieldIds),
+            ToArrayDictionary(fieldCodes),
+            ToArrayDictionary(fieldKinds));
     }
 
     private static DocxContextItem ApplyAnnotations(DocxContextItem item, TargetAnnotations annotations)
@@ -468,7 +517,10 @@ internal static class TextRenderers
             BookmarkNames = LookupAnnotations(annotations.BookmarkNamesByTarget, item.Id),
             ContentControlIds = LookupAnnotations(annotations.ContentControlIdsByTarget, item.Id),
             ContentControlTags = LookupAnnotations(annotations.ContentControlTagsByTarget, item.Id),
-            ContentControlAliases = LookupAnnotations(annotations.ContentControlAliasesByTarget, item.Id)
+            ContentControlAliases = LookupAnnotations(annotations.ContentControlAliasesByTarget, item.Id),
+            FieldIds = LookupAnnotations(annotations.FieldIdsByTarget, item.Id),
+            FieldCodes = LookupAnnotations(annotations.FieldCodesByTarget, item.Id),
+            FieldKinds = LookupAnnotations(annotations.FieldKindsByTarget, item.Id)
         };
     }
 
@@ -599,5 +651,8 @@ internal static class TextRenderers
         IReadOnlyDictionary<string, string[]> BookmarkNamesByTarget,
         IReadOnlyDictionary<string, string[]> ContentControlIdsByTarget,
         IReadOnlyDictionary<string, string[]> ContentControlTagsByTarget,
-        IReadOnlyDictionary<string, string[]> ContentControlAliasesByTarget);
+        IReadOnlyDictionary<string, string[]> ContentControlAliasesByTarget,
+        IReadOnlyDictionary<string, string[]> FieldIdsByTarget,
+        IReadOnlyDictionary<string, string[]> FieldCodesByTarget,
+        IReadOnlyDictionary<string, string[]> FieldKindsByTarget);
 }

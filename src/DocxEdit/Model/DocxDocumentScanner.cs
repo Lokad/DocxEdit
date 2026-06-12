@@ -26,7 +26,8 @@ internal static class DocxDocumentScanner
         var sections = new List<DocxSectionInfo>();
         var bookmarks = new List<DocxBookmarkInfo>();
         var contentControls = new List<DocxContentControlInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, cancellationToken);
+        var fields = new List<DocxFieldInfo>();
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -39,7 +40,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, cancellationToken);
                 }
             }
 
@@ -51,12 +52,12 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, cancellationToken);
                 }
             }
         }
 
-        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls);
+        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls, fields);
     }
 
     private static void ScanStory(
@@ -73,6 +74,7 @@ internal static class DocxDocumentScanner
         List<DocxSectionInfo> sections,
         List<DocxBookmarkInfo> bookmarks,
         List<DocxContentControlInfo> contentControls,
+        List<DocxFieldInfo> fields,
         CancellationToken cancellationToken)
     {
         OoxmlPart part = package.GetPart(partName)
@@ -124,6 +126,7 @@ internal static class DocxDocumentScanner
 
         bookmarks.AddRange(ReadBookmarks(document, partName, story, idPrefix, targets));
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
+        fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
     }
 
     private static DocxParagraphInfo ReadParagraph(
@@ -379,6 +382,88 @@ internal static class DocxDocumentScanner
         return contentControls;
     }
 
+    private static IReadOnlyList<DocxFieldInfo> ReadFields(
+        XDocument document,
+        string partName,
+        string story,
+        string idPrefix,
+        DocxTextView textView,
+        IReadOnlyDictionary<XElement, string> targets)
+    {
+        var fields = new List<DocxFieldInfo>();
+        var stack = new Stack<ComplexFieldBuilder>();
+        int fieldIndex = 1;
+        foreach (XElement element in document.Descendants())
+        {
+            if (element.Name == OoxmlNs.W + "fldSimple")
+            {
+                fields.Add(new DocxFieldInfo
+                {
+                    Id = $"{idPrefix}.F{fieldIndex++:0000}",
+                    Story = story,
+                    PartName = partName,
+                    TargetId = FindTargetId(element, targets),
+                    Kind = "simple",
+                    Code = NormalizeFieldCode((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty),
+                    ResultTextLength = ReadText(element, textView).Length,
+                    IsDirty = ReadOnOffAttribute(element, "dirty"),
+                    IsLocked = ReadOnOffAttribute(element, "fldLock"),
+                    IsComplete = true
+                });
+                continue;
+            }
+
+            if (element.Name == OoxmlNs.W + "fldChar")
+            {
+                string? fieldCharType = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
+                if (string.Equals(fieldCharType, "begin", StringComparison.Ordinal))
+                {
+                    stack.Push(new ComplexFieldBuilder(element, FindTargetId(element, targets))
+                    {
+                        IsDirty = ReadOnOffAttribute(element, "dirty"),
+                        IsLocked = ReadOnOffAttribute(element, "fldLock")
+                    });
+                }
+                else if (string.Equals(fieldCharType, "separate", StringComparison.Ordinal))
+                {
+                    if (stack.Count > 0)
+                    {
+                        stack.Peek().HasSeparate = true;
+                    }
+                }
+                else if (string.Equals(fieldCharType, "end", StringComparison.Ordinal) && stack.Count > 0)
+                {
+                    ComplexFieldBuilder builder = stack.Pop();
+                    fields.Add(builder.ToInfo($"{idPrefix}.F{fieldIndex++:0000}", story, partName, complete: true));
+                }
+
+                continue;
+            }
+
+            if (stack.Count == 0)
+            {
+                continue;
+            }
+
+            ComplexFieldBuilder current = stack.Peek();
+            if (element.Name == OoxmlNs.W + "instrText")
+            {
+                current.Code.Append(element.Value);
+            }
+            else if (current.HasSeparate)
+            {
+                current.ResultTextLength += ReadFieldResultTextElementLength(element, textView);
+            }
+        }
+
+        foreach (ComplexFieldBuilder builder in stack)
+        {
+            fields.Add(builder.ToInfo($"{idPrefix}.F{fieldIndex++:0000}", story, partName, complete: false));
+        }
+
+        return fields;
+    }
+
     private static string? FindTargetId(XElement element, IReadOnlyDictionary<XElement, string> targets)
     {
         foreach (XElement candidate in element.AncestorsAndSelf())
@@ -398,6 +483,44 @@ internal static class DocxDocumentScanner
         }
 
         return null;
+    }
+
+    private static int ReadFieldResultTextElementLength(XElement element, DocxTextView textView)
+    {
+        if (!ShouldIncludeTextElement(element, textView))
+        {
+            return 0;
+        }
+
+        if (element.Name == OoxmlNs.W + "t" || element.Name == OoxmlNs.W + "delText")
+        {
+            return ApplyMarkupTextView(element, element.Value, textView).Length;
+        }
+
+        if (element.Name == OoxmlNs.W + "tab" || element.Name == OoxmlNs.W + "br")
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static string NormalizeFieldCode(string code)
+    {
+        return string.Join(
+            " ",
+            code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static bool? ReadOnOffAttribute(XElement element, string localName)
+    {
+        string? value = (string?)element.Attribute(OoxmlNs.W + localName);
+        if (value is null)
+        {
+            return null;
+        }
+
+        return value is "1" or "true" or "on";
     }
 
     private static string ReadContentControlKind(XElement? properties)
@@ -679,4 +802,33 @@ internal static class DocxDocumentScanner
     }
 
     private sealed record StyleNumbering(string NumberingId, int Level, string Source);
+
+    private sealed class ComplexFieldBuilder(XElement startElement, string? targetId)
+    {
+        public XElement StartElement { get; } = startElement;
+        public string? TargetId { get; } = targetId;
+        public System.Text.StringBuilder Code { get; } = new();
+        public int ResultTextLength { get; set; }
+        public bool HasSeparate { get; set; }
+        public bool? IsDirty { get; init; }
+        public bool? IsLocked { get; init; }
+
+        public DocxFieldInfo ToInfo(string id, string story, string partName, bool complete)
+        {
+            _ = StartElement;
+            return new DocxFieldInfo
+            {
+                Id = id,
+                Story = story,
+                PartName = partName,
+                TargetId = TargetId,
+                Kind = "complex",
+                Code = NormalizeFieldCode(Code.ToString()),
+                ResultTextLength = ResultTextLength,
+                IsDirty = IsDirty,
+                IsLocked = IsLocked,
+                IsComplete = complete
+            };
+        }
+    }
 }
