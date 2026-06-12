@@ -203,7 +203,7 @@ internal sealed class OoxmlPackage
         AddContentTypeOverride(normalized, contentType);
     }
 
-    internal void AddRelationship(string sourcePartName, string relationshipId, string relationshipType, string target)
+    internal void AddRelationship(string sourcePartName, string relationshipId, string relationshipType, string target, string? targetMode = null)
     {
         string relationshipPartName = OoxmlPath.GetRelationshipPartName(sourcePartName);
         XDocument document;
@@ -224,11 +224,17 @@ internal sealed class OoxmlPackage
 
         XElement root = document.Root
             ?? throw new InvalidDataException($"Relationship part '{relationshipPartName}' has no XML root.");
-        root.Add(new XElement(
+        var relationship = new XElement(
             OoxmlNs.Rel + "Relationship",
             new XAttribute("Id", relationshipId),
             new XAttribute("Type", relationshipType),
-            new XAttribute("Target", target)));
+            new XAttribute("Target", target));
+        if (!string.IsNullOrWhiteSpace(targetMode))
+        {
+            relationship.SetAttributeValue("TargetMode", targetMode);
+        }
+
+        root.Add(relationship);
 
         using var output = new MemoryStream();
         document.Save(output, SaveOptions.DisableFormatting);

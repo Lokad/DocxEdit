@@ -1504,6 +1504,56 @@ Rules:
 * If ambiguous, fail and list candidates.
 * Preserve paragraph content.
 
+### 11.6a Hyperlink operations
+
+Update an existing hyperlink destination:
+
+```text
+op set-hyperlink-target
+target M.L0001
+uri https://example.test/report
+tooltip Open report
+end
+```
+
+Update display text:
+
+```text
+op set-hyperlink-text
+target M.L0001
+text Open report
+end
+```
+
+Insert a hyperlink paragraph after a paragraph or table target:
+
+```text
+op insert-hyperlink-after
+target M.P0004
+text Appendix
+anchor AppendixA
+end
+```
+
+Remove hyperlink markup while preserving its child runs:
+
+```text
+op remove-hyperlink
+target M.L0001
+end
+```
+
+Rules:
+
+* Hyperlink targets use IDs from `read` or `outline`, such as `M.L0001`,
+  `H001.L0001`, or `F001.L0001`.
+* Destination operations require exactly one of `uri` or `anchor`.
+* `uri` must be an absolute external URI and is stored as a hyperlink relationship
+  with `TargetMode="External"`.
+* `anchor` is stored as `w:anchor` and removes an unused old external relationship.
+* Updating one hyperlink that shares a relationship with another hyperlink must allocate
+  a new relationship ID so the other hyperlink keeps its destination.
+
 ### 11.7 `set-cell`
 
 ```text
@@ -1769,6 +1819,10 @@ insert-before
 insert-after
 delete-block
 set-style
+set-hyperlink-target
+set-hyperlink-text
+insert-hyperlink-after
+remove-hyperlink
 set-cell
 append-row
 insert-row-before

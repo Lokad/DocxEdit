@@ -94,6 +94,10 @@ internal static class DocxPatchEngine
                     "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
                     "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
                     "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
+                    "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
+                    "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
+                    "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
+                    "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
                     "set-cell" => ExecuteSetCell(package, operation, apply, cancellationToken),
                     "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                     "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
@@ -436,6 +440,296 @@ internal static class DocxPatchEngine
         SetParagraphStyle(paragraphTarget.Paragraph, styleId!);
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetHyperlinkTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        if (!TryReadHyperlinkDestination(operation, diagnostics, out string? uri, out string? anchor))
+        {
+            return diagnostics;
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target!, cancellationToken);
+        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported hyperlink target '{target}'. Expected a hyperlink ID such as M.L0001 or H001.L0001.", operation, target)];
+        }
+
+        if (hyperlinkTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        if (uri is not null)
+        {
+            SetExternalHyperlinkTarget(package, hyperlinkTarget, uri, cancellationToken);
+        }
+        else
+        {
+            SetInternalHyperlinkAnchor(package, hyperlinkTarget, anchor!);
+        }
+
+        if (operation.Fields.TryGetValue("tooltip", out string? tooltip))
+        {
+            hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "tooltip", tooltip);
+        }
+
+        SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetHyperlinkText(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target!, cancellationToken);
+        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported hyperlink target '{target}'. Expected a hyperlink ID such as M.L0001 or H001.L0001.", operation, target)];
+        }
+
+        if (hyperlinkTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceHyperlinkText(hyperlinkTarget.Hyperlink, text!);
+        SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteInsertHyperlinkAfter(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        if (!TryReadHyperlinkDestination(operation, diagnostics, out string? uri, out string? anchor))
+        {
+            return diagnostics;
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
+        if (blockTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        string? relationshipId = null;
+        if (uri is not null)
+        {
+            relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(blockTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
+            package.AddRelationship(blockTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External");
+        }
+
+        XElement paragraph = CreateHyperlinkParagraph(text!, relationshipId, anchor, operation.Fields.GetValueOrDefault("tooltip"));
+        blockTarget.Block.AddAfterSelf(paragraph);
+        SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteRemoveHyperlink(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target!, cancellationToken);
+        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported hyperlink target '{target}'. Expected a hyperlink ID such as M.L0001 or H001.L0001.", operation, target)];
+        }
+
+        if (hyperlinkTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        string? relationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
+        hyperlinkTarget.Hyperlink.ReplaceWith(hyperlinkTarget.Hyperlink.Nodes().ToArray());
+        if (!string.IsNullOrWhiteSpace(relationshipId) &&
+            !UsesHyperlinkRelationship(hyperlinkTarget.Document, relationshipId!))
+        {
+            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId!);
+        }
+
+        SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
+        return [];
+    }
+
+    private static bool TryReadHyperlinkDestination(
+        DocxPatchOperation operation,
+        List<DocxDiagnostic> diagnostics,
+        out string? uri,
+        out string? anchor)
+    {
+        uri = operation.Fields.GetValueOrDefault("uri");
+        anchor = operation.Fields.GetValueOrDefault("anchor");
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (string.IsNullOrWhiteSpace(uri) == string.IsNullOrWhiteSpace(anchor))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Exactly one of 'uri' or 'anchor' is required for hyperlink destination operations.", operation, target));
+            return false;
+        }
+
+        if (uri is not null &&
+            (!Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsedUri) || string.IsNullOrWhiteSpace(parsedUri.Scheme)))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", $"Field 'uri' must be an absolute URI for hyperlink operation '{operation.OperationName}'.", operation, target));
+            return false;
+        }
+
+        if (anchor is not null && (anchor.Length == 0 || anchor.Any(char.IsWhiteSpace)))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'anchor' must be a non-empty bookmark anchor without whitespace.", operation, target));
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void SetExternalHyperlinkTarget(
+        OoxmlPackage package,
+        HyperlinkTarget hyperlinkTarget,
+        string uri,
+        CancellationToken cancellationToken)
+    {
+        string? oldRelationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
+        bool canReuseRelationship = !string.IsNullOrWhiteSpace(oldRelationshipId) &&
+            CountHyperlinkRelationshipUses(hyperlinkTarget.Document, oldRelationshipId!) == 1;
+        string relationshipId = canReuseRelationship
+            ? oldRelationshipId!
+            : OoxmlIds.AllocateRelationshipId(package.GetRelationships(hyperlinkTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
+        if (canReuseRelationship)
+        {
+            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId);
+        }
+
+        package.AddRelationship(hyperlinkTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External");
+        hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.R + "id", relationshipId);
+        hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "anchor", null);
+    }
+
+    private static void SetInternalHyperlinkAnchor(
+        OoxmlPackage package,
+        HyperlinkTarget hyperlinkTarget,
+        string anchor)
+    {
+        string? oldRelationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
+        hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.R + "id", null);
+        hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "anchor", anchor);
+        if (!string.IsNullOrWhiteSpace(oldRelationshipId) &&
+            !UsesHyperlinkRelationship(hyperlinkTarget.Document, oldRelationshipId!))
+        {
+            package.RemoveRelationship(hyperlinkTarget.PartName, oldRelationshipId!);
+        }
+    }
+
+    private static void ReplaceHyperlinkText(XElement hyperlink, string text)
+    {
+        var run = new XElement(OoxmlNs.W + "r");
+        foreach (XNode node in CreateTextNodes(text))
+        {
+            run.Add(node);
+        }
+
+        hyperlink.RemoveNodes();
+        hyperlink.Add(run);
+    }
+
+    private static XElement CreateHyperlinkParagraph(string text, string? relationshipId, string? anchor, string? tooltip)
+    {
+        var hyperlink = new XElement(OoxmlNs.W + "hyperlink");
+        if (relationshipId is not null)
+        {
+            hyperlink.SetAttributeValue(OoxmlNs.R + "id", relationshipId);
+        }
+
+        if (anchor is not null)
+        {
+            hyperlink.SetAttributeValue(OoxmlNs.W + "anchor", anchor);
+        }
+
+        if (!string.IsNullOrWhiteSpace(tooltip))
+        {
+            hyperlink.SetAttributeValue(OoxmlNs.W + "tooltip", tooltip);
+        }
+
+        ReplaceHyperlinkText(hyperlink, text);
+        return new XElement(OoxmlNs.W + "p", hyperlink);
+    }
+
+    private static bool UsesHyperlinkRelationship(XDocument document, string relationshipId)
+    {
+        return CountHyperlinkRelationshipUses(document, relationshipId) > 0;
+    }
+
+    private static int CountHyperlinkRelationshipUses(XDocument document, string relationshipId)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Count(hyperlink => string.Equals((string?)hyperlink.Attribute(OoxmlNs.R + "id"), relationshipId, StringComparison.Ordinal));
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceImage(
@@ -1748,6 +2042,14 @@ internal static class DocxPatchEngine
             int.TryParse(target[3..], out imageOrdinal);
     }
 
+    private static bool TryParseMainHyperlinkTarget(string target, out int hyperlinkOrdinal)
+    {
+        hyperlinkOrdinal = 0;
+        return target.Length == 7 &&
+            target.StartsWith("M.L", StringComparison.Ordinal) &&
+            int.TryParse(target[3..], out hyperlinkOrdinal);
+    }
+
     private static bool TryParseStoryImageTarget(
         string target,
         char storyPrefix,
@@ -1765,6 +2067,25 @@ internal static class DocxPatchEngine
 
         return int.TryParse(target[1..4], out storyOrdinal) &&
             int.TryParse(target[6..], out imageOrdinal);
+    }
+
+    private static bool TryParseStoryHyperlinkTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int hyperlinkOrdinal)
+    {
+        storyOrdinal = 0;
+        hyperlinkOrdinal = 0;
+        if (target.Length != 10 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".L")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..], out hyperlinkOrdinal);
     }
 
     private static bool TryParseMainSectionTarget(string target, out int sectionOrdinal)
@@ -2509,6 +2830,58 @@ internal static class DocxPatchEngine
         return TryParseMainImageTarget(target, out _) ||
             TryParseStoryImageTarget(target, 'H', out _, out _) ||
             TryParseStoryImageTarget(target, 'F', out _, out _);
+    }
+
+    private static bool IsSupportedHyperlinkTargetShape(string target)
+    {
+        return TryParseMainHyperlinkTarget(target, out _) ||
+            TryParseStoryHyperlinkTarget(target, 'H', out _, out _) ||
+            TryParseStoryHyperlinkTarget(target, 'F', out _, out _);
+    }
+
+    private static HyperlinkTarget? ResolveHyperlinkTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        if (TryParseMainHyperlinkTarget(target, out int mainHyperlinkOrdinal))
+        {
+            return package.MainDocumentPartName is null
+                ? null
+                : FindHyperlinkTarget(package, package.MainDocumentPartName, mainHyperlinkOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryHyperlinkTarget(target, 'H', out int headerOrdinal, out int headerHyperlinkOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
+            return partName is null ? null : FindHyperlinkTarget(package, partName, headerHyperlinkOrdinal, cancellationToken);
+        }
+
+        if (TryParseStoryHyperlinkTarget(target, 'F', out int footerOrdinal, out int footerHyperlinkOrdinal))
+        {
+            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
+            return partName is null ? null : FindHyperlinkTarget(package, partName, footerHyperlinkOrdinal, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static HyperlinkTarget? FindHyperlinkTarget(
+        OoxmlPackage package,
+        string partName,
+        int hyperlinkOrdinal,
+        CancellationToken cancellationToken)
+    {
+        if (hyperlinkOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+        XElement? hyperlink = document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .ElementAtOrDefault(hyperlinkOrdinal - 1);
+        return hyperlink is null ? null : new HyperlinkTarget(partName, document, hyperlink);
     }
 
     private static ImageBlipTarget? ResolveImageBlipTarget(
@@ -3490,6 +3863,8 @@ internal sealed record PatchExecutionResult(
     bool Success,
     IReadOnlyList<DocxDiagnostic> Diagnostics,
     IReadOnlyList<DocxPatchOperationReport> Reports);
+
+internal sealed record HyperlinkTarget(string PartName, XDocument Document, XElement Hyperlink);
 
 internal sealed record ImageBlipTarget(string PartName, XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
 

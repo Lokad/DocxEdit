@@ -24,6 +24,7 @@ internal static class OoxmlRelTypes
     public const string Numbering = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering";
     public const string Settings = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
     public const string Comments = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
+    public const string Hyperlink = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 }
 
 internal static class OoxmlContentTypeNames
@@ -33,4 +34,3 @@ internal static class OoxmlContentTypeNames
     public const string MacroEnabledMainDocument = "application/vnd.ms-word.document.macroEnabled.main+xml";
     public const string Relationships = "application/vnd.openxmlformats-package.relationships+xml";
 }
-

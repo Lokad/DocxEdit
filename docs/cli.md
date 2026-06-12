@@ -91,7 +91,9 @@ their URI, internal links expose an anchor or target part, and broken relationsh
 IDs are flagged. `context` annotates nearby targets with `hyperlinks` and
 `hyperlink-targets`; `dump --runs` annotates hyperlink runs with
 `markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
-Hyperlink target/display editing remains outside the current patch DSL.
+Hyperlink patch operations can update URI/anchor targets, update display text, insert
+new hyperlink paragraphs after a target, and remove hyperlink markup while preserving
+the displayed runs.
 Image records from `read`, `outline`, and `media` include `layout=inline` or
 `layout=anchor`, the media relationship ID, containing paragraph/cell target,
 DrawingML extent in EMUs, `docPr` description/title/name when present, wrap mode,

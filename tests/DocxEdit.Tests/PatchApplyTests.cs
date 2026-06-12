@@ -781,6 +781,88 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyCanSetHyperlinkTargetAndText()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-target
+            target M.L0001
+            uri https://example.test/new
+            tooltip Updated link
+            end
+
+            op set-hyperlink-text
+            target M.L0001
+            text New link
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("New link", Assert.Single(read.Paragraphs).Text);
+        DocxHyperlinkInfo hyperlink = Assert.Single(read.Hyperlinks);
+        Assert.Equal("https://example.test/new", hyperlink.Uri);
+        Assert.Equal("Updated link", hyperlink.Tooltip);
+        Assert.Equal(8, hyperlink.DisplayTextLength);
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.Contains("Target=\"https://example.test/new\"", relationships, StringComparison.Ordinal);
+        Assert.Contains("TargetMode=\"External\"", relationships, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyCanInsertAndRemoveHyperlinkWhilePreservingText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-hyperlink-after
+            target M.P0001
+            text Docs
+            uri https://docs.example/
+            end
+
+            op remove-hyperlink
+            target M.L0001
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(new[] { "Anchor", "Docs" }, read.Paragraphs.Select(paragraph => paragraph.Text));
+        Assert.Empty(read.Hyperlinks);
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.DoesNotContain("https://docs.example/", relationships, StringComparison.Ordinal);
+        Assert.DoesNotContain("/hyperlink", relationships, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CheckTextSelectorRejectsAmbiguousMatches()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -2144,6 +2226,40 @@ public static class PatchApplyTests
                 """;
             AddEntry(archive, "word/document.xml", documentXml);
             extra?.Invoke(archive);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithBodyAndRelationships(string bodyXml, string relationshipsXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", relationshipsXml);
+            string documentXml = """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """;
+            AddEntry(archive, "word/document.xml", documentXml);
         }
 
         stream.Position = 0;

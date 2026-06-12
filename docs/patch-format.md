@@ -49,6 +49,10 @@ including nearby paragraph text.
 - `insert-before`, `insert-after`: `target`, `text`, optional `style`, `copy-paragraph-properties`
 - `delete-block`: `target`, optional `expect-text`
 - `set-style`: `target`, `style`
+- `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`
+- `set-hyperlink-text`: `target`, `text`
+- `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`
+- `remove-hyperlink`: `target`
 - `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
 - `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
 - `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
@@ -67,6 +71,11 @@ For list-like insertions, set `copy-paragraph-properties true` on `insert-before
 paragraph's `w:pPr`, including style and numbering properties; an explicit `style`
 field overrides the copied paragraph style while preserving the other copied
 properties.
+
+Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
+`M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and
+`anchor` for internal bookmark anchors. `remove-hyperlink` unwraps the hyperlink and
+keeps its child runs as ordinary document content.
 
 Use table guards whenever possible:
 

@@ -328,7 +328,7 @@ public static class DocxHelp
                         ]),
                         new("Hyperlinks",
                         [
-                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, internal links expose anchor or target part, and broken relationship IDs are flagged."
+                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, internal links expose anchor or target part, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, update display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
                         ]),
                         new("Images",
                         [
@@ -621,6 +621,10 @@ public static class DocxHelp
                 new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style", "copy-paragraph-properties"] },
                 new() { Name = "delete-block", RequiredFields = ["target"], OptionalFields = ["expect-text"] },
                 new() { Name = "set-style", RequiredFields = ["target", "style"] },
+                new() { Name = "set-hyperlink-target", RequiredFields = ["target plus uri or anchor"], OptionalFields = ["tooltip"] },
+                new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },
+                new() { Name = "insert-hyperlink-after", RequiredFields = ["target", "text plus uri or anchor"], OptionalFields = ["tooltip"] },
+                new() { Name = "remove-hyperlink", RequiredFields = ["target"] },
                 new() { Name = "set-cell", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "expect-row-count", "expect-column-count", "force"] },
                 new() { Name = "append-row", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count"] },
                 new() { Name = "insert-row-before", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },

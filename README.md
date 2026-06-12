@@ -143,6 +143,8 @@ Implemented areas include:
 - bookmark and content-control read/context metadata with selector guidance;
 - simple and complex field read/context metadata with field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, and broken relationship IDs;
+- hyperlink patch operations for target URI/anchor updates, display text updates,
+  insertion, and unlinking while preserving display runs;
 - inline and anchored image metadata with layout kind, size, wrap mode, alt text, and containing target;
 - simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog;
@@ -150,4 +152,4 @@ Implemented areas include:
   ranges, complex field balance, drawing relationships, and basic table shape;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, hyperlink editing, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.
+Known limits include full visual numbering expansion beyond surfaced metadata, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, advanced hyperlink validation beyond absolute external URIs and simple internal anchors, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.
