@@ -32,6 +32,7 @@ Current checks include:
 - paired bookmark and comment range start/end IDs;
 - complex field begin/end balance;
 - DrawingML `a:blip` relationship references;
+- duplicate DrawingML `wp:docPr` IDs within a Word part;
 - basic table row/cell shape.
 
 This remains layered internal validation rather than full ISO/IEC 29500 schema

@@ -63,6 +63,7 @@ internal static class DocxPackageValidator
         ValidatePairedIds(document, OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", "comment range", partName, diagnostics);
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
+        ValidateDrawingProperties(document, partName, diagnostics);
         ValidateTables(document, partName, diagnostics);
     }
 
@@ -141,6 +142,22 @@ internal static class DocxPackageValidator
             {
                 diagnostics.Add(Error("E9105", $"Drawing references missing relationship '{relationshipId}'.", partName));
             }
+        }
+    }
+
+    private static void ValidateDrawingProperties(XDocument document, string partName, List<DocxDiagnostic> diagnostics)
+    {
+        var docPrIds = document
+            .Descendants(OoxmlNs.Wp + "docPr")
+            .Select(element => (string?)element.Attribute("id"))
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!)
+            .GroupBy(id => id, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal);
+        foreach (IGrouping<string, string> group in docPrIds)
+        {
+            diagnostics.Add(Error("E9107", $"Duplicate drawing docPr id '{group.Key}' appears {group.Count()} times.", partName));
         }
     }
 

@@ -57,6 +57,7 @@ public static class ReadApiTests
                       <w:r>
                         <w:drawing>
                           <wp:inline>
+                            <wp:docPr id="5" name="Picture 5"/>
                             <a:graphic>
                               <a:graphicData>
                                 <pic:pic>
@@ -66,6 +67,13 @@ public static class ReadApiTests
                                 </pic:pic>
                               </a:graphicData>
                             </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:docPr id="5" name="Duplicate picture 5"/>
                           </wp:inline>
                         </w:drawing>
                       </w:r>
@@ -85,6 +93,9 @@ public static class ReadApiTests
             diagnostic.Message.Contains("bookmark", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9104");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9105");
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9107" &&
+            diagnostic.Message.Contains("docPr id '5'", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E9106" &&
             diagnostic.Message.Contains("row", StringComparison.Ordinal));
