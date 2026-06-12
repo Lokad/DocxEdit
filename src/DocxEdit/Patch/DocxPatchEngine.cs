@@ -74,6 +74,7 @@ internal static class DocxPatchEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
             var operationDiagnostics = new List<DocxDiagnostic>();
+            TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
             {
@@ -123,7 +124,10 @@ internal static class DocxPatchEngine
                 operation.OperationName,
                 operation.Fields.GetValueOrDefault("target"),
                 operationSuccess,
-                operationDiagnostics));
+                operationDiagnostics)
+            {
+                AffectedTargets = operationSuccess ? BuildAffectedTargets(operation, tableBefore) : []
+            });
         }
 
         if (apply &&
@@ -145,6 +149,188 @@ internal static class DocxPatchEngine
     private static bool SupportsTrackedChangeOutput(string operationName)
     {
         return string.Equals(operationName, "replace-text", StringComparison.Ordinal);
+    }
+
+    private static TableOperationSnapshot? CaptureTableOperationSnapshot(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        CancellationToken cancellationToken)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        return operation.OperationName switch
+        {
+            "set-cell" => CaptureCellSnapshot(package, target, cancellationToken),
+            "append-row" => CaptureTableSnapshot(package, target, cancellationToken),
+            "insert-row-before" or "insert-row-after" or "delete-row" => CaptureRowSnapshot(package, target, cancellationToken),
+            _ => null
+        };
+    }
+
+    private static TableOperationSnapshot? CaptureCellSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
+    {
+        CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+        if (cellTarget is null)
+        {
+            return null;
+        }
+
+        XElement[] rows = cellTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
+        XElement[] cells = cellTarget.Row.Elements(OoxmlNs.W + "tc").ToArray();
+        int rowIndex = Array.IndexOf(rows, cellTarget.Row) + 1;
+        int columnIndex = Array.IndexOf(cells, cellTarget.Cell) + 1;
+        return CreateTableOperationSnapshot(target, cellTarget.Table, rowIndex, columnIndex, cells.Length);
+    }
+
+    private static TableOperationSnapshot? CaptureRowSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
+    {
+        RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+        if (rowTarget is null)
+        {
+            return null;
+        }
+
+        XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
+        int rowIndex = Array.IndexOf(rows, rowTarget.Row) + 1;
+        int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
+        return CreateTableOperationSnapshot(target, rowTarget.Table, rowIndex, columnIndex: null, cellCount);
+    }
+
+    private static TableOperationSnapshot? CaptureTableSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
+    {
+        TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
+        return tableTarget is null
+            ? null
+            : CreateTableOperationSnapshot(target, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null);
+    }
+
+    private static TableOperationSnapshot CreateTableOperationSnapshot(
+        string target,
+        XElement table,
+        int? rowIndex,
+        int? columnIndex,
+        int? cellCount)
+    {
+        int rowCount = table.Elements(OoxmlNs.W + "tr").Count();
+        int columnCount = IsRectangular(table, out int rectangularColumnCount)
+            ? rectangularColumnCount
+            : table.Elements(OoxmlNs.W + "tr").Select(row => row.Elements(OoxmlNs.W + "tc").Count()).DefaultIfEmpty(0).Max();
+        string? tableId = ExtractTableId(target);
+        return new TableOperationSnapshot(target, tableId, rowIndex, columnIndex, rowCount, columnCount, cellCount);
+    }
+
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildAffectedTargets(DocxPatchOperation operation, TableOperationSnapshot? before)
+    {
+        if (before is null)
+        {
+            return [];
+        }
+
+        return operation.OperationName switch
+        {
+            "set-cell" => BuildSetCellAffectedTargets(before),
+            "append-row" => BuildInsertedRowAffectedTargets(before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
+            "insert-row-before" => BuildInsertedRowAffectedTargets(before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+            "insert-row-after" => BuildInsertedRowAffectedTargets(before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+            "delete-row" => BuildDeletedRowAffectedTargets(before),
+            _ => []
+        };
+    }
+
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildSetCellAffectedTargets(TableOperationSnapshot before)
+    {
+        return
+        [
+            new(before.TargetId, "cell", "update")
+            {
+                ParentId = before.TableId,
+                RowIndex = before.RowIndex,
+                ColumnIndex = before.ColumnIndex,
+                RowCountBefore = before.RowCountBefore,
+                RowCountAfter = before.RowCountBefore,
+                ColumnCount = before.ColumnCount
+            }
+        ];
+    }
+
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildInsertedRowAffectedTargets(
+        TableOperationSnapshot before,
+        int insertedRowIndex,
+        int requestedCellCount,
+        string action)
+    {
+        string tableId = before.TableId ?? before.TargetId;
+        int cellCount = requestedCellCount == 0 ? before.ColumnCount : requestedCellCount;
+        string rowId = $"{tableId}.R{insertedRowIndex:00}";
+        var affected = new List<DocxPatchAffectedTarget>
+        {
+            new(rowId, "row", action)
+            {
+                ParentId = tableId,
+                RowIndex = insertedRowIndex,
+                RowCountBefore = before.RowCountBefore,
+                RowCountAfter = before.RowCountBefore + 1,
+                ColumnCount = before.ColumnCount,
+                CellCount = cellCount
+            }
+        };
+        for (int column = 1; column <= cellCount; column++)
+        {
+            affected.Add(new DocxPatchAffectedTarget($"{rowId}.C{column:00}", "cell", action)
+            {
+                ParentId = rowId,
+                RowIndex = insertedRowIndex,
+                ColumnIndex = column,
+                RowCountBefore = before.RowCountBefore,
+                RowCountAfter = before.RowCountBefore + 1,
+                ColumnCount = before.ColumnCount
+            });
+        }
+
+        return affected;
+    }
+
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildDeletedRowAffectedTargets(TableOperationSnapshot before)
+    {
+        string tableId = before.TableId ?? ExtractTableId(before.TargetId) ?? before.TargetId;
+        int rowIndex = before.RowIndex ?? 1;
+        int cellCount = before.CellCount ?? before.ColumnCount;
+        var affected = new List<DocxPatchAffectedTarget>
+        {
+            new(before.TargetId, "row", "delete")
+            {
+                ParentId = tableId,
+                RowIndex = rowIndex,
+                RowCountBefore = before.RowCountBefore,
+                RowCountAfter = before.RowCountBefore - 1,
+                ColumnCount = before.ColumnCount,
+                CellCount = cellCount
+            }
+        };
+        for (int column = 1; column <= cellCount; column++)
+        {
+            affected.Add(new DocxPatchAffectedTarget($"{before.TargetId}.C{column:00}", "cell", "delete")
+            {
+                ParentId = before.TargetId,
+                RowIndex = rowIndex,
+                ColumnIndex = column,
+                RowCountBefore = before.RowCountBefore,
+                RowCountAfter = before.RowCountBefore - 1,
+                ColumnCount = before.ColumnCount
+            });
+        }
+
+        return affected;
+    }
+
+    private static string? ExtractTableId(string target)
+    {
+        int rowMarker = target.IndexOf(".R", StringComparison.Ordinal);
+        return rowMarker < 0 ? target : target[..rowMarker];
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceText(
@@ -4432,6 +4618,15 @@ internal sealed record TableTarget(string PartName, XDocument Document, XElement
 internal sealed record RowTarget(string PartName, XDocument Document, XElement Table, XElement Row);
 
 internal sealed record CellTarget(string PartName, XDocument Document, XElement Table, XElement Row, XElement Cell);
+
+internal sealed record TableOperationSnapshot(
+    string TargetId,
+    string? TableId,
+    int? RowIndex,
+    int? ColumnIndex,
+    int RowCountBefore,
+    int ColumnCount,
+    int? CellCount);
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
 

@@ -386,7 +386,21 @@ public sealed record DocxPatchOperationReport(
     string OperationName,
     string? Target,
     bool Success,
-    IReadOnlyList<DocxDiagnostic> Diagnostics);
+    IReadOnlyList<DocxDiagnostic> Diagnostics)
+{
+    public IReadOnlyList<DocxPatchAffectedTarget> AffectedTargets { get; init; } = [];
+}
+
+public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Action)
+{
+    public string? ParentId { get; init; }
+    public int? RowIndex { get; init; }
+    public int? ColumnIndex { get; init; }
+    public int? RowCountBefore { get; init; }
+    public int? RowCountAfter { get; init; }
+    public int? ColumnCount { get; init; }
+    public int? CellCount { get; init; }
+}
 ```
 
 Read/explore result records must expose structured data in addition to the CLI text
@@ -1940,7 +1954,9 @@ Example output rendered by CLI:
 ```text
 docxedit check: OK
 operation index=1 name=replace-text target=M.P0004 success=True
-operation index=2 name=insert-after target=M.P0005 success=True
+operation index=2 name=append-row target=M.T0001 success=True
+  affected id=M.T0001.R03 kind=row action=append parent=M.T0001 row=3 rows-before=2 rows-after=3 columns=2 cells=2
+  affected id=M.T0001.R03.C01 kind=cell action=append parent=M.T0001.R03 row=3 column=1 rows-before=2 rows-after=3 columns=2
 ```
 
 Use `--report <path>` for the full JSON operation report.

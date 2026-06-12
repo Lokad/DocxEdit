@@ -90,7 +90,21 @@ public sealed record DocxPatchOperationReport(
     string OperationName,
     string? Target,
     bool Success,
-    IReadOnlyList<DocxDiagnostic> Diagnostics);
+    IReadOnlyList<DocxDiagnostic> Diagnostics)
+{
+    public IReadOnlyList<DocxPatchAffectedTarget> AffectedTargets { get; init; } = [];
+}
+
+public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Action)
+{
+    public string? ParentId { get; init; }
+    public int? RowIndex { get; init; }
+    public int? ColumnIndex { get; init; }
+    public int? RowCountBefore { get; init; }
+    public int? RowCountAfter { get; init; }
+    public int? ColumnCount { get; init; }
+    public int? CellCount { get; init; }
+}
 
 public sealed record DocxStyleInfo(string StyleId, string Name, string Type, bool IsDefault)
 {

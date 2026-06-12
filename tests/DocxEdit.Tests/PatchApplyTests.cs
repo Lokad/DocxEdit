@@ -2272,6 +2272,107 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckAppendRowReportsAffectedRowAndCells()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            cell South
+            cell Profit
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        DocxPatchAffectedTarget row = Assert.Single(report.AffectedTargets, target => target.Kind == "row");
+        Assert.Equal("M.T0001.R02", row.Id);
+        Assert.Equal("append", row.Action);
+        Assert.Equal(1, row.RowCountBefore);
+        Assert.Equal(2, row.RowCountAfter);
+        Assert.Equal(2, row.CellCount);
+        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C01" && target.Kind == "cell" && target.ColumnIndex == 1);
+        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C02" && target.Kind == "cell" && target.ColumnIndex == 2);
+    }
+
+    [Fact]
+    public static void ApplyDeleteRowReportsAffectedRowAndCells()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-row
+            target M.T0001.R02
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        DocxPatchAffectedTarget row = Assert.Single(report.AffectedTargets, target => target.Kind == "row");
+        Assert.Equal("M.T0001.R02", row.Id);
+        Assert.Equal("delete", row.Action);
+        Assert.Equal(2, row.RowCountBefore);
+        Assert.Equal(1, row.RowCountAfter);
+        Assert.Equal(2, row.CellCount);
+        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C01" && target.Kind == "cell" && target.Action == "delete");
+        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C02" && target.Kind == "cell" && target.Action == "delete");
+    }
+
+    [Fact]
+    public static void OperationSummaryRendersAffectedTableTargets()
+    {
+        var operations = new[]
+        {
+            new DocxPatchOperationReport(1, "append-row", "M.T0001", true, [])
+            {
+                AffectedTargets =
+                [
+                    new("M.T0001.R02", "row", "append")
+                    {
+                        ParentId = "M.T0001",
+                        RowIndex = 2,
+                        RowCountBefore = 1,
+                        RowCountAfter = 2,
+                        ColumnCount = 2,
+                        CellCount = 2
+                    }
+                ]
+            }
+        };
+
+        string text = DocxTextRenderer.RenderOperationSummary(operations);
+
+        Assert.Contains("operation index=1 name=append-row target=M.T0001 success=True", text, StringComparison.Ordinal);
+        Assert.Contains("affected id=M.T0001.R02 kind=row action=append parent=M.T0001 row=2 rows-before=1 rows-after=2 columns=2 cells=2", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CheckDeleteRowRejectsLastRow()
     {
         using MemoryStream input = CreateDocxWithBody("""

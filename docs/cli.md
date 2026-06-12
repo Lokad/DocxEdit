@@ -136,8 +136,9 @@ Track-change modes are `off`, `preserve`, `suggest`, and `require`. `replace-tex
 operations are `unsupported`, meaning `suggest` applies them directly with `W4001`
 and `require` fails them with `E6001`.
 Plain text `check` and `apply` output includes one `operation index=...` line per
-patch operation with operation name, target, and success. Use `--report` for the full
-JSON operation report.
+patch operation with operation name, target, and success. Table operations also emit
+`affected id=...` row/cell lines with action, parent, row/column, and row-count
+metadata. Use `--report` for the full JSON operation report.
 
 Exit codes:
 

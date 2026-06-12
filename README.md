@@ -151,6 +151,7 @@ Implemented areas include:
 - hyperlink read/context/dump metadata for external links, internal anchors, and broken relationship IDs;
 - hyperlink patch operations for target URI/anchor updates, display text updates,
   insertion, and unlinking while preserving display runs;
+- check/apply operation reports with affected row/cell summaries for table edits;
 - inline and anchored image metadata with layout kind, size, wrap mode, alt text, and containing target;
 - simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog;

@@ -296,6 +296,30 @@ public static class DocxTextRenderer
                 .Append(" success=")
                 .Append(operation.Success)
                 .AppendLine();
+            foreach (DocxPatchAffectedTarget affected in operation.AffectedTargets)
+            {
+                string parent = affected.ParentId is null ? string.Empty : $" parent={affected.ParentId}";
+                string row = affected.RowIndex is null ? string.Empty : $" row={affected.RowIndex}";
+                string column = affected.ColumnIndex is null ? string.Empty : $" column={affected.ColumnIndex}";
+                string rowsBefore = affected.RowCountBefore is null ? string.Empty : $" rows-before={affected.RowCountBefore}";
+                string rowsAfter = affected.RowCountAfter is null ? string.Empty : $" rows-after={affected.RowCountAfter}";
+                string columns = affected.ColumnCount is null ? string.Empty : $" columns={affected.ColumnCount}";
+                string cells = affected.CellCount is null ? string.Empty : $" cells={affected.CellCount}";
+                builder.Append("  affected id=")
+                    .Append(affected.Id)
+                    .Append(" kind=")
+                    .Append(affected.Kind)
+                    .Append(" action=")
+                    .Append(affected.Action)
+                    .Append(parent)
+                    .Append(row)
+                    .Append(column)
+                    .Append(rowsBefore)
+                    .Append(rowsAfter)
+                    .Append(columns)
+                    .Append(cells)
+                    .AppendLine();
+            }
         }
 
         return builder.ToString();
