@@ -978,6 +978,10 @@ internal static class DocxDocumentScanner
         string layoutKind = layout?.Name.LocalName ?? "unknown";
         XElement? extent = layout?.Element(OoxmlNs.Wp + "extent");
         XElement? docProperties = layout?.Element(OoxmlNs.Wp + "docPr");
+        XElement? horizontalPosition = layout?.Element(OoxmlNs.Wp + "positionH");
+        XElement? verticalPosition = layout?.Element(OoxmlNs.Wp + "positionV");
+        XElement? lockProperties = layout?.Descendants(OoxmlNs.A + "graphicFrameLocks").FirstOrDefault() ??
+            layout?.Descendants(OoxmlNs.A + "picLocks").FirstOrDefault();
         string? wrapMode = layout?.Elements().FirstOrDefault(element => element.Name.LocalName.StartsWith("wrap", StringComparison.Ordinal))?.Name.LocalName;
         bool behindDoc = string.Equals((string?)layout?.Attribute("behindDoc"), "1", StringComparison.Ordinal) ||
             string.Equals((string?)layout?.Attribute("behindDoc"), "true", StringComparison.OrdinalIgnoreCase);
@@ -1020,6 +1024,19 @@ internal static class DocxDocumentScanner
                 Title = (string?)docProperties?.Attribute("title"),
                 WrapMode = wrapMode,
                 BehindDoc = behindDoc,
+                WrapDistanceTopEmu = ReadLongAttribute(layout, "distT"),
+                WrapDistanceBottomEmu = ReadLongAttribute(layout, "distB"),
+                WrapDistanceLeftEmu = ReadLongAttribute(layout, "distL"),
+                WrapDistanceRightEmu = ReadLongAttribute(layout, "distR"),
+                RelativeHeight = ReadLongAttribute(layout, "relativeHeight"),
+                AllowOverlap = ReadBooleanAttribute(layout, "allowOverlap"),
+                LockAspectRatio = ReadBooleanAttribute(lockProperties, "noChangeAspect"),
+                HorizontalPositionRelativeFrom = (string?)horizontalPosition?.Attribute("relativeFrom"),
+                HorizontalPositionOffsetEmu = ReadPositionOffset(horizontalPosition),
+                HorizontalPositionAlign = ReadPositionAlign(horizontalPosition),
+                VerticalPositionRelativeFrom = (string?)verticalPosition?.Attribute("relativeFrom"),
+                VerticalPositionOffsetEmu = ReadPositionOffset(verticalPosition),
+                VerticalPositionAlign = ReadPositionAlign(verticalPosition),
                 CropLeftPercent = ReadCropPercent(sourceRectangle, "l"),
                 CropTopPercent = ReadCropPercent(sourceRectangle, "t"),
                 CropRightPercent = ReadCropPercent(sourceRectangle, "r"),
@@ -1030,7 +1047,32 @@ internal static class DocxDocumentScanner
 
     private static long? ReadLongAttribute(XElement? element, string localName)
     {
-        return long.TryParse((string?)element?.Attribute(localName), out long value) ? value : null;
+        return long.TryParse((string?)element?.Attribute(localName), NumberStyles.Integer, CultureInfo.InvariantCulture, out long value) ? value : null;
+    }
+
+    private static bool? ReadBooleanAttribute(XElement? element, string localName)
+    {
+        string? value = (string?)element?.Attribute(localName);
+        if (value is null)
+        {
+            return null;
+        }
+
+        return value is "1" or "true" or "on";
+    }
+
+    private static long? ReadPositionOffset(XElement? element)
+    {
+        string? value = element?.Element(OoxmlNs.Wp + "posOffset")?.Value;
+        return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long offset)
+            ? offset
+            : null;
+    }
+
+    private static string? ReadPositionAlign(XElement? element)
+    {
+        string? value = element?.Element(OoxmlNs.Wp + "align")?.Value;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
     private static decimal? ReadCropPercent(XElement? element, string localName)

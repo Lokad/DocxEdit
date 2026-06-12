@@ -571,10 +571,13 @@ public static class ReadApiTests
                       <w:r><w:t>Floating image</w:t></w:r>
                       <w:r>
                         <w:drawing>
-                          <wp:anchor behindDoc="1">
+                          <wp:anchor behindDoc="1" relativeHeight="251659264" distT="10" distB="20" distL="30" distR="40" allowOverlap="1">
+                            <wp:positionH relativeFrom="column"><wp:posOffset>12345</wp:posOffset></wp:positionH>
+                            <wp:positionV relativeFrom="paragraph"><wp:align>top</wp:align></wp:positionV>
                             <wp:extent cx="1000" cy="2000"/>
                             <wp:wrapSquare/>
                             <wp:docPr id="2" name="Floating picture" descr="Floating chart"/>
+                            <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
                             <a:graphic>
                               <a:graphicData>
                                   <pic:pic>
@@ -602,6 +605,19 @@ public static class ReadApiTests
         Assert.Equal(2000, image.HeightEmu);
         Assert.Equal("wrapSquare", image.WrapMode);
         Assert.True(image.BehindDoc);
+        Assert.Equal(10L, image.WrapDistanceTopEmu);
+        Assert.Equal(20L, image.WrapDistanceBottomEmu);
+        Assert.Equal(30L, image.WrapDistanceLeftEmu);
+        Assert.Equal(40L, image.WrapDistanceRightEmu);
+        Assert.Equal(251659264L, image.RelativeHeight);
+        Assert.True(image.AllowOverlap);
+        Assert.True(image.LockAspectRatio);
+        Assert.Equal("column", image.HorizontalPositionRelativeFrom);
+        Assert.Equal(12345L, image.HorizontalPositionOffsetEmu);
+        Assert.Null(image.HorizontalPositionAlign);
+        Assert.Equal("paragraph", image.VerticalPositionRelativeFrom);
+        Assert.Null(image.VerticalPositionOffsetEmu);
+        Assert.Equal("top", image.VerticalPositionAlign);
         Assert.Equal(10m, image.CropLeftPercent);
         Assert.Equal(5m, image.CropTopPercent);
         Assert.Equal(2.5m, image.CropRightPercent);
@@ -610,6 +626,15 @@ public static class ReadApiTests
         Assert.Contains("layout=anchor", result.Text, StringComparison.Ordinal);
         Assert.Contains("wrap=wrapSquare", result.Text, StringComparison.Ordinal);
         Assert.Contains("behind-doc=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("wrap-dist-top-emu=10", result.Text, StringComparison.Ordinal);
+        Assert.Contains("wrap-dist-right-emu=40", result.Text, StringComparison.Ordinal);
+        Assert.Contains("relative-height=251659264", result.Text, StringComparison.Ordinal);
+        Assert.Contains("allow-overlap=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("lock-aspect=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-h-relative=column", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-h-offset-emu=12345", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-v-relative=paragraph", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-v-align=top", result.Text, StringComparison.Ordinal);
         Assert.Contains("crop-left-percent=10", result.Text, StringComparison.Ordinal);
         Assert.Contains("crop-top-percent=5", result.Text, StringComparison.Ordinal);
         Assert.Contains("crop-right-percent=2.5", result.Text, StringComparison.Ordinal);

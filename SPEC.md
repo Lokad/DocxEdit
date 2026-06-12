@@ -887,6 +887,19 @@ public sealed record DocxImageInfo(
     public string? Title { get; init; }
     public string? WrapMode { get; init; }
     public bool BehindDoc { get; init; }
+    public long? WrapDistanceTopEmu { get; init; }
+    public long? WrapDistanceBottomEmu { get; init; }
+    public long? WrapDistanceLeftEmu { get; init; }
+    public long? WrapDistanceRightEmu { get; init; }
+    public long? RelativeHeight { get; init; }
+    public bool? AllowOverlap { get; init; }
+    public bool? LockAspectRatio { get; init; }
+    public string? HorizontalPositionRelativeFrom { get; init; }
+    public long? HorizontalPositionOffsetEmu { get; init; }
+    public string? HorizontalPositionAlign { get; init; }
+    public string? VerticalPositionRelativeFrom { get; init; }
+    public long? VerticalPositionOffsetEmu { get; init; }
+    public string? VerticalPositionAlign { get; init; }
     public decimal? CropLeftPercent { get; init; }
     public decimal? CropTopPercent { get; init; }
     public decimal? CropRightPercent { get; init; }
@@ -895,10 +908,12 @@ public sealed record DocxImageInfo(
 ```
 
 The public image model exposes compact DrawingML layout metadata for inline and
-anchored drawings. Crop percentages are read from DrawingML `a:srcRect` attributes
-when present and exposed as human-readable percentages, for example `10` for a 10%
-left crop. Detailed crop/positioning edits are preserved in OOXML where possible but
-not exposed as public patch operations.
+anchored drawings. Anchored drawings expose wrap distances, relative positioning,
+relative height, overlap flags, and aspect-ratio locks when present. Crop percentages
+are read from DrawingML `a:srcRect` attributes when present and exposed as
+human-readable percentages, for example `10` for a 10% left crop. Detailed
+crop/positioning edits are preserved in OOXML where possible but not exposed as
+public patch operations.
 
 ### 8.7 Section model
 
@@ -1173,7 +1188,7 @@ M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
   M.T0001.R01.C01 physical-column=1 text="Metric"
   M.T0001.R01.C02 physical-column=2 text="Q3"
   M.T0001.R01.C03 physical-column=3 text="Q4"
-M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart" crop-left-percent=10 crop-top-percent=5
+M.I0001 image layout=anchor part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart" wrap=wrapSquare behind-doc=true wrap-dist-top-emu=10 position-h-relative=column position-h-offset-emu=12345 crop-left-percent=10 crop-top-percent=5
 ```
 
 `read --summary` prints aggregate counts without listing every target:

@@ -127,6 +127,19 @@ public sealed record DocxImageInfo(string Id, string PartName, string? ContentTy
     public string? Title { get; init; }
     public string? WrapMode { get; init; }
     public bool BehindDoc { get; init; }
+    public long? WrapDistanceTopEmu { get; init; }
+    public long? WrapDistanceBottomEmu { get; init; }
+    public long? WrapDistanceLeftEmu { get; init; }
+    public long? WrapDistanceRightEmu { get; init; }
+    public long? RelativeHeight { get; init; }
+    public bool? AllowOverlap { get; init; }
+    public bool? LockAspectRatio { get; init; }
+    public string? HorizontalPositionRelativeFrom { get; init; }
+    public long? HorizontalPositionOffsetEmu { get; init; }
+    public string? HorizontalPositionAlign { get; init; }
+    public string? VerticalPositionRelativeFrom { get; init; }
+    public long? VerticalPositionOffsetEmu { get; init; }
+    public string? VerticalPositionAlign { get; init; }
     public decimal? CropLeftPercent { get; init; }
     public decimal? CropTopPercent { get; init; }
     public decimal? CropRightPercent { get; init; }
