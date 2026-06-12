@@ -617,8 +617,8 @@ public static class DocxHelp
                     TrackChangesNote = "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002."
                 },
                 new() { Name = "replace-paragraph", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "style"] },
-                new() { Name = "insert-before", RequiredFields = ["target", "text"], OptionalFields = ["style"] },
-                new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style"] },
+                new() { Name = "insert-before", RequiredFields = ["target", "text"], OptionalFields = ["style", "copy-paragraph-properties"] },
+                new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style", "copy-paragraph-properties"] },
                 new() { Name = "delete-block", RequiredFields = ["target"], OptionalFields = ["expect-text"] },
                 new() { Name = "set-style", RequiredFields = ["target", "style"] },
                 new() { Name = "set-cell", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "expect-row-count", "expect-column-count", "force"] },

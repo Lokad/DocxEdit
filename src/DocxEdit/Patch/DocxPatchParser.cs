@@ -6,8 +6,8 @@ internal static class DocxPatchParser
     {
         ["replace-text"] = new(["target", "expect-text", "find", "with", "preserve-runs", "occurrence"], ["preserve-runs"], ["occurrence"]),
         ["replace-paragraph"] = new(["target", "expect-text", "style", "text"], [], []),
-        ["insert-before"] = new(["target", "style", "text"], [], []),
-        ["insert-after"] = new(["target", "style", "text"], [], []),
+        ["insert-before"] = new(["target", "style", "copy-paragraph-properties", "text"], ["copy-paragraph-properties"], []),
+        ["insert-after"] = new(["target", "style", "copy-paragraph-properties", "text"], ["copy-paragraph-properties"], []),
         ["delete-block"] = new(["target", "expect-text"], [], []),
         ["set-style"] = new(["target", "style"], [], []),
         ["set-cell"] = new(["target", "expect-text", "expect-row-count", "expect-column-count", "text", "force"], ["force"], ["expect-row-count", "expect-column-count"]),

@@ -310,6 +310,7 @@ internal static class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? style = operation.Fields.GetValueOrDefault("style");
+        bool copyParagraphProperties = ReadBooleanField(operation, "copy-paragraph-properties", diagnostics) ?? false;
         if (diagnostics.Count != 0)
         {
             return diagnostics;
@@ -326,12 +327,20 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        if (copyParagraphProperties && blockTarget.Block.Name != OoxmlNs.W + "p")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4307", $"Field 'copy-paragraph-properties' requires paragraph target '{target}'.", operation, target)];
+        }
+
         if (!apply)
         {
             return [];
         }
 
-        XElement paragraph = CreateSimpleParagraph(text!, style);
+        XElement? paragraphProperties = copyParagraphProperties
+            ? blockTarget.Block.Element(OoxmlNs.W + "pPr")
+            : null;
+        XElement paragraph = CreateSimpleParagraph(text!, style, paragraphProperties);
         if (insertAfter)
         {
             blockTarget.Block.AddAfterSelf(paragraph);

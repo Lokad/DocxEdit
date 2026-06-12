@@ -46,7 +46,7 @@ including nearby paragraph text.
 
 - `replace-text`: `target`, `find`, `with`, optional `expect-text`, `preserve-runs`, `occurrence`. Under `TrackChangesMode.Suggest` or `Require`, simple text-only replacements are emitted as tracked `w:del`/`w:ins` markup with the configured author and timestamp.
 - `replace-paragraph`: `target`, `text`, optional `expect-text`, `style`
-- `insert-before`, `insert-after`: `target`, `text`, optional `style`
+- `insert-before`, `insert-after`: `target`, `text`, optional `style`, `copy-paragraph-properties`
 - `delete-block`: `target`, optional `expect-text`
 - `set-style`: `target`, `style`
 - `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
@@ -61,6 +61,12 @@ including nearby paragraph text.
 - `set-section-orientation`: `target`, `orientation`, optional `expect-columns`, `expect-orientation`
 
 Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors. Explicit header/footer image IDs can be used for image replacement, alt text, and deletion.
+
+For list-like insertions, set `copy-paragraph-properties true` on `insert-before` or
+`insert-after` with a paragraph target. The inserted paragraph copies the target
+paragraph's `w:pPr`, including style and numbering properties; an explicit `style`
+field overrides the copied paragraph style while preserving the other copied
+properties.
 
 Use table guards whenever possible:
 

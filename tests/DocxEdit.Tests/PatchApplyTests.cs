@@ -743,6 +743,44 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyInsertAfterCanCopyParagraphPropertiesForListItem()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:pStyle w:val="ListParagraph"/>
+                        <w:numPr>
+                          <w:ilvl w:val="1"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>First item</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            copy-paragraph-properties true
+            text Second item
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal(new[] { "First item", "Second item" }, new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(2, CountOccurrences(xml, "w:pStyle w:val=\"ListParagraph\""));
+        Assert.Equal(2, CountOccurrences(xml, "w:numId w:val=\"9\""));
+        Assert.Equal(2, CountOccurrences(xml, "w:ilvl w:val=\"1\""));
+    }
+
+    [Fact]
     public static void CheckTextSelectorRejectsAmbiguousMatches()
     {
         using MemoryStream input = CreateDocxWithBody("""
