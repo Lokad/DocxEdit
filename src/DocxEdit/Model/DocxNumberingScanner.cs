@@ -7,17 +7,21 @@ internal sealed class DocxNumberingCatalog
 {
     public static DocxNumberingCatalog Empty { get; } = new(
         new Dictionary<string, string>(StringComparer.Ordinal),
-        new Dictionary<(string AbstractId, int Level), NumberingLevelDefinition>());
+        new Dictionary<(string AbstractId, int Level), NumberingLevelDefinition>(),
+        new Dictionary<(string NumberingId, int Level), NumberingLevelOverride>());
 
     private readonly IReadOnlyDictionary<string, string> _numberingToAbstract;
     private readonly IReadOnlyDictionary<(string AbstractId, int Level), NumberingLevelDefinition> _levels;
+    private readonly IReadOnlyDictionary<(string NumberingId, int Level), NumberingLevelOverride> _overrides;
 
     private DocxNumberingCatalog(
         IReadOnlyDictionary<string, string> numberingToAbstract,
-        IReadOnlyDictionary<(string AbstractId, int Level), NumberingLevelDefinition> levels)
+        IReadOnlyDictionary<(string AbstractId, int Level), NumberingLevelDefinition> levels,
+        IReadOnlyDictionary<(string NumberingId, int Level), NumberingLevelOverride> overrides)
     {
         _numberingToAbstract = numberingToAbstract;
         _levels = levels;
+        _overrides = overrides;
     }
 
     public static DocxNumberingCatalog Scan(OoxmlPackage package, CancellationToken cancellationToken = default)
@@ -49,6 +53,7 @@ internal sealed class DocxNumberingCatalog
         XDocument document = SafeXml.Load(stream, cancellationToken);
         var numberingToAbstract = new Dictionary<string, string>(StringComparer.Ordinal);
         var levels = new Dictionary<(string AbstractId, int Level), NumberingLevelDefinition>();
+        var overrides = new Dictionary<(string NumberingId, int Level), NumberingLevelOverride>();
 
         foreach (XElement abstractNumbering in document.Root?.Elements(OoxmlNs.W + "abstractNum") ?? [])
         {
@@ -90,15 +95,20 @@ internal sealed class DocxNumberingCatalog
                     continue;
                 }
 
+                int? startOverride = TryReadInt((string?)overrideElement
+                    .Element(OoxmlNs.W + "startOverride")
+                    ?.Attribute(OoxmlNs.W + "val"));
                 XElement? overrideLevel = overrideElement.Element(OoxmlNs.W + "lvl");
-                if (overrideLevel is not null)
+                if (startOverride is not null || overrideLevel is not null)
                 {
-                    levels[(abstractId, levelIndex)] = ReadLevelDefinition(overrideLevel);
+                    overrides[(numberingId, levelIndex)] = new NumberingLevelOverride(
+                        startOverride,
+                        overrideLevel is null ? null : ReadLevelDefinition(overrideLevel));
                 }
             }
         }
 
-        return new DocxNumberingCatalog(numberingToAbstract, levels);
+        return new DocxNumberingCatalog(numberingToAbstract, levels, overrides);
     }
 
     public DocxListInfo Resolve(string numberingId, int level, string source)
@@ -110,11 +120,19 @@ internal sealed class DocxNumberingCatalog
             _levels.TryGetValue((abstractId, level), out NumberingLevelDefinition? resolvedDefinition)
                 ? resolvedDefinition
                 : null;
+        NumberingLevelOverride? levelOverride = _overrides.TryGetValue((numberingId, level), out NumberingLevelOverride? resolvedOverride)
+            ? resolvedOverride
+            : null;
+        definition = levelOverride?.Definition ?? definition;
         return new DocxListInfo(numberingId, level)
         {
             AbstractNumberingId = abstractId,
             Format = definition?.Format,
             LevelText = definition?.LevelText,
+            StartValue = levelOverride?.StartOverride ?? definition?.StartValue,
+            Suffix = definition?.Suffix,
+            IsLegal = definition?.IsLegal ?? false,
+            RestartAfterLevel = definition?.RestartAfterLevel,
             ParagraphStyleId = definition?.ParagraphStyleId,
             Source = source
         };
@@ -131,11 +149,28 @@ internal sealed class DocxNumberingCatalog
         return new NumberingLevelDefinition(
             (string?)level.Element(OoxmlNs.W + "numFmt")?.Attribute(OoxmlNs.W + "val"),
             (string?)level.Element(OoxmlNs.W + "lvlText")?.Attribute(OoxmlNs.W + "val"),
-            (string?)level.Element(OoxmlNs.W + "pStyle")?.Attribute(OoxmlNs.W + "val"));
+            (string?)level.Element(OoxmlNs.W + "pStyle")?.Attribute(OoxmlNs.W + "val"),
+            TryReadInt((string?)level.Element(OoxmlNs.W + "start")?.Attribute(OoxmlNs.W + "val")),
+            (string?)level.Element(OoxmlNs.W + "suff")?.Attribute(OoxmlNs.W + "val"),
+            level.Element(OoxmlNs.W + "isLgl") is not null,
+            TryReadInt((string?)level.Element(OoxmlNs.W + "lvlRestart")?.Attribute(OoxmlNs.W + "val")));
+    }
+
+    private static int? TryReadInt(string? value)
+    {
+        return int.TryParse(value, out int parsed) ? parsed : null;
     }
 
     private sealed record NumberingLevelDefinition(
         string? Format,
         string? LevelText,
-        string? ParagraphStyleId);
+        string? ParagraphStyleId,
+        int? StartValue,
+        string? Suffix,
+        bool IsLegal,
+        int? RestartAfterLevel);
+
+    private sealed record NumberingLevelOverride(
+        int? StartOverride,
+        NumberingLevelDefinition? Definition);
 }

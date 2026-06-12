@@ -250,6 +250,13 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? AbstractNumberingId { get; init; }
     public string? Format { get; init; }
     public string? LevelText { get; init; }
+    public string? LabelText { get; init; }
+    public string LabelStatus { get; init; } = "not-resolved";
+    public IReadOnlyList<string> LabelWarnings { get; init; } = [];
+    public int? StartValue { get; init; }
+    public string? Suffix { get; init; }
+    public bool IsLegal { get; init; }
+    public int? RestartAfterLevel { get; init; }
     public string? ParagraphStyleId { get; init; }
     public string Source { get; init; } = "direct";
 }

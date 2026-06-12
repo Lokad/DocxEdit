@@ -76,7 +76,12 @@ Paragraph lines may include `styleId=...` and resolved list metadata. List metad
 starts with the concrete `numId` and zero-based level, then includes resolved
 `abstractNumId`, numbering `format`, `level-text`, paragraph style link, and
 `source=style` or `source=style-inherited` when the list comes from paragraph style
-inheritance rather than direct paragraph numbering.
+inheritance rather than direct paragraph numbering. Deterministic labels are exposed
+as `label="..."` with `label-status=resolved|partial|unsupported`; `start`,
+`suffix`, `legal=true`, `restart-after-level`, and `label-warnings` appear when
+they are known or needed. Supported label formats include decimal, zero-padded
+decimal, upper/lower letters, upper/lower roman numerals, bullets, and nested
+`lvlText` tokens whose referenced counters are known.
 `styles` output includes inheritance links such as `based-on`, `next`, `linked`, and
 style-level numbering defaults when present.
 `read` and `outline` list bookmark and content-control metadata when present.

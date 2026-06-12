@@ -96,6 +96,7 @@ internal static class DocxDocumentScanner
         int imageIndex = 1;
         int sectionIndex = sections.Count(section => section.Id.StartsWith($"{idPrefix}.S", StringComparison.Ordinal)) + 1;
         var targets = new Dictionary<XElement, string>();
+        var numberingLabeler = new DocxNumberingLabeler(numbering);
         foreach (XElement block in body.Elements())
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -104,7 +105,7 @@ internal static class DocxDocumentScanner
             {
                 string paragraphId = $"{idPrefix}.P{paragraphIndex++:0000}";
                 targets[block] = paragraphId;
-                paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, images, idPrefix, ref imageIndex));
+                paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, idPrefix, ref imageIndex));
                 sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
             }
             else if (block.Name == OoxmlNs.W + "tbl")
@@ -141,6 +142,7 @@ internal static class DocxDocumentScanner
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         IReadOnlyDictionary<string, DocxStyleInfo> stylesById,
         DocxNumberingCatalog numbering,
+        DocxNumberingLabeler numberingLabeler,
         List<DocxImageInfo> images,
         string imageIdPrefix,
         ref int imageIndex)
@@ -158,7 +160,7 @@ internal static class DocxDocumentScanner
             story,
             ReadText(paragraph, textView),
             ReadHeadingLevel(paragraph),
-            ReadListInfo(paragraph, styleId, stylesById, numbering),
+            numberingLabeler.ApplyLabel(ReadListInfo(paragraph, styleId, stylesById, numbering)),
             runs)
         {
             StyleId = styleId,

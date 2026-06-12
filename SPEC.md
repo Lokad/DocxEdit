@@ -772,13 +772,26 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? AbstractNumberingId { get; init; }
     public string? Format { get; init; }
     public string? LevelText { get; init; }
+    public string? LabelText { get; init; }
+    public string LabelStatus { get; init; } = "not-resolved";
+    public IReadOnlyList<string> LabelWarnings { get; init; } = [];
+    public int? StartValue { get; init; }
+    public string? Suffix { get; init; }
+    public bool IsLegal { get; init; }
+    public int? RestartAfterLevel { get; init; }
     public string? ParagraphStyleId { get; init; }
     public string Source { get; init; } = "direct";
 }
 ```
 
 `DocxListInfo` resolves direct paragraph numbering and paragraph-style numbering when
-available. `Source` is `direct`, `style`, or `style-inherited`.
+available. `Source` is `direct`, `style`, or `style-inherited`. `LabelText` is the
+visible label when DocxEdit can deterministically expand the level text from known
+counters and supported formats. `LabelStatus` is `resolved`, `partial`, `unsupported`,
+or `not-resolved`; `LabelWarnings` names missing counters, missing definitions, and
+unsupported formats without exposing document text. Supported label formats include
+decimal, zero-padded decimal, upper/lower letters, upper/lower roman numerals,
+bullets, and nested `lvlText` tokens whose referenced counters are known.
 
 ### 8.4 Run model
 

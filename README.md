@@ -133,7 +133,8 @@ Implemented areas include:
 - safe ZIP/package loading without filesystem extraction;
 - stable IDs for paragraphs, tables, cells, images, sections, headers, and footers;
 - resolved paragraph numbering/list metadata, including abstract numbering IDs, formats,
-  level text, and style-linked list sources;
+  level text, style-linked list sources, start/suffix metadata, and visible labels for
+  deterministic decimal, letter, roman, bullet, and nested `lvlText` patterns;
 - merged/nested/styled table and row/grid read metadata;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
 - bookmark and content-control selectors for safe paragraph targeting;
@@ -161,4 +162,12 @@ Implemented areas include:
   ranges, complex field balance, drawing relationships, and basic table shape;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full visual numbering expansion beyond surfaced metadata, comment creation/resolution workflows and full threaded comment models, advanced bookmark/content-control editing beyond plain-text controls and simple same-paragraph bookmark ranges, field result recalculation and field-specific edit workflows, advanced hyperlink validation beyond absolute external URIs and simple internal anchors, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.
+Known limits include exotic/custom visual numbering expansion beyond deterministic
+decimal, letter, roman, bullet, and nested `lvlText` labels, comment
+creation/resolution workflows and full threaded comment models, advanced
+bookmark/content-control editing beyond plain-text controls and simple same-paragraph
+bookmark ranges, field result recalculation and field-specific edit workflows,
+advanced hyperlink validation beyond absolute external URIs and simple internal
+anchors, advanced floating-image layout edits and crop metadata, complex
+merged/nested table edit transformations, full tracked-change edit coverage, and full
+ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

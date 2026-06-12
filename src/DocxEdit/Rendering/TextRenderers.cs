@@ -485,11 +485,22 @@ internal static class TextRenderers
         string abstractId = list.AbstractNumberingId is null ? string.Empty : $" abstractNumId={Escape(list.AbstractNumberingId)}";
         string format = list.Format is null ? string.Empty : $" format={Escape(list.Format)}";
         string levelText = list.LevelText is null ? string.Empty : $" level-text=\"{Escape(list.LevelText)}\"";
+        string label = list.LabelText is null ? string.Empty : $" label=\"{Escape(list.LabelText)}\"";
+        string labelStatus = string.Equals(list.LabelStatus, "resolved", StringComparison.Ordinal)
+            ? string.Empty
+            : $" label-status={Escape(list.LabelStatus)}";
+        string labelWarnings = list.LabelWarnings.Count == 0
+            ? string.Empty
+            : $" label-warnings=\"{Escape(string.Join(",", list.LabelWarnings))}\"";
+        string start = list.StartValue is null ? string.Empty : $" start={list.StartValue}";
+        string suffix = list.Suffix is null ? string.Empty : $" suffix={Escape(list.Suffix)}";
+        string legal = list.IsLegal ? " legal=true" : string.Empty;
+        string restart = list.RestartAfterLevel is null ? string.Empty : $" restart-after-level={list.RestartAfterLevel}";
         string paragraphStyle = list.ParagraphStyleId is null ? string.Empty : $" paragraph-style={Escape(list.ParagraphStyleId)}";
         string source = string.Equals(list.Source, "direct", StringComparison.Ordinal)
             ? string.Empty
             : $" source={Escape(list.Source)}";
-        return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}";
+        return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{start}{suffix}{legal}{restart}";
     }
 
     private static string RenderImage(DocxImageInfo image)

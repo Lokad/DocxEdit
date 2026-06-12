@@ -378,6 +378,8 @@ public static class ReadApiTests
         Assert.Equal("o", list.LevelText);
         Assert.Equal("BulletStyle", list.ParagraphStyleId);
         Assert.Equal("direct", list.Source);
+        Assert.Equal("o", list.LabelText);
+        Assert.Equal("resolved", list.LabelStatus);
         Assert.Contains("list numId=9 level=1 abstractNumId=7 format=bullet level-text=\"o\" paragraph-style=BulletStyle", result.Text, StringComparison.Ordinal);
     }
 
@@ -428,7 +430,118 @@ public static class ReadApiTests
         Assert.NotNull(paragraph.List);
         Assert.Equal("style", paragraph.List.Source);
         Assert.Equal("decimal", paragraph.List.Format);
+        Assert.Equal("1.", paragraph.List.LabelText);
         Assert.Contains("styleId=ListParagraph list numId=11 level=0 abstractNumId=2 format=decimal level-text=\"%1.\" source=style", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadExpandsResolvedNumberingLabels()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top one</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Nested one</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Nested two</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top two</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Nested reset</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="3"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                      <w:suff w:val="space"/>
+                    </w:lvl>
+                    <w:lvl w:ilvl="1">
+                      <w:start w:val="2"/>
+                      <w:numFmt w:val="lowerLetter"/>
+                      <w:lvlText w:val="%1.%2)"/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9">
+                    <w:abstractNumId w:val="7"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        string[] labels = result.Paragraphs
+            .Select(paragraph => paragraph.List?.LabelText ?? string.Empty)
+            .ToArray();
+        Assert.Equal(["3.", "3.b)", "3.c)", "4.", "4.b)"], labels);
+        Assert.All(result.Paragraphs, paragraph => Assert.Equal("resolved", paragraph.List?.LabelStatus));
+        Assert.Equal(3, result.Paragraphs[0].List?.StartValue);
+        Assert.Equal("space", result.Paragraphs[0].List?.Suffix);
+        Assert.Contains("M.P0002 paragraph list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.b)\" start=2", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadUsesNumberingStartOverridePerNumberingInstance()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Override start</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default start</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9">
+                    <w:abstractNumId w:val="7"/>
+                    <w:lvlOverride w:ilvl="0">
+                      <w:startOverride w:val="7"/>
+                    </w:lvlOverride>
+                  </w:num>
+                  <w:num w:numId="10">
+                    <w:abstractNumId w:val="7"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.Equal("7.", result.Paragraphs[0].List?.LabelText);
+        Assert.Equal(7, result.Paragraphs[0].List?.StartValue);
+        Assert.Equal("1.", result.Paragraphs[1].List?.LabelText);
+        Assert.Equal(1, result.Paragraphs[1].List?.StartValue);
     }
 
     [Fact]
