@@ -387,6 +387,19 @@ Read/explore result records must expose structured data in addition to the CLI t
 renderings:
 
 ```csharp
+public sealed record DocxReadResult : DocxOperationResult
+{
+    public IReadOnlyList<string> PartNames { get; init; } = [];
+    public string? MainDocumentPartName { get; init; }
+    public string Text { get; init; } = string.Empty;
+    public IReadOnlyList<DocxParagraphInfo> Paragraphs { get; init; } = [];
+    public IReadOnlyList<DocxTableInfo> Tables { get; init; } = [];
+    public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
+    public IReadOnlyList<DocxSectionInfo> Sections { get; init; } = [];
+    public IReadOnlyList<DocxBookmarkInfo> Bookmarks { get; init; } = [];
+    public IReadOnlyList<DocxContentControlInfo> ContentControls { get; init; } = [];
+}
+
 public sealed record DocxDumpResult : DocxOperationResult
 {
     public string TargetId { get; init; } = string.Empty;
@@ -790,7 +803,45 @@ public sealed record DocxSectionInfo(
     string Orientation);
 ```
 
-### 8.8 Tracked-change and comment markup model
+### 8.8 Bookmark and content-control model
+
+`DocxEditor.Read` exposes bookmark and content-control metadata so agents can inspect
+selector candidates without raw OOXML.
+
+```csharp
+public sealed record DocxBookmarkInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string? OoxmlId { get; init; }
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? StartTargetId { get; init; }
+    public string? EndTargetId { get; init; }
+    public bool IsComplete { get; init; }
+}
+
+public sealed record DocxContentControlInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? TargetId { get; init; }
+    public string Kind { get; init; } = "unknown";
+    public string? OoxmlId { get; init; }
+    public string? Tag { get; init; }
+    public string? Alias { get; init; }
+    public string? Lock { get; init; }
+    public int TextLength { get; init; }
+}
+```
+
+Bookmark IDs use the `B` namespace and content-control IDs use the `CC` namespace,
+for example `M.B0001` and `M.CC0001`. They are metadata IDs, not patch edit targets.
+Use `StartTargetId`, `EndTargetId`, or `TargetId` for edits unless a later patch
+operation explicitly accepts the metadata ID.
+
+### 8.9 Tracked-change and comment markup model
 
 `DocxEditor.Changes` scans existing tracked-change, move, custom XML, property-change,
 and comment markup. The default result does not expose private revision or comment
@@ -858,7 +909,7 @@ targetless records, `TargetReason`, `NearestTargetId`, and `TargetNote` provide
 context without claiming exact ownership. Range starts/ends that share a revision or
 comment ID expose `PairedChangeId`.
 
-### 8.9 Context model
+### 8.10 Context model
 
 `DocxEditor.Context` summarizes nearby modeled structure around a target. Its default
 `MaxText` is `0`, making it safe for private-document navigation unless the caller
@@ -877,6 +928,10 @@ public sealed record DocxContextItem
     public string? StyleId { get; init; }
     public string? StyleName { get; init; }
     public DocxListInfo? List { get; init; }
+    public IReadOnlyList<string> BookmarkNames { get; init; } = [];
+    public IReadOnlyList<string> ContentControlIds { get; init; } = [];
+    public IReadOnlyList<string> ContentControlTags { get; init; } = [];
+    public IReadOnlyList<string> ContentControlAliases { get; init; } = [];
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -905,6 +960,8 @@ Example CLI output:
 M.S0001 section columns=2 orientation=landscape
 M.P0001 heading level=1 styleId=Heading1 text="Executive Summary"
 M.P0002 paragraph list numId=42 level=0 abstractNumId=7 format=decimal level-text="%1." text="Revenue increased"
+M.B0001 bookmark name="ClientName" ooxml-id=1 story="main" part=/word/document.xml start=M.P0002 end=M.P0002 complete=True
+M.CC0001 content-control kind=plain-text story="main" part=/word/document.xml target=M.P0002 tag="client_name" alias="Client Name" text-length=4
 M.T0001 table rows=2 columns=3
   M.T0001.R01.C01 text="Metric"
   M.T0001.R01.C02 text="Q3"
@@ -921,18 +978,23 @@ paragraphs count=1510
 tables count=41
 images count=0
 sections count=4
+bookmarks count=12
+content-controls count=4
 story="main" paragraphs=1510
 ```
 
 ### 9.2 `outline`
 
-Purpose: show only sections, headings, tables, images, headers, and footers.
+Purpose: show only sections, headings, tables, images, bookmarks, content controls,
+headers, and footers.
 
 ```text
 M.P0001 heading level=1 text="Executive Summary"
 M.T0001 table rows=4 columns=3
 M.S0001 section columns=2 orientation=landscape
 M.I0001 image part=/word/media/image1.png
+M.B0001 bookmark name="ClientName" start=M.P0002 end=M.P0002
+M.CC0001 content-control kind=plain-text target=M.P0002 tag="client_name" alias="Client Name"
 ```
 
 ### 9.3 `find`
@@ -1008,7 +1070,7 @@ text. The default `MaxText` is `0`; callers must opt in to text snippets.
 
 ```text
 before M.P0003 paragraph story="main" text=""
-target M.P0004 paragraph story="main" text=""
+target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" text=""
 after M.P0005 paragraph story="main" text=""
 ```
 

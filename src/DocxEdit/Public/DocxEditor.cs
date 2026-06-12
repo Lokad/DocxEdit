@@ -47,7 +47,9 @@ public sealed class DocxEditor
             Paragraphs = model!.Paragraphs,
             Tables = model.Tables,
             Images = model.Images,
-            Sections = model.Sections
+            Sections = model.Sections,
+            Bookmarks = model.Bookmarks,
+            ContentControls = model.ContentControls
         };
     }
 

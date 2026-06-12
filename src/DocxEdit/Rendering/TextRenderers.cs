@@ -25,6 +25,51 @@ internal static class TextRenderers
             builder.Append(paragraph.Id).Append(' ').Append(kind).Append(style).Append(list).Append(" text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
         }
 
+        foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
+        {
+            string ooxmlId = bookmark.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(bookmark.OoxmlId)}";
+            string start = bookmark.StartTargetId is null ? " start=unknown" : $" start={bookmark.StartTargetId}";
+            string end = bookmark.EndTargetId is null ? " end=unknown" : $" end={bookmark.EndTargetId}";
+            builder.Append(bookmark.Id)
+                .Append(" bookmark name=\"")
+                .Append(Escape(bookmark.Name))
+                .Append('"')
+                .Append(ooxmlId)
+                .Append(" story=\"")
+                .Append(Escape(bookmark.Story))
+                .Append("\" part=")
+                .Append(bookmark.PartName)
+                .Append(start)
+                .Append(end)
+                .Append(" complete=")
+                .Append(bookmark.IsComplete)
+                .AppendLine();
+        }
+
+        foreach (DocxContentControlInfo control in model.ContentControls)
+        {
+            string target = control.TargetId is null ? " target=unknown" : $" target={control.TargetId}";
+            string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(control.OoxmlId)}";
+            string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
+            string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            string locked = control.Lock is null ? string.Empty : $" lock={Escape(control.Lock)}";
+            builder.Append(control.Id)
+                .Append(" content-control kind=")
+                .Append(Escape(control.Kind))
+                .Append(" story=\"")
+                .Append(Escape(control.Story))
+                .Append("\" part=")
+                .Append(control.PartName)
+                .Append(target)
+                .Append(ooxmlId)
+                .Append(tag)
+                .Append(alias)
+                .Append(locked)
+                .Append(" text-length=")
+                .Append(control.TextLength)
+                .AppendLine();
+        }
+
         foreach (DocxTableInfo table in model.Tables)
         {
             builder.Append(table.Id).Append(" table rows=").Append(table.RowCount).Append(" columns=").Append(table.ColumnCount).AppendLine();
@@ -66,6 +111,21 @@ internal static class TextRenderers
         foreach (DocxImageInfo image in model.Images)
         {
             lines.Add($"{image.Id} image part={image.PartName}");
+        }
+
+        foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
+        {
+            string start = bookmark.StartTargetId is null ? "unknown" : bookmark.StartTargetId;
+            string end = bookmark.EndTargetId is null ? "unknown" : bookmark.EndTargetId;
+            lines.Add($"{bookmark.Id} bookmark name=\"{Escape(bookmark.Name)}\" start={start} end={end}");
+        }
+
+        foreach (DocxContentControlInfo control in model.ContentControls)
+        {
+            string target = control.TargetId is null ? "unknown" : control.TargetId;
+            string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
+            string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}");
         }
 
         return lines;
@@ -171,6 +231,7 @@ internal static class TextRenderers
     public static IReadOnlyList<DocxContextItem> Context(DocxDocumentModel model, string targetId, int radius, int maxText)
     {
         radius = Math.Max(0, radius);
+        TargetAnnotations annotations = BuildTargetAnnotations(model);
 
         DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
         if (paragraph is not null)
@@ -180,7 +241,7 @@ internal static class TextRenderers
                 .ToArray();
             int index = Array.FindIndex(storyParagraphs, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
             return Window(storyParagraphs, index, radius)
-                .Select(item => ToContextItem(item.Value, Relation(item.Offset), maxText))
+                .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset), maxText), annotations))
                 .ToArray();
         }
 
@@ -192,7 +253,7 @@ internal static class TextRenderers
                 .ToArray();
             int index = Array.FindIndex(storyTables, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
             return Window(storyTables, index, radius)
-                .Select(item => ToContextItem(item.Value, Relation(item.Offset)))
+                .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset)), annotations))
                 .ToArray();
         }
 
@@ -201,7 +262,7 @@ internal static class TextRenderers
             DocxTableCellInfo? cell = candidateTable.Cells.FirstOrDefault(cell => string.Equals(cell.Id, targetId, StringComparison.Ordinal));
             if (cell is not null)
             {
-                return CellContext(candidateTable, cell, radius, maxText);
+                return CellContext(candidateTable, cell, radius, maxText, annotations);
             }
 
             DocxTableCellInfo[] rowCells = candidateTable.Cells
@@ -210,7 +271,7 @@ internal static class TextRenderers
                 .ToArray();
             if (rowCells.Length > 0)
             {
-                return RowContext(candidateTable, targetId, rowCells, radius, maxText);
+                return RowContext(candidateTable, targetId, rowCells, radius, maxText, annotations);
             }
         }
 
@@ -222,7 +283,7 @@ internal static class TextRenderers
                 .ToArray();
             int index = Array.FindIndex(storySections, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
             return Window(storySections, index, radius)
-                .Select(item => ToContextItem(item.Value, Relation(item.Offset)))
+                .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset)), annotations))
                 .ToArray();
         }
 
@@ -242,6 +303,10 @@ internal static class TextRenderers
             string heading = item.HeadingLevel is null ? string.Empty : $" heading-level={item.HeadingLevel}";
             string style = item.StyleId is null ? string.Empty : $" styleId={Escape(item.StyleId)}";
             string list = item.List is null ? string.Empty : RenderList(item.List);
+            string bookmarks = item.BookmarkNames.Count == 0 ? string.Empty : $" bookmark-names=\"{Escape(string.Join(",", item.BookmarkNames))}\"";
+            string contentControlIds = item.ContentControlIds.Count == 0 ? string.Empty : $" content-controls=\"{Escape(string.Join(",", item.ContentControlIds))}\"";
+            string contentControlTags = item.ContentControlTags.Count == 0 ? string.Empty : $" content-control-tags=\"{Escape(string.Join(",", item.ContentControlTags))}\"";
+            string contentControlAliases = item.ContentControlAliases.Count == 0 ? string.Empty : $" content-control-aliases=\"{Escape(string.Join(",", item.ContentControlAliases))}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
@@ -262,6 +327,10 @@ internal static class TextRenderers
                 .Append(heading)
                 .Append(style)
                 .Append(list)
+                .Append(bookmarks)
+                .Append(contentControlIds)
+                .Append(contentControlTags)
+                .Append(contentControlAliases)
                 .Append(rowCount)
                 .Append(columnCount)
                 .Append(row)
@@ -307,11 +376,11 @@ internal static class TextRenderers
         return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}";
     }
 
-    private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText)
+    private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText, TargetAnnotations annotations)
     {
         var items = new List<DocxContextItem>
         {
-            ToContextItem(table, "parent")
+            ApplyAnnotations(ToContextItem(table, "parent"), annotations)
         };
         DocxTableCellInfo[] rowCells = table.Cells
             .Where(candidate => candidate.RowIndex == cell.RowIndex)
@@ -319,15 +388,15 @@ internal static class TextRenderers
             .ToArray();
         int index = Array.FindIndex(rowCells, candidate => string.Equals(candidate.Id, cell.Id, StringComparison.Ordinal));
         items.AddRange(Window(rowCells, index, radius)
-            .Select(item => ToContextItem(item.Value, Relation(item.Offset), maxText, table.Id, table.Story)));
+            .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset), maxText, table.Id, table.Story), annotations)));
         return items;
     }
 
-    private static IReadOnlyList<DocxContextItem> RowContext(DocxTableInfo table, string rowId, IReadOnlyList<DocxTableCellInfo> rowCells, int radius, int maxText)
+    private static IReadOnlyList<DocxContextItem> RowContext(DocxTableInfo table, string rowId, IReadOnlyList<DocxTableCellInfo> rowCells, int radius, int maxText, TargetAnnotations annotations)
     {
         var items = new List<DocxContextItem>
         {
-            ToContextItem(table, "parent"),
+            ApplyAnnotations(ToContextItem(table, "parent"), annotations),
             new()
             {
                 Id = rowId,
@@ -342,7 +411,7 @@ internal static class TextRenderers
 
         items.AddRange(rowCells
             .Take(Math.Max(1, radius * 2 + 1))
-            .Select(cell => ToContextItem(cell, "child", maxText, table.Id, table.Story)));
+            .Select(cell => ApplyAnnotations(ToContextItem(cell, "child", maxText, table.Id, table.Story), annotations)));
         return items;
     }
 
@@ -364,6 +433,75 @@ internal static class TextRenderers
     private static string Relation(int offset)
     {
         return offset < 0 ? "before" : offset > 0 ? "after" : "target";
+    }
+
+    private static TargetAnnotations BuildTargetAnnotations(DocxDocumentModel model)
+    {
+        var bookmarkNames = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
+        {
+            AddAnnotation(bookmarkNames, bookmark.StartTargetId, bookmark.Name);
+            AddAnnotation(bookmarkNames, bookmark.EndTargetId, bookmark.Name);
+        }
+
+        var contentControlIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var contentControlTags = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var contentControlAliases = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (DocxContentControlInfo control in model.ContentControls)
+        {
+            AddAnnotation(contentControlIds, control.TargetId, control.Id);
+            AddAnnotation(contentControlTags, control.TargetId, control.Tag);
+            AddAnnotation(contentControlAliases, control.TargetId, control.Alias);
+        }
+
+        return new TargetAnnotations(
+            ToArrayDictionary(bookmarkNames),
+            ToArrayDictionary(contentControlIds),
+            ToArrayDictionary(contentControlTags),
+            ToArrayDictionary(contentControlAliases));
+    }
+
+    private static DocxContextItem ApplyAnnotations(DocxContextItem item, TargetAnnotations annotations)
+    {
+        return item with
+        {
+            BookmarkNames = LookupAnnotations(annotations.BookmarkNamesByTarget, item.Id),
+            ContentControlIds = LookupAnnotations(annotations.ContentControlIdsByTarget, item.Id),
+            ContentControlTags = LookupAnnotations(annotations.ContentControlTagsByTarget, item.Id),
+            ContentControlAliases = LookupAnnotations(annotations.ContentControlAliasesByTarget, item.Id)
+        };
+    }
+
+    private static void AddAnnotation(Dictionary<string, List<string>> annotations, string? targetId, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(targetId) || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!annotations.TryGetValue(targetId, out List<string>? values))
+        {
+            values = [];
+            annotations[targetId] = values;
+        }
+
+        if (!values.Contains(value, StringComparer.Ordinal))
+        {
+            values.Add(value);
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string[]> ToArrayDictionary(Dictionary<string, List<string>> annotations)
+    {
+        return annotations.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.Order(StringComparer.Ordinal).ToArray(),
+            StringComparer.Ordinal);
+    }
+
+    private static IReadOnlyList<string> LookupAnnotations(IReadOnlyDictionary<string, string[]> annotations, string targetId)
+    {
+        return annotations.TryGetValue(targetId, out string[]? values) ? values : [];
     }
 
     private static DocxContextItem ToContextItem(DocxParagraphInfo paragraph, string relation, int maxText)
@@ -456,4 +594,10 @@ internal static class TextRenderers
 
         return text[..(maxText - 3)] + "...";
     }
+
+    private sealed record TargetAnnotations(
+        IReadOnlyDictionary<string, string[]> BookmarkNamesByTarget,
+        IReadOnlyDictionary<string, string[]> ContentControlIdsByTarget,
+        IReadOnlyDictionary<string, string[]> ContentControlTagsByTarget,
+        IReadOnlyDictionary<string, string[]> ContentControlAliasesByTarget);
 }

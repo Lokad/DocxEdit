@@ -24,7 +24,9 @@ internal static class DocxDocumentScanner
         var tables = new List<DocxTableInfo>();
         var images = new List<DocxImageInfo>();
         var sections = new List<DocxSectionInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, cancellationToken);
+        var bookmarks = new List<DocxBookmarkInfo>();
+        var contentControls = new List<DocxContentControlInfo>();
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -37,7 +39,7 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, cancellationToken);
                 }
             }
 
@@ -49,12 +51,12 @@ internal static class DocxDocumentScanner
                 if (package.GetPart(relationship.ResolvedTarget!) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, cancellationToken);
                 }
             }
         }
 
-        return new DocxDocumentModel(paragraphs, tables, images, sections);
+        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls);
     }
 
     private static void ScanStory(
@@ -69,6 +71,8 @@ internal static class DocxDocumentScanner
         List<DocxTableInfo> tables,
         List<DocxImageInfo> images,
         List<DocxSectionInfo> sections,
+        List<DocxBookmarkInfo> bookmarks,
+        List<DocxContentControlInfo> contentControls,
         CancellationToken cancellationToken)
     {
         OoxmlPart part = package.GetPart(partName)
@@ -87,18 +91,23 @@ internal static class DocxDocumentScanner
         int tableIndex = 1;
         int imageIndex = 1;
         int sectionIndex = sections.Count(section => section.Id.StartsWith($"{idPrefix}.S", StringComparison.Ordinal)) + 1;
+        var targets = new Dictionary<XElement, string>();
         foreach (XElement block in body.Elements())
         {
             cancellationToken.ThrowIfCancellationRequested();
             XElement? sectionProperties = null;
             if (block.Name == OoxmlNs.W + "p")
             {
-                paragraphs.Add(ReadParagraph(block, $"{idPrefix}.P{paragraphIndex++:0000}", story, textView, package, relationships, stylesById, numbering, images, idPrefix, ref imageIndex));
+                string paragraphId = $"{idPrefix}.P{paragraphIndex++:0000}";
+                targets[block] = paragraphId;
+                paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, images, idPrefix, ref imageIndex));
                 sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
             }
             else if (block.Name == OoxmlNs.W + "tbl")
             {
-                tables.Add(ReadTable(block, $"{idPrefix}.T{tableIndex++:0000}", story, textView, package, relationships, images, idPrefix, ref imageIndex));
+                string tableId = $"{idPrefix}.T{tableIndex++:0000}";
+                targets[block] = tableId;
+                tables.Add(ReadTable(block, tableId, story, textView, package, relationships, images, idPrefix, targets, ref imageIndex));
             }
             else if (block.Name == OoxmlNs.W + "sectPr")
             {
@@ -107,9 +116,14 @@ internal static class DocxDocumentScanner
 
             if (sectionProperties is not null && idPrefix == "M")
             {
-                sections.Add(ReadSection(sectionProperties, $"{idPrefix}.S{sectionIndex++:0000}", story));
+                string sectionId = $"{idPrefix}.S{sectionIndex++:0000}";
+                targets[sectionProperties] = sectionId;
+                sections.Add(ReadSection(sectionProperties, sectionId, story));
             }
         }
+
+        bookmarks.AddRange(ReadBookmarks(document, partName, story, idPrefix, targets));
+        contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
     }
 
     private static DocxParagraphInfo ReadParagraph(
@@ -254,6 +268,7 @@ internal static class DocxDocumentScanner
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
         string imageIdPrefix,
+        Dictionary<XElement, string> targets,
         ref int imageIndex)
     {
         var cells = new List<DocxTableCellInfo>();
@@ -270,8 +285,10 @@ internal static class DocxDocumentScanner
                 }
 
                 int columnSpan = ReadCellColumnSpan(cell);
+                string cellId = $"{id}.R{rowIndex:00}.C{columnIndex:00}";
+                targets[cell] = cellId;
                 cells.Add(new DocxTableCellInfo(
-                    $"{id}.R{rowIndex:00}.C{columnIndex:00}",
+                    cellId,
                     rowIndex,
                     columnIndex,
                     ReadText(cell, textView),
@@ -286,6 +303,130 @@ internal static class DocxDocumentScanner
         }
 
         return new DocxTableInfo(id, story, rowIndex - 1, maxColumns, cells);
+    }
+
+    private static IReadOnlyList<DocxBookmarkInfo> ReadBookmarks(
+        XDocument document,
+        string partName,
+        string story,
+        string idPrefix,
+        IReadOnlyDictionary<XElement, string> targets)
+    {
+        var bookmarks = new List<DocxBookmarkInfo>();
+        var endsByOoxmlId = document
+            .Descendants(OoxmlNs.W + "bookmarkEnd")
+            .Select(end => ((string?)end.Attribute(OoxmlNs.W + "id"), end))
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Item1))
+            .GroupBy(pair => pair.Item1!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().end, StringComparer.Ordinal);
+
+        int bookmarkIndex = 1;
+        foreach (XElement start in document.Descendants(OoxmlNs.W + "bookmarkStart"))
+        {
+            string? name = (string?)start.Attribute(OoxmlNs.W + "name");
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            string? ooxmlId = (string?)start.Attribute(OoxmlNs.W + "id");
+            endsByOoxmlId.TryGetValue(ooxmlId ?? string.Empty, out XElement? end);
+            bookmarks.Add(new DocxBookmarkInfo
+            {
+                Id = $"{idPrefix}.B{bookmarkIndex++:0000}",
+                Name = name,
+                OoxmlId = ooxmlId,
+                Story = story,
+                PartName = partName,
+                StartTargetId = FindTargetId(start, targets),
+                EndTargetId = end is null ? null : FindTargetId(end, targets),
+                IsComplete = end is not null
+            });
+        }
+
+        return bookmarks;
+    }
+
+    private static IReadOnlyList<DocxContentControlInfo> ReadContentControls(
+        XDocument document,
+        string partName,
+        string story,
+        string idPrefix,
+        DocxTextView textView,
+        IReadOnlyDictionary<XElement, string> targets)
+    {
+        var contentControls = new List<DocxContentControlInfo>();
+        int controlIndex = 1;
+        foreach (XElement control in document.Descendants(OoxmlNs.W + "sdt"))
+        {
+            XElement? properties = control.Element(OoxmlNs.W + "sdtPr");
+            XElement content = control.Element(OoxmlNs.W + "sdtContent") ?? control;
+            contentControls.Add(new DocxContentControlInfo
+            {
+                Id = $"{idPrefix}.CC{controlIndex++:0000}",
+                Story = story,
+                PartName = partName,
+                TargetId = FindTargetId(control, targets),
+                Kind = ReadContentControlKind(properties),
+                OoxmlId = ReadSdtProperty(properties, "id"),
+                Tag = ReadSdtProperty(properties, "tag"),
+                Alias = ReadSdtProperty(properties, "alias"),
+                Lock = ReadSdtProperty(properties, "lock"),
+                TextLength = ReadText(content, textView).Length
+            });
+        }
+
+        return contentControls;
+    }
+
+    private static string? FindTargetId(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    {
+        foreach (XElement candidate in element.AncestorsAndSelf())
+        {
+            if (targets.TryGetValue(candidate, out string? id))
+            {
+                return id;
+            }
+        }
+
+        foreach (XElement descendant in element.Descendants())
+        {
+            if (targets.TryGetValue(descendant, out string? id))
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private static string ReadContentControlKind(XElement? properties)
+    {
+        if (properties is null)
+        {
+            return "rich-text";
+        }
+
+        string? kind = properties.Elements()
+            .Select(element => element.Name.LocalName)
+            .FirstOrDefault(name => name is "text" or "richText" or "checkBox" or "dropDownList" or "comboBox" or "date" or "repeatingSection");
+        return kind switch
+        {
+            "text" => "plain-text",
+            "richText" => "rich-text",
+            "checkBox" => "checkbox",
+            "dropDownList" => "dropdown-list",
+            "comboBox" => "combo-box",
+            "date" => "date",
+            "repeatingSection" => "repeating-section",
+            _ => "rich-text"
+        };
+    }
+
+    private static string? ReadSdtProperty(XElement? properties, string localName)
+    {
+        XElement? element = properties?.Elements().FirstOrDefault(element => element.Name.LocalName == localName);
+        return (string?)element?.Attribute(OoxmlNs.W + "val");
     }
 
     private static string ReadText(XElement container, DocxTextView textView)

@@ -4,7 +4,9 @@ internal sealed record DocxDocumentModel(
     IReadOnlyList<DocxParagraphInfo> Paragraphs,
     IReadOnlyList<DocxTableInfo> Tables,
     IReadOnlyList<DocxImageInfo> Images,
-    IReadOnlyList<DocxSectionInfo> Sections)
+    IReadOnlyList<DocxSectionInfo> Sections,
+    IReadOnlyList<DocxBookmarkInfo> Bookmarks,
+    IReadOnlyList<DocxContentControlInfo> ContentControls)
 {
-    public static DocxDocumentModel Empty { get; } = new([], [], [], []);
+    public static DocxDocumentModel Empty { get; } = new([], [], [], [], [], []);
 }

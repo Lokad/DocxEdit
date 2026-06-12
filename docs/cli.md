@@ -74,6 +74,14 @@ starts with the concrete `numId` and zero-based level, then includes resolved
 inheritance rather than direct paragraph numbering.
 `styles` output includes inheritance links such as `based-on`, `next`, `linked`, and
 style-level numbering defaults when present.
+`read` and `outline` list bookmark and content-control metadata when present.
+Bookmark records include name, OOXML ID, story, part, start/end targets, and whether
+the range is complete. Content-control records include kind, tag, alias, lock, story,
+part, containing target, and text length. `context` annotates nearby targets with
+`bookmark-names`, `content-controls`, `content-control-tags`, and
+`content-control-aliases` so agents can connect selector names to stable target IDs.
+If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector
+diagnostics list candidate paragraph IDs; retry with an explicit ID.
 
 ## Patch
 

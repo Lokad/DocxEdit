@@ -20,6 +20,8 @@ public static class DocxTextRenderer
         builder.Append("tables count=").Append(result.Tables.Count).AppendLine();
         builder.Append("images count=").Append(result.Images.Count).AppendLine();
         builder.Append("sections count=").Append(result.Sections.Count).AppendLine();
+        builder.Append("bookmarks count=").Append(result.Bookmarks.Count).AppendLine();
+        builder.Append("content-controls count=").Append(result.ContentControls.Count).AppendLine();
         foreach (IGrouping<string, DocxParagraphInfo> group in result.Paragraphs
                      .GroupBy(paragraph => paragraph.Story)
                      .OrderBy(group => group.Key, StringComparer.Ordinal))

@@ -15,6 +15,8 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxTableInfo> Tables { get; init; } = [];
     public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
     public IReadOnlyList<DocxSectionInfo> Sections { get; init; } = [];
+    public IReadOnlyList<DocxBookmarkInfo> Bookmarks { get; init; } = [];
+    public IReadOnlyList<DocxContentControlInfo> ContentControls { get; init; } = [];
 }
 
 public sealed record DocxOutlineResult : DocxOperationResult
@@ -175,6 +177,10 @@ public sealed record DocxContextItem
     public string? StyleId { get; init; }
     public string? StyleName { get; init; }
     public DocxListInfo? List { get; init; }
+    public IReadOnlyList<string> BookmarkNames { get; init; } = [];
+    public IReadOnlyList<string> ContentControlIds { get; init; } = [];
+    public IReadOnlyList<string> ContentControlTags { get; init; } = [];
+    public IReadOnlyList<string> ContentControlAliases { get; init; } = [];
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -212,6 +218,32 @@ public sealed record DocxRunInfo(string Text)
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
     public string? CommentId { get; init; }
+}
+
+public sealed record DocxBookmarkInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string? OoxmlId { get; init; }
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? StartTargetId { get; init; }
+    public string? EndTargetId { get; init; }
+    public bool IsComplete { get; init; }
+}
+
+public sealed record DocxContentControlInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string PartName { get; init; } = string.Empty;
+    public string? TargetId { get; init; }
+    public string Kind { get; init; } = "unknown";
+    public string? OoxmlId { get; init; }
+    public string? Tag { get; init; }
+    public string? Alias { get; init; }
+    public string? Lock { get; init; }
+    public int TextLength { get; init; }
 }
 
 public sealed record DocxTableInfo(

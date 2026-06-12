@@ -675,6 +675,89 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadModelsBookmarkAndContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Client </w:t></w:r>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        DocxBookmarkInfo bookmark = Assert.Single(result.Bookmarks);
+        Assert.Equal("M.B0001", bookmark.Id);
+        Assert.Equal("ClientName", bookmark.Name);
+        Assert.Equal("1", bookmark.OoxmlId);
+        Assert.Equal("main", bookmark.Story);
+        Assert.Equal("/word/document.xml", bookmark.PartName);
+        Assert.Equal("M.P0001", bookmark.StartTargetId);
+        Assert.Equal("M.P0001", bookmark.EndTargetId);
+        Assert.True(bookmark.IsComplete);
+
+        DocxContentControlInfo control = Assert.Single(result.ContentControls);
+        Assert.Equal("M.CC0001", control.Id);
+        Assert.Equal("plain-text", control.Kind);
+        Assert.Equal("77", control.OoxmlId);
+        Assert.Equal("client_name", control.Tag);
+        Assert.Equal("Client Name", control.Alias);
+        Assert.Equal("M.P0001", control.TargetId);
+        Assert.Equal(4, control.TextLength);
+
+        Assert.Contains("M.B0001 bookmark name=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.CC0001 content-control kind=plain-text", result.Text, StringComparison.Ordinal);
+        Assert.Contains("tag=\"client_name\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1005" && diagnostic.Fallback == "modeled-metadata");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1006" && diagnostic.Fallback == "modeled-metadata");
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithBookmarkAndContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Client </w:t></w:r>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "ClientName" }, item.BookmarkNames);
+        Assert.Equal(new[] { "M.CC0001" }, item.ContentControlIds);
+        Assert.Equal(new[] { "client_name" }, item.ContentControlTags);
+        Assert.Equal(new[] { "Client Name" }, item.ContentControlAliases);
+        Assert.Contains("bookmark-names=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("content-controls=\"M.CC0001\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("content-control-tags=\"client_name\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DumpRunsAnnotateTrackedChangeAndCommentMarkup()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

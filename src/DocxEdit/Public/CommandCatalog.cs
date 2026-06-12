@@ -290,11 +290,20 @@ public static class DocxHelp
                     [
                         "Use --summary, or DocxTextRenderer.RenderReadSummary, when only structure counts are needed."
                     ],
+                    OutputFields =
+                    [
+                        new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
+                        new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length")
+                    ],
                     Notes =
                     [
                         new("List and style metadata",
                         [
                             "Paragraph records may include StyleId, StyleName, and resolved List metadata. List metadata reports concrete numbering ID, zero-based level, abstract numbering ID, format, level text, paragraph style link, and source=style or source=style-inherited when numbering comes from style inheritance."
+                        ]),
+                        new("Bookmarks and content controls",
+                        [
+                            "Read and context output surface bookmark names/ranges and content-control metadata. Bookmark and content-control selectors can still be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets."
                         ])
                     ],
                     Examples =
