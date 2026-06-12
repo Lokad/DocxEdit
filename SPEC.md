@@ -2339,6 +2339,7 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * complex field begin/end balance;
 * DrawingML `a:blip` relationship references;
 * duplicate DrawingML `wp:docPr` IDs within a Word part;
+* DrawingML `wp:extent` positivity and `a:srcRect` crop bounds;
 * basic table row/cell shape.
 
 Return warning:
@@ -2390,6 +2391,8 @@ E9105 drawing references a missing relationship ID
 E9106 table or row is missing required row/cell structure
 E9107 duplicate drawing wp:docPr ID within one Word part
 E9108 commentsExtended metadata has missing, duplicate, or orphan paraId records
+E9109 drawing wp:extent is missing or non-positive
+E9110 drawing a:srcRect crop values are malformed or collapse the visible area
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 ```
 

@@ -110,6 +110,7 @@ internal static class DocxPackageValidator
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
+        ValidateDrawingGeometry(document, partName, diagnostics);
         if (string.Equals(partName, "/word/commentsExtended.xml", StringComparison.OrdinalIgnoreCase))
         {
             ValidateCommentsExtended(package, partName, document, diagnostics, cancellationToken);
@@ -281,6 +282,65 @@ internal static class DocxPackageValidator
         {
             diagnostics.Add(Error("E9107", $"Duplicate drawing docPr id '{group.Key}' appears {group.Count()} times.", partName));
         }
+    }
+
+    private static void ValidateDrawingGeometry(XDocument document, string partName, List<DocxDiagnostic> diagnostics)
+    {
+        foreach (XElement extent in document.Descendants(OoxmlNs.Wp + "extent"))
+        {
+            if (!TryReadPositiveLongAttribute(extent, "cx", out _) ||
+                !TryReadPositiveLongAttribute(extent, "cy", out _))
+            {
+                diagnostics.Add(Error("E9109", "Drawing wp:extent must have positive integer cx and cy attributes.", partName));
+            }
+        }
+
+        foreach (XElement crop in document.Descendants(OoxmlNs.A + "srcRect"))
+        {
+            if (!TryReadCropPerThousandPercent(crop, "l", out int left) ||
+                !TryReadCropPerThousandPercent(crop, "t", out int top) ||
+                !TryReadCropPerThousandPercent(crop, "r", out int right) ||
+                !TryReadCropPerThousandPercent(crop, "b", out int bottom))
+            {
+                diagnostics.Add(Error("E9110", "Drawing a:srcRect crop values must be percentages between 0 and 100.", partName));
+                continue;
+            }
+
+            if (left + right >= 100_000 || top + bottom >= 100_000)
+            {
+                diagnostics.Add(Error("E9110", "Drawing a:srcRect opposing crop sides must sum to less than 100 percent.", partName));
+            }
+        }
+    }
+
+    private static bool TryReadPositiveLongAttribute(XElement element, string localName, out long value)
+    {
+        return long.TryParse((string?)element.Attribute(localName), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value) &&
+            value > 0;
+    }
+
+    private static bool TryReadCropPerThousandPercent(XElement element, string localName, out int value)
+    {
+        value = 0;
+        string? text = (string?)element.Attribute(localName);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        if (text.EndsWith("%", StringComparison.Ordinal))
+        {
+            if (!decimal.TryParse(text[..^1], System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out decimal percent))
+            {
+                return false;
+            }
+
+            value = (int)Math.Round(percent * 1000m, MidpointRounding.AwayFromZero);
+            return value is >= 0 and <= 100_000;
+        }
+
+        return int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value) &&
+            value is >= 0 and <= 100_000;
     }
 
     private static void ValidateCommentsExtended(

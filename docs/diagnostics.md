@@ -45,5 +45,7 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9106`: table or row is missing required row/cell structure.
 - `E9107`: duplicate drawing `wp:docPr` ID within one Word part.
 - `E9108`: `commentsExtended` metadata has missing, duplicate, or orphan paraId records.
+- `E9109`: DrawingML extents are missing or non-positive.
+- `E9110`: DrawingML crop percentages are malformed or leave no visible image area.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.

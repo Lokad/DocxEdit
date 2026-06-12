@@ -159,6 +159,36 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidDrawingGeometry()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="0" cy="100"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <a:srcRect l="60000" r="40000"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9109");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9110");
+    }
+
+    [Fact]
     public static void ValidateReportsInvalidCommentsExtendedMetadata()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(
