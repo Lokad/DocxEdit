@@ -37,6 +37,8 @@ public sealed record DocxPatchOperationInfo
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
     public string Description { get; init; } = string.Empty;
+    public string TrackChangesSupport { get; init; } = "unsupported";
+    public string TrackChangesNote { get; init; } = "Suggest applies directly with W4001; Require fails with E6001.";
 
     public string RenderSummary()
     {
@@ -202,6 +204,17 @@ public static class DocxHelp
         foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations)
         {
             builder.Append("  ").AppendLine(operation.RenderSummary());
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("Track-change support:");
+        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations)
+        {
+            builder.Append("  ")
+                .Append(operation.Name.PadRight(24))
+                .Append(operation.TrackChangesSupport)
+                .Append(" - ")
+                .AppendLine(operation.TrackChangesNote);
         }
 
         builder.AppendLine();
@@ -571,7 +584,14 @@ public static class DocxHelp
             ],
             PatchOperations =
             [
-                new() { Name = "replace-text", RequiredFields = ["target", "find", "with"], OptionalFields = ["expect-text", "preserve-runs", "occurrence"] },
+                new()
+                {
+                    Name = "replace-text",
+                    RequiredFields = ["target", "find", "with"],
+                    OptionalFields = ["expect-text", "preserve-runs", "occurrence"],
+                    TrackChangesSupport = "tracked-simple",
+                    TrackChangesNote = "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002."
+                },
                 new() { Name = "replace-paragraph", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "style"] },
                 new() { Name = "insert-before", RequiredFields = ["target", "text"], OptionalFields = ["style"] },
                 new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style"] },

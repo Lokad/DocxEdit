@@ -455,6 +455,21 @@ public static class DocxHelp
 fields, privacy notes, and patch operation specs. The CLI must render its overview
 and command-specific help from this catalog.
 
+```csharp
+public sealed record DocxPatchOperationInfo
+{
+    public string Name { get; init; } = string.Empty;
+    public IReadOnlyList<string> RequiredFields { get; init; } = [];
+    public IReadOnlyList<string> OptionalFields { get; init; } = [];
+    public string Description { get; init; } = string.Empty;
+    public string TrackChangesSupport { get; init; } = "unsupported";
+    public string TrackChangesNote { get; init; } = string.Empty;
+}
+```
+
+`TrackChangesSupport` is `tracked-simple` for `replace-text` and `unsupported` for
+operations that apply directly under `Suggest` and fail under `Require`.
+
 The library must also expose stable plain-text renderers for public result objects:
 
 ```csharp
@@ -2621,7 +2636,7 @@ docxedit help patch
 * heredoc syntax
 * selector examples
 * operation examples
-* track-changes explanation
+* track-changes explanation and generated per-operation support table
 * warning that `expect-hash` is unsupported
 * warning that `preserve-size` and `caption` are unsupported
 

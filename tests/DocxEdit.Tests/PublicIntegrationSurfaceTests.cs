@@ -24,6 +24,11 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("find", replaceText.RequiredFields);
         Assert.Contains("with", replaceText.RequiredFields);
         Assert.Contains("preserve-runs", replaceText.OptionalFields);
+        Assert.Equal("tracked-simple", replaceText.TrackChangesSupport);
+        Assert.Contains("E6002", replaceText.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-cell", out DocxPatchOperationInfo setCell));
+        Assert.Equal("unsupported", setCell.TrackChangesSupport);
+        Assert.Contains("E6001", setCell.TrackChangesNote, StringComparison.Ordinal);
     }
 
     [Fact]

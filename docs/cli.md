@@ -114,6 +114,10 @@ non-rectangular tables unless `force true` is explicitly supplied.
 - `apply input.docx edits.docxpatch --output output.docx [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 
 Track-change modes are `off`, `preserve`, `suggest`, and `require`. `replace-text` generates simple `w:del`/`w:ins` tracked-change markup with the selected author and timestamp under `suggest` or `require`. Tracked output is limited to text-only matches without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails unsupported operations or unsupported `replace-text` shapes; `suggest` warns and applies unsupported edits directly.
+`docxedit help patch` includes a track-change support table generated from
+`DocxHelp.Catalog`. `replace-text` is `tracked-simple`; the other current patch
+operations are `unsupported`, meaning `suggest` applies them directly with `W4001`
+and `require` fails them with `E6001`.
 Plain text `check` and `apply` output includes one `operation index=...` line per
 patch operation with operation name, target, and success. Use `--report` for the full
 JSON operation report.

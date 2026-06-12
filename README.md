@@ -144,6 +144,7 @@ Implemented areas include:
 - hyperlink read/context/dump metadata for external links, internal anchors, and broken relationship IDs;
 - inline and anchored image metadata with layout kind, size, wrap mode, alt text, and containing target;
 - simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
+- operation-level track-change capability metadata in the shared help catalog;
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, hyperlink editing, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full OOXML schema validation.

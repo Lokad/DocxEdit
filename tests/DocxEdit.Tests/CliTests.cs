@@ -50,6 +50,11 @@ public static class CliTests
         Assert.Contains("set-section-orientation", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op replace-image", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("Unsupported fields are rejected", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("Track-change support:", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("replace-text", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("tracked-simple", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("set-cell", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("unsupported", patchHelp.Output, StringComparison.Ordinal);
     }
 
     [Fact]
