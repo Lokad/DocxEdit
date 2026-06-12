@@ -2143,6 +2143,61 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadWarnsAboutUnsupportedDrawingShapes()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                        xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+                        xmlns:v="urn:schemas-microsoft-com:vml"
+                        xmlns:o="urn:schemas-microsoft-com:office:office">
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <a:graphic>
+                              <a:graphicData>
+                                <a:blip r:link="rLinkedImage"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <a:graphic>
+                              <a:graphicData>
+                                <wpg:wgp/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                      <w:r><w:pict><v:shape id="v1"/></w:pict></w:r>
+                      <w:r><w:object><o:OLEObject Type="Embed"/></w:object></w:r>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/linked.png" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1008" && diagnostic.Feature == "external-image");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1019" && diagnostic.Feature == "linked-image");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1020" && diagnostic.Feature == "vml");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1021" && diagnostic.Feature == "grouped-drawing");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1022" && diagnostic.Feature == "ole-object");
+    }
+
+    [Fact]
     public static void ReadWarnsAboutComplexSectionFlow()
     {
         using MemoryStream stream = CreateDocxWithBody("""

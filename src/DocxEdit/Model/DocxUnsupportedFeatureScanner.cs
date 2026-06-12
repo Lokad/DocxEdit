@@ -92,11 +92,16 @@ internal static class DocxUnsupportedFeatureScanner
         AddWarningIfAny(diagnostics, "W1009", "chart", "preserve-only", CountWhere(document, element => element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)), partName, story, "Charts are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1010", "smart-art", "preserve-only", CountWhere(document, element => element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)), partName, story, "SmartArt and diagram content are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1011", "equation", "preserve-only", CountWhere(document, element => element.Name.NamespaceName == "http://schemas.openxmlformats.org/officeDocument/2006/math"), partName, story, "Equations are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1019", "linked-image", "omit-from-editable-images", CountLinkedImages(document), partName, story, "Linked images are not fetched and are not listed as editable images.");
+        AddWarningIfAny(diagnostics, "W1020", "vml", "preserve-only", CountWhere(document, IsVmlDrawing), partName, story, "VML drawings are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1021", "grouped-drawing", "preserve-only", CountWhere(document, IsGroupedDrawing), partName, story, "Grouped drawings are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1022", "ole-object", "preserve-only", CountWhere(document, IsOleObject), partName, story, "OLE objects are preserved but are not modeled or executed.");
         AddWarningIfAny(diagnostics, "W1012", "shape", "preserve-only", CountWhere(document, element =>
-            element.Name == OoxmlNs.W + "pict" ||
-            element.Name.LocalName == "shape" ||
-            element.Name.NamespaceName.Contains("vml", StringComparison.OrdinalIgnoreCase) ||
-            element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase)), partName, story, "Shapes are preserved but are not modeled.");
+            !IsVmlDrawing(element) &&
+            !IsGroupedDrawing(element) &&
+            !IsOleObject(element) &&
+            (element.Name.LocalName == "shape" ||
+                element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase))), partName, story, "Shapes are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1013", "alt-chunk", "preserve-only", Count(document, OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
         AddWarningIfAny(diagnostics, "W1014", "section-flow", "basic-section-model", CountComplexSectionFlows(document), partName, story, "Complex section flow is present; section read/edit support does not model full section inheritance.");
 
@@ -126,6 +131,34 @@ internal static class DocxUnsupportedFeatureScanner
     private static int CountWhere(XDocument document, Func<XElement, bool> predicate)
     {
         return document.Descendants().Count(predicate);
+    }
+
+    private static int CountLinkedImages(XDocument document)
+    {
+        return document
+            .Descendants(OoxmlNs.A + "blip")
+            .Count(blip => !string.IsNullOrWhiteSpace((string?)blip.Attribute(OoxmlNs.R + "link")));
+    }
+
+    private static bool IsVmlDrawing(XElement element)
+    {
+        return element.Name == OoxmlNs.W + "pict" ||
+            element.Name.NamespaceName.Contains(":vml", StringComparison.OrdinalIgnoreCase) ||
+            element.Name.NamespaceName.Contains("/vml", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(element.Name.NamespaceName, "urn:schemas-microsoft-com:vml", StringComparison.Ordinal);
+    }
+
+    private static bool IsGroupedDrawing(XElement element)
+    {
+        return string.Equals(element.Name.LocalName, "grpSp", StringComparison.Ordinal) ||
+            string.Equals(element.Name.LocalName, "wgp", StringComparison.Ordinal) ||
+            element.Name.NamespaceName.Contains("wordprocessingGroup", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOleObject(XElement element)
+    {
+        return element.Name == OoxmlNs.W + "object" ||
+            string.Equals(element.Name.LocalName, "OLEObject", StringComparison.Ordinal);
     }
 
     private static int CountComplexSectionFlows(XDocument document)

@@ -142,7 +142,9 @@ the existing drawing layout where supported. `set-image-size` updates DrawingML
 extents, `set-image-wrap` updates anchored image wrap mode/distances, and
 `set-image-position` updates anchored relative positions, offsets, and alignments.
 `set-image-crop` updates DrawingML crop percentages; unsupported drawing shapes remain
-preserve-only.
+preserve-only. Linked images are never fetched and are omitted from editable image
+records; VML, grouped drawings, charts, SmartArt, OLE objects, equations, and generic
+shapes are reported as diagnostics and preserved.
 Table output includes table style ID, declared grid column count, header-row,
 merged-cell, and nested-table flags when present. Row lines include physical cell
 count, omitted grid columns (`grid-before`/`grid-after`), header status, and

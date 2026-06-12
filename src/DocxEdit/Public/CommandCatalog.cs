@@ -255,6 +255,7 @@ public static class DocxHelp
         builder.AppendLine("set-image-wrap updates anchored DrawingML wrap mode and wrap distances.");
         builder.AppendLine("set-image-position updates anchored DrawingML relative positions, offsets, and alignments.");
         builder.AppendLine("set-image-crop updates DrawingML a:srcRect crop percentages without replacing media bytes.");
+        builder.AppendLine("Linked images and unsupported drawing shapes are reported as diagnostics and preserved.");
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash, preserve-size, and caption are not supported.");
         return builder.ToString();
@@ -366,7 +367,7 @@ public static class DocxHelp
                         ]),
                         new("Images",
                         [
-                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, set-image-metadata updates docPr name/description/title, set-image-size updates extents, set-image-wrap updates anchored wrap mode/distances, set-image-position updates anchored positioning, and set-image-crop updates a:srcRect percentages."
+                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, set-image-metadata updates docPr name/description/title, set-image-size updates extents, set-image-wrap updates anchored wrap mode/distances, set-image-position updates anchored positioning, and set-image-crop updates a:srcRect percentages. Linked images are not fetched or listed as editable images; VML, grouped drawings, charts, SmartArt, OLE objects, equations, and generic shapes are diagnostics-only preserve-only content."
                         ]),
                         new("Tables",
                         [

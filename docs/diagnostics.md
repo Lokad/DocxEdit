@@ -27,12 +27,18 @@ Common code ranges:
 
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,
-`equation`, `shape`, `alt-chunk`, and `section-flow`.
+`equation`, `shape`, `linked-image`, `vml`, `grouped-drawing`, `ole-object`, `alt-chunk`,
+and `section-flow`.
 
 `W10xx` read-model warnings include `PartName`, `Story`, `Feature`, and `Fallback` metadata.
 Fallback values describe the behavior used by the reader, such as `selected-text-view`, `plain-text`,
 `changes-metadata`, `preserve-only`, `omit-from-editable-images`, `invalid-uri`,
 `missing-anchor`, `duplicate-anchor`, or `basic-section-model`.
+
+Unsupported drawing warnings distinguish editable image records from preserve-only
+OOXML shapes. Linked images (`W1019`) are not fetched or listed as editable images.
+VML (`W1020`), grouped drawings (`W1021`), OLE objects (`W1022`), charts, SmartArt,
+equations, and generic shapes are preserved but not modeled.
 
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.
 

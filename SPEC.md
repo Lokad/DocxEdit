@@ -59,7 +59,9 @@ The library must document and enforce these non-goals:
 
 * No pixel/page-coordinate addressing such as “page 3, right column, second paragraph.”
 * No full Word layout engine.
-* No full support for floating shapes.
+* No full editing support for floating shapes beyond modeled image layout metadata.
+* No linked image fetching.
+* No VML, grouped drawing, or OLE object editing.
 * No SmartArt editing.
 * No chart data editing.
 * No equation editing beyond preserving existing XML.
@@ -1309,6 +1311,10 @@ CLI output:
 M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart"
 ```
 
+Linked images are never fetched and are omitted from editable image records. VML,
+grouped drawings, charts, SmartArt, OLE objects, equations, and generic shapes are
+reported as diagnostics and preserved.
+
 ### 9.7 `changes`
 
 Purpose: list tracked-change and comment markup. By default the command does not
@@ -1988,6 +1994,7 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve existing drawing extents when replacing media bytes.
 * Replacing a floating image’s bytes is allowed; changing floating layout is not.
+* Linked images and non-picture drawing shapes are not valid image targets.
 * `preserve-size` is not supported.
 * Update content type declarations as needed.
 
@@ -2447,19 +2454,31 @@ W9109 duplicate semantic selectors make bookmark/content-control selectors ambig
 
 Unsupported or approximated feature diagnostics must be emitted as warnings during read/check/apply when they can affect the requested workflow. Repeated occurrences of the same unsupported feature in the same part should be aggregated into one warning unless the exact target list is useful for fixing the patch.
 
-Required unsupported-feature warning coverage:
+Current read-model unsupported-feature warning coverage:
 
 ```text
-W5001 comments detected
-W5002 complex field detected
-W5003 unsupported tracked-change markup detected
-W5004 footnote or endnote reference detected
-W5005 equation detected
-W5006 OLE object detected
-W5007 floating DrawingML detected
-W5008 macro or VBA project detected
-W5009 multi-column or unsupported section flow detected
-W5010 external relationship detected and left untouched
+W1001 tracked-change markup detected
+W1002 hyperlink markup detected
+W1003 field markup detected
+W1004 comment anchors detected
+W1005 bookmark ranges detected
+W1006 content controls detected
+W1007 floating DrawingML detected
+W1008 external image relationship detected
+W1009 chart detected
+W1010 SmartArt or diagram content detected
+W1011 equation detected
+W1012 generic shape detected
+W1013 altChunk detected
+W1014 complex section flow detected
+W1015 broken hyperlink relationship detected
+W1016 invalid hyperlink URI detected
+W1017 missing hyperlink anchor detected
+W1018 duplicate hyperlink anchor detected
+W1019 linked image detected
+W1020 VML drawing detected
+W1021 grouped drawing detected
+W1022 OLE object detected
 ```
 
 These warnings do not mean the library may corrupt the document. They mean the feature is preserved, ignored, approximated, or made read-only according to the operation semantics.
