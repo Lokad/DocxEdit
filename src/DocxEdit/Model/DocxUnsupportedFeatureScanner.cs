@@ -105,8 +105,12 @@ internal static class DocxUnsupportedFeatureScanner
             .Count(relationship => relationship.IsExternal && relationship.Type == OoxmlRelTypes.Image);
         AddWarningIfAny(diagnostics, "W1008", "external-image", "omit-from-editable-images", externalImages, partName, story, "External images are not fetched and are not listed as editable images.");
 
-        int brokenHyperlinks = CountBrokenHyperlinks(document, package.GetRelationships(partName, cancellationToken));
+        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(partName, cancellationToken);
+        int brokenHyperlinks = CountBrokenHyperlinks(document, relationships);
         AddWarningIfAny(diagnostics, "W1015", "hyperlink", "broken-relationship", brokenHyperlinks, partName, story, "Hyperlink relationship IDs are missing from the part relationship table.");
+        AddWarningIfAny(diagnostics, "W1016", "hyperlink", "invalid-uri", CountInvalidHyperlinkUris(document, relationships), partName, story, "Hyperlink targets include unsupported or malformed external URIs.");
+        AddWarningIfAny(diagnostics, "W1017", "hyperlink", "missing-anchor", CountMissingHyperlinkAnchors(document), partName, story, "Internal hyperlink anchors do not match any bookmark in the same story.");
+        AddWarningIfAny(diagnostics, "W1018", "hyperlink", "duplicate-anchor", CountDuplicateHyperlinkAnchors(document), partName, story, "Internal hyperlink anchors match multiple bookmarks in the same story.");
     }
 
     private static int Count(XDocument document, XName name)
@@ -149,6 +153,55 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "hyperlink")
             .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.R + "id"))
             .Count(id => !string.IsNullOrWhiteSpace(id) && !relationshipIds.Contains(id));
+    }
+
+    private static int CountInvalidHyperlinkUris(XDocument document, IReadOnlyList<OoxmlRelationship> relationships)
+    {
+        IReadOnlyDictionary<string, OoxmlRelationship> relationshipsById = relationships.ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.R + "id"))
+            .Where(id => !string.IsNullOrWhiteSpace(id) &&
+                relationshipsById.TryGetValue(id!, out OoxmlRelationship? relationship) &&
+                relationship.IsExternal &&
+                relationship.Type == OoxmlRelTypes.Hyperlink)
+            .Count(id => !IsSupportedHyperlinkUri(relationshipsById[id!].Target));
+    }
+
+    private static bool IsSupportedHyperlinkUri(string uri)
+    {
+        return Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsed) &&
+            parsed.Scheme is "http" or "https" or "mailto";
+    }
+
+    private static int CountMissingHyperlinkAnchors(XDocument document)
+    {
+        IReadOnlyDictionary<string, int> bookmarkCounts = CountBookmarkNames(document);
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.W + "anchor"))
+            .Where(anchor => !string.IsNullOrWhiteSpace(anchor))
+            .Count(anchor => !bookmarkCounts.ContainsKey(anchor!));
+    }
+
+    private static int CountDuplicateHyperlinkAnchors(XDocument document)
+    {
+        IReadOnlyDictionary<string, int> bookmarkCounts = CountBookmarkNames(document);
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.W + "anchor"))
+            .Where(anchor => !string.IsNullOrWhiteSpace(anchor))
+            .Count(anchor => bookmarkCounts.TryGetValue(anchor!, out int count) && count > 1);
+    }
+
+    private static IReadOnlyDictionary<string, int> CountBookmarkNames(XDocument document)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Select(bookmark => (string?)bookmark.Attribute(OoxmlNs.W + "name"))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .GroupBy(name => name!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
     }
 
     private static void AddWarningIfAny(

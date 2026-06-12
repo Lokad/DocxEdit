@@ -30,7 +30,8 @@ Common read-model warning features include `tracked-changes`, `hyperlink`, `fiel
 
 `W10xx` read-model warnings include `PartName`, `Story`, `Feature`, and `Fallback` metadata.
 Fallback values describe the behavior used by the reader, such as `selected-text-view`, `plain-text`,
-`changes-metadata`, `preserve-only`, `omit-from-editable-images`, or `basic-section-model`.
+`changes-metadata`, `preserve-only`, `omit-from-editable-images`, `invalid-uri`,
+`missing-anchor`, `duplicate-anchor`, or `basic-section-model`.
 
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.
 

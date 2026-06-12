@@ -121,6 +121,7 @@ their URI, scheme, validation status, and validation reason for unsupported sche
 or relative/malformed targets. Internal links expose an anchor or target part, with
 missing and duplicate bookmark-anchor flags, and hyperlinks expose tooltip,
 target-frame, and history metadata when present. Broken relationship IDs are flagged.
+`read` also aggregates invalid URI, missing-anchor, and duplicate-anchor diagnostics.
 `context` annotates nearby targets with `hyperlinks` and `hyperlink-targets`; `dump --runs` annotates hyperlink runs with
 `markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
 Hyperlink patch operations can update URI/anchor targets, tooltip, target-frame,

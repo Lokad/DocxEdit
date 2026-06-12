@@ -1582,6 +1582,9 @@ public static class ReadApiTests
         Assert.Contains("uri-reason=malformed-or-relative-uri", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor-duplicate=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1016" && diagnostic.Fallback == "invalid-uri");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1017" && diagnostic.Fallback == "missing-anchor");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1018" && diagnostic.Fallback == "duplicate-anchor");
     }
 
     [Fact]
