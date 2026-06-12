@@ -121,6 +121,7 @@ internal static class DocxPatchEngine
                     "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
                     "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
                     "set-image-metadata" => ExecuteSetImageMetadata(package, operation, apply, cancellationToken),
+                    "set-image-size" => ExecuteSetImageSize(package, operation, apply, cancellationToken),
                     "set-image-crop" => ExecuteSetImageCrop(package, operation, apply, cancellationToken),
                     "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                     "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
@@ -2774,6 +2775,63 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageSize(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        bool hasWidth = operation.Fields.ContainsKey("width");
+        bool hasHeight = operation.Fields.ContainsKey("height");
+        if (!hasWidth && !hasHeight)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-size' requires 'width', 'height', or both.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-size target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
+        }
+
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
+        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        {
+            return [diagnostic!];
+        }
+
+        if (!TryReadExistingImageSize(imageContainer!, imageTarget.Part, out long currentWidthEmus, out long currentHeightEmus) ||
+            !TryReadImageSize(operation, currentWidthEmus, currentHeightEmus, out long widthEmus, out long heightEmus, out diagnostic))
+        {
+            return [diagnostic!];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetImageSize(imageContainer!, widthEmus, heightEmus);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageCrop(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -2899,6 +2957,112 @@ internal static class DocxPatchEngine
         {
             docPr.SetAttributeValue("name", name);
         }
+    }
+
+    private static bool TryReadExistingImageSize(XElement container, OoxmlPart part, out long widthEmus, out long heightEmus)
+    {
+        XElement? extent = container.Element(OoxmlNs.Wp + "extent");
+        widthEmus = ReadLongAttribute(extent, "cx") ?? 0;
+        heightEmus = ReadLongAttribute(extent, "cy") ?? 0;
+        if (widthEmus > 0 && heightEmus > 0)
+        {
+            return true;
+        }
+
+        if (part.ContentType is not null &&
+            TryReadImagePixelSize(part.Bytes, part.ContentType, out int pixelWidth, out int pixelHeight))
+        {
+            widthEmus = OoxmlUnits.PixelsToEmu(pixelWidth);
+            heightEmus = OoxmlUnits.PixelsToEmu(pixelHeight);
+            return true;
+        }
+
+        widthEmus = OoxmlUnits.InchesToEmu(1);
+        heightEmus = widthEmus;
+        return true;
+    }
+
+    private static bool TryReadImageSize(
+        DocxPatchOperation operation,
+        long currentWidthEmus,
+        long currentHeightEmus,
+        out long widthEmus,
+        out long heightEmus,
+        out DocxDiagnostic? diagnostic)
+    {
+        widthEmus = currentWidthEmus;
+        heightEmus = currentHeightEmus;
+        diagnostic = null;
+        bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
+        bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
+        if (hasWidth && (!OoxmlUnits.TryParseDimension(width!, out widthEmus) || widthEmus <= 0))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
+        }
+
+        if (hasHeight && (!OoxmlUnits.TryParseDimension(height!, out heightEmus) || heightEmus <= 0))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image height '{height}'.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
+        }
+
+        if (hasWidth && !hasHeight)
+        {
+            heightEmus = checked((long)Math.Round(widthEmus * (currentHeightEmus / (double)currentWidthEmus), MidpointRounding.AwayFromZero));
+        }
+        else if (!hasWidth && hasHeight)
+        {
+            widthEmus = checked((long)Math.Round(heightEmus * (currentWidthEmus / (double)currentHeightEmus), MidpointRounding.AwayFromZero));
+        }
+
+        return true;
+    }
+
+    private static long? ReadLongAttribute(XElement? element, string localName)
+    {
+        return long.TryParse((string?)element?.Attribute(localName), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long value)
+            ? value
+            : null;
+    }
+
+    private static void SetImageSize(XElement container, long widthEmus, long heightEmus)
+    {
+        XElement extent = container.Element(OoxmlNs.Wp + "extent") ?? new XElement(OoxmlNs.Wp + "extent");
+        if (extent.Parent is null)
+        {
+            container.AddFirst(extent);
+        }
+
+        extent.SetAttributeValue("cx", widthEmus);
+        extent.SetAttributeValue("cy", heightEmus);
+
+        XElement? picture = container.Descendants(OoxmlNs.Pic + "pic").FirstOrDefault();
+        if (picture is null)
+        {
+            return;
+        }
+
+        XElement shapeProperties = picture.Element(OoxmlNs.Pic + "spPr") ?? new XElement(OoxmlNs.Pic + "spPr");
+        if (shapeProperties.Parent is null)
+        {
+            picture.Add(shapeProperties);
+        }
+
+        XElement transform = shapeProperties.Element(OoxmlNs.A + "xfrm") ?? new XElement(OoxmlNs.A + "xfrm");
+        if (transform.Parent is null)
+        {
+            shapeProperties.AddFirst(transform);
+        }
+
+        XElement transformExtent = transform.Element(OoxmlNs.A + "ext") ?? new XElement(OoxmlNs.A + "ext");
+        if (transformExtent.Parent is null)
+        {
+            transform.Add(transformExtent);
+        }
+
+        transformExtent.SetAttributeValue("cx", widthEmus);
+        transformExtent.SetAttributeValue("cy", heightEmus);
     }
 
     private static ImageCrop ReadImageCrop(XElement? sourceRectangle)

@@ -2502,6 +2502,33 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetImageSizePreservesAspectWhenOnlyWidthIsGiven()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-size
+            target M.I0001
+            width 2in
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal(1_828_800, image.WidthEmu);
+        Assert.Equal(914_400, image.HeightEmu);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<wp:extent cx=\"1828800\" cy=\"914400\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<a:ext cx=\"1828800\" cy=\"914400\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplySetImageCropUpdatesSourceRectangle()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
@@ -3330,6 +3357,7 @@ public static class PatchApplyTests
                       <w:r>
                         <w:drawing>
                           <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
                             <wp:docPr id="1" name="Picture 1" descr="Old chart"/>
                             <a:graphic>
                               <a:graphicData>

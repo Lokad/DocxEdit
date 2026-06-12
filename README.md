@@ -164,8 +164,8 @@ Implemented areas include:
 - check/apply operation reports with affected row/cell summaries for table edits;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
   anchor positioning, aspect-lock, crop percentages, alt text, and containing target;
-- safe image patch operations for media replacement, alt/title/name metadata, and
-  crop percentages;
+- safe image patch operations for media replacement, alt/title/name metadata, extents,
+  and crop percentages;
 - tracked-change output for simple text replacement, whole-paragraph replacement,
   paragraph insertion/deletion, paragraph style changes, and simple table-cell text
   replacement with author, timestamp, and revision IDs;

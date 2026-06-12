@@ -2006,7 +2006,28 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, size, layout, and crop metadata.
 
-### 11.16 `set-image-crop`
+### 11.16 `set-image-size`
+
+```text
+op set-image-size
+target M.I0001
+width 2in
+end
+```
+
+Rules:
+
+* Update DrawingML `wp:extent` and picture transform extents without replacing media
+  bytes.
+* At least one of `width` or `height` is required.
+* Width and height accept the same `in`, `cm`, `pt`, `px`, and `emu` units as
+  `insert-image-after`.
+* If only `width` or `height` is provided, preserve the current aspect ratio when an
+  existing extent or media pixel size is available.
+* `expect-content-type` is a supported guard.
+* Preserve image bytes, crop, and other layout metadata.
+
+### 11.17 `set-image-crop`
 
 ```text
 op set-image-crop
@@ -2030,7 +2051,7 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, size, and layout.
 
-### 11.17 `delete-image`
+### 11.18 `delete-image`
 
 ```text
 op delete-image
@@ -2169,6 +2190,7 @@ replace-image
 insert-image-after
 set-image-alt
 set-image-metadata
+set-image-size
 set-image-crop
 delete-image
 set-section-columns
