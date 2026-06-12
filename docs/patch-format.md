@@ -116,7 +116,8 @@ comment body, matching range/reference markers from document stories, and matchi
 Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
 `H001.F0001`, or `F001.F0001`. `set-field-dirty` updates `w:dirty` and
 `set-field-lock` updates `w:fldLock` on `w:fldSimple` or the complex field begin
-`w:fldChar`. DocxEdit does not recalculate field results.
+`w:fldChar`; use `target all` to update every modeled field in main/header/footer
+stories. DocxEdit does not recalculate field results.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
 `M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and

@@ -1248,10 +1248,36 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
+        if (IsAllFieldsTarget(target!))
+        {
+            IReadOnlyList<FieldTarget> fieldTargets = ResolveAllFieldTargets(package, cancellationToken);
+            if (fieldTargets.Count == 0)
+            {
+                return [Diagnostic(DocxSeverity.Error, "E1201", "Selector matched 0 fields: all.", operation, target)];
+            }
+
+            if (!apply)
+            {
+                return [];
+            }
+
+            foreach (FieldTarget targetField in fieldTargets)
+            {
+                targetField.Element.SetAttributeValue(OoxmlNs.W + attributeName, value!.Value ? "true" : "false");
+            }
+
+            foreach (IGrouping<string, FieldTarget> partGroup in fieldTargets.GroupBy(fieldTarget => fieldTarget.PartName, StringComparer.Ordinal))
+            {
+                SaveDocumentPart(package, partGroup.Key, partGroup.First().Document);
+            }
+
+            return [];
+        }
+
         FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
         if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected 'all' or a field ID such as M.F0001 or H001.F0001.", operation, target)];
         }
 
         if (fieldTarget is null)
@@ -5256,6 +5282,25 @@ internal static class DocxPatchEngine
         return null;
     }
 
+    private static bool IsAllFieldsTarget(string target)
+    {
+        return target is "all" or "all-fields";
+    }
+
+    private static IReadOnlyList<FieldTarget> ResolveAllFieldTargets(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        var targets = new List<FieldTarget>();
+        foreach (string partName in GetEditableStoryPartNames(package, cancellationToken))
+        {
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
+            targets.AddRange(FindFields(root).Select(field => new FieldTarget(partName, document, field)));
+        }
+
+        return targets;
+    }
+
     private static FieldTarget? FindFieldTarget(
         OoxmlPackage package,
         string partName,
@@ -5279,18 +5324,18 @@ internal static class DocxPatchEngine
             return null;
         }
 
-        int index = 0;
+        return FindFields(root).ElementAtOrDefault(fieldOrdinal - 1);
+    }
+
+    private static IReadOnlyList<XElement> FindFields(XElement root)
+    {
+        var fields = new List<XElement>();
         var stack = new Stack<XElement>();
         foreach (XElement element in root.Descendants())
         {
             if (element.Name == OoxmlNs.W + "fldSimple")
             {
-                index++;
-                if (index == fieldOrdinal)
-                {
-                    return element;
-                }
-
+                fields.Add(element);
                 continue;
             }
 
@@ -5307,24 +5352,16 @@ internal static class DocxPatchEngine
             else if (string.Equals(fieldCharType, "end", StringComparison.Ordinal) && stack.Count > 0)
             {
                 XElement begin = stack.Pop();
-                index++;
-                if (index == fieldOrdinal)
-                {
-                    return begin;
-                }
+                fields.Add(begin);
             }
         }
 
         foreach (XElement incompleteBegin in stack)
         {
-            index++;
-            if (index == fieldOrdinal)
-            {
-                return incompleteBegin;
-            }
+            fields.Add(incompleteBegin);
         }
 
-        return null;
+        return fields;
     }
 
     private static ContentControlTarget? FindContentControlTarget(
@@ -5530,6 +5567,30 @@ internal static class DocxPatchEngine
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .ElementAtOrDefault(storyOrdinal - 1)
             ?.ResolvedTarget;
+    }
+
+    private static IReadOnlyList<string> GetEditableStoryPartNames(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return [];
+        }
+
+        var partNames = new List<string> { package.MainDocumentPartName };
+        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
+        partNames.AddRange(relationships
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .Select(relationship => relationship.ResolvedTarget!)
+            .Where(partName => package.GetPart(partName) is not null));
+        partNames.AddRange(relationships
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .Select(relationship => relationship.ResolvedTarget!)
+            .Where(partName => package.GetPart(partName) is not null));
+        return partNames;
     }
 
     private static bool TryReadAsset(

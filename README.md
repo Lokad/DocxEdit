@@ -156,7 +156,7 @@ Implemented areas include:
   checkbox state, dropdown/combo selections, date values, bookmark rename/delete,
   and simple same-paragraph bookmark ranges;
 - simple and complex field read/context metadata, explicit dirty/lock flag patch
-  operations, and field-update marking after edits;
+  operations for one field or all modeled fields, and field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, broken relationship IDs,
   URI scheme validation, missing/duplicate internal anchors, target frames, and history flags;
 - hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,

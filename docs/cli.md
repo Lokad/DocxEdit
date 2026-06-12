@@ -113,8 +113,9 @@ include kind, field code, containing target, result text length, dirty/lock flag
 and whether a complex begin/separate/end sequence is complete. `context` annotates
 nearby targets with `fields`, `field-codes`, and `field-kinds`. DocxEdit preserves
 field XML, can set field dirty/lock flags through `set-field-dirty` and
-`set-field-lock`, and can mark the document for field updates after edits through
-`MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field results.
+`set-field-lock` for one field or `target all`, and can mark the document for field
+updates after edits through `MarkFieldsDirtyWhenEditing`; Word remains responsible for
+recalculating field results.
 Hyperlink records are listed by `read` and `outline`. External hyperlinks expose
 their URI, scheme, validation status, and validation reason for unsupported schemes
 or relative/malformed targets. Internal links expose an anchor or target part, with

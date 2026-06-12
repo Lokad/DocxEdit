@@ -1775,6 +1775,7 @@ Rules:
 
 * Field targets use IDs from `read` or `outline`, such as `M.F0001`, `H001.F0001`,
   or `F001.F0001`.
+* `target all` updates every modeled field in main/header/footer stories.
 * `set-field-dirty` updates `w:dirty` and `set-field-lock` updates `w:fldLock` on
   `w:fldSimple` or the complex field begin `w:fldChar`.
 * DocxEdit does not recalculate field results.
