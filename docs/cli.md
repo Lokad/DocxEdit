@@ -120,7 +120,9 @@ can mark the document for field updates after edits through
 results.
 Hyperlink records are listed by `read` and `outline`. External hyperlinks expose
 their URI, scheme, validation status, and validation reason for unsupported schemes
-or relative/malformed targets. Internal links expose an anchor or target part, with
+or relative/malformed targets. Valid patch URI targets are absolute `http`, `https`,
+or `mailto`; relative, malformed, `file`, UNC/file-style, and unsafe-scheme targets
+are rejected. Internal links expose an anchor or target part, with
 missing and duplicate bookmark-anchor flags, and hyperlinks expose tooltip,
 target-frame, and history metadata when present. Broken relationship IDs are flagged.
 `read` also aggregates invalid URI, missing-anchor, and duplicate-anchor diagnostics.

@@ -1058,9 +1058,11 @@ public sealed record DocxHyperlinkInfo
 Hyperlink IDs use the `L` namespace, for example `M.L0001`. They are metadata IDs,
 not patch edit targets. `Uri` is populated for external hyperlink relationships,
 `UriScheme`, `IsUriValid`, and `UriValidationReason` report whether the external
-target is an allowed absolute `http`, `https`, or `mailto` URI. Relative or malformed
-external targets use `UriValidationReason = "malformed-or-relative-uri"`;
-unsupported absolute schemes use `UriValidationReason = "unsupported-uri-scheme"`.
+target is an allowed absolute `http`, `https`, or `mailto` URI. Relative external
+targets use `UriValidationReason = "relative-uri"`; malformed targets use
+`UriValidationReason = "malformed-uri"`; unsupported absolute schemes, including
+`file` and UNC/file-style targets parsed as `file`, use
+`UriValidationReason = "unsupported-uri-scheme"`.
 `Anchor` is populated for internal anchors, `IsAnchorMissing` flags anchors without a
 matching bookmark, `IsAnchorDuplicate` flags anchors that match multiple bookmarks,
 `TargetFrame` exposes `w:tgtFrame`, `History` exposes `w:history`, and `IsBroken`
@@ -1868,8 +1870,9 @@ Rules:
 * Hyperlink targets use IDs from `read` or `outline`, such as `M.L0001`,
   `H001.L0001`, or `F001.L0001`.
 * Destination operations require exactly one of `uri` or `anchor`.
-* `uri` must be an absolute external URI and is stored as a hyperlink relationship
-  with `TargetMode="External"`.
+* `uri` must be an absolute `http`, `https`, or `mailto` URI and is stored as a
+  hyperlink relationship with `TargetMode="External"`. Relative targets, malformed
+  URIs, `file`, UNC/file-style targets, and unsafe schemes are rejected.
 * `anchor` is stored as `w:anchor` and removes an unused old external relationship.
 * Optional `tooltip`, `target-frame`, and `history true|false` update `w:tooltip`,
   `w:tgtFrame`, and `w:history`.

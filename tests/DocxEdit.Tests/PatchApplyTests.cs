@@ -1276,6 +1276,72 @@ public static class PatchApplyTests
         Assert.Contains("TargetMode=\"External\"", relationships, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("../relative/report", "relative hyperlink targets are not supported")]
+    [InlineData("file:///C:/secret/report.docx", "Unsupported hyperlink URI scheme 'file'")]
+    [InlineData("http://[::1", "malformed URI")]
+    public static void CheckHyperlinkTargetRejectsUnsupportedUris(string uri, string expectedMessage)
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op set-hyperlink-target
+            target M.L0001
+            uri {uri}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4205" &&
+            diagnostic.Message.Contains(expectedMessage, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void CheckHyperlinkTargetAcceptsMailtoUris()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Mail</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-target
+            target M.L0001
+            uri mailto:reviewer@example.test
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+    }
+
     [Fact]
     public static void ApplyCanInsertAndRemoveHyperlinkWhilePreservingText()
     {

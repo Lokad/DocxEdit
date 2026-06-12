@@ -362,7 +362,7 @@ public static class DocxHelp
                         ]),
                         new("Hyperlinks",
                         [
-                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Internal links expose anchor or target part plus missing/duplicate anchor flags, target-frame/history metadata, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, tooltip, target-frame, history, display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
+                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Patch URI targets must be absolute http, https, or mailto; relative, malformed, file/UNC-style, and unsafe-scheme targets are rejected. Internal links expose anchor or target part plus missing/duplicate anchor flags, target-frame/history metadata, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, tooltip, target-frame, history, display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
                         ]),
                         new("Images",
                         [

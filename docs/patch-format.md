@@ -132,10 +132,12 @@ field code/result edits fail with `E4313`. DocxEdit does not recalculate field
 results.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
-`M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and
-`anchor` for internal bookmark anchors. `target-frame` writes `w:tgtFrame`, and
-`history true|false` writes `w:history`. `remove-hyperlink` unwraps the hyperlink
-and keeps its child runs as ordinary document content.
+`M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute
+`http`, `https`, or `mailto` links and `anchor` for internal bookmark anchors.
+Relative targets, malformed URIs, `file`, UNC/file-style targets, and unsafe schemes
+are rejected. `target-frame` writes `w:tgtFrame`, and `history true|false` writes
+`w:history`. `remove-hyperlink` unwraps the hyperlink and keeps its child runs as
+ordinary document content.
 
 Use table guards whenever possible:
 

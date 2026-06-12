@@ -188,7 +188,7 @@ bookmark/content-control editing beyond plain-text controls, checkbox toggles,
 dropdown/combo selections, date values, bookmark rename/delete, and simple same-paragraph bookmark ranges, field result recalculation and complex-field
 edit workflows beyond dirty/lock flags and simple-field code/result edits,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,
-relative/UNC/file URI policies, advanced floating-image edit operations beyond
+relative/UNC/file hyperlink target support, advanced floating-image edit operations beyond
 size/wrap/position/crop metadata, complex
 merged/nested table edit transformations, full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

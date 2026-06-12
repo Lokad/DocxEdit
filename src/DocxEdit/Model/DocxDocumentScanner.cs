@@ -748,9 +748,14 @@ internal static class DocxDocumentScanner
             return HyperlinkUriValidation.None;
         }
 
-        if (!Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsed))
+        if (!Uri.TryCreate(uri, UriKind.RelativeOrAbsolute, out Uri? parsed))
         {
-            return new HyperlinkUriValidation(null, false, "malformed-or-relative-uri");
+            return new HyperlinkUriValidation(null, false, "malformed-uri");
+        }
+
+        if (!parsed.IsAbsoluteUri)
+        {
+            return new HyperlinkUriValidation(null, false, "relative-uri");
         }
 
         string scheme = parsed.Scheme;

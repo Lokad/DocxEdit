@@ -1740,15 +1740,39 @@ internal static class DocxPatchEngine
         }
 
         if (uri is not null &&
-            (!Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsedUri) || string.IsNullOrWhiteSpace(parsedUri.Scheme)))
+            !TryValidateExternalHyperlinkUri(uri, out string? uriDiagnostic))
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", $"Field 'uri' must be an absolute URI for hyperlink operation '{operation.OperationName}'.", operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", uriDiagnostic!, operation, target));
             return false;
         }
 
         if (anchor is not null && (anchor.Length == 0 || anchor.Any(char.IsWhiteSpace)))
         {
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'anchor' must be a non-empty bookmark anchor without whitespace.", operation, target));
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryValidateExternalHyperlinkUri(string uri, out string? diagnostic)
+    {
+        diagnostic = null;
+        if (!Uri.TryCreate(uri, UriKind.RelativeOrAbsolute, out Uri? parsed))
+        {
+            diagnostic = $"Field 'uri' must be a well-formed absolute http, https, or mailto URI; received malformed URI '{uri}'.";
+            return false;
+        }
+
+        if (!parsed.IsAbsoluteUri)
+        {
+            diagnostic = $"Field 'uri' must be an absolute http, https, or mailto URI; relative hyperlink targets are not supported: {uri}.";
+            return false;
+        }
+
+        if (parsed.Scheme is not ("http" or "https" or "mailto"))
+        {
+            diagnostic = $"Unsupported hyperlink URI scheme '{parsed.Scheme}'. Allowed schemes are http, https, and mailto.";
             return false;
         }
 

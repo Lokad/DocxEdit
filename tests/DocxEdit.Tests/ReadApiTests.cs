@@ -1673,6 +1673,12 @@ public static class ReadApiTests
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
                       <w:hyperlink r:id="rRelative"><w:r><w:t>Relative</w:t></w:r></w:hyperlink>
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rMalformed"><w:r><w:t>Malformed</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rFile"><w:r><w:t>File</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rMailto"><w:r><w:t>Mail</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
                       <w:hyperlink w:anchor="Missing"><w:r><w:t>Missing</w:t></w:r></w:hyperlink>
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
                       <w:hyperlink w:anchor="Known"><w:r><w:t>Known</w:t></w:r></w:hyperlink>
@@ -1684,6 +1690,9 @@ public static class ReadApiTests
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
                   <Relationship Id="rRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../relative/report" TargetMode="External"/>
+                  <Relationship Id="rMalformed" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="http://[::1" TargetMode="External"/>
+                  <Relationship Id="rFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///C:/secret/report.docx" TargetMode="External"/>
+                  <Relationship Id="rMailto" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="mailto:reviewer@example.test" TargetMode="External"/>
                 </Relationships>
                 """);
         var editor = new DocxEditor();
@@ -1699,7 +1708,22 @@ public static class ReadApiTests
         DocxHyperlinkInfo relativeLink = result.Hyperlinks.Single(link => link.RelationshipId == "rRelative");
         Assert.Null(relativeLink.UriScheme);
         Assert.False(relativeLink.IsUriValid);
-        Assert.Equal("malformed-or-relative-uri", relativeLink.UriValidationReason);
+        Assert.Equal("relative-uri", relativeLink.UriValidationReason);
+
+        DocxHyperlinkInfo malformedLink = result.Hyperlinks.Single(link => link.RelationshipId == "rMalformed");
+        Assert.Null(malformedLink.UriScheme);
+        Assert.False(malformedLink.IsUriValid);
+        Assert.Equal("malformed-uri", malformedLink.UriValidationReason);
+
+        DocxHyperlinkInfo fileLink = result.Hyperlinks.Single(link => link.RelationshipId == "rFile");
+        Assert.Equal("file", fileLink.UriScheme);
+        Assert.False(fileLink.IsUriValid);
+        Assert.Equal("unsupported-uri-scheme", fileLink.UriValidationReason);
+
+        DocxHyperlinkInfo mailtoLink = result.Hyperlinks.Single(link => link.RelationshipId == "rMailto");
+        Assert.Equal("mailto", mailtoLink.UriScheme);
+        Assert.True(mailtoLink.IsUriValid);
+        Assert.Null(mailtoLink.UriValidationReason);
 
         DocxHyperlinkInfo missing = result.Hyperlinks.Single(link => link.Anchor == "Missing");
         Assert.True(missing.IsAnchorMissing);
@@ -1715,7 +1739,8 @@ public static class ReadApiTests
 
         Assert.Contains("uri-valid=false", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri-reason=unsupported-uri-scheme", result.Text, StringComparison.Ordinal);
-        Assert.Contains("uri-reason=malformed-or-relative-uri", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=relative-uri", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=malformed-uri", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor-duplicate=true", result.Text, StringComparison.Ordinal);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1016" && diagnostic.Fallback == "invalid-uri");
