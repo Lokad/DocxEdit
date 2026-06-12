@@ -1322,7 +1322,7 @@ public static class ReadApiTests
         using MemoryStream stream = CreateDocxWithBody(
             """
                     <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-                      <w:hyperlink r:id="rLink" w:tooltip="Open example">
+                      <w:hyperlink r:id="rLink" w:tooltip="Open example" w:tgtFrame="_blank" w:history="1">
                         <w:r><w:t>External</w:t></w:r>
                       </w:hyperlink>
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
@@ -1357,6 +1357,8 @@ public static class ReadApiTests
         Assert.True(external.IsExternal);
         Assert.False(external.IsBroken);
         Assert.Equal("Open example", external.Tooltip);
+        Assert.Equal("_blank", external.TargetFrame);
+        Assert.True(external.History);
         Assert.Equal(8, external.DisplayTextLength);
 
         DocxHyperlinkInfo internalLink = result.Hyperlinks[1];
@@ -1375,6 +1377,8 @@ public static class ReadApiTests
         Assert.Contains("uri=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri-scheme=https", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri-valid=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("target-frame=\"_blank\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("history=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor=\"Section1\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("broken=True", result.Text, StringComparison.Ordinal);

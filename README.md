@@ -155,9 +155,9 @@ Implemented areas include:
 - simple and complex field read/context metadata, explicit dirty/lock flag patch
   operations, and field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, broken relationship IDs,
-  URI scheme validation, and missing/duplicate internal anchors;
-- hyperlink patch operations for target URI/anchor updates, display text updates,
-  insertion, and unlinking while preserving display runs;
+  URI scheme validation, missing/duplicate internal anchors, target frames, and history flags;
+- hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,
+  display text updates, insertion, and unlinking while preserving display runs;
 - check/apply operation reports with affected row/cell summaries for table edits;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
   anchor positioning, aspect-lock, crop percentages, alt text, and containing target;
@@ -177,8 +177,8 @@ resolution creation when modern extension metadata is absent, and full threaded 
 bookmark/content-control editing beyond plain-text controls, checkbox toggles, and
 simple same-paragraph bookmark ranges, field result recalculation and field-specific
 edit workflows beyond dirty/lock flags,
-advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip, relative/UNC/file
-URI policies, frame/history edits, advanced floating-image edit operations for wrap,
+advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,
+relative/UNC/file URI policies, advanced floating-image edit operations for wrap,
 position, and crop changes, complex
 merged/nested table edit transformations, full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

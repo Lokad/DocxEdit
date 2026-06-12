@@ -113,12 +113,13 @@ field XML, can set field dirty/lock flags through `set-field-dirty` and
 Hyperlink records are listed by `read` and `outline`. External hyperlinks expose
 their URI, scheme, validation status, and validation reason for unsupported schemes
 or relative/malformed targets. Internal links expose an anchor or target part, with
-missing and duplicate bookmark-anchor flags, and broken relationship IDs are flagged.
+missing and duplicate bookmark-anchor flags, and hyperlinks expose tooltip,
+target-frame, and history metadata when present. Broken relationship IDs are flagged.
 `context` annotates nearby targets with `hyperlinks` and `hyperlink-targets`; `dump --runs` annotates hyperlink runs with
 `markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
-Hyperlink patch operations can update URI/anchor targets, update display text, insert
-new hyperlink paragraphs after a target, and remove hyperlink markup while preserving
-the displayed runs.
+Hyperlink patch operations can update URI/anchor targets, tooltip, target-frame,
+history, display text, insert new hyperlink paragraphs after a target, and remove
+hyperlink markup while preserving the displayed runs.
 Image records from `read`, `outline`, and `media` include `layout=inline` or
 `layout=anchor`, the media relationship ID, containing paragraph/cell target,
 DrawingML extent in EMUs, `docPr` description/title/name when present, wrap mode,

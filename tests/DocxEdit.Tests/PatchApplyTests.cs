@@ -1083,6 +1083,8 @@ public static class PatchApplyTests
             target M.L0001
             uri https://example.test/new
             tooltip Updated link
+            target-frame _blank
+            history false
             end
 
             op set-hyperlink-text
@@ -1100,6 +1102,8 @@ public static class PatchApplyTests
         DocxHyperlinkInfo hyperlink = Assert.Single(read.Hyperlinks);
         Assert.Equal("https://example.test/new", hyperlink.Uri);
         Assert.Equal("Updated link", hyperlink.Tooltip);
+        Assert.Equal("_blank", hyperlink.TargetFrame);
+        Assert.False(hyperlink.History);
         Assert.Equal(8, hyperlink.DisplayTextLength);
         output.Position = 0;
         string relationships = ReadEntry(output, "word/_rels/document.xml.rels");

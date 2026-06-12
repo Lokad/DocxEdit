@@ -58,9 +58,9 @@ including nearby paragraph text.
 - `delete-comment`: `target`
 - `set-field-dirty`: `target`, `dirty`
 - `set-field-lock`: `target`, `locked`
-- `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`
+- `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
 - `set-hyperlink-text`: `target`, `text`
-- `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`
+- `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
 - `remove-hyperlink`: `target`
 - `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
 - `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
@@ -104,8 +104,9 @@ Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
 `M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute links and
-`anchor` for internal bookmark anchors. `remove-hyperlink` unwraps the hyperlink and
-keeps its child runs as ordinary document content.
+`anchor` for internal bookmark anchors. `target-frame` writes `w:tgtFrame`, and
+`history true|false` writes `w:history`. `remove-hyperlink` unwraps the hyperlink
+and keeps its child runs as ordinary document content.
 
 Use table guards whenever possible:
 

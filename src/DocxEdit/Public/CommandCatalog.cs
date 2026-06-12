@@ -346,7 +346,7 @@ public static class DocxHelp
                         ]),
                         new("Hyperlinks",
                         [
-                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Internal links expose anchor or target part plus missing/duplicate anchor flags, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, update display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
+                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Internal links expose anchor or target part plus missing/duplicate anchor flags, target-frame/history metadata, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, tooltip, target-frame, history, display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
                         ]),
                         new("Images",
                         [
@@ -683,9 +683,9 @@ public static class DocxHelp
                 PreserveOnly("delete-comment", ["target"]),
                 PreserveOnly("set-field-dirty", ["target", "dirty"]),
                 PreserveOnly("set-field-lock", ["target", "locked"]),
-                PreserveOnly("set-hyperlink-target", ["target plus uri or anchor"], ["tooltip"]),
+                PreserveOnly("set-hyperlink-target", ["target plus uri or anchor"], ["tooltip", "target-frame", "history"]),
                 PreserveOnly("set-hyperlink-text", ["target", "text"]),
-                PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip"]),
+                PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip", "target-frame", "history"]),
                 PreserveOnly("remove-hyperlink", ["target"]),
                 new()
                 {

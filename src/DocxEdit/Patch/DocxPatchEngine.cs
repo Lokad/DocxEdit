@@ -1049,6 +1049,8 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
+        bool? history = ReadBooleanField(operation, "history", diagnostics);
+
         if (diagnostics.Count != 0)
         {
             return diagnostics;
@@ -1082,6 +1084,16 @@ internal static class DocxPatchEngine
         if (operation.Fields.TryGetValue("tooltip", out string? tooltip))
         {
             hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "tooltip", tooltip);
+        }
+
+        if (operation.Fields.TryGetValue("target-frame", out string? targetFrame))
+        {
+            hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "tgtFrame", targetFrame);
+        }
+
+        if (history is not null)
+        {
+            hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "history", history.Value ? "true" : "false");
         }
 
         SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
@@ -1137,6 +1149,8 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
+        bool? history = ReadBooleanField(operation, "history", diagnostics);
+
         if (diagnostics.Count != 0)
         {
             return diagnostics;
@@ -1165,7 +1179,13 @@ internal static class DocxPatchEngine
             package.AddRelationship(blockTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External");
         }
 
-        XElement paragraph = CreateHyperlinkParagraph(text!, relationshipId, anchor, operation.Fields.GetValueOrDefault("tooltip"));
+        XElement paragraph = CreateHyperlinkParagraph(
+            text!,
+            relationshipId,
+            anchor,
+            operation.Fields.GetValueOrDefault("tooltip"),
+            operation.Fields.GetValueOrDefault("target-frame"),
+            history);
         blockTarget.Block.AddAfterSelf(paragraph);
         SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
         return [];
@@ -1292,7 +1312,13 @@ internal static class DocxPatchEngine
         hyperlink.Add(run);
     }
 
-    private static XElement CreateHyperlinkParagraph(string text, string? relationshipId, string? anchor, string? tooltip)
+    private static XElement CreateHyperlinkParagraph(
+        string text,
+        string? relationshipId,
+        string? anchor,
+        string? tooltip,
+        string? targetFrame,
+        bool? history)
     {
         var hyperlink = new XElement(OoxmlNs.W + "hyperlink");
         if (relationshipId is not null)
@@ -1308,6 +1334,16 @@ internal static class DocxPatchEngine
         if (!string.IsNullOrWhiteSpace(tooltip))
         {
             hyperlink.SetAttributeValue(OoxmlNs.W + "tooltip", tooltip);
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetFrame))
+        {
+            hyperlink.SetAttributeValue(OoxmlNs.W + "tgtFrame", targetFrame);
+        }
+
+        if (history is not null)
+        {
+            hyperlink.SetAttributeValue(OoxmlNs.W + "history", history.Value ? "true" : "false");
         }
 
         ReplaceHyperlinkText(hyperlink, text);

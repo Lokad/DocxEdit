@@ -670,6 +670,8 @@ internal static class DocxDocumentScanner
                 IsAnchorMissing = string.IsNullOrWhiteSpace(anchor) ? null : anchorCount == 0,
                 IsAnchorDuplicate = string.IsNullOrWhiteSpace(anchor) ? null : anchorCount > 1,
                 Tooltip = (string?)hyperlink.Attribute(OoxmlNs.W + "tooltip"),
+                TargetFrame = (string?)hyperlink.Attribute(OoxmlNs.W + "tgtFrame"),
+                History = ReadOnOffAttribute(hyperlink, "history"),
                 TargetPartName = relationship?.IsExternal == false ? relationship.ResolvedTarget : null,
                 IsExternal = relationship?.IsExternal == true,
                 IsBroken = !string.IsNullOrWhiteSpace(relationshipId) && relationship is null,

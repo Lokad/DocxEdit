@@ -362,6 +362,8 @@ public sealed record DocxHyperlinkInfo
     public bool? IsAnchorMissing { get; init; }
     public bool? IsAnchorDuplicate { get; init; }
     public string? Tooltip { get; init; }
+    public string? TargetFrame { get; init; }
+    public bool? History { get; init; }
     public string? TargetPartName { get; init; }
     public bool IsExternal { get; init; }
     public bool IsBroken { get; init; }

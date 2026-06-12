@@ -121,6 +121,8 @@ internal static class TextRenderers
             string anchorMissing = hyperlink.IsAnchorMissing is null ? string.Empty : $" anchor-missing={hyperlink.IsAnchorMissing.Value.ToString().ToLowerInvariant()}";
             string anchorDuplicate = hyperlink.IsAnchorDuplicate is null ? string.Empty : $" anchor-duplicate={hyperlink.IsAnchorDuplicate.Value.ToString().ToLowerInvariant()}";
             string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{Escape(hyperlink.Tooltip)}\"";
+            string targetFrame = hyperlink.TargetFrame is null ? string.Empty : $" target-frame=\"{Escape(hyperlink.TargetFrame)}\"";
+            string history = hyperlink.History is null ? string.Empty : $" history={hyperlink.History.Value.ToString().ToLowerInvariant()}";
             string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
             builder.Append(hyperlink.Id)
                 .Append(" hyperlink story=\"")
@@ -137,6 +139,8 @@ internal static class TextRenderers
                 .Append(anchorMissing)
                 .Append(anchorDuplicate)
                 .Append(tooltip)
+                .Append(targetFrame)
+                .Append(history)
                 .Append(targetPart)
                 .Append(" external=")
                 .Append(hyperlink.IsExternal)
