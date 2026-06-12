@@ -61,6 +61,8 @@ public static class ReadApiTests
 
         DocxTableInfo table = Assert.Single(result.Tables);
         Assert.Equal(3, table.ColumnCount);
+        Assert.True(table.HasMergedCells);
+        Assert.True(table.HasNestedTables);
         DocxTableCellInfo wide = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C01");
         Assert.Equal(2, wide.ColumnSpan);
         Assert.Equal("restart", wide.VerticalMerge);
@@ -71,8 +73,56 @@ public static class ReadApiTests
         Assert.Equal("continue", continued.VerticalMerge);
         DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C02");
         Assert.True(nested.HasNestedTable);
-        Assert.Contains("M.T0001.R01.C01 column-span=2 vertical-merge=restart", result.Text, StringComparison.Ordinal);
-        Assert.Contains("M.T0001.R02.C02 nested-table=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R01.C01 physical-column=1 column-span=2 vertical-merge=restart", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02.C02 physical-column=2 nested-table=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001 table rows=2 columns=3 merged=true nested-table=true", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadModelsTableRowsStyleAndGridMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr>
+                      <w:tblGrid>
+                        <w:gridCol w:w="2000"/>
+                        <w:gridCol w:w="2000"/>
+                        <w:gridCol w:w="2000"/>
+                      </w:tblGrid>
+                      <w:tr>
+                        <w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Header 1</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Header 2</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Header 3</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Offset 1</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Offset 2</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxTableInfo table = Assert.Single(result.Tables);
+        Assert.Equal("TableGrid", table.StyleId);
+        Assert.Equal(3, table.GridColumnCount);
+        Assert.True(table.HasHeaderRow);
+        Assert.True(table.HasMergedCells);
+        Assert.Equal(2, table.Rows.Count);
+        Assert.True(table.Rows[0].IsHeader);
+        Assert.True(table.Rows[0].CantSplit);
+        Assert.Equal(1, table.Rows[1].GridBefore);
+        Assert.Equal(2, table.Rows[1].CellCount);
+        DocxTableCellInfo offset = table.Cells.Single(cell => cell.Text == "Offset 1");
+        Assert.Equal(2, offset.ColumnIndex);
+        Assert.Equal(1, offset.PhysicalColumnIndex);
+
+        Assert.Contains("M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true merged=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R01 row cells=3 header=true cant-split=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02 row cells=2 grid-before=1", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

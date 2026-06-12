@@ -133,7 +133,7 @@ Implemented areas include:
 - stable IDs for paragraphs, tables, cells, images, sections, headers, and footers;
 - resolved paragraph numbering/list metadata, including abstract numbering IDs, formats,
   level text, and style-linked list sources;
-- merged/nested table read metadata;
+- merged/nested/styled table and row/grid read metadata;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
 - bookmark and content-control selectors for safe paragraph targeting;
 - patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;
@@ -146,4 +146,4 @@ Implemented areas include:
 - simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
 - post-edit validation for touched XML parts before writing output.
 
-Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, hyperlink editing, advanced floating-image layout edits and crop metadata, complex table editing, full tracked-change edit coverage, and full OOXML schema validation.
+Known limits include full visual numbering expansion and list-edit preservation, comment editing and full threaded comment models, advanced bookmark/content-control editing and uncommon control types, field result recalculation and field-specific edit workflows, hyperlink editing, advanced floating-image layout edits and crop metadata, complex merged/nested table edit transformations, full tracked-change edit coverage, and full OOXML schema validation.

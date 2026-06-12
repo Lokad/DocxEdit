@@ -768,7 +768,30 @@ public sealed record DocxTableInfo(
     string Story,
     int RowCount,
     int ColumnCount,
-    IReadOnlyList<DocxTableCellInfo> Cells);
+    IReadOnlyList<DocxTableCellInfo> Cells)
+{
+    public string? StyleId { get; init; }
+    public int? GridColumnCount { get; init; }
+    public bool HasHeaderRow { get; init; }
+    public bool HasMergedCells { get; init; }
+    public bool HasNestedTables { get; init; }
+    public IReadOnlyList<DocxTableRowInfo> Rows { get; init; } = [];
+}
+```
+
+Row model:
+
+```csharp
+public sealed record DocxTableRowInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public int RowIndex { get; init; }
+    public int CellCount { get; init; }
+    public int GridBefore { get; init; }
+    public int GridAfter { get; init; }
+    public bool IsHeader { get; init; }
+    public bool CantSplit { get; init; }
+}
 ```
 
 Cell model:
@@ -781,7 +804,10 @@ public sealed record DocxTableCellInfo(
     string Text,
     int ColumnSpan,
     string? VerticalMerge,
-    bool HasNestedTable);
+    bool HasNestedTable)
+{
+    public int PhysicalColumnIndex { get; init; }
+}
 ```
 
 ### 8.6 Image model
@@ -1040,10 +1066,11 @@ M.B0001 bookmark name="ClientName" ooxml-id=1 story="main" part=/word/document.x
 M.CC0001 content-control kind=plain-text story="main" part=/word/document.xml target=M.P0002 tag="client_name" alias="Client Name" text-length=4
 M.F0001 field kind=complex story="main" part=/word/document.xml target=M.P0002 code="REF ClientName \h" result-text-length=4 dirty=True complete=True
 M.L0001 hyperlink story="main" part=/word/document.xml target=M.P0002 relationship-id=rLink uri="https://example.test/report" external=True broken=False display-text-length=6
-M.T0001 table rows=2 columns=3
-  M.T0001.R01.C01 text="Metric"
-  M.T0001.R01.C02 text="Q3"
-  M.T0001.R01.C03 text="Q4"
+M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
+  M.T0001.R01 row cells=3 header=true
+  M.T0001.R01.C01 physical-column=1 text="Metric"
+  M.T0001.R01.C02 physical-column=2 text="Q3"
+  M.T0001.R01.C03 physical-column=3 text="Q4"
 M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart"
 ```
 
@@ -1070,7 +1097,7 @@ headers, and footers.
 
 ```text
 M.P0001 heading level=1 text="Executive Summary"
-M.T0001 table rows=4 columns=3
+M.T0001 table rows=4 columns=3 styleId=TableGrid grid-columns=3 header-row=true
 M.S0001 section columns=2 orientation=landscape
 M.I0001 image layout=inline target=M.P0002 part=/word/media/image1.png
 M.B0001 bookmark name="ClientName" start=M.P0002 end=M.P0002

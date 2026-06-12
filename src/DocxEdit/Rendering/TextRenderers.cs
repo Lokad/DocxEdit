@@ -124,13 +124,31 @@ internal static class TextRenderers
 
         foreach (DocxTableInfo table in model.Tables)
         {
-            builder.Append(table.Id).Append(" table rows=").Append(table.RowCount).Append(" columns=").Append(table.ColumnCount).AppendLine();
+            builder.Append(RenderTable(table)).AppendLine();
+            foreach (DocxTableRowInfo row in table.Rows)
+            {
+                string gridBefore = row.GridBefore == 0 ? string.Empty : $" grid-before={row.GridBefore}";
+                string gridAfter = row.GridAfter == 0 ? string.Empty : $" grid-after={row.GridAfter}";
+                string header = row.IsHeader ? " header=true" : string.Empty;
+                string cantSplit = row.CantSplit ? " cant-split=true" : string.Empty;
+                builder.Append("  ")
+                    .Append(row.Id)
+                    .Append(" row cells=")
+                    .Append(row.CellCount)
+                    .Append(gridBefore)
+                    .Append(gridAfter)
+                    .Append(header)
+                    .Append(cantSplit)
+                    .AppendLine();
+            }
+
             foreach (DocxTableCellInfo cell in table.Cells)
             {
                 string columnSpan = cell.ColumnSpan == 1 ? string.Empty : $" column-span={cell.ColumnSpan}";
                 string verticalMerge = cell.VerticalMerge is null ? string.Empty : $" vertical-merge={cell.VerticalMerge}";
                 string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
-                builder.Append("  ").Append(cell.Id).Append(columnSpan).Append(verticalMerge).Append(nestedTable).Append(" text=\"").Append(Escape(Truncate(cell.Text, maxText))).AppendLine("\"");
+                string physicalColumn = cell.PhysicalColumnIndex == 0 ? string.Empty : $" physical-column={cell.PhysicalColumnIndex}";
+                builder.Append("  ").Append(cell.Id).Append(physicalColumn).Append(columnSpan).Append(verticalMerge).Append(nestedTable).Append(" text=\"").Append(Escape(Truncate(cell.Text, maxText))).AppendLine("\"");
             }
         }
 
@@ -152,7 +170,7 @@ internal static class TextRenderers
 
         foreach (DocxTableInfo table in model.Tables)
         {
-            lines.Add($"{table.Id} table rows={table.RowCount} columns={table.ColumnCount}");
+            lines.Add(RenderTable(table));
         }
 
         foreach (DocxSectionInfo section in model.Sections)
@@ -469,6 +487,16 @@ internal static class TextRenderers
         string wrap = image.WrapMode is null ? string.Empty : $" wrap={Escape(image.WrapMode)}";
         string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
         return $"{image.Id} image layout={Escape(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}";
+    }
+
+    private static string RenderTable(DocxTableInfo table)
+    {
+        string style = table.StyleId is null ? string.Empty : $" styleId={Escape(table.StyleId)}";
+        string grid = table.GridColumnCount is null ? string.Empty : $" grid-columns={table.GridColumnCount}";
+        string header = table.HasHeaderRow ? " header-row=true" : string.Empty;
+        string merged = table.HasMergedCells ? " merged=true" : string.Empty;
+        string nested = table.HasNestedTables ? " nested-table=true" : string.Empty;
+        return $"{table.Id} table rows={table.RowCount} columns={table.ColumnCount}{style}{grid}{header}{merged}{nested}";
     }
 
     private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText, TargetAnnotations annotations)

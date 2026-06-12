@@ -296,7 +296,8 @@ public static class DocxHelp
                         new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, and text length"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, anchor, target part, containing target, and broken relationship flag"),
-                        new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, and media part")
+                        new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, and media part"),
+                        new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merges, and nested tables")
                     ],
                     Notes =
                     [
@@ -319,6 +320,10 @@ public static class DocxHelp
                         new("Images",
                         [
                             "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported."
+                        ]),
+                        new("Tables",
+                        [
+                            "Read output surfaces table style/grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, and cell logical/physical column positions. Row operations reject non-rectangular tables unless force true is explicit."
                         ])
                     ],
                     Examples =

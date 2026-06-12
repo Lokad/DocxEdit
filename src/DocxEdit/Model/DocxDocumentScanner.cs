@@ -297,11 +297,24 @@ internal static class DocxDocumentScanner
         ref int imageIndex)
     {
         var cells = new List<DocxTableCellInfo>();
+        var rows = new List<DocxTableRowInfo>();
+        string? styleId = (string?)table
+            .Element(OoxmlNs.W + "tblPr")
+            ?.Element(OoxmlNs.W + "tblStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+        int? gridColumnCount = table
+            .Element(OoxmlNs.W + "tblGrid")
+            ?.Elements(OoxmlNs.W + "gridCol")
+            .Count();
         int rowIndex = 1;
         int maxColumns = 0;
         foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
         {
-            int columnIndex = 1;
+            int gridBefore = ReadRowGridOffset(row, "gridBefore");
+            int gridAfter = ReadRowGridOffset(row, "gridAfter");
+            int columnIndex = 1 + gridBefore;
+            int physicalColumnIndex = 1;
+            string rowId = $"{id}.R{rowIndex:00}";
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
                 int columnSpan = ReadCellColumnSpan(cell);
@@ -319,15 +332,61 @@ internal static class DocxDocumentScanner
                     ReadText(cell, textView),
                     columnSpan,
                     ReadCellVerticalMerge(cell),
-                    cell.Elements(OoxmlNs.W + "tbl").Any()));
+                    cell.Elements(OoxmlNs.W + "tbl").Any())
+                {
+                    PhysicalColumnIndex = physicalColumnIndex
+                });
                 columnIndex += columnSpan;
+                physicalColumnIndex++;
             }
 
-            maxColumns = Math.Max(maxColumns, columnIndex - 1);
+            rows.Add(new DocxTableRowInfo
+            {
+                Id = rowId,
+                RowIndex = rowIndex,
+                CellCount = physicalColumnIndex - 1,
+                GridBefore = gridBefore,
+                GridAfter = gridAfter,
+                IsHeader = ReadRowFlag(row, "tblHeader"),
+                CantSplit = ReadRowFlag(row, "cantSplit")
+            });
+            maxColumns = Math.Max(maxColumns, columnIndex - 1 + gridAfter);
             rowIndex++;
         }
 
-        return new DocxTableInfo(id, story, rowIndex - 1, maxColumns, cells);
+        return new DocxTableInfo(id, story, rowIndex - 1, Math.Max(maxColumns, gridColumnCount ?? 0), cells)
+        {
+            StyleId = styleId,
+            GridColumnCount = gridColumnCount,
+            HasHeaderRow = rows.Any(row => row.IsHeader),
+            HasMergedCells = cells.Any(cell => cell.ColumnSpan > 1 || cell.VerticalMerge is not null) ||
+                rows.Any(row => row.GridBefore > 0 || row.GridAfter > 0),
+            HasNestedTables = cells.Any(cell => cell.HasNestedTable),
+            Rows = rows
+        };
+    }
+
+    private static int ReadRowGridOffset(XElement row, string localName)
+    {
+        string? value = (string?)row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + localName)
+            ?.Attribute(OoxmlNs.W + "val");
+        return int.TryParse(value, out int parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    private static bool ReadRowFlag(XElement row, string localName)
+    {
+        XElement? element = row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + localName);
+        if (element is null)
+        {
+            return false;
+        }
+
+        string? value = (string?)element.Attribute(OoxmlNs.W + "val");
+        return value is null || value is "1" or "true" or "on";
     }
 
     private static IReadOnlyList<DocxBookmarkInfo> ReadBookmarks(

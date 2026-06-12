@@ -304,7 +304,26 @@ public sealed record DocxTableInfo(
     string Story,
     int RowCount,
     int ColumnCount,
-    IReadOnlyList<DocxTableCellInfo> Cells);
+    IReadOnlyList<DocxTableCellInfo> Cells)
+{
+    public string? StyleId { get; init; }
+    public int? GridColumnCount { get; init; }
+    public bool HasHeaderRow { get; init; }
+    public bool HasMergedCells { get; init; }
+    public bool HasNestedTables { get; init; }
+    public IReadOnlyList<DocxTableRowInfo> Rows { get; init; } = [];
+}
+
+public sealed record DocxTableRowInfo
+{
+    public string Id { get; init; } = string.Empty;
+    public int RowIndex { get; init; }
+    public int CellCount { get; init; }
+    public int GridBefore { get; init; }
+    public int GridAfter { get; init; }
+    public bool IsHeader { get; init; }
+    public bool CantSplit { get; init; }
+}
 
 public sealed record DocxTableCellInfo(
     string Id,
@@ -313,7 +332,10 @@ public sealed record DocxTableCellInfo(
     string Text,
     int ColumnSpan,
     string? VerticalMerge,
-    bool HasNestedTable);
+    bool HasNestedTable)
+{
+    public int PhysicalColumnIndex { get; init; }
+}
 
 public sealed record DocxSectionInfo(
     string Id,
