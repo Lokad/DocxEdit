@@ -51,6 +51,7 @@ including nearby paragraph text.
 - `set-style`: `target`, `style`
 - `set-content-control-text`: `target`, `text`
 - `set-content-control-checkbox`: `target`, `checked`
+- `set-content-control-choice`: `target`, exactly one of `value` or `display-text`
 - `replace-bookmark-text`: `target`, `text`
 - `set-comment-text`: `target`, `text`
 - `resolve-comment`: `target`
@@ -85,7 +86,9 @@ properties.
 Use `set-content-control-text` with plain-text content-control IDs such as `M.CC0001`.
 Use `set-content-control-checkbox` with checkbox controls and `checked true|false`;
 it updates `w:checked` and the displayed state symbol. The wrapper and `w:sdtPr`
-metadata are preserved. Use `replace-bookmark-text` with simple same-paragraph
+metadata are preserved. Use `set-content-control-choice` with dropdown or combo box
+controls and exactly one of `value` or `display-text`; it verifies the list item and
+updates the displayed content. Use `replace-bookmark-text` with simple same-paragraph
 bookmark IDs such as `M.B0001`; the bookmark start/end markers are preserved and
 unsupported ranges fail instead of flattening surrounding XML.
 

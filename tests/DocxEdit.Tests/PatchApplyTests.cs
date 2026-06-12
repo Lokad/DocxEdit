@@ -1342,6 +1342,48 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetContentControlChoiceUpdatesDropdownDisplay()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:dropDownList>
+                            <w:listItem w:displayText="North" w:value="north"/>
+                            <w:listItem w:displayText="South" w:value="south"/>
+                          </w:dropDownList>
+                          <w:tag w:val="region"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-choice
+            target M.CC0001
+            value south
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxContentControlInfo control = Assert.Single(read.ContentControls);
+        Assert.Equal("dropdown-list", control.Kind);
+        Assert.Equal("South", Assert.Single(read.Paragraphs).Text);
+        Assert.Equal(2, control.ListItems.Count);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:sdt>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tag w:val=\"region\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyReplaceBookmarkTextPreservesMarkers()
     {
         using MemoryStream input = CreateDocxWithBody("""

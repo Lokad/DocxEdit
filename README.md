@@ -152,7 +152,7 @@ Implemented areas include:
 - bookmark and content-control read/context metadata with selector guidance, including
   checkbox state, dropdown/combo item counts, and date settings;
 - safe bookmark/content-control patch operations for plain-text content controls,
-  checkbox state, and simple same-paragraph bookmark ranges;
+  checkbox state, dropdown/combo selections, and simple same-paragraph bookmark ranges;
 - simple and complex field read/context metadata, explicit dirty/lock flag patch
   operations, and field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, broken relationship IDs,
@@ -175,8 +175,8 @@ Implemented areas include:
 Known limits include exotic/custom visual numbering expansion beyond deterministic
 decimal, letter, roman, bullet, and nested `lvlText` labels, comment creation,
 resolution creation when modern extension metadata is absent, and full threaded comment models, advanced
-bookmark/content-control editing beyond plain-text controls, checkbox toggles, and
-simple same-paragraph bookmark ranges, field result recalculation and field-specific
+bookmark/content-control editing beyond plain-text controls, checkbox toggles,
+dropdown/combo selections, and simple same-paragraph bookmark ranges, field result recalculation and field-specific
 edit workflows beyond dirty/lock flags,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,
 relative/UNC/file URI policies, advanced floating-image edit operations for wrap,

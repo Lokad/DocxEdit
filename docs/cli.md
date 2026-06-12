@@ -101,7 +101,8 @@ diagnostics list candidate paragraph IDs; retry with an explicit ID.
 Patch operations can also target explicit bookmark/content-control IDs for safe shapes:
 `set-content-control-text` updates plain-text controls while preserving the wrapper,
 `set-content-control-checkbox` toggles checkbox controls and updates their displayed
-state symbol, and `replace-bookmark-text` updates simple same-paragraph bookmark
+state symbol, `set-content-control-choice` selects dropdown/combo items by `value` or
+`display-text`, and `replace-bookmark-text` updates simple same-paragraph bookmark
 ranges while preserving the bookmark markers.
 `read` and `outline` also list simple and complex field metadata. Field records
 include kind, field code, containing target, result text length, dirty/lock flags,

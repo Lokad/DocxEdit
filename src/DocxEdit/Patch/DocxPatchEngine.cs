@@ -97,6 +97,7 @@ internal static class DocxPatchEngine
                     "set-style" => ExecuteSetStyle(package, operation, options, apply, cancellationToken),
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
                     "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
+                    "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
@@ -825,6 +826,69 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetContentControlChoice(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? value = operation.Fields.GetValueOrDefault("value");
+        string? displayText = operation.Fields.GetValueOrDefault("display-text");
+        if ((value is null) == (displayText is null))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Exactly one of 'value' or 'display-text' is required for set-content-control-choice.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
+        }
+
+        if (controlTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        XElement? list = controlTarget.ContentControl
+            .Element(OoxmlNs.W + "sdtPr")
+            ?.Elements()
+            .FirstOrDefault(element => element.Name == OoxmlNs.W + "dropDownList" || element.Name == OoxmlNs.W + "comboBox");
+        if (list is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a dropdown or combo box content control.", operation, target)];
+        }
+
+        ContentControlChoice? choice = ResolveContentControlChoice(list, value, displayText);
+        if (choice is null)
+        {
+            string selector = value is not null ? $"value '{value}'" : $"display-text '{displayText}'";
+            return [Diagnostic(DocxSeverity.Error, "E4205", $"Content control '{target}' has no list item with {selector}.", operation, target)];
+        }
+
+        XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
+        if (content is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceContentControlText(content, choice.DisplayText);
+        SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceBookmarkText(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -1416,6 +1480,26 @@ internal static class DocxPatchEngine
         }
 
         return false;
+    }
+
+    private static ContentControlChoice? ResolveContentControlChoice(XElement list, string? value, string? displayText)
+    {
+        foreach (XElement item in list.Elements(OoxmlNs.W + "listItem"))
+        {
+            string? itemValue = (string?)item.Attribute(OoxmlNs.W + "value");
+            string? itemDisplayText = (string?)item.Attribute(OoxmlNs.W + "displayText") ?? itemValue;
+            if (value is not null && string.Equals(itemValue, value, StringComparison.Ordinal))
+            {
+                return new ContentControlChoice(itemDisplayText ?? string.Empty);
+            }
+
+            if (displayText is not null && string.Equals(itemDisplayText, displayText, StringComparison.Ordinal))
+            {
+                return new ContentControlChoice(itemDisplayText ?? string.Empty);
+            }
+        }
+
+        return null;
     }
 
     private static void ReplaceContentControlText(XElement content, string text)
@@ -5405,6 +5489,8 @@ internal sealed record PatchExecutionResult(
     IReadOnlyList<DocxPatchOperationReport> Reports);
 
 internal sealed record ContentControlTarget(string PartName, XDocument Document, XElement ContentControl);
+
+internal sealed record ContentControlChoice(string DisplayText);
 
 internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
 

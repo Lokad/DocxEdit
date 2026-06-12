@@ -1637,6 +1637,15 @@ checked true
 end
 ```
 
+Select a dropdown or combo box item:
+
+```text
+op set-content-control-choice
+target M.CC0003
+value south
+end
+```
+
 Replace a simple bookmark range while preserving markers:
 
 ```text
@@ -1654,6 +1663,10 @@ Rules:
   preserves the `w:sdt` wrapper and properties.
 * `set-content-control-checkbox` supports checkbox controls (`w:sdtPr/w:checkBox`),
   updates `w:checked`, and updates the displayed state symbol.
+* `set-content-control-choice` supports dropdown and combo box controls
+  (`w:sdtPr/w:dropDownList` or `w:comboBox`), requires exactly one of `value` or
+  `display-text`, verifies a matching `w:listItem`, and updates the displayed content
+  while preserving the `w:sdt` wrapper and properties.
 * Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
   or `F001.B0001`.
 * `replace-bookmark-text` supports complete bookmark ranges whose start/end markers are
@@ -2061,6 +2074,7 @@ Known preserve-only operations:
 ```text
 set-content-control-text
 set-content-control-checkbox
+set-content-control-choice
 replace-bookmark-text
 set-comment-text
 resolve-comment
