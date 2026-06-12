@@ -35,9 +35,13 @@ body records also include `comment-anchor-target`, `comment-reference-target`,
 `comment-anchor-story`, and `comment-anchor-part` so an agent can navigate from the
 comment-story record back to the main document anchor without printing comment text.
 `TimestampUtc` and `CommentTimestampUtc` serialize as nullable UTC ISO-8601 values.
+Raw JSON uses UTC values such as `+00:00`; PowerShell `ConvertFrom-Json` may display
+date values in the local timezone after parsing.
 Use `dump --runs` on a target to see run-level `markup=...`, `revision-id`, and
 `comment-id` annotations for nearby tracked-change/comment markup. With `--json`,
 `dump --runs` also exposes those annotations as structured `Runs` objects.
+Change IDs from `changes` identify markup records. Run IDs from `dump --runs` identify
+rendered run/marker lines and are a separate namespace.
 Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 `read --summary` prints package/story counts without listing every target, which is
 useful for large-document validation.

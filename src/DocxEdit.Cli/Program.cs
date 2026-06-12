@@ -561,6 +561,8 @@ internal static class ProgramMain
             markup=inserted-run, markup=deleted-run, revision-id, author, timestamp-utc,
             comment-id, and comment range/reference markers without printing comment body text.
             With --json, the Runs array exposes the same run metadata as structured fields.
+            Change IDs from `changes` identify markup records; run IDs from dump identify
+            rendered run/marker lines and are not the same namespace.
 
             Options:
               --id M.P0001                 Target ID from read, outline, find, or changes
@@ -605,6 +607,8 @@ internal static class ProgramMain
 
             Timestamp notes:
               TimestampUtc and CommentTimestampUtc are nullable UTC ISO-8601 values.
+              Raw JSON uses UTC values such as +00:00; PowerShell ConvertFrom-Json may
+              display them in the local timezone unless you inspect the raw JSON string.
 
             Options:
               --json                       Print the result object as JSON
@@ -614,6 +618,7 @@ internal static class ProgramMain
             Examples:
               docxedit changes report.docx
               docxedit changes report.docx --json
+              docxedit changes report.docx --json | ConvertFrom-Json
             """);
     }
 

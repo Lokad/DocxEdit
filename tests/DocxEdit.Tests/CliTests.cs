@@ -61,11 +61,13 @@ public static class CliTests
         Assert.Contains("docxedit dump input.docx --id TARGET", dump.Output, StringComparison.Ordinal);
         Assert.Contains("markup=inserted-run", dump.Output, StringComparison.Ordinal);
         Assert.Contains("Runs array", dump.Output, StringComparison.Ordinal);
+        Assert.Contains("not the same namespace", dump.Output, StringComparison.Ordinal);
         Assert.Equal(0, changes.ExitCode);
         Assert.Contains("GroupSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("TargetSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("CommentSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("comment-anchor-target", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("PowerShell ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
         Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);
         Assert.Contains("operation line", check.Output, StringComparison.Ordinal);
