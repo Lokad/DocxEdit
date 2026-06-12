@@ -123,6 +123,7 @@ internal static class DocxPatchEngine
                     "set-image-metadata" => ExecuteSetImageMetadata(package, operation, apply, cancellationToken),
                     "set-image-size" => ExecuteSetImageSize(package, operation, apply, cancellationToken),
                     "set-image-wrap" => ExecuteSetImageWrap(package, operation, apply, cancellationToken),
+                    "set-image-position" => ExecuteSetImagePosition(package, operation, apply, cancellationToken),
                     "set-image-crop" => ExecuteSetImageCrop(package, operation, apply, cancellationToken),
                     "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
                     "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
@@ -2916,6 +2917,74 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetImagePosition(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        bool hasPositionField =
+            operation.Fields.ContainsKey("horizontal-relative") ||
+            operation.Fields.ContainsKey("horizontal-offset") ||
+            operation.Fields.ContainsKey("horizontal-align") ||
+            operation.Fields.ContainsKey("vertical-relative") ||
+            operation.Fields.ContainsKey("vertical-offset") ||
+            operation.Fields.ContainsKey("vertical-align");
+        if (!hasPositionField)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-position' requires at least one position field.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-position target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
+        }
+
+        if (imageTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        {
+            return diagnostics;
+        }
+
+        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        {
+            return [diagnostic!];
+        }
+
+        if (imageContainer!.Name != OoxmlNs.Wp + "anchor")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' is inline; position metadata is only editable on anchored images.", operation, target)];
+        }
+
+        if (!TryReadImagePositionAxis(operation, "horizontal", diagnostics, out ImagePositionAxis horizontal) ||
+            !TryReadImagePositionAxis(operation, "vertical", diagnostics, out ImagePositionAxis vertical))
+        {
+            return diagnostics;
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetImagePositionAxis(imageContainer, "positionH", horizontal);
+        SetImagePositionAxis(imageContainer, "positionV", vertical);
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetImageCrop(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -3208,6 +3277,190 @@ internal static class DocxPatchEngine
         if (value is not null)
         {
             anchor.SetAttributeValue(attributeName, value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+    }
+
+    private static bool TryReadImagePositionAxis(
+        DocxPatchOperation operation,
+        string axis,
+        List<DocxDiagnostic> diagnostics,
+        out ImagePositionAxis position)
+    {
+        position = default;
+        bool hasRelative = operation.Fields.TryGetValue($"{axis}-relative", out string? relative);
+        bool hasOffset = operation.Fields.TryGetValue($"{axis}-offset", out string? offsetText);
+        bool hasAlign = operation.Fields.TryGetValue($"{axis}-align", out string? align);
+        if (!hasRelative && !hasOffset && !hasAlign)
+        {
+            return true;
+        }
+
+        if (hasOffset && hasAlign)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Image position axis '{axis}' cannot specify both offset and align.", operation, operation.Fields.GetValueOrDefault("target")));
+            return false;
+        }
+
+        if (hasRelative && !IsValidImagePositionRelative(axis, relative!))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Unsupported image {axis} relative value '{relative}'.", operation, operation.Fields.GetValueOrDefault("target")));
+            return false;
+        }
+
+        long? offsetEmus = null;
+        if (hasOffset)
+        {
+            if (!TryParseSignedDimension(offsetText!, out long parsedOffset))
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Image position field '{axis}-offset' must be a signed dimension.", operation, operation.Fields.GetValueOrDefault("target")));
+                return false;
+            }
+
+            offsetEmus = parsedOffset;
+        }
+
+        if (hasAlign && !IsValidImagePositionAlign(axis, align!))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Unsupported image {axis} align value '{align}'.", operation, operation.Fields.GetValueOrDefault("target")));
+            return false;
+        }
+
+        position = new ImagePositionAxis(true, hasRelative ? relative : null, offsetEmus, hasAlign ? align : null);
+        return true;
+    }
+
+    private static bool IsValidImagePositionRelative(string axis, string value)
+    {
+        return axis == "horizontal"
+            ? value is "page" or "margin" or "column" or "character" or "leftMargin" or "rightMargin" or "insideMargin" or "outsideMargin"
+            : value is "page" or "margin" or "paragraph" or "line" or "topMargin" or "bottomMargin" or "insideMargin" or "outsideMargin";
+    }
+
+    private static bool IsValidImagePositionAlign(string axis, string value)
+    {
+        return axis == "horizontal"
+            ? value is "left" or "center" or "right" or "inside" or "outside"
+            : value is "top" or "center" or "bottom" or "inside" or "outside";
+    }
+
+    private static bool TryParseSignedDimension(string text, out long emus)
+    {
+        emus = 0;
+        string trimmed = text.Trim();
+        string[] suffixes = ["emu", "in", "cm", "pt", "px"];
+        foreach (string suffix in suffixes)
+        {
+            if (!trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string numberText = trimmed[..^suffix.Length];
+            if (!double.TryParse(numberText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double value))
+            {
+                return false;
+            }
+
+            emus = suffix.ToLowerInvariant() switch
+            {
+                "emu" => checked((long)Math.Round(value, MidpointRounding.AwayFromZero)),
+                "in" => OoxmlUnits.InchesToEmu(value),
+                "cm" => OoxmlUnits.CentimetersToEmu(value),
+                "pt" => OoxmlUnits.PointsToEmu(value),
+                "px" => OoxmlUnits.PixelsToEmu(value),
+                _ => 0
+            };
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void SetImagePositionAxis(XElement anchor, string elementName, ImagePositionAxis axis)
+    {
+        if (!axis.HasAny)
+        {
+            return;
+        }
+
+        XElement position = anchor.Element(OoxmlNs.Wp + elementName) ?? new XElement(OoxmlNs.Wp + elementName);
+        if (position.Parent is null)
+        {
+            AddImagePositionElement(anchor, elementName, position);
+        }
+
+        if (axis.RelativeFrom is not null)
+        {
+            position.SetAttributeValue("relativeFrom", axis.RelativeFrom);
+        }
+        else if (position.Attribute("relativeFrom") is null)
+        {
+            position.SetAttributeValue("relativeFrom", elementName == "positionH" ? "column" : "paragraph");
+        }
+
+        if (axis.OffsetEmus is not null)
+        {
+            position.Elements(OoxmlNs.Wp + "align").Remove();
+            XElement offset = position.Element(OoxmlNs.Wp + "posOffset") ?? new XElement(OoxmlNs.Wp + "posOffset");
+            if (offset.Parent is null)
+            {
+                position.Add(offset);
+            }
+
+            offset.Value = axis.OffsetEmus.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        if (axis.Align is not null)
+        {
+            position.Elements(OoxmlNs.Wp + "posOffset").Remove();
+            XElement align = position.Element(OoxmlNs.Wp + "align") ?? new XElement(OoxmlNs.Wp + "align");
+            if (align.Parent is null)
+            {
+                position.Add(align);
+            }
+
+            align.Value = axis.Align;
+        }
+
+        if (!position.Elements(OoxmlNs.Wp + "posOffset").Any() &&
+            !position.Elements(OoxmlNs.Wp + "align").Any())
+        {
+            position.Add(new XElement(OoxmlNs.Wp + "posOffset", "0"));
+        }
+    }
+
+    private static void AddImagePositionElement(XElement anchor, string elementName, XElement position)
+    {
+        if (elementName == "positionH")
+        {
+            XElement? before = anchor.Element(OoxmlNs.Wp + "positionV") ?? anchor.Element(OoxmlNs.Wp + "extent");
+            if (before is null)
+            {
+                anchor.AddFirst(position);
+            }
+            else
+            {
+                before.AddBeforeSelf(position);
+            }
+
+            return;
+        }
+
+        XElement? horizontal = anchor.Element(OoxmlNs.Wp + "positionH");
+        if (horizontal is not null)
+        {
+            horizontal.AddAfterSelf(position);
+            return;
+        }
+
+        XElement? extent = anchor.Element(OoxmlNs.Wp + "extent");
+        if (extent is null)
+        {
+            anchor.AddFirst(position);
+        }
+        else
+        {
+            extent.AddBeforeSelf(position);
         }
     }
 
@@ -6196,6 +6449,8 @@ internal sealed record FieldTarget(string PartName, XDocument Document, XElement
 internal sealed record ImageBlipTarget(string PartName, XDocument Document, XElement Blip, string RelationshipId, OoxmlPart Part);
 
 internal readonly record struct ImageCrop(int Left, int Top, int Right, int Bottom);
+
+internal readonly record struct ImagePositionAxis(bool HasAny, string? RelativeFrom, long? OffsetEmus, string? Align);
 
 internal sealed record ParagraphTarget(string PartName, XDocument Document, XElement Paragraph);
 

@@ -2053,7 +2053,36 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, size, crop, and position metadata.
 
-### 11.18 `set-image-crop`
+### 11.18 `set-image-position`
+
+```text
+op set-image-position
+target M.I0001
+horizontal-relative page
+horizontal-offset -0.25in
+vertical-relative paragraph
+vertical-align bottom
+end
+```
+
+Rules:
+
+* Update anchored DrawingML `wp:positionH` and `wp:positionV` relative bases,
+  signed offsets, or alignments without replacing media bytes.
+* At least one position field is required.
+* Supported horizontal `relativeFrom` values are `page`, `margin`, `column`,
+  `character`, `leftMargin`, `rightMargin`, `insideMargin`, and `outsideMargin`.
+* Supported vertical `relativeFrom` values are `page`, `margin`, `paragraph`, `line`,
+  `topMargin`, `bottomMargin`, `insideMargin`, and `outsideMargin`.
+* Offsets accept signed `in`, `cm`, `pt`, `px`, and `emu` dimensions and are written
+  as EMUs.
+* `*-offset` and `*-align` are mutually exclusive for the same axis.
+* Inline images fail with an explicit diagnostic instead of being converted to
+  anchored images.
+* `expect-content-type` is a supported guard.
+* Preserve image bytes, size, crop, wrap mode, and wrap distances.
+
+### 11.19 `set-image-crop`
 
 ```text
 op set-image-crop
@@ -2077,7 +2106,7 @@ Rules:
 * `expect-content-type` is a supported guard.
 * Preserve image bytes, size, and layout.
 
-### 11.19 `delete-image`
+### 11.20 `delete-image`
 
 ```text
 op delete-image
@@ -2218,6 +2247,7 @@ set-image-alt
 set-image-metadata
 set-image-size
 set-image-wrap
+set-image-position
 set-image-crop
 delete-image
 set-section-columns

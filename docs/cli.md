@@ -134,8 +134,9 @@ relative height, overlap/aspect-lock flags, and `crop-left-percent`/
 metadata is present. Replacement, alt-text, and docPr metadata operations preserve
 the existing drawing layout where supported. `set-image-size` updates DrawingML
 extents, `set-image-wrap` updates anchored image wrap mode/distances, and
-`set-image-crop` updates DrawingML crop percentages; detailed position edits are not
-yet exposed.
+`set-image-position` updates anchored relative positions, offsets, and alignments.
+`set-image-crop` updates DrawingML crop percentages; unsupported drawing shapes remain
+preserve-only.
 Table output includes table style ID, declared grid column count, header-row,
 merged-cell, and nested-table flags when present. Row lines include physical cell
 count, omitted grid columns (`grid-before`/`grid-after`), header status, and

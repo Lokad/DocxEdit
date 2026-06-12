@@ -2582,6 +2582,59 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetImagePositionUpdatesAnchorPosition()
+    {
+        using MemoryStream input = CreateDocxWithAnchoredImage();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-position
+            target M.I0001
+            horizontal-relative page
+            horizontal-offset -0.25in
+            vertical-relative paragraph
+            vertical-align bottom
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxImageInfo image = Assert.Single(new DocxEditor().Read(output).Images);
+        Assert.Equal("page", image.HorizontalPositionRelativeFrom);
+        Assert.Equal(-228_600, image.HorizontalPositionOffsetEmu);
+        Assert.Null(image.HorizontalPositionAlign);
+        Assert.Equal("paragraph", image.VerticalPositionRelativeFrom);
+        Assert.Null(image.VerticalPositionOffsetEmu);
+        Assert.Equal("bottom", image.VerticalPositionAlign);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<wp:positionH relativeFrom=\"page\"><wp:posOffset>-228600</wp:posOffset></wp:positionH>", xml, StringComparison.Ordinal);
+        Assert.Contains("<wp:positionV relativeFrom=\"paragraph\"><wp:align>bottom</wp:align></wp:positionV>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetImagePositionRejectsInlineImage()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-position
+            target M.I0001
+            horizontal-offset 1in
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E5205");
+    }
+
+    [Fact]
     public static void ApplySetImageCropUpdatesSourceRectangle()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");

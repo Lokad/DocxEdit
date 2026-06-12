@@ -76,6 +76,7 @@ including nearby paragraph text.
 - `set-image-metadata`: `target`, at least one of `alt`, `title`, or `name`, optional `expect-content-type`
 - `set-image-size`: `target`, `width` and/or `height`, optional `expect-content-type`
 - `set-image-wrap`: `target`, optional `mode`, `dist-top`, `dist-bottom`, `dist-left`, `dist-right`, optional `expect-content-type`
+- `set-image-position`: `target`, optional `horizontal-relative`, `horizontal-offset`, `horizontal-align`, `vertical-relative`, `vertical-offset`, `vertical-align`, optional `expect-content-type`
 - `set-image-crop`: `target`, at least one of `left-percent`, `top-percent`, `right-percent`, or `bottom-percent`, optional `expect-content-type`
 - `delete-image`: `target`, optional `expect-content-type`
 - `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
@@ -145,10 +146,12 @@ description (`alt`), `title`, and `name` without replacing media bytes. Use
 `set-image-size` to update DrawingML `wp:extent` and picture transform extents; if
 only `width` or `height` is provided, DocxEdit preserves the current aspect ratio
 when it can infer one. Use `set-image-wrap` on anchored images to update `wp:wrap*`
-mode and anchor wrap distances; inline images reject wrap edits. Use `set-image-crop`
-to update DrawingML `a:srcRect` crop percentages without replacing media bytes;
-omitted crop sides keep their current value, zero-valued sides are removed, and
-opposing side sums must remain below 100 percent.
+mode and anchor wrap distances; inline images reject wrap edits. Use
+`set-image-position` on anchored images to update `wp:positionH`/`wp:positionV`
+relative bases, signed offsets, or alignments. Use `set-image-crop` to update
+DrawingML `a:srcRect` crop percentages without replacing media bytes; omitted crop
+sides keep their current value, zero-valued sides are removed, and opposing side sums
+must remain below 100 percent.
 
 Tracked output is intentionally narrow. It supports simple `replace-text`,
 whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes,
