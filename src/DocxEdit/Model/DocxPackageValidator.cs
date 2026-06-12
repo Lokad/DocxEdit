@@ -26,6 +26,7 @@ internal static class DocxPackageValidator
             }
         }
 
+        ValidateCommentConsistency(package, diagnostics, cancellationToken);
         return diagnostics;
     }
 
@@ -389,25 +390,145 @@ internal static class DocxPackageValidator
     private static HashSet<string> ReadCommentParaIds(OoxmlPackage package, CancellationToken cancellationToken)
     {
         var paraIds = new HashSet<string>(StringComparer.Ordinal);
-        OoxmlPart? commentsPart = package.GetPart("/word/comments.xml");
-        if (commentsPart is null)
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
         {
-            return paraIds;
-        }
+            OoxmlPart? commentsPart = package.GetPart(partName);
+            if (commentsPart is null)
+            {
+                continue;
+            }
 
-        using Stream stream = commentsPart.OpenRead();
-        XDocument comments = SafeXml.Load(stream, cancellationToken);
-        foreach (string paraId in comments
-            .Descendants(OoxmlNs.W + "comment")
-            .Descendants(OoxmlNs.W + "p")
-            .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
-            .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-            .Select(paraId => paraId!))
-        {
-            paraIds.Add(paraId);
+            using Stream stream = commentsPart.OpenRead();
+            XDocument comments = SafeXml.Load(stream, cancellationToken);
+            foreach (string paraId in comments
+                .Descendants(OoxmlNs.W + "comment")
+                .Descendants(OoxmlNs.W + "p")
+                .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
+                .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+                .Select(paraId => paraId!))
+            {
+                paraIds.Add(paraId);
+            }
         }
 
         return paraIds;
+    }
+
+    private static void ValidateCommentConsistency(
+        OoxmlPackage package,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        var bodyIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XElement comment in document.Descendants(OoxmlNs.W + "comment"))
+            {
+                string? id = (string?)comment.Attribute(OoxmlNs.W + "id");
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    diagnostics.Add(Error("E9111", "Comment body is missing w:id.", partName));
+                    continue;
+                }
+
+                if (!bodyIds.TryGetValue(id, out List<string>? partNames))
+                {
+                    partNames = [];
+                    bodyIds[id] = partNames;
+                }
+
+                partNames.Add(partName);
+            }
+        }
+
+        foreach (KeyValuePair<string, List<string>> item in bodyIds
+            .Where(item => item.Value.Count > 1)
+            .OrderBy(item => item.Key, StringComparer.Ordinal))
+        {
+            string partNames = string.Join(", ", item.Value.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+            diagnostics.Add(Error("E9111", $"Duplicate comment body id '{item.Key}' appears {item.Value.Count} times in comments parts: {partNames}.", item.Value[0]));
+        }
+
+        var rangeIds = new HashSet<string>(StringComparer.Ordinal);
+        var referenceIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
+                part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                !part.Name.Contains("/_rels/", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(part.Name, "/word/comments.xml", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(part.Name, "/word/commentsExtended.xml", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XElement marker in document
+                .Descendants()
+                .Where(element => element.Name == OoxmlNs.W + "commentRangeStart" ||
+                    element.Name == OoxmlNs.W + "commentRangeEnd" ||
+                    element.Name == OoxmlNs.W + "commentReference"))
+            {
+                string? id = (string?)marker.Attribute(OoxmlNs.W + "id");
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    diagnostics.Add(Error("E9111", $"{marker.Name.LocalName} is missing w:id.", part.Name));
+                    continue;
+                }
+
+                if (marker.Name == OoxmlNs.W + "commentReference")
+                {
+                    referenceIds.Add(id);
+                }
+                else
+                {
+                    rangeIds.Add(id);
+                }
+            }
+        }
+
+        foreach (string id in rangeIds.Concat(referenceIds).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
+        {
+            if (!bodyIds.ContainsKey(id))
+            {
+                diagnostics.Add(Error("E9111", $"Comment markup id '{id}' has no matching comment body.", null));
+            }
+        }
+
+        foreach (string id in rangeIds.Except(referenceIds, StringComparer.Ordinal).Order(StringComparer.Ordinal))
+        {
+            diagnostics.Add(Error("E9111", $"Comment range id '{id}' has no matching commentReference.", null));
+        }
+    }
+
+    private static IReadOnlyList<string> GetCommentsPartNames(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        var partNames = new SortedSet<string>(StringComparer.Ordinal);
+        if (package.MainDocumentPartName is not null)
+        {
+            foreach (OoxmlRelationship relationship in package
+                .GetRelationships(package.MainDocumentPartName, cancellationToken)
+                .Where(relationship => !relationship.IsExternal &&
+                    relationship.Type == OoxmlRelTypes.Comments &&
+                    relationship.ResolvedTarget is not null))
+            {
+                partNames.Add(relationship.ResolvedTarget!);
+            }
+        }
+
+        if (package.GetPart("/word/comments.xml") is not null)
+        {
+            partNames.Add("/word/comments.xml");
+        }
+
+        return partNames.ToArray();
     }
 
     private static void ValidateTables(XDocument document, string partName, List<DocxDiagnostic> diagnostics)
@@ -429,7 +550,7 @@ internal static class DocxPackageValidator
         }
     }
 
-    private static DocxDiagnostic Error(string code, string message, string partName)
+    private static DocxDiagnostic Error(string code, string message, string? partName)
     {
         return new DocxDiagnostic(DocxSeverity.Error, code, message, PartName: partName);
     }

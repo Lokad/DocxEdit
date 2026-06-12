@@ -47,5 +47,6 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9108`: `commentsExtended` metadata has missing, duplicate, or orphan paraId records.
 - `E9109`: DrawingML extents are missing or non-positive.
 - `E9110`: DrawingML crop percentages are malformed or leave no visible image area.
+- `E9111`: comment body, anchor, or reference IDs are missing, duplicated, or inconsistent.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.

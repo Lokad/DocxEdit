@@ -2354,6 +2354,7 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * expected roots for known WordprocessingML parts (`document`, `styles`, `numbering`,
   `settings`, `comments`, `commentsExtended`, headers, and footers);
 * paired bookmark and comment range start/end IDs;
+* comment body, anchor, and reference ID consistency;
 * duplicate bookmark names and duplicate content-control tag/alias values with
   candidate metadata IDs;
 * modern `commentsExtended.xml` paraId consistency;
@@ -2414,6 +2415,7 @@ E9107 duplicate drawing wp:docPr ID within one Word part
 E9108 commentsExtended metadata has missing, duplicate, or orphan paraId records
 E9109 drawing wp:extent is missing or non-positive
 E9110 drawing a:srcRect crop values are malformed or collapse the visible area
+E9111 comment body, anchor, or reference IDs are missing, duplicated, or inconsistent
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 ```
 

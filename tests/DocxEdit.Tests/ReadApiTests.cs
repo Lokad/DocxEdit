@@ -231,6 +231,70 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidCommentBodyAndAnchorConsistency()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:commentRangeStart w:id="4"/>
+                      <w:r><w:t>Missing body</w:t></w:r>
+                      <w:commentRangeEnd w:id="4"/>
+                      <w:r><w:commentReference w:id="4"/></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:commentRangeStart w:id="6"/>
+                      <w:r><w:t>No reference</w:t></w:r>
+                      <w:commentRangeEnd w:id="6"/>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:commentReference/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>First</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Duplicate</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="6" w:author="Reviewer">
+                    <w:p><w:r><w:t>No reference body</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:author="Reviewer">
+                    <w:p><w:r><w:t>Missing ID</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Duplicate comment body id '3'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Comment markup id '4' has no matching comment body", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Comment range id '6' has no matching commentReference", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Comment body is missing w:id", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("commentReference is missing w:id", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ReadExtractsMergedAndNestedTableMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""
