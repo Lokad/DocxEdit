@@ -310,7 +310,7 @@ public static class DocxHelp
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, wrap distances, anchor positioning, crop percentages, and media part"),
-                        new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merges, and nested tables")
+                        new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merge groups, vertical merge roots, and nested tables")
                     ],
                     Notes =
                     [
@@ -336,7 +336,7 @@ public static class DocxHelp
                         ]),
                         new("Tables",
                         [
-                            "Read output surfaces table style/grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, and cell logical/physical column positions. Row operations reject non-rectangular tables unless force true is explicit."
+                            "Read and context output surface table style/grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. Row operations reject non-rectangular tables unless force true is explicit."
                         ])
                     ],
                     Examples =

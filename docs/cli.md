@@ -132,7 +132,8 @@ Table output includes table style ID, declared grid column count, header-row,
 merged-cell, and nested-table flags when present. Row lines include physical cell
 count, omitted grid columns (`grid-before`/`grid-after`), header status, and
 `cant-split`. Cell lines include logical target column plus `physical-column`, span,
-vertical merge, and nested-table metadata. Row operations still reject unsafe
+visual column end, merge group ID, vertical-merge root cell, vertical merge, and
+nested-table metadata. Row operations still reject unsafe
 non-rectangular tables unless `force true` is explicitly supplied.
 `validate` runs bounded structural package checks and WordprocessingML invariants:
 known part roots, paired bookmark/comment ranges, complex field begin/end balance,

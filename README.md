@@ -135,7 +135,8 @@ Implemented areas include:
 - resolved paragraph numbering/list metadata, including abstract numbering IDs, formats,
   level text, style-linked list sources, start/suffix metadata, and visible labels for
   deterministic decimal, letter, roman, bullet, and nested `lvlText` patterns;
-- merged/nested/styled table and row/grid read metadata;
+- merged/nested/styled table and row/grid read metadata, including merge groups and
+  vertical-merge root cells;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
 - bookmark and content-control selectors for safe paragraph targeting;
 - patch operations for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic sections;

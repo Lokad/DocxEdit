@@ -126,17 +126,31 @@ public static class ReadApiTests
         Assert.True(table.HasNestedTables);
         DocxTableCellInfo wide = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C01");
         Assert.Equal(2, wide.ColumnSpan);
+        Assert.Equal(2, wide.VisualColumnEndIndex);
+        Assert.Equal("M.T0001.MG0001", wide.MergeGroupId);
         Assert.Equal("restart", wide.VerticalMerge);
+        Assert.Equal("M.T0001.R01.C01", wide.VerticalMergeRootCellId);
         Assert.False(wide.HasNestedTable);
         DocxTableCellInfo east = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C03");
         Assert.Equal("East", east.Text);
         DocxTableCellInfo continued = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C01");
+        Assert.Equal(1, continued.VisualColumnEndIndex);
+        Assert.Equal("M.T0001.MG0001", continued.MergeGroupId);
         Assert.Equal("continue", continued.VerticalMerge);
+        Assert.Equal("M.T0001.R01.C01", continued.VerticalMergeRootCellId);
         DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C02");
         Assert.True(nested.HasNestedTable);
-        Assert.Contains("M.T0001.R01.C01 physical-column=1 column-span=2 vertical-merge=restart", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R01.C01 physical-column=1 column-span=2 visual-column-end=2 merge-group=M.T0001.MG0001 vertical-merge=restart vertical-merge-root=M.T0001.R01.C01", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02.C01 physical-column=1 merge-group=M.T0001.MG0001 vertical-merge=continue vertical-merge-root=M.T0001.R01.C01", result.Text, StringComparison.Ordinal);
         Assert.Contains("M.T0001.R02.C02 physical-column=2 nested-table=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("M.T0001 table rows=2 columns=3 merged=true nested-table=true", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxContextResult context = editor.Context(stream, "M.T0001.R02.C01", new DocxContextOptions { MaxText = 20 });
+        DocxContextItem contextTarget = Assert.Single(context.Items, item => item.Id == "M.T0001.R02.C01");
+        Assert.Equal("M.T0001.MG0001", contextTarget.MergeGroupId);
+        Assert.Equal("M.T0001.R01.C01", contextTarget.VerticalMergeRootCellId);
+        Assert.Contains("merge-group=M.T0001.MG0001 vertical-merge=continue vertical-merge-root=M.T0001.R01.C01", context.Text, StringComparison.Ordinal);
     }
 
     [Fact]

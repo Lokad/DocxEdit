@@ -310,11 +310,14 @@ internal static class DocxDocumentScanner
             ?.Elements(OoxmlNs.W + "gridCol")
             .Count();
         int rowIndex = 1;
+        int mergeGroupIndex = 1;
         int maxColumns = 0;
+        var activeVerticalMerges = new Dictionary<int, TableMergeState>();
         foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
         {
             int gridBefore = ReadRowGridOffset(row, "gridBefore");
             int gridAfter = ReadRowGridOffset(row, "gridAfter");
+            RemoveActiveVerticalMerges(activeVerticalMerges, 1, gridBefore);
             int columnIndex = 1 + gridBefore;
             int physicalColumnIndex = 1;
             string rowId = $"{id}.R{rowIndex:00}";
@@ -322,6 +325,31 @@ internal static class DocxDocumentScanner
             {
                 int columnSpan = ReadCellColumnSpan(cell);
                 string cellId = $"{id}.R{rowIndex:00}.C{columnIndex:00}";
+                string? verticalMerge = ReadCellVerticalMerge(cell);
+                string? mergeGroupId = null;
+                string? verticalMergeRootCellId = null;
+                if (string.Equals(verticalMerge, "restart", StringComparison.Ordinal))
+                {
+                    mergeGroupId = AllocateMergeGroupId(id, ref mergeGroupIndex);
+                    verticalMergeRootCellId = cellId;
+                    SetActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan, new TableMergeState(mergeGroupId, cellId));
+                }
+                else if (verticalMerge is not null)
+                {
+                    TableMergeState? activeMerge = FindActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan);
+                    mergeGroupId = activeMerge?.MergeGroupId ?? AllocateMergeGroupId(id, ref mergeGroupIndex);
+                    verticalMergeRootCellId = activeMerge?.RootCellId;
+                    SetActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan, new TableMergeState(mergeGroupId, verticalMergeRootCellId));
+                }
+                else
+                {
+                    RemoveActiveVerticalMerges(activeVerticalMerges, columnIndex, columnSpan);
+                    if (columnSpan > 1)
+                    {
+                        mergeGroupId = AllocateMergeGroupId(id, ref mergeGroupIndex);
+                    }
+                }
+
                 foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
                 {
                     AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, cellId, ref imageIndex);
@@ -334,15 +362,19 @@ internal static class DocxDocumentScanner
                     columnIndex,
                     ReadText(cell, textView),
                     columnSpan,
-                    ReadCellVerticalMerge(cell),
+                    verticalMerge,
                     cell.Elements(OoxmlNs.W + "tbl").Any())
                 {
-                    PhysicalColumnIndex = physicalColumnIndex
+                    PhysicalColumnIndex = physicalColumnIndex,
+                    VisualColumnEndIndex = columnIndex + columnSpan - 1,
+                    MergeGroupId = mergeGroupId,
+                    VerticalMergeRootCellId = verticalMergeRootCellId
                 });
                 columnIndex += columnSpan;
                 physicalColumnIndex++;
             }
 
+            RemoveActiveVerticalMerges(activeVerticalMerges, columnIndex, gridAfter);
             rows.Add(new DocxTableRowInfo
             {
                 Id = rowId,
@@ -367,6 +399,47 @@ internal static class DocxDocumentScanner
             HasNestedTables = cells.Any(cell => cell.HasNestedTable),
             Rows = rows
         };
+    }
+
+    private static string AllocateMergeGroupId(string tableId, ref int mergeGroupIndex)
+    {
+        return $"{tableId}.MG{mergeGroupIndex++:0000}";
+    }
+
+    private static void SetActiveVerticalMerge(
+        Dictionary<int, TableMergeState> activeVerticalMerges,
+        int columnIndex,
+        int columnSpan,
+        TableMergeState state)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            activeVerticalMerges[column] = state;
+        }
+    }
+
+    private static TableMergeState? FindActiveVerticalMerge(
+        IReadOnlyDictionary<int, TableMergeState> activeVerticalMerges,
+        int columnIndex,
+        int columnSpan)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            if (activeVerticalMerges.TryGetValue(column, out TableMergeState? state))
+            {
+                return state;
+            }
+        }
+
+        return null;
+    }
+
+    private static void RemoveActiveVerticalMerges(Dictionary<int, TableMergeState> activeVerticalMerges, int columnIndex, int columnSpan)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            activeVerticalMerges.Remove(column);
+        }
     }
 
     private static int ReadRowGridOffset(XElement row, string localName)
@@ -1117,6 +1190,8 @@ internal static class DocxDocumentScanner
     }
 
     private sealed record StyleNumbering(string NumberingId, int Level, string Source);
+
+    private sealed record TableMergeState(string MergeGroupId, string? RootCellId);
 
     private sealed record HyperlinkUriValidation(string? Scheme, bool? IsValid, string? Reason)
     {

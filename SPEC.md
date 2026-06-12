@@ -865,8 +865,17 @@ public sealed record DocxTableCellInfo(
     bool HasNestedTable)
 {
     public int PhysicalColumnIndex { get; init; }
+    public int VisualColumnEndIndex { get; init; }
+    public string? MergeGroupId { get; init; }
+    public string? VerticalMergeRootCellId { get; init; }
 }
 ```
+
+`ColumnIndex` is the one-based visual grid start column after `gridBefore` and
+`gridSpan` expansion. `VisualColumnEndIndex` is populated for cells that span
+multiple visual columns. `MergeGroupId` groups horizontal spans and vertical merge
+chains within a table, and `VerticalMergeRootCellId` links `w:vMerge` continuations
+back to the restart cell when the root is visible in the scanned story.
 
 ### 8.6 Image model
 
@@ -1151,7 +1160,10 @@ public sealed record DocxContextItem
     public int? RowIndex { get; init; }
     public int? ColumnIndex { get; init; }
     public int? ColumnSpan { get; init; }
+    public int? VisualColumnEndIndex { get; init; }
+    public string? MergeGroupId { get; init; }
     public string? VerticalMerge { get; init; }
+    public string? VerticalMergeRootCellId { get; init; }
     public bool HasNestedTable { get; init; }
 }
 ```
@@ -1160,6 +1172,9 @@ Paragraph and cell context items include `CommentIds` and `CommentBodyIds` when
 comment anchors or references are attached to that target. Comment body targets such
 as `C001.C0001` and `comment:<id>` return a `Kind = "comment"` context item whose
 metadata links back to the anchor target and does not include comment body text.
+Cell context items also expose visual-grid and merge metadata, including
+`VisualColumnEndIndex`, `MergeGroupId`, `VerticalMerge`, and
+`VerticalMergeRootCellId`, when those values are present on the target cell.
 
 ---
 

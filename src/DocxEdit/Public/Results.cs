@@ -252,7 +252,10 @@ public sealed record DocxContextItem
     public int? RowIndex { get; init; }
     public int? ColumnIndex { get; init; }
     public int? ColumnSpan { get; init; }
+    public int? VisualColumnEndIndex { get; init; }
+    public string? MergeGroupId { get; init; }
     public string? VerticalMerge { get; init; }
+    public string? VerticalMergeRootCellId { get; init; }
     public bool HasNestedTable { get; init; }
 }
 
@@ -401,6 +404,9 @@ public sealed record DocxTableCellInfo(
     bool HasNestedTable)
 {
     public int PhysicalColumnIndex { get; init; }
+    public int VisualColumnEndIndex { get; init; }
+    public string? MergeGroupId { get; init; }
+    public string? VerticalMergeRootCellId { get; init; }
 }
 
 public sealed record DocxSectionInfo(

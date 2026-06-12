@@ -170,10 +170,24 @@ internal static class TextRenderers
             foreach (DocxTableCellInfo cell in table.Cells)
             {
                 string columnSpan = cell.ColumnSpan == 1 ? string.Empty : $" column-span={cell.ColumnSpan}";
+                string visualColumnEnd = cell.VisualColumnEndIndex <= cell.ColumnIndex ? string.Empty : $" visual-column-end={cell.VisualColumnEndIndex}";
+                string mergeGroup = cell.MergeGroupId is null ? string.Empty : $" merge-group={Escape(cell.MergeGroupId)}";
                 string verticalMerge = cell.VerticalMerge is null ? string.Empty : $" vertical-merge={cell.VerticalMerge}";
+                string verticalMergeRoot = cell.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={Escape(cell.VerticalMergeRootCellId)}";
                 string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
                 string physicalColumn = cell.PhysicalColumnIndex == 0 ? string.Empty : $" physical-column={cell.PhysicalColumnIndex}";
-                builder.Append("  ").Append(cell.Id).Append(physicalColumn).Append(columnSpan).Append(verticalMerge).Append(nestedTable).Append(" text=\"").Append(Escape(Truncate(cell.Text, maxText))).AppendLine("\"");
+                builder.Append("  ")
+                    .Append(cell.Id)
+                    .Append(physicalColumn)
+                    .Append(columnSpan)
+                    .Append(visualColumnEnd)
+                    .Append(mergeGroup)
+                    .Append(verticalMerge)
+                    .Append(verticalMergeRoot)
+                    .Append(nestedTable)
+                    .Append(" text=\"")
+                    .Append(Escape(Truncate(cell.Text, maxText)))
+                    .AppendLine("\"");
             }
         }
 
@@ -448,7 +462,10 @@ internal static class TextRenderers
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
             string column = item.ColumnIndex is null ? string.Empty : $" column={item.ColumnIndex}";
             string columnSpan = item.ColumnSpan is null or 1 ? string.Empty : $" column-span={item.ColumnSpan}";
+            string visualColumnEnd = item.VisualColumnEndIndex is null ? string.Empty : $" visual-column-end={item.VisualColumnEndIndex}";
+            string mergeGroup = item.MergeGroupId is null ? string.Empty : $" merge-group={Escape(item.MergeGroupId)}";
             string verticalMerge = item.VerticalMerge is null ? string.Empty : $" vertical-merge={item.VerticalMerge}";
+            string verticalMergeRoot = item.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={Escape(item.VerticalMergeRootCellId)}";
             string nestedTable = item.HasNestedTable ? " nested-table=true" : string.Empty;
             string text = item.Kind is "paragraph" or "cell"
                 ? $" text=\"{Escape(item.Text)}\""
@@ -479,7 +496,10 @@ internal static class TextRenderers
                 .Append(row)
                 .Append(column)
                 .Append(columnSpan)
+                .Append(visualColumnEnd)
+                .Append(mergeGroup)
                 .Append(verticalMerge)
+                .Append(verticalMergeRoot)
                 .Append(nestedTable)
                 .Append(text)
                 .AppendLine();
@@ -827,7 +847,10 @@ internal static class TextRenderers
             RowIndex = cell.RowIndex,
             ColumnIndex = cell.ColumnIndex,
             ColumnSpan = cell.ColumnSpan,
+            VisualColumnEndIndex = cell.VisualColumnEndIndex <= cell.ColumnIndex ? null : cell.VisualColumnEndIndex,
+            MergeGroupId = cell.MergeGroupId,
             VerticalMerge = cell.VerticalMerge,
+            VerticalMergeRootCellId = cell.VerticalMergeRootCellId,
             HasNestedTable = cell.HasNestedTable
         };
     }
