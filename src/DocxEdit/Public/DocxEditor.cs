@@ -160,6 +160,48 @@ public sealed class DocxEditor
         };
     }
 
+    public DocxContextResult Context(
+        Stream input,
+        string targetId,
+        DocxContextOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        options ??= new DocxContextOptions();
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        if (package is null)
+        {
+            return new DocxContextResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxContextResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model!, targetId, options.Radius, options.MaxText);
+        IReadOnlyList<DocxDiagnostic> contextDiagnostics = items.Count == 0
+            ? [new DocxDiagnostic(DocxSeverity.Error, "E2001", $"Target '{targetId}' was not found.", TargetId: targetId)]
+            : [];
+        return new DocxContextResult
+        {
+            Success = items.Count > 0,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
+                .Concat(contextDiagnostics)
+                .ToArray(),
+            TargetId = targetId,
+            Items = items,
+            Text = TextRenderers.RenderContext(items)
+        };
+    }
+
     public DocxStylesResult Styles(
         Stream input,
         DocxStylesOptions? options = null,
@@ -460,6 +502,11 @@ public sealed class DocxEditor
     }
 
     private static OoxmlPackageOptions ToPackageOptions(DocxDumpOptions options)
+    {
+        return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
+    }
+
+    private static OoxmlPackageOptions ToPackageOptions(DocxContextOptions options)
     {
         return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
     }

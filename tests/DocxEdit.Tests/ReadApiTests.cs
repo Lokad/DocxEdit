@@ -133,6 +133,56 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ContextSummarizesNearbyStructureWithoutTextByDefault()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0002");
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Items, item => item.Id == "M.P0001" && item.Relation == "before" && item.Text == string.Empty);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.P0002");
+        Assert.Equal("paragraph", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal(string.Empty, target.Text);
+        Assert.Contains("target M.P0002 paragraph", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextCanSummarizeTableCellNeighborhood()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.T0001.R01.C02", new DocxContextOptions { MaxText = 20 });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Items, item => item.Id == "M.T0001" && item.Relation == "parent" && item.Kind == "table");
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.T0001.R01.C02");
+        Assert.Equal("cell", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("M.T0001", target.ParentId);
+        Assert.Equal(1, target.RowIndex);
+        Assert.Equal(2, target.ColumnIndex);
+        Assert.Equal("Revenue", target.Text);
+    }
+
+    [Fact]
+    public static void ContextReportsUnknownTarget()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P9999");
+
+        Assert.False(result.Success);
+        Assert.Empty(result.Items);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E2001" && diagnostic.TargetId == "M.P9999");
+    }
+
+    [Fact]
     public static void ReadExtractsTabsAndLineBreaks()
     {
         using MemoryStream stream = CreateDocxWithBody("""

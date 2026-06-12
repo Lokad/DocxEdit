@@ -165,6 +165,110 @@ internal static class TextRenderers
             .ToArray();
     }
 
+    public static IReadOnlyList<DocxContextItem> Context(DocxDocumentModel model, string targetId, int radius, int maxText)
+    {
+        radius = Math.Max(0, radius);
+
+        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
+        if (paragraph is not null)
+        {
+            DocxParagraphInfo[] storyParagraphs = model.Paragraphs
+                .Where(candidate => string.Equals(candidate.Story, paragraph.Story, StringComparison.Ordinal))
+                .ToArray();
+            int index = Array.FindIndex(storyParagraphs, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+            return Window(storyParagraphs, index, radius)
+                .Select(item => ToContextItem(item.Value, Relation(item.Offset), maxText))
+                .ToArray();
+        }
+
+        DocxTableInfo? table = model.Tables.FirstOrDefault(table => string.Equals(table.Id, targetId, StringComparison.Ordinal));
+        if (table is not null)
+        {
+            DocxTableInfo[] storyTables = model.Tables
+                .Where(candidate => string.Equals(candidate.Story, table.Story, StringComparison.Ordinal))
+                .ToArray();
+            int index = Array.FindIndex(storyTables, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+            return Window(storyTables, index, radius)
+                .Select(item => ToContextItem(item.Value, Relation(item.Offset)))
+                .ToArray();
+        }
+
+        foreach (DocxTableInfo candidateTable in model.Tables)
+        {
+            DocxTableCellInfo? cell = candidateTable.Cells.FirstOrDefault(cell => string.Equals(cell.Id, targetId, StringComparison.Ordinal));
+            if (cell is not null)
+            {
+                return CellContext(candidateTable, cell, radius, maxText);
+            }
+
+            DocxTableCellInfo[] rowCells = candidateTable.Cells
+                .Where(cell => cell.Id.StartsWith($"{targetId}.C", StringComparison.Ordinal))
+                .OrderBy(cell => cell.ColumnIndex)
+                .ToArray();
+            if (rowCells.Length > 0)
+            {
+                return RowContext(candidateTable, targetId, rowCells, radius, maxText);
+            }
+        }
+
+        DocxSectionInfo? section = model.Sections.FirstOrDefault(section => string.Equals(section.Id, targetId, StringComparison.Ordinal));
+        if (section is not null)
+        {
+            DocxSectionInfo[] storySections = model.Sections
+                .Where(candidate => string.Equals(candidate.Story, section.Story, StringComparison.Ordinal))
+                .ToArray();
+            int index = Array.FindIndex(storySections, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+            return Window(storySections, index, radius)
+                .Select(item => ToContextItem(item.Value, Relation(item.Offset)))
+                .ToArray();
+        }
+
+        DocxImageInfo? image = model.Images.FirstOrDefault(image => string.Equals(image.Id, targetId, StringComparison.Ordinal));
+        return image is null
+            ? []
+            : [ToContextItem(image, "target")];
+    }
+
+    public static string RenderContext(IReadOnlyList<DocxContextItem> items)
+    {
+        var builder = new StringBuilder();
+        foreach (DocxContextItem item in items)
+        {
+            string story = string.IsNullOrWhiteSpace(item.Story) ? string.Empty : $" story=\"{Escape(item.Story)}\"";
+            string parent = item.ParentId is null ? string.Empty : $" parent={item.ParentId}";
+            string heading = item.HeadingLevel is null ? string.Empty : $" heading-level={item.HeadingLevel}";
+            string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
+            string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
+            string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
+            string column = item.ColumnIndex is null ? string.Empty : $" column={item.ColumnIndex}";
+            string columnSpan = item.ColumnSpan is null or 1 ? string.Empty : $" column-span={item.ColumnSpan}";
+            string verticalMerge = item.VerticalMerge is null ? string.Empty : $" vertical-merge={item.VerticalMerge}";
+            string nestedTable = item.HasNestedTable ? " nested-table=true" : string.Empty;
+            string text = item.Kind is "paragraph" or "cell"
+                ? $" text=\"{Escape(item.Text)}\""
+                : string.Empty;
+            builder.Append(item.Relation)
+                .Append(' ')
+                .Append(item.Id)
+                .Append(' ')
+                .Append(item.Kind)
+                .Append(story)
+                .Append(parent)
+                .Append(heading)
+                .Append(rowCount)
+                .Append(columnCount)
+                .Append(row)
+                .Append(column)
+                .Append(columnSpan)
+                .Append(verticalMerge)
+                .Append(nestedTable)
+                .Append(text)
+                .AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
     public static IReadOnlyList<string> RenderStyles(IReadOnlyList<DocxStyleInfo> styles)
     {
         return styles
@@ -176,6 +280,133 @@ internal static class TextRenderers
                 return $"{style.Type} styleId={style.StyleId} name=\"{Escape(style.Name)}\"{defaultText}";
             })
             .ToArray();
+    }
+
+    private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ToContextItem(table, "parent")
+        };
+        DocxTableCellInfo[] rowCells = table.Cells
+            .Where(candidate => candidate.RowIndex == cell.RowIndex)
+            .OrderBy(candidate => candidate.ColumnIndex)
+            .ToArray();
+        int index = Array.FindIndex(rowCells, candidate => string.Equals(candidate.Id, cell.Id, StringComparison.Ordinal));
+        items.AddRange(Window(rowCells, index, radius)
+            .Select(item => ToContextItem(item.Value, Relation(item.Offset), maxText, table.Id, table.Story)));
+        return items;
+    }
+
+    private static IReadOnlyList<DocxContextItem> RowContext(DocxTableInfo table, string rowId, IReadOnlyList<DocxTableCellInfo> rowCells, int radius, int maxText)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ToContextItem(table, "parent"),
+            new()
+            {
+                Id = rowId,
+                Kind = "row",
+                Relation = "target",
+                Story = table.Story,
+                ParentId = table.Id,
+                RowIndex = rowCells[0].RowIndex,
+                ColumnCount = rowCells.Count
+            }
+        };
+
+        items.AddRange(rowCells
+            .Take(Math.Max(1, radius * 2 + 1))
+            .Select(cell => ToContextItem(cell, "child", maxText, table.Id, table.Story)));
+        return items;
+    }
+
+    private static IEnumerable<(T Value, int Offset)> Window<T>(IReadOnlyList<T> items, int index, int radius)
+    {
+        if (index < 0)
+        {
+            yield break;
+        }
+
+        int start = Math.Max(0, index - radius);
+        int end = Math.Min(items.Count - 1, index + radius);
+        for (int i = start; i <= end; i++)
+        {
+            yield return (items[i], i - index);
+        }
+    }
+
+    private static string Relation(int offset)
+    {
+        return offset < 0 ? "before" : offset > 0 ? "after" : "target";
+    }
+
+    private static DocxContextItem ToContextItem(DocxParagraphInfo paragraph, string relation, int maxText)
+    {
+        return new DocxContextItem
+        {
+            Id = paragraph.Id,
+            Kind = "paragraph",
+            Relation = relation,
+            Story = paragraph.Story,
+            Text = Truncate(paragraph.Text, maxText),
+            HeadingLevel = paragraph.HeadingLevel
+        };
+    }
+
+    private static DocxContextItem ToContextItem(DocxTableInfo table, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = table.Id,
+            Kind = "table",
+            Relation = relation,
+            Story = table.Story,
+            RowCount = table.RowCount,
+            ColumnCount = table.ColumnCount
+        };
+    }
+
+    private static DocxContextItem ToContextItem(DocxTableCellInfo cell, string relation, int maxText, string parentId, string story)
+    {
+        return new DocxContextItem
+        {
+            Id = cell.Id,
+            Kind = "cell",
+            Relation = relation,
+            Story = story,
+            ParentId = parentId,
+            Text = Truncate(cell.Text, maxText),
+            RowIndex = cell.RowIndex,
+            ColumnIndex = cell.ColumnIndex,
+            ColumnSpan = cell.ColumnSpan,
+            VerticalMerge = cell.VerticalMerge,
+            HasNestedTable = cell.HasNestedTable
+        };
+    }
+
+    private static DocxContextItem ToContextItem(DocxSectionInfo section, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = section.Id,
+            Kind = "section",
+            Relation = relation,
+            Story = section.Story,
+            ColumnCount = section.Columns
+        };
+    }
+
+    private static DocxContextItem ToContextItem(DocxImageInfo image, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = image.Id,
+            Kind = "image",
+            Relation = relation,
+            ParentId = image.PartName,
+            Text = image.ContentType ?? string.Empty
+        };
     }
 
     private static string Escape(string text)

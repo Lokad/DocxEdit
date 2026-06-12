@@ -37,6 +37,7 @@ public static class CliTests
 
         Assert.Equal(0, help.ExitCode);
         Assert.Contains("docxedit read report.docx", help.Output, StringComparison.Ordinal);
+        Assert.Contains("docxedit context report.docx --id M.P0004", help.Output, StringComparison.Ordinal);
         Assert.Contains("docxedit apply report.docx edits.docxpatch --output report.edited.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("tracked-change and comment markup", help.Output, StringComparison.Ordinal);
         Assert.Equal(0, patchHelp.ExitCode);
@@ -53,6 +54,7 @@ public static class CliTests
     public static void CliHasCommandSpecificHelpForAgentWorkflows()
     {
         CliResult dump = RunCli("help", "dump");
+        CliResult context = RunCli("help", "context");
         CliResult changes = RunCli("help", "changes");
         CliResult check = RunCli("help", "check");
         CliResult apply = RunCli("help", "apply");
@@ -62,6 +64,10 @@ public static class CliTests
         Assert.Contains("markup=inserted-run", dump.Output, StringComparison.Ordinal);
         Assert.Contains("Runs array", dump.Output, StringComparison.Ordinal);
         Assert.Contains("not the same namespace", dump.Output, StringComparison.Ordinal);
+        Assert.Equal(0, context.ExitCode);
+        Assert.Contains("docxedit context input.docx --id TARGET", context.Output, StringComparison.Ordinal);
+        Assert.Contains("--max-text is 0", context.Output, StringComparison.Ordinal);
+        Assert.Contains("--radius N", context.Output, StringComparison.Ordinal);
         Assert.Equal(0, changes.ExitCode);
         Assert.Contains("GroupSummary", changes.Output, StringComparison.Ordinal);
         Assert.Contains("TargetSummary", changes.Output, StringComparison.Ordinal);
@@ -91,6 +97,20 @@ public static class CliTests
         Assert.Contains("paragraphs count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("images count=1", result.Output, StringComparison.Ordinal);
         Assert.Contains("story=\"main\" paragraphs=1", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue increased", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliContextPrintsStructureWithoutTextByDefault()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult result = RunCli("context", input, "--id", "M.P0001");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("target M.P0001 paragraph story=\"main\" text=\"\"", result.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("Revenue increased", result.Output, StringComparison.Ordinal);
     }
 

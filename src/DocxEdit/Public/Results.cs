@@ -37,6 +37,13 @@ public sealed record DocxDumpResult : DocxOperationResult
     public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
 }
 
+public sealed record DocxContextResult : DocxOperationResult
+{
+    public string TargetId { get; init; } = string.Empty;
+    public string Text { get; init; } = string.Empty;
+    public IReadOnlyList<DocxContextItem> Items { get; init; } = [];
+}
+
 public sealed record DocxStylesResult : DocxOperationResult
 {
     public IReadOnlyList<DocxStyleInfo> Styles { get; init; } = [];
@@ -140,6 +147,24 @@ public sealed record DocxDumpRunInfo
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
     public string? CommentId { get; init; }
+}
+
+public sealed record DocxContextItem
+{
+    public string Id { get; init; } = string.Empty;
+    public string Kind { get; init; } = string.Empty;
+    public string Relation { get; init; } = string.Empty;
+    public string Story { get; init; } = string.Empty;
+    public string? ParentId { get; init; }
+    public string Text { get; init; } = string.Empty;
+    public int? HeadingLevel { get; init; }
+    public int? RowCount { get; init; }
+    public int? ColumnCount { get; init; }
+    public int? RowIndex { get; init; }
+    public int? ColumnIndex { get; init; }
+    public int? ColumnSpan { get; init; }
+    public string? VerticalMerge { get; init; }
+    public bool HasNestedTable { get; init; }
 }
 
 public sealed record DocxParagraphInfo(

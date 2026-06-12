@@ -12,6 +12,7 @@ dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
 - `outline input.docx [--headers-footers] [--json] [--diagnostics path] [--strict]`
 - `find input.docx "text" [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
+- `context input.docx --id M.P0001 [--radius N] [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `styles input.docx [--json] [--diagnostics path] [--strict]`
 - `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
 - `changes input.docx [--json] [--diagnostics path] [--strict]`
@@ -55,6 +56,10 @@ docxedit dump report.docx --id M.P0004 --runs --json |
   Select-Object -ExpandProperty Runs
 ```
 
+`context` summarizes nearby modeled structure around one target without broad document
+text. Its default `--max-text` is `0`, so paragraph and cell text fields are present
+but empty. Use `--radius` to include same-kind neighbors and raise `--max-text` only
+when short snippets are needed.
 Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
 `read --summary` prints package/story counts without listing every target, which is
 useful for large-document validation.
@@ -83,6 +88,7 @@ Command-specific help is available for common agent workflows:
 
 ```powershell
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help dump
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help context
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help changes
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help check
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help apply

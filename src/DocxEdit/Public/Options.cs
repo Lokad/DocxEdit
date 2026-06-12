@@ -43,6 +43,18 @@ public sealed class DocxDumpOptions
     public bool LeaveInputOpen { get; init; } = true;
 }
 
+public sealed class DocxContextOptions
+{
+    public bool IncludeHeadersFooters { get; init; }
+    public DocxTextView TextView { get; init; } = DocxTextView.Final;
+    public int Radius { get; init; } = 1;
+    public int MaxText { get; init; }
+    public int MaxZipEntries { get; init; } = 10_000;
+    public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
+    public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;
+    public bool LeaveInputOpen { get; init; } = true;
+}
+
 public sealed class DocxStylesOptions
 {
     public int MaxZipEntries { get; init; } = 10_000;

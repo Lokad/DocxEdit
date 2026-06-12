@@ -20,6 +20,7 @@ internal static class ProgramMain
                 {
                     "patch" => WriteHelpAndReturn(WritePatchHelp),
                     "dump" => WriteHelpAndReturn(WriteDumpHelp),
+                    "context" => WriteHelpAndReturn(WriteContextHelp),
                     "changes" => WriteHelpAndReturn(WriteChangesHelp),
                     "check" => WriteHelpAndReturn(WriteCheckHelp),
                     "apply" => WriteHelpAndReturn(WriteApplyHelp),
@@ -46,6 +47,7 @@ internal static class ProgramMain
                 "outline" => RunOutline(options),
                 "find" => RunFind(options),
                 "dump" => RunDump(options),
+                "context" => RunContext(options),
                 "styles" => RunStyles(options),
                 "media" => RunMedia(options),
                 "changes" => RunChanges(options),
@@ -173,6 +175,34 @@ internal static class ProgramMain
         else if (result.Text is not null)
         {
             Console.WriteLine(result.Text);
+        }
+
+        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+    }
+
+    private static int RunContext(ParsedOptions options)
+    {
+        if (options.Positionals.Count != 1 || options.Id is null)
+        {
+            return InvalidUsage("Usage: docxedit context input.docx --id M.P0001 [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+        }
+
+        using Stream input = File.OpenRead(options.Positionals[0]);
+        DocxContextResult result = new DocxEditor().Context(input, options.Id, new DocxContextOptions
+        {
+            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+            TextView = options.TextView,
+            Radius = options.Radius ?? 1,
+            MaxText = options.MaxText ?? 0
+        });
+        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
+        if (options.Json)
+        {
+            WriteJson(result);
+        }
+        else
+        {
+            Console.Write(result.Text);
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
@@ -533,6 +563,7 @@ internal static class ProgramMain
               outline    Show headings, tables, images, sections, headers, footers
               find       Find text and print stable edit targets
               dump       Dump one target in detail
+              context    Show nearby structure around one target without broad text
               styles     List paragraph, character, and table styles
               media      List embedded images
               changes    List tracked-change and comment markup without printing private text
@@ -542,16 +573,43 @@ internal static class ProgramMain
               apply      Apply a .docxpatch file and write a new .docx
 
             Help:
-              help dump|changes|check|apply|patch
+              help dump|context|changes|check|apply|patch
 
             Examples:
               docxedit read report.docx [--view final|original|markup]
               docxedit read report.docx --summary
               docxedit dump report.docx --id M.P0004 --runs
+              docxedit context report.docx --id M.P0004
               docxedit media report.docx --extract media
               docxedit changes report.docx
               docxedit check report.docx edits.docxpatch
               docxedit apply report.docx edits.docxpatch --output report.edited.docx
+            """);
+    }
+
+    private static void WriteContextHelp()
+    {
+        Console.WriteLine("""
+            docxedit context input.docx --id TARGET [options]
+
+            Summarize nearby modeled structure around one target without broad document
+            text. By default, --max-text is 0, so paragraph and cell text fields are
+            present but empty. Increase --max-text only when short snippets are needed.
+
+            Options:
+              --id M.P0001                 Target ID from read, outline, find, or changes
+              --radius N                   Number of same-kind neighbors to include
+              --headers-footers            Include header/footer stories
+              --view final|original|markup Text view when --max-text is greater than 0
+              --max-text N                 Maximum text per paragraph/cell; default 0
+              --json                       Print the result object as JSON
+              --diagnostics path           Write diagnostics JSON
+              --strict                     Return 3 when warnings are present
+
+            Examples:
+              docxedit context report.docx --id M.P0004
+              docxedit context report.docx --id M.T0001.R02.C03 --radius 1 --max-text 80
+              docxedit context report.docx --id M.P0004 --json
             """);
     }
 
@@ -771,6 +829,7 @@ internal static class ProgramMain
         string? Id,
         string? ExtractPath,
         int? MaxText,
+        int? Radius,
         TrackChangesMode TrackChanges,
         string? Author,
         DateTimeOffset? TimestampUtc,
@@ -791,6 +850,7 @@ internal static class ProgramMain
             string? id = null;
             string? extractPath = null;
             int? maxText = null;
+            int? radius = null;
             TrackChangesMode trackChanges = TrackChangesMode.Off;
             string? author = null;
             DateTimeOffset? timestampUtc = null;
@@ -849,6 +909,19 @@ internal static class ProgramMain
                         }
 
                         maxText = parsedMaxText;
+                        break;
+                    case "--radius":
+                        if (!TryReadValue(args, ref i, out string? radiusValue))
+                        {
+                            return WithError(command, "Missing value for --radius.");
+                        }
+
+                        if (!int.TryParse(radiusValue, out int parsedRadius) || parsedRadius < 0)
+                        {
+                            return WithError(command, "Invalid value for --radius.");
+                        }
+
+                        radius = parsedRadius;
                         break;
                     case "--track-changes":
                         if (!TryReadValue(args, ref i, out string? trackChangesValue))
@@ -920,7 +993,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, trackChanges, author, timestampUtc, textView, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, radius, trackChanges, author, timestampUtc, textView, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -937,7 +1010,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)
