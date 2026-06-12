@@ -256,6 +256,11 @@ public sealed class DocxEditor
         DocxMediaOptions? options = null,
         CancellationToken cancellationToken = default);
 
+    public DocxValidateResult Validate(
+        Stream input,
+        DocxValidateOptions? options = null,
+        CancellationToken cancellationToken = default);
+
     public DocxChangesResult Changes(
         Stream input,
         DocxChangesOptions? options = null,
@@ -323,7 +328,8 @@ public sealed class DocxEditOptions
 }
 ```
 
-Read-only option classes share the same package-limit and `LeaveInputOpen` defaults.
+Read-only option classes share the same package-limit and `LeaveInputOpen` defaults,
+including `DocxValidateOptions`.
 `DocxReadOptions`, `DocxFindOptions`, `DocxDumpOptions`, and `DocxContextOptions`
 also accept `DocxTextView` (`Final`, `Original`, or `Markup`) where visible text is
 rendered. `DocxContextOptions.MaxText` defaults to `0`; callers opt in when context
@@ -426,6 +432,12 @@ public sealed record DocxChangesResult : DocxOperationResult
     public IReadOnlyList<DocxChangeTargetSummary> TargetSummary { get; init; } = [];
     public IReadOnlyList<DocxCommentThreadSummary> CommentSummary { get; init; } = [];
 }
+
+public sealed record DocxValidateResult : DocxOperationResult
+{
+    public IReadOnlyList<string> PartNames { get; init; } = [];
+    public string? MainDocumentPartName { get; init; }
+}
 ```
 
 `Changes` must be private-text-free by default. It may report revision/comment
@@ -483,6 +495,7 @@ public static class DocxTextRenderer
     public static string RenderContext(DocxContextResult result);
     public static string RenderStyles(DocxStylesResult result);
     public static string RenderMedia(DocxMediaResult result);
+    public static string RenderValidate(DocxValidateResult result);
     public static string RenderChanges(DocxChangesResult result);
     public static string RenderOperationSummary(IReadOnlyList<DocxPatchOperationReport> operations);
 }
@@ -1810,7 +1823,9 @@ It must never modify the input stream.
 
 ### 13.3 Internal validation
 
-Because the production library cannot use the Open XML SDK, internal validation is not full schema validation. It must check:
+Because the production library cannot use the Open XML SDK, internal validation is not full schema validation. The dependency policy is explicit: the production library stays dependency-free beyond the .NET platform, so validation is a layered internal invariant checker rather than an ISO/IEC 29500 XSD validator.
+
+Patch apply validation must check:
 
 * ZIP package is readable.
 * Required package parts exist.
@@ -1824,6 +1839,16 @@ Because the production library cannot use the Open XML SDK, internal validation 
 * Main document root has expected WordprocessingML namespace.
 * Edited tables still contain valid basic `w:tbl/w:tr/w:tc` nesting.
 * Edited paragraphs still contain valid basic `w:p/w:r/w:t` nesting.
+
+`DocxEditor.Validate` and `docxedit validate` must additionally scan safe XML parts
+without editing and report stable `E91xx` diagnostics with `PartName` metadata for:
+
+* expected roots for known WordprocessingML parts (`document`, `styles`, `numbering`,
+  `settings`, `comments`, headers, and footers);
+* paired bookmark and comment range start/end IDs;
+* complex field begin/end balance;
+* DrawingML `a:blip` relationship references;
+* basic table row/cell shape.
 
 Return warning:
 
@@ -1862,6 +1887,17 @@ W9xxx validation limitations
 ```
 
 Diagnostic records should include `PartName` when the issue is tied to an OOXML part, `Story` when it is tied to a story such as main document/header/footer/footnote, `Feature` for unsupported or approximated OOXML features, `Fallback` for the behavior the library used, and `OperationIndex` for patch operation diagnostics.
+
+Structural validation codes:
+
+```text
+E9101 XML part has no root element
+E9102 known WordprocessingML part has an unexpected root
+E9103 bookmark or comment range start/end IDs are unbalanced
+E9104 complex field begin/end markers are unbalanced
+E9105 drawing references a missing relationship ID
+E9106 table or row is missing required row/cell structure
+```
 
 Unsupported or approximated feature diagnostics must be emitted as warnings during read/check/apply when they can affect the requested workflow. Repeated occurrences of the same unsupported feature in the same part should be aggregated into one warning unless the exact target list is useful for fixing the patch.
 
@@ -1958,6 +1994,7 @@ docxedit help patch
 docxedit help dump
 docxedit help context
 docxedit help changes
+docxedit help validate
 docxedit help check
 docxedit help apply
 
@@ -1970,6 +2007,7 @@ docxedit context input.docx --id M.P0004
 docxedit styles input.docx
 docxedit media input.docx
 docxedit media input.docx --extract media
+docxedit validate input.docx
 docxedit changes input.docx
 
 docxedit check input.docx edits.docxpatch
@@ -2598,6 +2636,7 @@ Read / explore:
   context    Show nearby structure around one target without broad text
   styles     List paragraph, character, and table styles
   media      List embedded images
+  validate   Validate package and WordprocessingML invariants
   changes    List tracked-change and comment markup without printing private text
 
 Patch:
@@ -2605,7 +2644,7 @@ Patch:
   apply      Apply a .docxpatch file and write a new .docx
 
 Help:
-  help dump|context|changes|check|apply|patch
+  help dump|context|changes|validate|check|apply|patch
 
 Examples:
   docxedit read report.docx [--view final|original|markup]
@@ -2613,6 +2652,7 @@ Examples:
   docxedit dump report.docx --id M.P0004 --runs
   docxedit context report.docx --id M.P0004
   docxedit media report.docx --extract media
+  docxedit validate report.docx
   docxedit changes report.docx
   docxedit check report.docx edits.docxpatch
   docxedit apply report.docx edits.docxpatch --output report.edited.docx
@@ -2624,6 +2664,7 @@ Command-specific help must exist for:
 docxedit help dump
 docxedit help context
 docxedit help changes
+docxedit help validate
 docxedit help check
 docxedit help apply
 docxedit help patch
@@ -2649,6 +2690,10 @@ timestamp shape, range `paired-change-id`, and the explicit
 dump run IDs are separate from `changes` change IDs.
 
 `docxedit help context` must state that default `--max-text` is `0`.
+
+`docxedit help validate` must describe structural package validation, WordprocessingML
+invariants, JSON diagnostics, and the fact that diagnostics include stable codes and
+part names.
 
 ---
 
@@ -2710,7 +2755,7 @@ The implementation is acceptable when all of the following are true:
 1. `DocxEdit` production project has no NuGet dependencies.
 2. All public APIs operate on streams.
 3. Public operations observe cancellation tokens.
-4. CLI can read, outline, find, dump, context, styles, media, changes, check, and apply.
+4. CLI can read, outline, find, dump, context, styles, media, validate, changes, check, and apply.
 5. CLI can write diagnostics JSON and `--strict` returns exit code `3` on warnings.
 6. `.docxpatch` parser supports the specified block/heredoc syntax.
 7. `expect-hash` is not implemented and is rejected if present.
@@ -2731,8 +2776,8 @@ The implementation is acceptable when all of the following are true:
 20. `dump --runs --json` exposes structured run markup metadata.
 21. `context` can summarize nearby modeled structure with `MaxText = 0` by default.
 22. `check` and `apply` expose operation-level reports in JSON and compact plain text.
-23. Command-specific help exists for `dump`, `context`, `changes`, `check`, `apply`,
-    and `patch`.
+23. Command-specific help exists for `dump`, `context`, `changes`, `validate`,
+    `check`, `apply`, and `patch`.
 24. Golden tests prove deterministic read/probe output.
 25. Stream-only tests prove no file-system dependency in the library.
 26. Public edit-case validation tools can run at least one smoke case.

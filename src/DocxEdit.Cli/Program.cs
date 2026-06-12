@@ -47,6 +47,7 @@ internal static class ProgramMain
                 "context" => RunContext(options),
                 "styles" => RunStyles(options),
                 "media" => RunMedia(options),
+                "validate" => RunValidate(options),
                 "changes" => RunChanges(options),
                 "check" => RunCheck(options),
                 "apply" => RunApply(options),
@@ -244,6 +245,28 @@ internal static class ProgramMain
         else
         {
             Console.Write(DocxTextRenderer.RenderMedia(result));
+        }
+
+        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+    }
+
+    private static int RunValidate(ParsedOptions options)
+    {
+        if (options.Positionals.Count != 1)
+        {
+            return InvalidUsage("Usage: docxedit validate input.docx [--json] [--diagnostics <path>] [--strict]");
+        }
+
+        using Stream input = File.OpenRead(options.Positionals[0]);
+        DocxValidateResult result = new DocxEditor().Validate(input);
+        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
+        if (options.Json)
+        {
+            WriteJson(result);
+        }
+        else
+        {
+            Console.Write(DocxTextRenderer.RenderValidate(result));
         }
 
         return ExitCode(result.Success, result.Diagnostics, options.Strict);

@@ -30,6 +30,67 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateAcceptsBasicDocument()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+        Assert.Contains("/word/document.xml", result.PartNames);
+        Assert.Equal("/word/document.xml", result.MainDocumentPartName);
+    }
+
+    [Fact]
+    public static void ValidateReportsWordprocessingInvariants()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                        xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                      <w:bookmarkStart w:id="7" w:name="OpenBookmark"/>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rMissing"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr/>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9103" &&
+            diagnostic.PartName == "/word/document.xml" &&
+            diagnostic.Message.Contains("bookmark", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9104");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9105");
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9106" &&
+            diagnostic.Message.Contains("row", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ReadExtractsMergedAndNestedTableMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""

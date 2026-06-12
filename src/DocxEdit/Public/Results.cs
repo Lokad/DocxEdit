@@ -58,6 +58,12 @@ public sealed record DocxMediaResult : DocxOperationResult
     public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
 }
 
+public sealed record DocxValidateResult : DocxOperationResult
+{
+    public IReadOnlyList<string> PartNames { get; init; } = [];
+    public string? MainDocumentPartName { get; init; }
+}
+
 public sealed record DocxChangesResult : DocxOperationResult
 {
     public IReadOnlyList<string> PartNames { get; init; } = [];

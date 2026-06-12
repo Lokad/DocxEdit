@@ -18,6 +18,26 @@ The public API normalizes expected package, ZIP, XML, and relationship failures 
 
 This is structural validation, not full OOXML schema validation.
 
+## Structural Package Validation
+
+`DocxEditor.Validate` and `docxedit validate input.docx` run bounded structural
+validation without editing the document. The result includes package part names, the
+main document part name, and diagnostics with part names when a problem is tied to a
+specific OOXML part.
+
+Current checks include:
+
+- expected roots for known WordprocessingML parts such as the main document, styles,
+  numbering, settings, comments, headers, and footers;
+- paired bookmark and comment range start/end IDs;
+- complex field begin/end balance;
+- DrawingML `a:blip` relationship references;
+- basic table row/cell shape.
+
+This remains layered internal validation rather than full ISO/IEC 29500 schema
+validation. It is designed to catch common corruption and relationship mistakes with
+stable `E91xx` diagnostics.
+
 ## Public Edit Cases
 
 Tracked public cases live under `edit-cases/cases/` as JSON manifests. A case defines synthetic

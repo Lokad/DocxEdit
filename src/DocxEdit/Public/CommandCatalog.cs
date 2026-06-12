@@ -127,7 +127,7 @@ public static class DocxHelp
         AppendCommandGroup(builder, "Patch", "patch");
         builder.AppendLine();
         builder.AppendLine("Help:");
-        builder.AppendLine("  help dump|context|changes|check|apply|patch");
+        builder.AppendLine("  help dump|context|changes|validate|check|apply|patch");
         builder.AppendLine();
         builder.AppendLine("Examples:");
         foreach (string example in Catalog.Examples)
@@ -464,6 +464,29 @@ public static class DocxHelp
                 },
                 new()
                 {
+                    Name = "validate",
+                    Category = "read",
+                    Summary = "Validate package and WordprocessingML invariants",
+                    Usage = "docxedit validate input.docx [--json] [--diagnostics <path>] [--strict]",
+                    Description = "Validate package-level XML roots and WordprocessingML invariants: paired bookmark/comment ranges, complex field balance, drawing relationships, and basic table shape.",
+                    Options =
+                    [
+                        new("--json", "Print the result object as JSON"),
+                        new("--diagnostics path", "Write diagnostics JSON"),
+                        new("--strict", "Return 3 when warnings are present")
+                    ],
+                    OutputFields =
+                    [
+                        new("Diagnostics", "Validation errors and warnings with part names and stable diagnostic codes")
+                    ],
+                    Examples =
+                    [
+                        "docxedit validate report.docx",
+                        "docxedit validate report.docx --json"
+                    ]
+                },
+                new()
+                {
                     Name = "changes",
                     Category = "read",
                     Summary = "List tracked-change and comment markup; comment text is opt-in",
@@ -578,6 +601,7 @@ public static class DocxHelp
                 "docxedit dump report.docx --id M.P0004 --runs",
                 "docxedit context report.docx --id M.P0004",
                 "docxedit media report.docx --extract media",
+                "docxedit validate report.docx",
                 "docxedit changes report.docx",
                 "docxedit check report.docx edits.docxpatch",
                 "docxedit apply report.docx edits.docxpatch --output report.edited.docx"

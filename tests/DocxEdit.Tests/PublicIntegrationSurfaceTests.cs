@@ -100,12 +100,28 @@ public static class PublicIntegrationSurfaceTests
 
         string changeText = DocxTextRenderer.RenderChanges(changes);
         string operationText = DocxTextRenderer.RenderOperationSummary(operations);
+        string validateText = DocxTextRenderer.RenderValidate(new DocxValidateResult
+        {
+            Success = false,
+            Diagnostics =
+            [
+                new DocxDiagnostic(
+                    DocxSeverity.Error,
+                    "E9105",
+                    "Drawing references missing relationship 'rMissing'.",
+                    PartName: "/word/document.xml")
+            ],
+            PartNames = ["/word/document.xml"],
+            MainDocumentPartName = "/word/document.xml"
+        });
 
         Assert.Contains("inserted-run count=1", changeText, StringComparison.Ordinal);
         Assert.Contains("target-summary target=M.P0001 count=1", changeText, StringComparison.Ordinal);
         Assert.Contains("target-source=ancestor", changeText, StringComparison.Ordinal);
         Assert.Contains("text-length=14", changeText, StringComparison.Ordinal);
         Assert.Contains("operation index=1 name=replace-text target=M.P0001 success=True", operationText, StringComparison.Ordinal);
+        Assert.Contains("docxedit validate: FAILED", validateText, StringComparison.Ordinal);
+        Assert.Contains("Error E9105 part=/word/document.xml", validateText, StringComparison.Ordinal);
     }
 
     [Fact]

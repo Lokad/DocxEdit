@@ -15,6 +15,7 @@ dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
 - `context input.docx --id M.P0001 [--radius N] [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `styles input.docx [--json] [--diagnostics path] [--strict]`
 - `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
+- `validate input.docx [--json] [--diagnostics path] [--strict]`
 - `changes input.docx [--include-comment-text] [--max-comment-text N] [--json] [--diagnostics path] [--strict]`
 
 `changes` lists existing tracked-change and comment markup. By default it does not
@@ -45,20 +46,16 @@ body records also include `comment-anchor-target`, `comment-reference-target`,
 `comment-anchor-story`, and `comment-anchor-part` so an agent can navigate from the
 comment-story record back to the main document anchor without printing comment text.
 `TimestampUtc` and `CommentTimestampUtc` serialize as nullable UTC ISO-8601 values.
-Raw JSON uses UTC values such as `+00:00`; PowerShell `ConvertFrom-Json` may display
-date values in the local timezone after parsing.
+Raw JSON uses UTC values such as `+00:00`; JSON consumers that parse dates may display
+those values in a local timezone, so inspect the raw serialized value when the offset
+matters.
 Use `dump --runs` on a target to see run-level `markup=...`, `revision-id`, and
 `comment-id` annotations for nearby tracked-change/comment markup. With `--json`,
 `dump --runs` also exposes those annotations as structured `Runs` objects.
 Change IDs from `changes` identify markup records. Run IDs from `dump --runs` identify
 rendered run/marker lines and are a separate namespace.
-To extract structured run metadata in PowerShell:
-
-```powershell
-docxedit dump report.docx --id M.P0004 --runs --json |
-  ConvertFrom-Json |
-  Select-Object -ExpandProperty Runs
-```
+Use `docxedit dump report.docx --id M.P0004 --runs --json` when structured run
+metadata is easier for an integration to consume than text output.
 
 `context` summarizes nearby modeled structure around one target without broad document
 text. Its default `--max-text` is `0`, so paragraph and cell text fields are present
@@ -107,6 +104,12 @@ count, omitted grid columns (`grid-before`/`grid-after`), header status, and
 `cant-split`. Cell lines include logical target column plus `physical-column`, span,
 vertical merge, and nested-table metadata. Row operations still reject unsafe
 non-rectangular tables unless `force true` is explicitly supplied.
+`validate` runs bounded structural package checks and WordprocessingML invariants:
+known part roots, paired bookmark/comment ranges, complex field begin/end balance,
+drawing relationship references, and basic table row/cell shape. This is not full
+ISO/IEC 29500 schema validation; it is intended to catch common corruption and
+relationship mistakes with stable diagnostics such as `E9103`, `E9104`, `E9105`,
+and `E9106`.
 
 ## Patch
 
@@ -138,10 +141,10 @@ Command-specific help is available for common agent workflows:
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help dump
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help context
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help changes
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help validate
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help check
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help apply
 dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help patch
 ```
 
-Examples use `--output` for PowerShell compatibility; `-o` remains supported as a
-short alias.
+Examples use `--output` for clarity; `-o` remains supported as a short alias.

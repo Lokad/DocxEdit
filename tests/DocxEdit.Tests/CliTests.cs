@@ -21,6 +21,23 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliValidatePrintsStatus()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult text = RunCli("validate", input);
+        CliResult json = RunCli("validate", input, "--json");
+
+        Assert.Equal(0, text.ExitCode);
+        Assert.Contains("docxedit validate: OK", text.Output, StringComparison.Ordinal);
+        Assert.Equal(0, json.ExitCode);
+        Assert.Contains("\"Success\": true", json.Output, StringComparison.Ordinal);
+        Assert.Contains("\"MainDocumentPartName\": \"/word/document.xml\"", json.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliReturnsTwoForInvalidArguments()
     {
         CliResult result = RunCli("dump", "input.docx");
@@ -39,6 +56,7 @@ public static class CliTests
         Assert.Equal(DocxHelp.RenderOverview(), help.Output);
         Assert.Contains("docxedit read report.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("docxedit context report.docx --id M.P0004", help.Output, StringComparison.Ordinal);
+        Assert.Contains("docxedit validate report.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("docxedit apply report.docx edits.docxpatch --output report.edited.docx", help.Output, StringComparison.Ordinal);
         Assert.Contains("tracked-change and comment markup", help.Output, StringComparison.Ordinal);
         Assert.Equal(0, patchHelp.ExitCode);
@@ -63,6 +81,7 @@ public static class CliTests
         CliResult dump = RunCli("help", "dump");
         CliResult context = RunCli("help", "context");
         CliResult changes = RunCli("help", "changes");
+        CliResult validate = RunCli("help", "validate");
         CliResult check = RunCli("help", "check");
         CliResult apply = RunCli("help", "apply");
 
@@ -88,6 +107,10 @@ public static class CliTests
         Assert.Contains("Some JSON consumers", changes.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("PowerShell", changes.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
+        Assert.Equal(0, validate.ExitCode);
+        Assert.Contains("docxedit validate input.docx", validate.Output, StringComparison.Ordinal);
+        Assert.Contains("WordprocessingML invariants", validate.Output, StringComparison.Ordinal);
+        Assert.Contains("stable diagnostic codes", validate.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
         Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);
         Assert.Contains("operation line", check.Output, StringComparison.Ordinal);

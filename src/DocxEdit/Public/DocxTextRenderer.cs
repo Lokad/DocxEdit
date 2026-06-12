@@ -134,6 +134,25 @@ public static class DocxTextRenderer
         return builder.ToString();
     }
 
+    public static string RenderValidate(DocxValidateResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var builder = new StringBuilder();
+        builder.AppendLine(result.Success ? "docxedit validate: OK" : "docxedit validate: FAILED");
+        foreach (DocxDiagnostic diagnostic in result.Diagnostics)
+        {
+            builder.Append(diagnostic.Severity)
+                .Append(' ')
+                .Append(diagnostic.Code)
+                .Append(" part=")
+                .Append(diagnostic.PartName ?? "unknown")
+                .Append(' ')
+                .AppendLine(diagnostic.Message);
+        }
+
+        return builder.ToString();
+    }
+
     public static string RenderChanges(DocxChangesResult result)
     {
         ArgumentNullException.ThrowIfNull(result);

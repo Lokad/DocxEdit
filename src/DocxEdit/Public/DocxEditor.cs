@@ -268,6 +268,40 @@ public sealed class DocxEditor
         };
     }
 
+    public DocxValidateResult Validate(
+        Stream input,
+        DocxValidateOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        options ??= new DocxValidateOptions();
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        if (package is null)
+        {
+            return new DocxValidateResult { Success = false, Diagnostics = diagnostics };
+        }
+
+        if (!TryDocumentOperation(() => DocxPackageValidator.Validate(package, cancellationToken), out IReadOnlyList<DocxDiagnostic>? validationDiagnostics, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxValidateResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                MainDocumentPartName = package.MainDocumentPartName
+            };
+        }
+
+        IReadOnlyList<DocxDiagnostic> allDiagnostics = diagnostics.Concat(validationDiagnostics!).ToArray();
+        return new DocxValidateResult
+        {
+            Success = allDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error),
+            Diagnostics = allDiagnostics,
+            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            MainDocumentPartName = package.MainDocumentPartName
+        };
+    }
+
     public DocxChangesResult Changes(
         Stream input,
         DocxChangesOptions? options = null,
@@ -521,6 +555,11 @@ public sealed class DocxEditor
     }
 
     private static OoxmlPackageOptions ToPackageOptions(DocxMediaOptions options)
+    {
+        return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
+    }
+
+    private static OoxmlPackageOptions ToPackageOptions(DocxValidateOptions options)
     {
         return new OoxmlPackageOptions(options.LeaveInputOpen, options.MaxZipEntries, options.MaxUncompressedBytes, options.MaxSinglePartBytes);
     }
