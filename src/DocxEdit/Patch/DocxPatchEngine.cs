@@ -9,6 +9,7 @@ namespace DocxEdit;
 internal static class DocxPatchEngine
 {
     private const string SettingsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
+    private const string CommentsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml";
 
     private static readonly IReadOnlyDictionary<XName, string> ProtectedTextEditElements = new Dictionary<XName, string>
     {
@@ -102,6 +103,7 @@ internal static class DocxPatchEngine
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
                     "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
+                    "add-comment" => ExecuteAddComment(package, operation, options, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
                     "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
@@ -1113,6 +1115,87 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteAddComment(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxEditOptions options,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string author = operation.Fields.GetValueOrDefault("author") ?? options.Author;
+        string? initials = operation.Fields.GetValueOrDefault("initials");
+        DateTimeOffset timestampUtc = options.TimestampUtc.ToUniversalTime();
+        if (operation.Fields.TryGetValue("date", out string? date))
+        {
+            if (!DateTimeOffset.TryParse(date, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset parsedDate))
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", $"Field 'date' must be an ISO-8601 timestamp: {date}.", operation, target));
+            }
+            else
+            {
+                timestampUtc = parsedDate.ToUniversalTime();
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(author))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'author' must not be empty.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
+        if (paragraphTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 paragraph targets: {target}.", operation, target)];
+        }
+
+        string current = ReadVisibleText(paragraphTarget.Paragraph);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return
+            [
+                Diagnostic(
+                    DocxSeverity.Error,
+                    "E3201",
+                    $"Guard failed for {target}. Expected text does not match current text.",
+                    operation,
+                    target)
+            ];
+        }
+
+        DocxDiagnostic? commentsPartDiagnostic = ValidateExistingCommentsPart(package, cancellationToken);
+        if (commentsPartDiagnostic is not null)
+        {
+            return [commentsPartDiagnostic];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        CommentsPartTarget commentsPart = ResolveOrCreateCommentsPart(package, cancellationToken);
+        string commentId = AllocateCommentId(package, cancellationToken);
+        commentsPart.Root.Add(CreateComment(commentId, text!, author, initials, timestampUtc));
+        AddCommentAnchor(paragraphTarget.Paragraph, commentId);
+        SaveDocumentPart(package, commentsPart.PartName, commentsPart.Document);
+        SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCommentText(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -1892,6 +1975,107 @@ internal static class DocxPatchEngine
             .ToArray();
     }
 
+    private static DocxDiagnostic? ValidateExistingCommentsPart(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
+            if (root.Name != OoxmlNs.W + "comments")
+            {
+                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Comments part '{partName}' has root '{root.Name.LocalName}', expected 'comments'.", PartName: partName);
+            }
+        }
+
+        return null;
+    }
+
+    private static CommentsPartTarget ResolveOrCreateCommentsPart(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        string? commentsPartName = GetCommentsPartNames(package, cancellationToken).FirstOrDefault();
+        if (commentsPartName is null)
+        {
+            commentsPartName = "/word/comments.xml";
+            if (package.GetPart(commentsPartName) is null)
+            {
+                byte[] bytes = Encoding.UTF8.GetBytes("""
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
+                    """);
+                package.AddPart(commentsPartName, CommentsContentType, bytes);
+            }
+
+            string relationshipId = OoxmlIds.AllocateRelationshipId(package
+                .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+                .Select(relationship => relationship.Id));
+            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Comments, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsPartName));
+        }
+        else if (package.GetPart(commentsPartName) is null)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes("""
+                <?xml version="1.0" encoding="utf-8"?>
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
+                """);
+            package.AddPart(commentsPartName, CommentsContentType, bytes);
+        }
+
+        XDocument document = LoadDocumentPart(package, commentsPartName, cancellationToken, out XElement root);
+        if (root.Name != OoxmlNs.W + "comments")
+        {
+            throw new InvalidDataException($"Comments part '{commentsPartName}' has root '{root.Name.LocalName}', expected 'comments'.");
+        }
+
+        return new CommentsPartTarget(commentsPartName, document, root);
+    }
+
+    private static string AllocateCommentId(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        int maxId = -1;
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (string id in document.Descendants(OoxmlNs.W + "comment").Select(comment => (string?)comment.Attribute(OoxmlNs.W + "id")).OfType<string>())
+            {
+                maxId = Math.Max(maxId, ParseNonNegativeIdOrDefault(id, -1));
+            }
+        }
+
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
+                part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (string id in document
+                .Descendants()
+                .Where(element => element.Name == OoxmlNs.W + "commentRangeStart" ||
+                    element.Name == OoxmlNs.W + "commentRangeEnd" ||
+                    element.Name == OoxmlNs.W + "commentReference")
+                .Select(element => (string?)element.Attribute(OoxmlNs.W + "id"))
+                .OfType<string>())
+            {
+                maxId = Math.Max(maxId, ParseNonNegativeIdOrDefault(id, -1));
+            }
+        }
+
+        return (maxId + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static int ParseNonNegativeIdOrDefault(string value, int fallback)
+    {
+        return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id) && id >= 0
+            ? id
+            : fallback;
+    }
+
     private static CommentExtensionTarget? ResolveCommentExtensionTarget(
         OoxmlPackage package,
         XElement comment,
@@ -1942,6 +2126,46 @@ internal static class DocxPatchEngine
     {
         comment.RemoveNodes();
         comment.Add(CreateSimpleParagraph(text));
+    }
+
+    private static XElement CreateComment(
+        string commentId,
+        string text,
+        string author,
+        string? initials,
+        DateTimeOffset timestampUtc)
+    {
+        var comment = new XElement(
+            OoxmlNs.W + "comment",
+            new XAttribute(OoxmlNs.W + "id", commentId),
+            new XAttribute(OoxmlNs.W + "author", author),
+            new XAttribute(OoxmlNs.W + "date", timestampUtc.ToUniversalTime().ToString("O")));
+        if (!string.IsNullOrWhiteSpace(initials))
+        {
+            comment.SetAttributeValue(OoxmlNs.W + "initials", initials);
+        }
+
+        comment.Add(CreateSimpleParagraph(text));
+        return comment;
+    }
+
+    private static void AddCommentAnchor(XElement paragraph, string commentId)
+    {
+        var start = new XElement(OoxmlNs.W + "commentRangeStart", new XAttribute(OoxmlNs.W + "id", commentId));
+        XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
+        if (paragraphProperties is null)
+        {
+            paragraph.AddFirst(start);
+        }
+        else
+        {
+            paragraphProperties.AddAfterSelf(start);
+        }
+
+        paragraph.Add(new XElement(OoxmlNs.W + "commentRangeEnd", new XAttribute(OoxmlNs.W + "id", commentId)));
+        paragraph.Add(new XElement(
+            OoxmlNs.W + "r",
+            new XElement(OoxmlNs.W + "commentReference", new XAttribute(OoxmlNs.W + "id", commentId))));
     }
 
     private static void RemoveCommentExtensionRecords(OoxmlPackage package, XElement comment, CancellationToken cancellationToken)
@@ -6498,6 +6722,8 @@ internal sealed record ContentControlTarget(string PartName, XDocument Document,
 internal sealed record ContentControlChoice(string DisplayText);
 
 internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
+
+internal sealed record CommentsPartTarget(string PartName, XDocument Document, XElement Root);
 
 internal sealed record CommentTarget(string PartName, XDocument Document, XElement Comment);
 

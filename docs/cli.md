@@ -31,7 +31,8 @@ Plain text output includes the same group summaries as lines like
 It also includes `target-summary` and `comment-summary` lines before individual
 records. With `--include-comment-text`, comment summaries and comment body records
 add `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
-Patch operations can target `comment:<id>` or comment body IDs such as
+Patch operations can create comments on modeled paragraph IDs with `add-comment`.
+Existing comment operations can target `comment:<id>` or comment body IDs such as
 `C001.C0001`: `set-comment-text` replaces a comment body under explicit patch
 control, `resolve-comment` and `reopen-comment` toggle modern `commentsExtended`
 resolution metadata when the comment already has a `w15:paraId` and matching

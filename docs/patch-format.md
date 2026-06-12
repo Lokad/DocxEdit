@@ -56,6 +56,7 @@ including nearby paragraph text.
 - `replace-bookmark-text`: `target`, `text`
 - `rename-bookmark`: `target`, `name`
 - `delete-bookmark`: `target`
+- `add-comment`: `target`, `text`; optional `expect-text`, `author`, `initials`, `date`
 - `set-comment-text`: `target`, `text`
 - `resolve-comment`: `target`
 - `reopen-comment`: `target`
@@ -104,9 +105,13 @@ name; DocxEdit rejects duplicate new names and updates same-story internal hyper
 anchors when the old name is unambiguous. Use `delete-bookmark` to remove complete
 unreferenced bookmark markers while preserving the bookmarked content.
 
-Comment operations target either `comment:<id>` from `changes` output or a comment
-body target such as `C001.C0001`. `set-comment-text` replaces the comment body with a
-single paragraph while preserving comment metadata. `resolve-comment` and
+`add-comment` targets a modeled paragraph such as `M.P0004`, creates the comments
+part/relationship/content type when needed, appends a new comment body, and anchors
+the whole paragraph with matching range/reference markers. It accepts optional
+`expect-text`, `author`, `initials`, and ISO-8601 `date` fields. Existing comment
+operations target either `comment:<id>` from `changes` output or a comment body target
+such as `C001.C0001`. `set-comment-text` replaces the comment body with a single
+paragraph while preserving comment metadata. `resolve-comment` and
 `reopen-comment` toggle the matching `commentsExtended.xml` `w15:done` flag when the
 comment already has a `w15:paraId` and extension record; unsupported shapes fail with
 `E4312` instead of inventing modern comment metadata. `delete-comment` removes the

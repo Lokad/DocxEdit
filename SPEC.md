@@ -1726,6 +1726,17 @@ Rules:
 ### 11.6b Comment body operations
 
 ```text
+op add-comment
+target M.P0004
+expect-text <<<
+Reviewed paragraph text.
+>>>
+text Review note
+author Reviewer
+initials RV
+date 2026-06-07T12:00:00Z
+end
+
 op set-comment-text
 target comment:3
 text Updated review note
@@ -1746,6 +1757,14 @@ end
 
 Rules:
 
+* `add-comment` anchors a new comment to a whole modeled paragraph target such as
+  `M.P0004`, `H001.P0002`, or `F001.P0002`. It creates `/word/comments.xml`, the
+  main-document comments relationship, the comments content-type override, a new
+  numeric comment ID, and matching `commentRangeStart`, `commentRangeEnd`, and
+  `commentReference` markers when needed.
+* `add-comment` accepts optional `expect-text`, `author`, `initials`, and ISO-8601
+  `date` fields. Without `author` or `date`, library options supply the author and
+  timestamp.
 * Comment targets use `comment:<id>` from `changes` output or comment body IDs such
   as `C001.C0001`.
 * `set-comment-text` replaces the body with one paragraph and preserves comment
@@ -1756,8 +1775,9 @@ Rules:
 * `delete-comment` removes the comment body and matching `commentRangeStart`,
   `commentRangeEnd`, and `commentReference` markers from document stories, plus
   matching `commentsExtended.xml` records when present.
-* Comment creation, resolution metadata creation for legacy comments, and full
-  threaded comment workflows are out of scope for v0.1.
+* Selected-range comment creation, resolution metadata creation for legacy comments
+  or newly created basic comments, and full threaded comment workflows are out of
+  scope for v0.1.
 
 ### 11.6c Field flag operations
 
@@ -2230,6 +2250,7 @@ set-content-control-date
 replace-bookmark-text
 rename-bookmark
 delete-bookmark
+add-comment
 set-comment-text
 resolve-comment
 reopen-comment

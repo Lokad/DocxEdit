@@ -17,6 +17,7 @@ internal static class DocxPatchParser
         ["replace-bookmark-text"] = new(["target", "text"], [], []),
         ["rename-bookmark"] = new(["target", "name"], [], []),
         ["delete-bookmark"] = new(["target"], [], []),
+        ["add-comment"] = new(["target", "expect-text", "text", "author", "initials", "date"], [], []),
         ["set-comment-text"] = new(["target", "text"], [], []),
         ["resolve-comment"] = new(["target"], [], []),
         ["reopen-comment"] = new(["target"], [], []),

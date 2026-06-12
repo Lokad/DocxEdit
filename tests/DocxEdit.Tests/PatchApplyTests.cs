@@ -1600,6 +1600,110 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyAddCommentCreatesCommentsPartAndAnchorsParagraph()
+    {
+        using MemoryStream input = CreateDocx("Anchor paragraph.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            expect-text Anchor paragraph.
+            text Review note
+            author Reviewer
+            initials RV
+            date 2026-06-07T12:00:00Z
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxChangeInfo comment = Assert.Single(
+            new DocxEditor().Changes(output, new DocxChangesOptions { IncludeCommentText = true }).Changes,
+            change => change.Type == "comment");
+        Assert.Equal("0", comment.CommentId);
+        Assert.Equal("Reviewer", comment.CommentAuthor);
+        Assert.Equal("RV", comment.CommentInitials);
+        Assert.Equal("Review note", comment.CommentTextSnippet);
+        Assert.Equal("M.P0001", comment.CommentAnchorTargetId);
+        Assert.Equal("M.P0001", comment.CommentReferenceTargetId);
+
+        output.Position = 0;
+        string documentXml = ReadDocumentXml(output);
+        Assert.Contains("<w:commentRangeStart w:id=\"0\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("<w:commentRangeEnd w:id=\"0\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("<w:commentReference w:id=\"0\"", documentXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("w:comment w:id=\"0\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:author=\"Reviewer\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("Review note", commentsXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        Assert.Contains("relationships/comments", ReadEntry(output, "word/_rels/document.xml.rels"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("wordprocessingml.comments+xml", ReadEntry(output, "[Content_Types].xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyAddCommentAllocatesNextExistingCommentId()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Existing comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text Follow-up note
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(
+            input,
+            patch,
+            output,
+            new DocxEditOptions
+            {
+                Author = "Second Reviewer",
+                TimestampUtc = DateTimeOffset.Parse("2026-06-08T09:30:00Z").ToUniversalTime()
+            });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        IReadOnlyList<DocxCommentThreadSummary> summaries = new DocxEditor()
+            .Changes(output, new DocxChangesOptions { IncludeCommentText = true })
+            .CommentSummary;
+        Assert.Contains(summaries, summary => summary.CommentId == "3" && summary.TextSnippet == "Existing comment");
+        Assert.Contains(summaries, summary => summary.CommentId == "4" && summary.TextSnippet == "Follow-up note");
+
+        output.Position = 0;
+        string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("w:comment w:id=\"3\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:comment w:id=\"4\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:author=\"Second Reviewer\"", commentsXml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplySetCommentTextPreservesCommentMetadata()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(

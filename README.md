@@ -143,8 +143,9 @@ Implemented areas include:
   inline images and image metadata, and basic sections;
 - no-content tracked-change and comment markup viewing through `changes`;
 - opt-in bounded comment body snippets through `changes`;
-- comment body editing and deletion through explicit patch operations keyed by
-  `comment:<id>` or comment body IDs;
+- comment creation on modeled paragraphs, plus comment body editing and deletion
+  through explicit patch operations keyed by paragraph IDs, `comment:<id>`, or
+  comment body IDs;
 - comment anchor/context metadata and metadata-only comment body `dump`/`context`
   targets;
 - comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
@@ -179,8 +180,8 @@ Implemented areas include:
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic
-decimal, letter, roman, bullet, and nested `lvlText` labels, comment creation,
-resolution creation when modern extension metadata is absent, and full threaded comment models, advanced
+decimal, letter, roman, bullet, and nested `lvlText` labels, selected-range comment
+creation, resolution creation when modern extension metadata is absent, and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text controls, checkbox toggles,
 dropdown/combo selections, date values, bookmark rename/delete, and simple same-paragraph bookmark ranges, field result recalculation and field-specific
 edit workflows beyond dirty/lock flags,

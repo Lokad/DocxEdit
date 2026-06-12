@@ -97,6 +97,17 @@ public static class DocxHelp
         alt Chart after update
         end
 
+        op add-comment
+        target M.P0004
+        expect-text <<<
+        reviewed paragraph text
+        >>>
+        text <<<
+        review note
+        >>>
+        author Reviewer
+        end
+
         op delete-row
         target M.T0001.R02
         expect-contains row text
@@ -686,6 +697,7 @@ public static class DocxHelp
                 PreserveOnly("replace-bookmark-text", ["target", "text"]),
                 PreserveOnly("rename-bookmark", ["target", "name"]),
                 PreserveOnly("delete-bookmark", ["target"]),
+                PreserveOnly("add-comment", ["target", "text"], ["expect-text", "author", "initials", "date"]),
                 PreserveOnly("set-comment-text", ["target", "text"]),
                 PreserveOnly("resolve-comment", ["target"]),
                 PreserveOnly("reopen-comment", ["target"]),
