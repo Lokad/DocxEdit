@@ -153,7 +153,9 @@ Implemented areas include:
   insertion, and unlinking while preserving display runs;
 - check/apply operation reports with affected row/cell summaries for table edits;
 - inline and anchored image metadata with layout kind, size, wrap mode, alt text, and containing target;
-- simple tracked-change output for `replace-text` with author, timestamp, and revision IDs;
+- tracked-change output for simple text replacement, whole-paragraph replacement,
+  paragraph insertion/deletion, paragraph style changes, and simple table-cell text
+  replacement with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog;
 - structural package validation through `validate`, including known part roots, paired
   ranges, complex field balance, drawing relationships, and basic table shape;

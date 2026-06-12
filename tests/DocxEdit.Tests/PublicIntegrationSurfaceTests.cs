@@ -27,8 +27,11 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("tracked-simple", replaceText.TrackChangesSupport);
         Assert.Contains("E6002", replaceText.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("set-cell", out DocxPatchOperationInfo setCell));
-        Assert.Equal("unsupported", setCell.TrackChangesSupport);
-        Assert.Contains("E6001", setCell.TrackChangesNote, StringComparison.Ordinal);
+        Assert.Equal("tracked-cell-simple", setCell.TrackChangesSupport);
+        Assert.Contains("E6002", setCell.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo removeHyperlink));
+        Assert.Equal("unsupported", removeHyperlink.TrackChangesSupport);
+        Assert.Contains("E6001", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
     }
 
     [Fact]

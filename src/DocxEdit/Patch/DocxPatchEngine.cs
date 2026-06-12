@@ -90,11 +90,11 @@ internal static class DocxPatchEngine
                 operationDiagnostics.AddRange(operation.OperationName switch
                 {
                     "replace-text" => ExecuteReplaceText(package, operation, options, apply, cancellationToken),
-                    "replace-paragraph" => ExecuteReplaceParagraph(package, operation, apply, cancellationToken),
-                    "insert-before" => ExecuteInsertBlock(package, operation, insertAfter: false, apply, cancellationToken),
-                    "insert-after" => ExecuteInsertBlock(package, operation, insertAfter: true, apply, cancellationToken),
-                    "delete-block" => ExecuteDeleteBlock(package, operation, apply, cancellationToken),
-                    "set-style" => ExecuteSetStyle(package, operation, apply, cancellationToken),
+                    "replace-paragraph" => ExecuteReplaceParagraph(package, operation, options, apply, cancellationToken),
+                    "insert-before" => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, cancellationToken),
+                    "insert-after" => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, cancellationToken),
+                    "delete-block" => ExecuteDeleteBlock(package, operation, options, apply, cancellationToken),
+                    "set-style" => ExecuteSetStyle(package, operation, options, apply, cancellationToken),
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
@@ -103,7 +103,7 @@ internal static class DocxPatchEngine
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
-                    "set-cell" => ExecuteSetCell(package, operation, apply, cancellationToken),
+                    "set-cell" => ExecuteSetCell(package, operation, options, apply, cancellationToken),
                     "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                     "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
                     "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
@@ -148,7 +148,14 @@ internal static class DocxPatchEngine
 
     private static bool SupportsTrackedChangeOutput(string operationName)
     {
-        return string.Equals(operationName, "replace-text", StringComparison.Ordinal);
+        return operationName is
+            "replace-text" or
+            "replace-paragraph" or
+            "insert-before" or
+            "insert-after" or
+            "delete-block" or
+            "set-style" or
+            "set-cell";
     }
 
     private static TableOperationSnapshot? CaptureTableOperationSnapshot(
@@ -443,6 +450,7 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceParagraph(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
         CancellationToken cancellationToken)
     {
@@ -478,9 +486,28 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4305", $"Paragraph replacement for {target} would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges &&
+            !TryValidateTrackedWholeParagraphReplacement(paragraphTarget.Paragraph, current, text!, style, out string? trackedUnsupportedReason))
+        {
+            if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text!, options, cancellationToken);
+            SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
+            return diagnostics;
         }
 
         ReplaceParagraphText(paragraphTarget.Paragraph, text!);
@@ -496,6 +523,7 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteInsertBlock(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool insertAfter,
         bool apply,
         CancellationToken cancellationToken)
@@ -526,15 +554,28 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4307", $"Field 'copy-paragraph-properties' requires paragraph target '{target}'.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text!))
+        {
+            if (!TrackUnsupportedShape(options, operation, target!, "inserted paragraph text contains tabs or line breaks", diagnostics))
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
         }
 
         XElement? paragraphProperties = copyParagraphProperties
             ? blockTarget.Block.Element(OoxmlNs.W + "pPr")
             : null;
-        XElement paragraph = CreateSimpleParagraph(text!, style, paragraphProperties);
+        XElement paragraph = useTrackedChanges
+            ? CreateTrackedInsertedParagraph(package, text!, style, paragraphProperties, options, cancellationToken)
+            : CreateSimpleParagraph(text!, style, paragraphProperties);
         if (insertAfter)
         {
             blockTarget.Block.AddAfterSelf(paragraph);
@@ -551,6 +592,7 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteBlock(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
         CancellationToken cancellationToken)
     {
@@ -573,18 +615,57 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        string current = ReadVisibleText(blockTarget.Block);
         if (expected is not null)
         {
-            string current = ReadVisibleText(blockTarget.Block);
             if (!string.Equals(current, expected, StringComparison.Ordinal))
             {
                 return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
             }
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges)
+        {
+            if (blockTarget.Block.Name != OoxmlNs.W + "p")
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "tracked block deletion is supported only for paragraph targets", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (TryGetProtectedTextEditFeature(blockTarget.Block, out string protectedFeature))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (TextContainsTrackedUnsupportedCharacters(current))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "deleted paragraph text contains tabs or line breaks", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            ReplaceWholeParagraphTextWithTrackedChanges(package, blockTarget.Block, current, string.Empty, options, cancellationToken);
+            SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
+            return diagnostics;
         }
 
         blockTarget.Block.Remove();
@@ -595,6 +676,7 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetStyle(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
         CancellationToken cancellationToken)
     {
@@ -627,7 +709,15 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        SetParagraphStyle(paragraphTarget.Paragraph, styleId!);
+        if (IsTrackedMode(options))
+        {
+            SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, styleId!, options, cancellationToken);
+        }
+        else
+        {
+            SetParagraphStyle(paragraphTarget.Paragraph, styleId!);
+        }
+
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
@@ -1495,6 +1585,63 @@ internal static class DocxPatchEngine
         return true;
     }
 
+    private static bool TryValidateTrackedWholeParagraphReplacement(
+        XElement paragraph,
+        string current,
+        string replacement,
+        string? style,
+        out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (style is not null)
+        {
+            unsupportedReason = "tracked paragraph replacement cannot combine text and style changes";
+            return false;
+        }
+
+        if (TextContainsTrackedUnsupportedCharacters(current) ||
+            TextContainsTrackedUnsupportedCharacters(replacement))
+        {
+            unsupportedReason = "tracked paragraph text contains tabs or line breaks";
+            return false;
+        }
+
+        if (HasMixedDirectTextRunProperties(paragraph))
+        {
+            unsupportedReason = "paragraph contains mixed direct run formatting";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TextContainsTrackedUnsupportedCharacters(string text)
+    {
+        return text.Contains('\t') || text.Contains('\n');
+    }
+
+    private static bool IsTrackedMode(DocxEditOptions options)
+    {
+        return options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;
+    }
+
+    private static bool TrackUnsupportedShape(
+        DocxEditOptions options,
+        DocxPatchOperation operation,
+        string target,
+        string reason,
+        List<DocxDiagnostic> diagnostics)
+    {
+        if (options.TrackChanges == TrackChangesMode.Require)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E6002", $"Tracked-change output is not supported for {operation.OperationName} on {target}: {reason}.", operation, target));
+            return false;
+        }
+
+        diagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4002", $"Tracked-change output is not supported for {operation.OperationName} on {target}: {reason}; applying the edit directly.", operation, target));
+        return true;
+    }
+
     private static bool HasMixedDirectTextRunProperties(XElement paragraph)
     {
         string? firstSignature = null;
@@ -1575,6 +1722,94 @@ internal static class DocxPatchEngine
 
         paragraph.RemoveNodes();
         paragraph.Add(nodes);
+    }
+
+    private static void ReplaceWholeParagraphTextWithTrackedChanges(
+        OoxmlPackage package,
+        XElement paragraph,
+        string deletedText,
+        string insertedText,
+        DocxEditOptions options,
+        CancellationToken cancellationToken)
+    {
+        int revisionCount = (deletedText.Length == 0 ? 0 : 1) + (insertedText.Length == 0 ? 0 : 1);
+        string[] revisionIds = AllocateRevisionIds(package, revisionCount, cancellationToken);
+        XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
+        XElement? firstRunProperties = paragraph
+            .Elements(OoxmlNs.W + "r")
+            .Elements(OoxmlNs.W + "rPr")
+            .FirstOrDefault();
+        string author = options.Author;
+        string timestamp = options.TimestampUtc.ToUniversalTime().ToString("O");
+
+        var nodes = new List<XNode>();
+        if (paragraphProperties is not null)
+        {
+            nodes.Add(new XElement(paragraphProperties));
+        }
+
+        int revisionIndex = 0;
+        if (deletedText.Length != 0)
+        {
+            nodes.Add(CreateDeletedRun(deletedText, firstRunProperties, revisionIds[revisionIndex++], author, timestamp));
+        }
+
+        if (insertedText.Length != 0)
+        {
+            nodes.Add(CreateInsertedRun(insertedText, firstRunProperties, revisionIds[revisionIndex], author, timestamp));
+        }
+
+        paragraph.RemoveNodes();
+        paragraph.Add(nodes);
+    }
+
+    private static XElement CreateTrackedInsertedParagraph(
+        OoxmlPackage package,
+        string text,
+        string? style,
+        XElement? paragraphProperties,
+        DocxEditOptions options,
+        CancellationToken cancellationToken)
+    {
+        var paragraph = new XElement(OoxmlNs.W + "p");
+        if (paragraphProperties is not null)
+        {
+            paragraph.Add(new XElement(paragraphProperties));
+        }
+
+        if (style is not null)
+        {
+            SetParagraphStyle(paragraph, style);
+        }
+
+        string revisionId = AllocateRevisionIds(package, 1, cancellationToken)[0];
+        string author = options.Author;
+        string timestamp = options.TimestampUtc.ToUniversalTime().ToString("O");
+        paragraph.Add(CreateInsertedRun(text, runProperties: null, revisionId, author, timestamp));
+        return paragraph;
+    }
+
+    private static void SetParagraphStyleWithTrackedChange(
+        OoxmlPackage package,
+        XElement paragraph,
+        string styleId,
+        DocxEditOptions options,
+        CancellationToken cancellationToken)
+    {
+        XElement oldParagraphProperties = paragraph.Element(OoxmlNs.W + "pPr") is { } existing
+            ? new XElement(existing)
+            : new XElement(OoxmlNs.W + "pPr");
+        SetParagraphStyle(paragraph, styleId);
+        XElement paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr")
+            ?? throw new InvalidDataException("Paragraph style update did not create paragraph properties.");
+        paragraphProperties.Elements(OoxmlNs.W + "pPrChange").Remove();
+        string revisionId = AllocateRevisionIds(package, 1, cancellationToken)[0];
+        paragraphProperties.Add(new XElement(
+            OoxmlNs.W + "pPrChange",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", options.Author),
+            new XAttribute(OoxmlNs.W + "date", options.TimestampUtc.ToUniversalTime().ToString("O")),
+            oldParagraphProperties));
     }
 
     private static void AddTextRun(List<XNode> nodes, string text, XElement? runProperties)
@@ -2091,6 +2326,7 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCell(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
         CancellationToken cancellationToken)
     {
@@ -2144,14 +2380,63 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4302", $"Cell '{target}' contains unsupported content. Use force true only when replacing all cell content is intended.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        XElement? paragraph = cellTarget.Cell.Elements(OoxmlNs.W + "p").FirstOrDefault();
+        if (useTrackedChanges)
+        {
+            if (force)
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "tracked set-cell does not support force true replacement", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (paragraph is null)
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "cell has no paragraph for tracked text replacement", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (TryGetProtectedTextEditFeature(paragraph, out string protectedFeature))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, $"cell paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, text!, style: null, out string? trackedUnsupportedReason))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraph!, current, text!, options, cancellationToken);
+            SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
+            return diagnostics;
         }
 
         ReplaceCellText(cellTarget.Cell, text!);
         SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteAppendRow(

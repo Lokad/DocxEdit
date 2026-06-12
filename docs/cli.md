@@ -130,11 +130,11 @@ and `E9106`.
 - `check input.docx edits.docxpatch [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 - `apply input.docx edits.docxpatch --output output.docx [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 
-Track-change modes are `off`, `preserve`, `suggest`, and `require`. `replace-text` generates simple `w:del`/`w:ins` tracked-change markup with the selected author and timestamp under `suggest` or `require`. Tracked output is limited to text-only matches without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails unsupported operations or unsupported `replace-text` shapes; `suggest` warns and applies unsupported edits directly.
+Track-change modes are `off`, `preserve`, `suggest`, and `require`. Supported tracked output includes simple `replace-text`, whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes, and simple single-paragraph table-cell text replacement. Tracked text output is limited to shapes without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails unsupported operations or unsupported shapes; `suggest` warns and applies unsupported edits directly.
 `docxedit help patch` includes a track-change support table generated from
-`DocxHelp.Catalog`. `replace-text` is `tracked-simple`; the other current patch
-operations are `unsupported`, meaning `suggest` applies them directly with `W4001`
-and `require` fails them with `E6001`.
+`DocxHelp.Catalog`, including operation-specific support values such as
+`tracked-simple`, `tracked-paragraph`, `tracked-style`, `tracked-cell-simple`, and
+`unsupported`.
 Plain text `check` and `apply` output includes one `operation index=...` line per
 patch operation with operation name, target, and success. Table operations also emit
 `affected id=...` row/cell lines with action, parent, row/column, and row-count

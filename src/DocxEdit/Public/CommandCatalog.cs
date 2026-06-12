@@ -617,11 +617,45 @@ public static class DocxHelp
                     TrackChangesSupport = "tracked-simple",
                     TrackChangesNote = "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002."
                 },
-                new() { Name = "replace-paragraph", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "style"] },
-                new() { Name = "insert-before", RequiredFields = ["target", "text"], OptionalFields = ["style", "copy-paragraph-properties"] },
-                new() { Name = "insert-after", RequiredFields = ["target", "text"], OptionalFields = ["style", "copy-paragraph-properties"] },
-                new() { Name = "delete-block", RequiredFields = ["target"], OptionalFields = ["expect-text"] },
-                new() { Name = "set-style", RequiredFields = ["target", "style"] },
+                new()
+                {
+                    Name = "replace-paragraph",
+                    RequiredFields = ["target", "text"],
+                    OptionalFields = ["expect-text", "style"],
+                    TrackChangesSupport = "tracked-paragraph",
+                    TrackChangesNote = "Suggest/Require emit whole-paragraph w:del/w:ins for simple text-only replacements; style-combined or complex shapes warn with W4002 or fail with E6002."
+                },
+                new()
+                {
+                    Name = "insert-before",
+                    RequiredFields = ["target", "text"],
+                    OptionalFields = ["style", "copy-paragraph-properties"],
+                    TrackChangesSupport = "tracked-paragraph-insert",
+                    TrackChangesNote = "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002."
+                },
+                new()
+                {
+                    Name = "insert-after",
+                    RequiredFields = ["target", "text"],
+                    OptionalFields = ["style", "copy-paragraph-properties"],
+                    TrackChangesSupport = "tracked-paragraph-insert",
+                    TrackChangesNote = "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002."
+                },
+                new()
+                {
+                    Name = "delete-block",
+                    RequiredFields = ["target"],
+                    OptionalFields = ["expect-text"],
+                    TrackChangesSupport = "tracked-paragraph-delete",
+                    TrackChangesNote = "Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002."
+                },
+                new()
+                {
+                    Name = "set-style",
+                    RequiredFields = ["target", "style"],
+                    TrackChangesSupport = "tracked-style",
+                    TrackChangesNote = "Suggest/Require emit paragraph property revisions with w:pPrChange."
+                },
                 new() { Name = "set-content-control-text", RequiredFields = ["target", "text"] },
                 new() { Name = "replace-bookmark-text", RequiredFields = ["target", "text"] },
                 new() { Name = "set-comment-text", RequiredFields = ["target", "text"] },
@@ -630,7 +664,14 @@ public static class DocxHelp
                 new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },
                 new() { Name = "insert-hyperlink-after", RequiredFields = ["target", "text plus uri or anchor"], OptionalFields = ["tooltip"] },
                 new() { Name = "remove-hyperlink", RequiredFields = ["target"] },
-                new() { Name = "set-cell", RequiredFields = ["target", "text"], OptionalFields = ["expect-text", "expect-row-count", "expect-column-count", "force"] },
+                new()
+                {
+                    Name = "set-cell",
+                    RequiredFields = ["target", "text"],
+                    OptionalFields = ["expect-text", "expect-row-count", "expect-column-count", "force"],
+                    TrackChangesSupport = "tracked-cell-simple",
+                    TrackChangesNote = "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002."
+                },
                 new() { Name = "append-row", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count"] },
                 new() { Name = "insert-row-before", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },
                 new() { Name = "insert-row-after", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },

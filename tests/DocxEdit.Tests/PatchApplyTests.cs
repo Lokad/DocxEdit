@@ -213,9 +213,8 @@ public static class PatchApplyTests
         using var patch = new StringReader("""
             docxpatch 1
 
-            op replace-paragraph
-            target M.P0001
-            text Revenue rose.
+            op remove-hyperlink
+            target M.L0001
             end
             """);
 
@@ -429,6 +428,40 @@ public static class PatchApplyTests
     [Fact]
     public static void ApplyTrackChangesSuggestWarnsAndAppliesUnsupportedOperationsDirectly()
     {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="client-name"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Client</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text Customer
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
+        output.Position = 0;
+        Assert.Equal("Customer", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceParagraph()
+    {
         using MemoryStream input = CreateDocx("Revenue increased.");
         using var output = new MemoryStream();
         using var patch = new StringReader("""
@@ -440,12 +473,155 @@ public static class PatchApplyTests
             end
             """);
 
-        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Reviewer",
+            TimestampUtc = DateTimeOffset.Parse("2026-06-08T12:00:00Z").ToUniversalTime(),
+            MarkFieldsDirtyWhenEditing = false
+        });
 
         Assert.True(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Revenue increased.</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Revenue rose.</w:t>", xml, StringComparison.Ordinal);
         output.Position = 0;
         Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Revenue increased.", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForInsertedParagraph()
+    {
+        using MemoryStream input = CreateDocx("One");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Two
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Two</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal(new[] { "One", "Two" }, new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForDeletedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0002
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Two</w:delText>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains(new DocxEditor().Changes(output).Changes, change => change.Type == "deleted-run" && change.TargetId == "M.P0002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesParagraphPropertyChangeForStyle()
+    {
+        using MemoryStream input = CreateDocxWithStyles("""
+                  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+                  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target M.P0001
+            style Heading2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Reviewer",
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:pStyle w:val=\"Heading2\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:pPrChange", xml, StringComparison.Ordinal);
+        Assert.Contains("w:author=\"Reviewer\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForSetCell()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Old</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            text New
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal("New", Assert.Single(table.Cells).Text);
     }
 
     [Fact]

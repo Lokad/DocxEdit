@@ -110,10 +110,12 @@ resolved row's final visible text contains the supplied value exactly.
 description while replacing the media bytes. Use `set-image-alt` when only the
 description should change.
 
-Tracked `replace-text` output is intentionally narrow. It supports replacements whose
-matched and replacement text contain no tabs or line breaks, whose paragraph does not
-cross protected OOXML boundaries such as hyperlinks, fields, comments, bookmarks,
-content controls, drawings, or existing revision markup, and whose visible direct text
-runs share one run-property shape. `TrackChangesMode.Require` fails unsupported shapes
-with `E6002`; `TrackChangesMode.Suggest` warns with `W4002` and applies the direct edit
-instead.
+Tracked output is intentionally narrow. It supports simple `replace-text`,
+whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes,
+and simple single-paragraph table-cell text replacement. Tracked text shapes must
+contain no tabs or line breaks, must not cross protected OOXML boundaries such as
+hyperlinks, fields, comments, bookmarks, content controls, drawings, or existing
+revision markup, and must have compatible direct run-property shape.
+`TrackChangesMode.Require` fails unsupported operations with `E6001` and unsupported
+shapes with `E6002`; `TrackChangesMode.Suggest` warns with `W4001` or `W4002` and
+applies the direct edit instead.

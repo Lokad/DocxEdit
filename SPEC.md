@@ -493,8 +493,11 @@ public sealed record DocxPatchOperationInfo
 }
 ```
 
-`TrackChangesSupport` is `tracked-simple` for `replace-text` and `unsupported` for
-operations that apply directly under `Suggest` and fail under `Require`.
+`TrackChangesSupport` values include `tracked-simple`, `tracked-paragraph`,
+`tracked-paragraph-insert`, `tracked-paragraph-delete`, `tracked-style`,
+`tracked-cell-simple`, and `unsupported`. Unsupported operations apply directly under
+`Suggest` with `W4001` and fail under `Require` with `E6001`; supported operations may
+still reject an unsafe shape with `W4002` or `E6002`.
 
 The library must also expose stable plain-text renderers for public result objects:
 
@@ -1884,21 +1887,24 @@ Microsoft documents `w:trackRevisions` as the setting that specifies whether app
 Current tracked-change generation support:
 
 ```text
-replace-text          supported only for simple text-only matches in one paragraph
+replace-text          simple text-only matches in one paragraph
+replace-paragraph     whole-paragraph text replacement without concurrent style change
+insert-before         inserted paragraph text as w:ins
+insert-after          inserted paragraph text as w:ins
+delete-block          simple paragraph targets as w:del text
+set-style             paragraph property revision with w:pPrChange
+set-cell              simple single-paragraph cells as w:del/w:ins text
 ```
 
-The supported `replace-text` shape must not contain tabs or line breaks, must not cross
+The supported tracked text shapes must not contain tabs or line breaks, must not cross
 protected OOXML boundaries, must not be inside existing revision markup, and must have
-compatible direct run-property shape.
+compatible direct run-property shape. `delete-block` tracked output is paragraph-only.
+`set-cell` tracked output is limited to simple single-paragraph cells without
+`force true`. `set-style` records the previous paragraph properties in `w:pPrChange`.
 
 Unsupported tracked-change operations:
 
 ```text
-replace-paragraph
-insert-before
-insert-after
-delete-block
-set-style
 set-content-control-text
 replace-bookmark-text
 set-comment-text
@@ -1907,7 +1913,6 @@ set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after
 remove-hyperlink
-set-cell
 append-row
 insert-row-before
 insert-row-after
