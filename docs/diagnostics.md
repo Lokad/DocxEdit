@@ -17,6 +17,7 @@ Common code ranges:
 - `E71xx`: style resolution issue.
 - `E90xx`: post-edit validation failure.
 - `E91xx`: structural package validation failure from `validate`.
+- `W91xx`: validation warning from `validate`.
 - `W4001`: `TrackChangesMode.Suggest` warning for an operation without tracked-change output; the edit is applied directly.
 - `W4002`: `TrackChangesMode.Suggest` warning for a `replace-text` shape that cannot be represented as simple tracked-change output; the edit is applied directly.
 - `E4312`: comment resolution state cannot be edited because the comment lacks
@@ -43,3 +44,5 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9106`: table or row is missing required row/cell structure.
 - `E9107`: duplicate drawing `wp:docPr` ID within one Word part.
 - `E9108`: `commentsExtended` metadata has missing, duplicate, or orphan paraId records.
+- `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
+  semantic selectors ambiguous; the message lists candidate IDs.

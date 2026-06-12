@@ -171,7 +171,8 @@ Implemented areas include:
   including tracked and preserve-only operation classifications;
 - structural package validation through `validate`, including known part roots, paired
   ranges, complex field balance, comment extension consistency, drawing relationships,
-  drawing property ID uniqueness, and basic table shape;
+  drawing property ID uniqueness, duplicate semantic selector warnings, and basic
+  table shape;
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic

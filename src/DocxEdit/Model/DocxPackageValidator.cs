@@ -10,6 +10,7 @@ internal static class DocxPackageValidator
         CancellationToken cancellationToken = default)
     {
         var diagnostics = new List<DocxDiagnostic>();
+        IReadOnlyDictionary<string, string> storyPrefixes = BuildStoryPrefixes(package, cancellationToken);
         foreach (OoxmlPart part in package.Parts.Values
             .Where(part => part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
@@ -20,11 +21,49 @@ internal static class DocxPackageValidator
             ValidateRoot(part.Name, document.Root, diagnostics);
             if (part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase))
             {
-                ValidateWordPart(package, part.Name, document, diagnostics, cancellationToken);
+                storyPrefixes.TryGetValue(part.Name, out string? storyPrefix);
+                ValidateWordPart(package, part.Name, storyPrefix, document, diagnostics, cancellationToken);
             }
         }
 
         return diagnostics;
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildStoryPrefixes(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        var prefixes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (package.MainDocumentPartName is null)
+        {
+            return prefixes;
+        }
+
+        prefixes[package.MainDocumentPartName] = "M";
+        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
+        int headerIndex = 1;
+        foreach (OoxmlRelationship relationship in relationships
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            if (package.GetPart(relationship.ResolvedTarget!) is not null)
+            {
+                prefixes[relationship.ResolvedTarget!] = $"H{headerIndex++:000}";
+            }
+        }
+
+        int footerIndex = 1;
+        foreach (OoxmlRelationship relationship in relationships
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            if (package.GetPart(relationship.ResolvedTarget!) is not null)
+            {
+                prefixes[relationship.ResolvedTarget!] = $"F{footerIndex++:000}";
+            }
+        }
+
+        return prefixes;
     }
 
     private static void ValidateRoot(string partName, XElement? root, List<DocxDiagnostic> diagnostics)
@@ -56,12 +95,18 @@ internal static class DocxPackageValidator
     private static void ValidateWordPart(
         OoxmlPackage package,
         string partName,
+        string? storyPrefix,
         XDocument document,
         List<DocxDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
         ValidatePairedIds(document, OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd", "bookmark", partName, diagnostics);
         ValidatePairedIds(document, OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", "comment range", partName, diagnostics);
+        if (storyPrefix is not null)
+        {
+            ValidateDuplicateSemanticSelectors(document, partName, storyPrefix, diagnostics);
+        }
+
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
@@ -100,6 +145,77 @@ internal static class DocxPackageValidator
             {
                 diagnostics.Add(Error("E9103", $"Unbalanced {label} id '{id}': starts={startCount}, ends={endCount}.", partName));
             }
+        }
+    }
+
+    private static void ValidateDuplicateSemanticSelectors(
+        XDocument document,
+        string partName,
+        string storyPrefix,
+        List<DocxDiagnostic> diagnostics)
+    {
+        var bookmarks = document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Select((element, index) => (
+                Id: $"{storyPrefix}.B{index + 1:0000}",
+                Name: (string?)element.Attribute(OoxmlNs.W + "name")))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .ToArray();
+        AddDuplicateSelectorWarnings(
+            bookmarks.Select(item => (item.Name!, item.Id)),
+            "bookmark name",
+            "bookmark",
+            partName,
+            diagnostics);
+
+        var contentControls = document
+            .Descendants(OoxmlNs.W + "sdt")
+            .Select((element, index) =>
+            {
+                XElement? properties = element.Element(OoxmlNs.W + "sdtPr");
+                return (
+                    Id: $"{storyPrefix}.CC{index + 1:0000}",
+                    Tag: (string?)properties?.Element(OoxmlNs.W + "tag")?.Attribute(OoxmlNs.W + "val"),
+                    Alias: (string?)properties?.Element(OoxmlNs.W + "alias")?.Attribute(OoxmlNs.W + "val"));
+            })
+            .ToArray();
+        AddDuplicateSelectorWarnings(
+            contentControls
+                .Where(item => !string.IsNullOrWhiteSpace(item.Tag))
+                .Select(item => (item.Tag!, item.Id)),
+            "content-control tag",
+            "content-control",
+            partName,
+            diagnostics);
+        AddDuplicateSelectorWarnings(
+            contentControls
+                .Where(item => !string.IsNullOrWhiteSpace(item.Alias))
+                .Select(item => (item.Alias!, item.Id)),
+            "content-control alias",
+            "content-control",
+            partName,
+            diagnostics);
+    }
+
+    private static void AddDuplicateSelectorWarnings(
+        IEnumerable<(string Value, string Id)> candidates,
+        string label,
+        string feature,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        foreach (IGrouping<string, (string Value, string Id)> group in candidates
+            .GroupBy(candidate => candidate.Value, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            string ids = string.Join(", ", group.Select(candidate => candidate.Id));
+            diagnostics.Add(Warning(
+                "W9109",
+                $"Duplicate {label} '{group.Key}' appears {group.Count()} times; candidate IDs: {ids}.",
+                partName,
+                feature,
+                "ambiguous-selector"));
         }
     }
 
@@ -256,5 +372,16 @@ internal static class DocxPackageValidator
     private static DocxDiagnostic Error(string code, string message, string partName)
     {
         return new DocxDiagnostic(DocxSeverity.Error, code, message, PartName: partName);
+    }
+
+    private static DocxDiagnostic Warning(string code, string message, string partName, string feature, string fallback)
+    {
+        return new DocxDiagnostic(
+            DocxSeverity.Warning,
+            code,
+            message,
+            PartName: partName,
+            Feature: feature,
+            Fallback: fallback);
     }
 }

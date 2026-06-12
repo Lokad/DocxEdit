@@ -488,7 +488,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "Validate package and WordprocessingML invariants",
                     Usage = "docxedit validate input.docx [--json] [--diagnostics <path>] [--strict]",
-                    Description = "Validate package-level XML roots and WordprocessingML invariants: paired bookmark/comment ranges, complex field balance, drawing relationships, and basic table shape.",
+                    Description = "Validate package-level XML roots and WordprocessingML invariants: paired bookmark/comment ranges, duplicate semantic selectors, complex field balance, drawing relationships, and basic table shape.",
                     Options =
                     [
                         new("--json", "Print the result object as JSON"),

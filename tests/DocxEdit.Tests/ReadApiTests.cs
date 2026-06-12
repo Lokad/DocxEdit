@@ -44,6 +44,63 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateWarnsOnDuplicateSemanticSelectors()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Shared"/>
+                      <w:r><w:t>First</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Shared"/>
+                      <w:r><w:t>Second</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>One</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Two</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9109" &&
+            diagnostic.Feature == "bookmark" &&
+            diagnostic.Fallback == "ambiguous-selector" &&
+            diagnostic.Message.Contains("M.B0001, M.B0002", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9109" &&
+            diagnostic.Feature == "content-control" &&
+            diagnostic.Message.Contains("content-control tag", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("M.CC0001, M.CC0002", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9109" &&
+            diagnostic.Feature == "content-control" &&
+            diagnostic.Message.Contains("content-control alias", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("M.CC0001, M.CC0002", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""
