@@ -164,7 +164,8 @@ Implemented areas include:
 - tracked-change output for simple text replacement, whole-paragraph replacement,
   paragraph insertion/deletion, paragraph style changes, and simple table-cell text
   replacement with author, timestamp, and revision IDs;
-- operation-level track-change capability metadata in the shared help catalog;
+- operation-level track-change capability metadata in the shared help catalog,
+  including tracked and preserve-only operation classifications;
 - structural package validation through `validate`, including known part roots, paired
   ranges, complex field balance, drawing relationships, and basic table shape;
 - post-edit validation for touched XML parts before writing output.

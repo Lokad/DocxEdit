@@ -150,8 +150,10 @@ and `E9106`.
 Track-change modes are `off`, `preserve`, `suggest`, and `require`. Supported tracked output includes simple `replace-text`, whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes, and simple single-paragraph table-cell text replacement. Tracked text output is limited to shapes without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails unsupported operations or unsupported shapes; `suggest` warns and applies unsupported edits directly.
 `docxedit help patch` includes a track-change support table generated from
 `DocxHelp.Catalog`, including operation-specific support values such as
-`tracked-simple`, `tracked-paragraph`, `tracked-style`, `tracked-cell-simple`, and
-`unsupported`.
+`tracked-simple`, `tracked-paragraph`, `tracked-style`, `tracked-cell-simple`,
+`preserve-only`, and `unsupported`. `preserve-only` means existing revision markup is
+preserved but the operation does not create new revision markup; `suggest` applies
+directly with `W4001`, and `require` fails with `E6001`.
 Plain text `check` and `apply` output includes one `operation index=...` line per
 patch operation with operation name, target, and success. Table operations also emit
 `affected id=...` row/cell lines with action, parent, row/column, and row-count

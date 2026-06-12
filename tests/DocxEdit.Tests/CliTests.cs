@@ -72,6 +72,7 @@ public static class CliTests
         Assert.Contains("replace-text", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("tracked-simple", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-cell", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("preserve-only", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("unsupported", patchHelp.Output, StringComparison.Ordinal);
     }
 

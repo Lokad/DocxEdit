@@ -495,9 +495,12 @@ public sealed record DocxPatchOperationInfo
 
 `TrackChangesSupport` values include `tracked-simple`, `tracked-paragraph`,
 `tracked-paragraph-insert`, `tracked-paragraph-delete`, `tracked-style`,
-`tracked-cell-simple`, and `unsupported`. Unsupported operations apply directly under
-`Suggest` with `W4001` and fail under `Require` with `E6001`; supported operations may
-still reject an unsafe shape with `W4002` or `E6002`.
+`tracked-cell-simple`, `preserve-only`, and `unsupported`. `preserve-only`
+operations preserve existing tracked-change markup but do not create new revision
+markup; they apply directly under `Suggest` with `W4001` and fail under `Require`
+with `E6001`. `unsupported` is reserved for unknown or unclassified tracked-output
+behavior. Supported tracked operations may still reject an unsafe shape with `W4002`
+or `E6002`.
 
 The library must also expose stable plain-text renderers for public result objects:
 
@@ -2027,7 +2030,7 @@ compatible direct run-property shape. `delete-block` tracked output is paragraph
 `set-cell` tracked output is limited to simple single-paragraph cells without
 `force true`. `set-style` records the previous paragraph properties in `w:pPrChange`.
 
-Unsupported tracked-change operations:
+Known preserve-only operations:
 
 ```text
 set-content-control-text
@@ -2055,7 +2058,8 @@ set-section-columns
 set-section-orientation
 ```
 
-In `Suggest`, these unsupported operations apply directly and return warnings.
+In `Suggest`, these preserve-only operations apply directly and return `W4001`
+warnings.
 
 In `Require`, they fail.
 

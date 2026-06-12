@@ -52,6 +52,9 @@ public sealed record DocxPatchOperationInfo
 
 public static class DocxHelp
 {
+    private const string PreserveOnlyTrackChangesNote =
+        "Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.";
+
     private const string PatchExamples =
         """
         docxpatch 1
@@ -164,6 +167,21 @@ public static class DocxHelp
         }
 
         throw new ArgumentException($"Unknown help topic '{topic}'.", nameof(topic));
+    }
+
+    private static DocxPatchOperationInfo PreserveOnly(
+        string name,
+        IReadOnlyList<string> requiredFields,
+        IReadOnlyList<string>? optionalFields = null)
+    {
+        return new DocxPatchOperationInfo
+        {
+            Name = name,
+            RequiredFields = requiredFields,
+            OptionalFields = optionalFields ?? [],
+            TrackChangesSupport = "preserve-only",
+            TrackChangesNote = PreserveOnlyTrackChangesNote
+        };
     }
 
     private static void AppendCommandGroup(StringBuilder builder, string title, string category)
@@ -656,19 +674,19 @@ public static class DocxHelp
                     TrackChangesSupport = "tracked-style",
                     TrackChangesNote = "Suggest/Require emit paragraph property revisions with w:pPrChange."
                 },
-                new() { Name = "set-content-control-text", RequiredFields = ["target", "text"] },
-                new() { Name = "set-content-control-checkbox", RequiredFields = ["target", "checked"] },
-                new() { Name = "replace-bookmark-text", RequiredFields = ["target", "text"] },
-                new() { Name = "set-comment-text", RequiredFields = ["target", "text"] },
-                new() { Name = "resolve-comment", RequiredFields = ["target"] },
-                new() { Name = "reopen-comment", RequiredFields = ["target"] },
-                new() { Name = "delete-comment", RequiredFields = ["target"] },
-                new() { Name = "set-field-dirty", RequiredFields = ["target", "dirty"] },
-                new() { Name = "set-field-lock", RequiredFields = ["target", "locked"] },
-                new() { Name = "set-hyperlink-target", RequiredFields = ["target plus uri or anchor"], OptionalFields = ["tooltip"] },
-                new() { Name = "set-hyperlink-text", RequiredFields = ["target", "text"] },
-                new() { Name = "insert-hyperlink-after", RequiredFields = ["target", "text plus uri or anchor"], OptionalFields = ["tooltip"] },
-                new() { Name = "remove-hyperlink", RequiredFields = ["target"] },
+                PreserveOnly("set-content-control-text", ["target", "text"]),
+                PreserveOnly("set-content-control-checkbox", ["target", "checked"]),
+                PreserveOnly("replace-bookmark-text", ["target", "text"]),
+                PreserveOnly("set-comment-text", ["target", "text"]),
+                PreserveOnly("resolve-comment", ["target"]),
+                PreserveOnly("reopen-comment", ["target"]),
+                PreserveOnly("delete-comment", ["target"]),
+                PreserveOnly("set-field-dirty", ["target", "dirty"]),
+                PreserveOnly("set-field-lock", ["target", "locked"]),
+                PreserveOnly("set-hyperlink-target", ["target plus uri or anchor"], ["tooltip"]),
+                PreserveOnly("set-hyperlink-text", ["target", "text"]),
+                PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip"]),
+                PreserveOnly("remove-hyperlink", ["target"]),
                 new()
                 {
                     Name = "set-cell",
@@ -677,16 +695,16 @@ public static class DocxHelp
                     TrackChangesSupport = "tracked-cell-simple",
                     TrackChangesNote = "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002."
                 },
-                new() { Name = "append-row", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count"] },
-                new() { Name = "insert-row-before", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },
-                new() { Name = "insert-row-after", RequiredFields = ["target plus repeated cell"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "force"] },
-                new() { Name = "delete-row", RequiredFields = ["target"], OptionalFields = ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"] },
-                new() { Name = "replace-image", RequiredFields = ["target", "asset"], OptionalFields = ["expect-content-type", "alt"] },
-                new() { Name = "insert-image-after", RequiredFields = ["target", "asset"], OptionalFields = ["expect-content-type", "width", "height", "alt"] },
-                new() { Name = "set-image-alt", RequiredFields = ["target", "alt"], OptionalFields = ["expect-content-type"] },
-                new() { Name = "delete-image", RequiredFields = ["target"], OptionalFields = ["expect-content-type"] },
-                new() { Name = "set-section-columns", RequiredFields = ["target", "count"], OptionalFields = ["expect-columns", "expect-orientation"] },
-                new() { Name = "set-section-orientation", RequiredFields = ["target", "orientation"], OptionalFields = ["expect-columns", "expect-orientation"] }
+                PreserveOnly("append-row", ["target plus repeated cell"], ["expect-row-count", "expect-column-count"]),
+                PreserveOnly("insert-row-before", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                PreserveOnly("insert-row-after", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                PreserveOnly("delete-row", ["target"], ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
+                PreserveOnly("replace-image", ["target", "asset"], ["expect-content-type", "alt"]),
+                PreserveOnly("insert-image-after", ["target", "asset"], ["expect-content-type", "width", "height", "alt"]),
+                PreserveOnly("set-image-alt", ["target", "alt"], ["expect-content-type"]),
+                PreserveOnly("delete-image", ["target"], ["expect-content-type"]),
+                PreserveOnly("set-section-columns", ["target", "count"], ["expect-columns", "expect-orientation"]),
+                PreserveOnly("set-section-orientation", ["target", "orientation"], ["expect-columns", "expect-orientation"])
             ]
         };
     }
