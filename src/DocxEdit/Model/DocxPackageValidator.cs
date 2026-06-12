@@ -109,6 +109,7 @@ internal static class DocxPackageValidator
         }
 
         ValidateFieldBalance(document, partName, diagnostics);
+        ValidateFieldFlags(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
@@ -223,31 +224,92 @@ internal static class DocxPackageValidator
 
     private static void ValidateFieldBalance(XDocument document, string partName, List<DocxDiagnostic> diagnostics)
     {
-        int depth = 0;
-        foreach (XElement fieldChar in document.Descendants(OoxmlNs.W + "fldChar"))
+        var stack = new Stack<ComplexFieldValidationState>();
+        foreach (XElement element in document.Descendants())
         {
-            string? type = (string?)fieldChar.Attribute(OoxmlNs.W + "fldCharType");
+            if (element.Name == OoxmlNs.W + "instrText" && stack.Count == 0)
+            {
+                diagnostics.Add(Error("E9112", "Field instruction text appears outside a complex field.", partName));
+                continue;
+            }
+
+            if (element.Name != OoxmlNs.W + "fldChar")
+            {
+                continue;
+            }
+
+            string? type = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
             if (string.Equals(type, "begin", StringComparison.Ordinal))
             {
-                depth++;
+                stack.Push(new ComplexFieldValidationState());
+            }
+            else if (string.Equals(type, "separate", StringComparison.Ordinal))
+            {
+                if (stack.Count == 0)
+                {
+                    diagnostics.Add(Error("E9104", "Complex field separate appears without a matching begin.", partName));
+                }
+                else if (stack.Peek().HasSeparate)
+                {
+                    diagnostics.Add(Error("E9104", "Complex field has duplicate separate markers.", partName));
+                }
+                else
+                {
+                    stack.Peek().HasSeparate = true;
+                }
             }
             else if (string.Equals(type, "end", StringComparison.Ordinal))
             {
-                if (depth == 0)
+                if (stack.Count == 0)
                 {
                     diagnostics.Add(Error("E9104", "Complex field end appears without a matching begin.", partName));
                 }
                 else
                 {
-                    depth--;
+                    stack.Pop();
                 }
+            }
+            else
+            {
+                diagnostics.Add(Error("E9104", $"Complex field has invalid fldCharType '{type ?? string.Empty}'.", partName));
             }
         }
 
-        if (depth > 0)
+        if (stack.Count > 0)
         {
-            diagnostics.Add(Error("E9104", $"Complex field has {depth} unclosed begin marker(s).", partName));
+            diagnostics.Add(Error("E9104", $"Complex field has {stack.Count} unclosed begin marker(s).", partName));
         }
+    }
+
+    private static void ValidateFieldFlags(XDocument document, string partName, List<DocxDiagnostic> diagnostics)
+    {
+        foreach (XElement element in document.Descendants().Where(element =>
+            element.Name == OoxmlNs.W + "fldSimple" ||
+            element.Name == OoxmlNs.W + "fldChar"))
+        {
+            ValidateFieldOnOffAttribute(element, "dirty", partName, diagnostics);
+            ValidateFieldOnOffAttribute(element, "fldLock", partName, diagnostics);
+        }
+    }
+
+    private static void ValidateFieldOnOffAttribute(
+        XElement element,
+        string localName,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        string? value = (string?)element.Attribute(OoxmlNs.W + localName);
+        if (value is null)
+        {
+            return;
+        }
+
+        if (value is "true" or "false" or "1" or "0" or "on" or "off")
+        {
+            return;
+        }
+
+        diagnostics.Add(Error("E9112", $"Field attribute w:{localName} has invalid OnOff value '{value}'.", partName));
     }
 
     private static void ValidateDrawingRelationships(
@@ -564,5 +626,10 @@ internal static class DocxPackageValidator
             PartName: partName,
             Feature: feature,
             Fallback: fallback);
+    }
+
+    private sealed class ComplexFieldValidationState
+    {
+        public bool HasSeparate { get; set; }
     }
 }

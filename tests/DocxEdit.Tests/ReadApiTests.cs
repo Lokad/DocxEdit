@@ -189,6 +189,48 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidFieldBoundariesAndFlags()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:instrText> ORPHAN </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="invalid"/></w:r>
+                      <w:fldSimple w:instr=" DATE " w:dirty="maybe">
+                        <w:r><w:t>Date</w:t></w:r>
+                      </w:fldSimple>
+                      <w:r><w:fldChar w:fldCharType="begin" w:fldLock="maybe"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("instruction text", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("w:dirty", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("w:fldLock", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9104" &&
+            diagnostic.Message.Contains("separate appears without", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9104" &&
+            diagnostic.Message.Contains("invalid fldCharType", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9104" &&
+            diagnostic.Message.Contains("duplicate separate", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsInvalidCommentsExtendedMetadata()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

@@ -49,5 +49,6 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9109`: DrawingML extents are missing or non-positive.
 - `E9110`: DrawingML crop percentages are malformed or leave no visible image area.
 - `E9111`: comment body, anchor, or reference IDs are missing, duplicated, or inconsistent.
+- `E9112`: field instruction text or dirty/lock flag metadata is malformed.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.

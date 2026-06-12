@@ -176,7 +176,7 @@ Implemented areas include:
 - operation-level track-change capability metadata in the shared help catalog,
   including tracked and preserve-only operation classifications;
 - structural package validation through `validate`, including known part roots, paired
-  ranges, complex field balance, comment body/anchor consistency, comment extension consistency, drawing relationships,
+  ranges, complex field balance and field flag consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   drawing property ID uniqueness, drawing extent/crop geometry, duplicate semantic
   selector warnings, and basic table shape;
 - post-edit validation for touched XML parts before writing output.
