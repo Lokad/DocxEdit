@@ -1146,6 +1146,72 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadSurfacesDuplicateBookmarkAndContentControlSelectorMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Shared"/>
+                      <w:r><w:t>First</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Shared"/>
+                      <w:r><w:t>Second</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>One</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Two</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        foreach (DocxBookmarkInfo bookmark in result.Bookmarks)
+        {
+            Assert.True(bookmark.IsNameDuplicate);
+            Assert.Equal(new[] { "M.B0001", "M.B0002" }, bookmark.DuplicateNameBookmarkIds);
+        }
+
+        foreach (DocxContentControlInfo control in result.ContentControls)
+        {
+            Assert.True(control.IsTagDuplicate);
+            Assert.Equal(new[] { "M.CC0001", "M.CC0002" }, control.DuplicateTagControlIds);
+            Assert.True(control.IsAliasDuplicate);
+            Assert.Equal(new[] { "M.CC0001", "M.CC0002" }, control.DuplicateAliasControlIds);
+        }
+
+        Assert.Contains("name-duplicate=true duplicate-name-bookmark-ids=\"M.B0001,M.B0002\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("tag-duplicate=true duplicate-tag-control-ids=\"M.CC0001,M.CC0002\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("alias-duplicate=true duplicate-alias-control-ids=\"M.CC0001,M.CC0002\"", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxOutlineResult outline = editor.Outline(stream);
+
+        Assert.True(outline.Success);
+        Assert.Contains(outline.Lines, line => line.Contains("duplicate-name-bookmark-ids=\"M.B0001,M.B0002\"", StringComparison.Ordinal));
+        Assert.Contains(outline.Lines, line => line.Contains("duplicate-tag-control-ids=\"M.CC0001,M.CC0002\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ReadModelsAdvancedContentControlMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""

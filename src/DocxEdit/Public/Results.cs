@@ -308,6 +308,8 @@ public sealed record DocxBookmarkInfo
     public string? StartTargetId { get; init; }
     public string? EndTargetId { get; init; }
     public bool IsComplete { get; init; }
+    public bool IsNameDuplicate { get; init; }
+    public IReadOnlyList<string> DuplicateNameBookmarkIds { get; init; } = [];
 }
 
 public sealed record DocxContentControlInfo
@@ -320,6 +322,10 @@ public sealed record DocxContentControlInfo
     public string? OoxmlId { get; init; }
     public string? Tag { get; init; }
     public string? Alias { get; init; }
+    public bool IsTagDuplicate { get; init; }
+    public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
+    public bool IsAliasDuplicate { get; init; }
+    public IReadOnlyList<string> DuplicateAliasControlIds { get; init; } = [];
     public string? Lock { get; init; }
     public bool? Checked { get; init; }
     public string? CheckedSymbol { get; init; }

@@ -31,6 +31,7 @@ internal static class TextRenderers
             string ooxmlId = bookmark.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(bookmark.OoxmlId)}";
             string start = bookmark.StartTargetId is null ? " start=unknown" : $" start={bookmark.StartTargetId}";
             string end = bookmark.EndTargetId is null ? " end=unknown" : $" end={bookmark.EndTargetId}";
+            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{Escape(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
             builder.Append(bookmark.Id)
                 .Append(" bookmark name=\"")
                 .Append(Escape(bookmark.Name))
@@ -44,6 +45,7 @@ internal static class TextRenderers
                 .Append(end)
                 .Append(" complete=")
                 .Append(bookmark.IsComplete)
+                .Append(duplicateName)
                 .AppendLine();
         }
 
@@ -53,6 +55,8 @@ internal static class TextRenderers
             string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(control.OoxmlId)}";
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
+            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string locked = control.Lock is null ? string.Empty : $" lock={Escape(control.Lock)}";
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
             string checkedSymbol = control.CheckedSymbol is null ? string.Empty : $" checked-symbol=\"{Escape(control.CheckedSymbol)}\"";
@@ -73,6 +77,8 @@ internal static class TextRenderers
                 .Append(ooxmlId)
                 .Append(tag)
                 .Append(alias)
+                .Append(tagDuplicate)
+                .Append(aliasDuplicate)
                 .Append(locked)
                 .Append(checkedValue)
                 .Append(checkedSymbol)
@@ -233,7 +239,8 @@ internal static class TextRenderers
         {
             string start = bookmark.StartTargetId is null ? "unknown" : bookmark.StartTargetId;
             string end = bookmark.EndTargetId is null ? "unknown" : bookmark.EndTargetId;
-            lines.Add($"{bookmark.Id} bookmark name=\"{Escape(bookmark.Name)}\" start={start} end={end}");
+            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{Escape(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
+            lines.Add($"{bookmark.Id} bookmark name=\"{Escape(bookmark.Name)}\" start={start} end={end}{duplicateName}");
         }
 
         foreach (DocxContentControlInfo control in model.ContentControls)
@@ -241,9 +248,11 @@ internal static class TextRenderers
             string target = control.TargetId is null ? "unknown" : control.TargetId;
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
+            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
             string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{checkedValue}{listItems}");
+            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
         }
 
         foreach (DocxFieldInfo field in model.Fields)

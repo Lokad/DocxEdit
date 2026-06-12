@@ -953,6 +953,8 @@ public sealed record DocxBookmarkInfo
     public string? StartTargetId { get; init; }
     public string? EndTargetId { get; init; }
     public bool IsComplete { get; init; }
+    public bool IsNameDuplicate { get; init; }
+    public IReadOnlyList<string> DuplicateNameBookmarkIds { get; init; } = [];
 }
 
 public sealed record DocxContentControlInfo
@@ -965,6 +967,10 @@ public sealed record DocxContentControlInfo
     public string? OoxmlId { get; init; }
     public string? Tag { get; init; }
     public string? Alias { get; init; }
+    public bool IsTagDuplicate { get; init; }
+    public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
+    public bool IsAliasDuplicate { get; init; }
+    public IReadOnlyList<string> DuplicateAliasControlIds { get; init; } = [];
     public string? Lock { get; init; }
     public bool? Checked { get; init; }
     public string? CheckedSymbol { get; init; }
@@ -984,6 +990,11 @@ Bookmark IDs use the `B` namespace and content-control IDs use the `CC` namespac
 for example `M.B0001` and `M.CC0001`. They are metadata IDs, not patch edit targets.
 Use `StartTargetId`, `EndTargetId`, or `TargetId` for edits unless a later patch
 operation explicitly accepts the metadata ID.
+
+Duplicate bookmark names, duplicate content-control tags, and duplicate
+content-control aliases must be surfaced with boolean duplicate flags and candidate
+metadata IDs. This lets agents avoid ambiguous `bookmark:"Name"` and
+`content-control:"TagOrAlias"` selectors before attempting a patch.
 
 ### 8.9 Field model
 

@@ -90,10 +90,11 @@ decimal, upper/lower letters, upper/lower roman numerals, bullets, and nested
 `styles` output includes inheritance links such as `based-on`, `next`, `linked`, and
 style-level numbering defaults when present.
 `read` and `outline` list bookmark and content-control metadata when present.
-Bookmark records include name, OOXML ID, story, part, start/end targets, and whether
-the range is complete. Content-control records include kind, tag, alias, lock, story,
-part, containing target, text length, checkbox state, dropdown/combo item count, and
-date settings when present. `context` annotates nearby targets with
+Bookmark records include name, OOXML ID, story, part, start/end targets, duplicate
+name candidate IDs, and whether the range is complete. Content-control records
+include kind, tag, alias, duplicate tag/alias candidate IDs, lock, story, part,
+containing target, text length, checkbox state, dropdown/combo item count, and date
+settings when present. `context` annotates nearby targets with
 `bookmark-names`, `content-controls`, `content-control-tags`, and
 `content-control-aliases` so agents can connect selector names to stable target IDs.
 If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector

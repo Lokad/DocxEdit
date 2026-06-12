@@ -504,7 +504,20 @@ internal static class DocxDocumentScanner
             });
         }
 
-        return bookmarks;
+        return AnnotateDuplicateBookmarkNames(bookmarks);
+    }
+
+    private static IReadOnlyList<DocxBookmarkInfo> AnnotateDuplicateBookmarkNames(IReadOnlyList<DocxBookmarkInfo> bookmarks)
+    {
+        IReadOnlyDictionary<string, string[]> duplicateIdsByName = BuildDuplicateIds(
+            bookmarks,
+            bookmark => bookmark.Name,
+            bookmark => bookmark.Id);
+        return bookmarks
+            .Select(bookmark => duplicateIdsByName.TryGetValue(bookmark.Name, out string[]? ids)
+                ? bookmark with { IsNameDuplicate = true, DuplicateNameBookmarkIds = ids }
+                : bookmark)
+            .ToArray();
     }
 
     private static IReadOnlyList<DocxContentControlInfo> ReadContentControls(
@@ -544,7 +557,52 @@ internal static class DocxDocumentScanner
             });
         }
 
-        return contentControls;
+        return AnnotateDuplicateContentControlSelectors(contentControls);
+    }
+
+    private static IReadOnlyList<DocxContentControlInfo> AnnotateDuplicateContentControlSelectors(IReadOnlyList<DocxContentControlInfo> contentControls)
+    {
+        IReadOnlyDictionary<string, string[]> duplicateIdsByTag = BuildDuplicateIds(
+            contentControls,
+            control => control.Tag,
+            control => control.Id);
+        IReadOnlyDictionary<string, string[]> duplicateIdsByAlias = BuildDuplicateIds(
+            contentControls,
+            control => control.Alias,
+            control => control.Id);
+        return contentControls
+            .Select(control =>
+            {
+                DocxContentControlInfo annotated = control;
+                if (control.Tag is not null && duplicateIdsByTag.TryGetValue(control.Tag, out string[]? tagIds))
+                {
+                    annotated = annotated with { IsTagDuplicate = true, DuplicateTagControlIds = tagIds };
+                }
+
+                if (control.Alias is not null && duplicateIdsByAlias.TryGetValue(control.Alias, out string[]? aliasIds))
+                {
+                    annotated = annotated with { IsAliasDuplicate = true, DuplicateAliasControlIds = aliasIds };
+                }
+
+                return annotated;
+            })
+            .ToArray();
+    }
+
+    private static IReadOnlyDictionary<string, string[]> BuildDuplicateIds<T>(
+        IEnumerable<T> items,
+        Func<T, string?> keySelector,
+        Func<T, string> idSelector)
+    {
+        return items
+            .Select(item => (Key: keySelector(item), Id: idSelector(item)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key))
+            .GroupBy(item => item.Key!, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Id).ToArray(),
+                StringComparer.Ordinal);
     }
 
     private static IReadOnlyList<DocxFieldInfo> ReadFields(

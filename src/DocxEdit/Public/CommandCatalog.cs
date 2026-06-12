@@ -324,8 +324,8 @@ public static class DocxHelp
                     ],
                     OutputFields =
                     [
-                        new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, and completeness"),
-                        new("ContentControls", "Structured content controls with kind, tag, alias, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, and date settings"),
+                        new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, completeness, and duplicate-name candidate IDs"),
+                        new("ContentControls", "Structured content controls with kind, tag, alias, duplicate tag/alias candidate IDs, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, and date settings"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, wrap distances, anchor positioning, crop percentages, and media part"),
@@ -339,7 +339,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata, including checkbox state, dropdown/combo item counts, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, dropdown/combo selections, date values, bookmark names, unreferenced bookmark markers, and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
+                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, checkbox state, dropdown/combo item counts, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, dropdown/combo selections, date values, bookmark names, unreferenced bookmark markers, and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
                         ]),
                         new("Fields",
                         [

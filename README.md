@@ -150,7 +150,8 @@ Implemented areas include:
 - comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
   `reopen-comment` for comments that already have modern extension records;
 - bookmark and content-control read/context metadata with selector guidance, including
-  checkbox state, dropdown/combo item counts, and date settings;
+  duplicate selector candidate IDs, checkbox state, dropdown/combo item counts, and
+  date settings;
 - safe bookmark/content-control patch operations for plain-text content controls,
   checkbox state, dropdown/combo selections, date values, bookmark rename/delete,
   and simple same-paragraph bookmark ranges;
