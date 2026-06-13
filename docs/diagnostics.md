@@ -36,13 +36,13 @@ Common code ranges:
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,
 `equation`, `shape`, `linked-image`, `vml`, `grouped-drawing`, `ole-object`, `alt-chunk`,
-and `section-flow`.
+`section-flow`, and `numbering`.
 
 `W10xx` read-model warnings include `PartName`, `Story`, `Feature`, and `Fallback` metadata.
 Fallback values describe the behavior used by the reader, such as `selected-text-view`, `plain-text`,
 `changes-metadata`, `preserve-only`, `omit-from-editable-images`, `invalid-uri`,
 `missing-anchor`, `duplicate-anchor`, `unsupported-internal-part-link`, or
-`basic-section-model`.
+`basic-section-model`, `unsupported-picture-bullet`, or `unsupported-numbering-format`.
 
 Unsupported drawing warnings distinguish editable image records from preserve-only
 OOXML shapes. Linked images (`W1019`) are not fetched or listed as editable images.
@@ -52,6 +52,9 @@ equations, and generic shapes are preserved but not modeled.
 Hyperlink warnings distinguish broken relationships (`W1015`), invalid external URI
 targets (`W1016`), missing or duplicate anchors (`W1017`/`W1018`), and preserved but
 unsupported internal part links (`W1023`).
+
+Numbering warnings distinguish preserved picture bullets (`W1024`) and `numFmt`
+values that DocxEdit cannot expand into deterministic labels (`W1025`).
 
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.
 

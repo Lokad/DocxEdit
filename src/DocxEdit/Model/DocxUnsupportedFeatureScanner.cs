@@ -5,6 +5,17 @@ namespace DocxEdit.Model;
 
 internal static class DocxUnsupportedFeatureScanner
 {
+    private static readonly HashSet<string> SupportedNumberingFormats = new(StringComparer.Ordinal)
+    {
+        "decimal",
+        "decimalZero",
+        "upperLetter",
+        "lowerLetter",
+        "upperRoman",
+        "lowerRoman",
+        "bullet"
+    };
+
     private static readonly XName[] RevisionElements =
     [
         OoxmlNs.W + "ins",
@@ -64,7 +75,36 @@ internal static class DocxUnsupportedFeatureScanner
             }
         }
 
+        ScanNumbering(package, diagnostics, cancellationToken);
         return diagnostics;
+    }
+
+    private static void ScanNumbering(
+        OoxmlPackage package,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        OoxmlRelationship? relationship = package
+            .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+            .FirstOrDefault(relationship =>
+                !relationship.IsExternal &&
+                relationship.Type == OoxmlRelTypes.Numbering &&
+                relationship.ResolvedTarget is not null);
+        if (relationship?.ResolvedTarget is null)
+        {
+            return;
+        }
+
+        OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
+        if (part is null)
+        {
+            return;
+        }
+
+        using Stream stream = part.OpenRead();
+        XDocument document = SafeXml.Load(stream, cancellationToken);
+        AddWarningIfAny(diagnostics, "W1024", "numbering", "unsupported-picture-bullet", CountAny(document, [OoxmlNs.W + "numPicBullet", OoxmlNs.W + "lvlPicBulletId"]), relationship.ResolvedTarget, "numbering", "Picture bullets are preserved but cannot be expanded into deterministic labels.");
+        AddWarningIfAny(diagnostics, "W1025", "numbering", "unsupported-numbering-format", CountUnsupportedNumberingFormats(document), relationship.ResolvedTarget, "numbering", "Numbering definitions contain numFmt values that cannot be expanded into deterministic labels.");
     }
 
     private static void ScanStory(
@@ -178,6 +218,14 @@ internal static class DocxUnsupportedFeatureScanner
         return sectionProperties > 1
             ? sectionProperties
             : paragraphSectionBreaks;
+    }
+
+    private static int CountUnsupportedNumberingFormats(XDocument document)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "numFmt")
+            .Select(element => (string?)element.Attribute(OoxmlNs.W + "val"))
+            .Count(format => !string.IsNullOrWhiteSpace(format) && !SupportedNumberingFormats.Contains(format!));
     }
 
     private static int CountBrokenHyperlinks(XDocument document, IReadOnlyList<OoxmlRelationship> relationships)

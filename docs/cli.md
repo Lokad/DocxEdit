@@ -90,7 +90,8 @@ and `label-status=resolved|partial|unsupported`; `start`, `suffix`, `legal=true`
 Supported label formats include decimal, zero-padded decimal, upper/lower letters,
 upper/lower roman numerals, bullets, and nested `lvlText` tokens whose referenced
 counters are known. The same compact list metadata appears on numbered heading
-`outline` lines and paragraph `find` matches.
+`outline` lines and paragraph `find` matches. Unsupported picture bullets and custom
+numbering formats are preserved and reported through diagnostics.
 `styles` output includes inheritance links such as `based-on`, `next`, `linked`, and
 style-level numbering defaults when present.
 `read` and `outline` list bookmark and content-control metadata when present.

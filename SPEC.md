@@ -2589,6 +2589,9 @@ W1019 linked image detected
 W1020 VML drawing detected
 W1021 grouped drawing detected
 W1022 OLE object detected
+W1023 unsupported internal part hyperlink detected
+W1024 picture bullet numbering detected
+W1025 unsupported numbering format detected
 ```
 
 These warnings do not mean the library may corrupt the document. They mean the feature is preserved, ignored, approximated, or made read-only according to the operation semantics.
