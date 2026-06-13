@@ -1795,6 +1795,15 @@ end
 op delete-comment
 target C001.C0001
 end
+
+op add-comment-reply
+target comment:3
+text Reply text
+end
+
+op delete-comment-reply
+target comment:3.reply:1
+end
 ```
 
 Rules:
@@ -1819,6 +1828,9 @@ Rules:
 * `delete-comment` removes the comment body and matching `commentRangeStart`,
   `commentRangeEnd`, and `commentReference` markers from document stories, plus
   matching `commentsExtended.xml` records when present.
+* `add-comment-reply` and `delete-comment-reply` are recognized so callers receive
+  explicit `E4314` diagnostics. They fail until DocxEdit safely models
+  commentsIds/threaded-comments metadata.
 * Selected-range comment creation and full threaded comment workflows are out of
   scope for v0.1.
 

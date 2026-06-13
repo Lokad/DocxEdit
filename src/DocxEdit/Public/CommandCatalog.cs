@@ -195,6 +195,22 @@ public static class DocxHelp
         };
     }
 
+    private static DocxPatchOperationInfo Unsupported(
+        string name,
+        IReadOnlyList<string> requiredFields,
+        string note,
+        IReadOnlyList<string>? optionalFields = null)
+    {
+        return new DocxPatchOperationInfo
+        {
+            Name = name,
+            RequiredFields = requiredFields,
+            OptionalFields = optionalFields ?? [],
+            TrackChangesSupport = "unsupported",
+            TrackChangesNote = note
+        };
+    }
+
     private static void AppendCommandGroup(StringBuilder builder, string title, string category)
     {
         builder.AppendLine();
@@ -249,6 +265,7 @@ public static class DocxHelp
         builder.AppendLine();
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
+        builder.AppendLine("add-comment-reply and delete-comment-reply are recognized but fail with E4314 until threaded comment metadata is safely modeled.");
         builder.AppendLine("set-table-style and set-row-header update table properties with explicit guards.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
@@ -705,6 +722,15 @@ public static class DocxHelp
                 PreserveOnly("resolve-comment", ["target"]),
                 PreserveOnly("reopen-comment", ["target"]),
                 PreserveOnly("delete-comment", ["target"]),
+                Unsupported(
+                    "add-comment-reply",
+                    ["target", "text"],
+                    "Threaded comment replies are not safely modeled yet; check/apply fails with E4314.",
+                    ["author", "initials", "date"]),
+                Unsupported(
+                    "delete-comment-reply",
+                    ["target"],
+                    "Threaded comment replies are not safely modeled yet; check/apply fails with E4314."),
                 PreserveOnly("set-field-dirty", ["target or all", "dirty"]),
                 PreserveOnly("set-field-lock", ["target or all", "locked"]),
                 PreserveOnly("set-field-code", ["target", "code"], ["expect-code"]),

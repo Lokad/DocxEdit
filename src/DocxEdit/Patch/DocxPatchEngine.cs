@@ -109,6 +109,7 @@ internal static class DocxPatchEngine
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
                     "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
                     "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
+                    "add-comment-reply" or "delete-comment-reply" => ExecuteUnsupportedCommentThreadOperation(operation),
                     "set-field-dirty" => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken),
                     "set-field-lock" => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken),
                     "set-field-code" => ExecuteSetFieldCode(package, operation, apply, cancellationToken),
@@ -1736,6 +1737,20 @@ internal static class DocxPatchEngine
 
         SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
         return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteUnsupportedCommentThreadOperation(DocxPatchOperation operation)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        return
+        [
+            Diagnostic(
+                DocxSeverity.Error,
+                "E4314",
+                $"Operation '{operation.OperationName}' is not supported because threaded comment replies require commentsIds/threaded-comments metadata that DocxEdit does not safely model yet.",
+                operation,
+                target)
+        ];
     }
 
     private static bool TryReadHyperlinkDestination(

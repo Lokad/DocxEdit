@@ -36,7 +36,9 @@ Existing comment operations can target `comment:<id>` or comment body IDs such a
 `C001.C0001`: `set-comment-text` replaces a comment body under explicit patch
 control, `resolve-comment` and `reopen-comment` create or update modern
 `commentsExtended` resolution metadata for basic comments, and `delete-comment`
-removes the comment body plus matching range/reference markers.
+removes the comment body plus matching range/reference markers. `add-comment-reply`
+and `delete-comment-reply` are recognized but fail with `E4314` until threaded
+reply metadata is safely modeled.
 
 Some records legitimately have `target=unknown`: for example package-level range
 markers or markup not inside or adjacent to a modeled paragraph, table, cell, or

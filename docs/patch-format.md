@@ -61,6 +61,8 @@ including nearby paragraph text.
 - `resolve-comment`: `target`
 - `reopen-comment`: `target`
 - `delete-comment`: `target`
+- `add-comment-reply`: `target`, `text`, optional `author`, `initials`, `date`; recognized but fails with `E4314`
+- `delete-comment-reply`: `target`; recognized but fails with `E4314`
 - `set-field-dirty`: `target`, `dirty`
 - `set-field-lock`: `target`, `locked`
 - `set-field-code`: `target`, `code`; optional `expect-code`
@@ -119,7 +121,10 @@ paragraph while preserving comment metadata. `resolve-comment` and
 `reopen-comment` create or update the matching `commentsExtended.xml` `w15:done`
 flag for basic comments; unsupported body shapes fail with `E4312`. `delete-comment`
 removes the comment body, matching range/reference markers from document stories, and
-matching `commentsExtended.xml` records when present.
+matching `commentsExtended.xml` records when present. Threaded reply operations are
+recognized as `add-comment-reply` and `delete-comment-reply` so agents receive stable
+`E4314` diagnostics instead of generic unknown-operation errors; DocxEdit does not
+edit threaded reply metadata yet.
 
 Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
 `H001.F0001`, or `F001.F0001`. `set-field-dirty` updates `w:dirty` and

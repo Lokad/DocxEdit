@@ -150,7 +150,8 @@ Implemented areas include:
   targets;
 - comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
   `reopen-comment` workflows that create or update modern extension records for
-  basic comments;
+  basic comments, and explicit `E4314` diagnostics for unsupported threaded reply
+  operations;
 - bookmark and content-control read/context metadata with selector guidance, including
   duplicate selector candidate IDs, placeholder/data-binding metadata, hierarchy IDs,
   safe-edit status, checkbox state, dropdown/combo item counts, repeating-section

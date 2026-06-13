@@ -39,6 +39,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupport);
         Assert.Contains("does not create new revision markup", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
         Assert.Contains("E6001", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("add-comment-reply", out DocxPatchOperationInfo addCommentReply));
+        Assert.Equal("unsupported", addCommentReply.TrackChangesSupport);
+        Assert.Contains("E4314", addCommentReply.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryRenderTopic("patch", out string patchHelp));
         Assert.Contains("preserve-only", patchHelp, StringComparison.Ordinal);
     }

@@ -2352,6 +2352,43 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckCommentReplyOperationsFailWithExplicitUnsupportedDiagnostic()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment-reply
+            target comment:3
+            text Reply
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4314" &&
+            diagnostic.TargetId == "comment:3" &&
+            diagnostic.Message.Contains("threaded comment replies", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ApplyInsertBeforeParagraphAddsParagraphAtTargetPosition()
     {
         using MemoryStream input = CreateDocxWithBody("""

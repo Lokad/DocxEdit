@@ -28,6 +28,8 @@ Common code ranges:
   cannot safely host modern resolution metadata.
 - `E4313`: field code/result replacement was requested for a field shape that is not
   safely editable by the requested operation.
+- `E4314`: threaded comment reply operations are recognized but not supported because
+  DocxEdit does not safely model commentsIds/threaded-comments metadata yet.
 
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,
