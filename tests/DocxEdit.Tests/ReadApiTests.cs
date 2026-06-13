@@ -794,7 +794,7 @@ public static class ReadApiTests
         using MemoryStream stream = CreateDocxWithStylesAndNumbering(
             """
                     <w:p>
-                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
                       <w:r><w:t>Top one</w:t></w:r>
                     </w:p>
                     <w:p>
@@ -853,6 +853,14 @@ public static class ReadApiTests
         Assert.Equal(new DocxListLabelComponent(0, 3, "3", "decimal"), components[0]);
         Assert.Equal(new DocxListLabelComponent(1, 2, "b", "lowerLetter"), components[1]);
         Assert.Contains("M.P0002 paragraph list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.b)\" label-components=\"0:3:decimal:3,1:2:lowerLetter:b\" start=2", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxFindResult find = editor.Find(stream, "Nested two");
+        Assert.Contains("M.P0003 list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.c)\" label-components=\"0:3:decimal:3,1:3:lowerLetter:c\" start=2 text=\"Nested two\"", find.Matches);
+
+        stream.Position = 0;
+        DocxOutlineResult outline = editor.Outline(stream);
+        Assert.Contains("M.P0001 heading level=1 list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"3.\" label-components=\"0:3:decimal:3\" start=3 suffix=space text=\"Top one\"", outline.Lines);
     }
 
     [Fact]

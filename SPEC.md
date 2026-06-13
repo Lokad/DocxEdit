@@ -1289,7 +1289,7 @@ Purpose: show only sections, headings, tables, images, bookmarks, content contro
 headers, and footers.
 
 ```text
-M.P0001 heading level=1 text="Executive Summary"
+M.P0001 heading level=1 list numId=1 level=0 label="1." text="Executive Summary"
 M.T0001 table rows=4 columns=3 styleId=TableGrid grid-columns=3 header-row=true
 M.S0001 section columns=2 orientation=landscape
 M.I0001 image layout=inline target=M.P0002 part=/word/media/image1.png
@@ -1304,9 +1304,12 @@ M.L0001 hyperlink target=M.P0002 destination="https://example.test/report" broke
 Purpose: find targetable text.
 
 ```text
-M.P0004 text="Revenue increased by 8.4% compared with the prior quarter."
+M.P0004 list numId=1 level=0 label="1." text="Revenue increased by 8.4% compared with the prior quarter."
 M.T0001.R02.C01 text="Revenue"
 ```
+
+Paragraph `find` matches and heading `outline` lines include compact resolved list
+metadata when the source paragraph has numbering.
 
 ### 9.4 `dump`
 

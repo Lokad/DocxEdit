@@ -240,7 +240,8 @@ internal static class TextRenderers
         var lines = new List<string>();
         foreach (DocxParagraphInfo paragraph in model.Paragraphs.Where(paragraph => paragraph.HeadingLevel is not null))
         {
-            lines.Add($"{paragraph.Id} heading level={paragraph.HeadingLevel} text=\"{Escape(paragraph.Text)}\"");
+            string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
+            lines.Add($"{paragraph.Id} heading level={paragraph.HeadingLevel}{list} text=\"{Escape(paragraph.Text)}\"");
         }
 
         foreach (DocxTableInfo table in model.Tables)
@@ -305,7 +306,8 @@ internal static class TextRenderers
         {
             if (paragraph.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
-                matches.Add($"{paragraph.Id} text=\"{Escape(Truncate(paragraph.Text, maxText))}\"");
+                string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
+                matches.Add($"{paragraph.Id}{list} text=\"{Escape(Truncate(paragraph.Text, maxText))}\"");
             }
         }
 

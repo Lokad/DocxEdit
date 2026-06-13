@@ -411,6 +411,13 @@ public static class DocxHelp
                         new("--json", "Print the result object as JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),
                         new("--strict", "Return 3 when warnings are present")
+                    ],
+                    Notes =
+                    [
+                        new("Numbered headings",
+                        [
+                            "Heading lines include compact resolved list metadata when the heading paragraph has numbering."
+                        ])
                     ]
                 },
                 new()
@@ -428,6 +435,13 @@ public static class DocxHelp
                         new("--json", "Print the result object as JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),
                         new("--strict", "Return 3 when warnings are present")
+                    ],
+                    Notes =
+                    [
+                        new("Numbered paragraph matches",
+                        [
+                            "Paragraph matches include compact resolved list metadata when the matched paragraph has numbering."
+                        ])
                     ]
                 },
                 new()
