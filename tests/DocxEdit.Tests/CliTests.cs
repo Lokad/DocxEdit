@@ -28,10 +28,14 @@ public static class CliTests
         CreateDocx(input);
 
         CliResult text = RunCli("validate", input);
+        CliResult package = RunCli("validate", input, "--profile", "package");
         CliResult json = RunCli("validate", input, "--json");
 
         Assert.Equal(0, text.ExitCode);
         Assert.Contains("docxedit validate: OK", text.Output, StringComparison.Ordinal);
+        Assert.Contains("profile=structural", text.Output, StringComparison.Ordinal);
+        Assert.Equal(0, package.ExitCode);
+        Assert.Contains("profile=package", package.Output, StringComparison.Ordinal);
         Assert.Equal(0, json.ExitCode);
         Assert.Contains("\"Success\": true", json.Output, StringComparison.Ordinal);
         Assert.Contains("\"MainDocumentPartName\": \"/word/document.xml\"", json.Output, StringComparison.Ordinal);
@@ -112,6 +116,7 @@ public static class CliTests
         Assert.DoesNotContain("ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
         Assert.Equal(0, validate.ExitCode);
         Assert.Contains("docxedit validate input.docx", validate.Output, StringComparison.Ordinal);
+        Assert.Contains("--profile structural|package", validate.Output, StringComparison.Ordinal);
         Assert.Contains("WordprocessingML invariants", validate.Output, StringComparison.Ordinal);
         Assert.Contains("stable diagnostic codes", validate.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
@@ -201,6 +206,15 @@ public static class CliTests
 
         Assert.Equal(2, result.ExitCode);
         Assert.Contains("Invalid value for --track-changes", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliRejectsInvalidValidationProfile()
+    {
+        CliResult result = RunCli("validate", "input.docx", "--profile", "strict");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Invalid value for --profile", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]

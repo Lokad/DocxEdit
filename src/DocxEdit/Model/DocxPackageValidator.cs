@@ -7,10 +7,13 @@ internal static class DocxPackageValidator
 {
     public static IReadOnlyList<DocxDiagnostic> Validate(
         OoxmlPackage package,
+        DocxValidationProfile profile,
         CancellationToken cancellationToken = default)
     {
         var diagnostics = new List<DocxDiagnostic>();
-        IReadOnlyDictionary<string, string> storyPrefixes = BuildStoryPrefixes(package, cancellationToken);
+        IReadOnlyDictionary<string, string> storyPrefixes = profile == DocxValidationProfile.Structural
+            ? BuildStoryPrefixes(package, cancellationToken)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (OoxmlPart part in package.Parts.Values
             .Where(part => part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
@@ -19,14 +22,19 @@ internal static class DocxPackageValidator
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
             ValidateRoot(part.Name, document.Root, diagnostics);
-            if (part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase))
+            if (profile == DocxValidationProfile.Structural &&
+                part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase))
             {
                 storyPrefixes.TryGetValue(part.Name, out string? storyPrefix);
                 ValidateWordPart(package, part.Name, storyPrefix, document, diagnostics, cancellationToken);
             }
         }
 
-        ValidateCommentConsistency(package, diagnostics, cancellationToken);
+        if (profile == DocxValidationProfile.Structural)
+        {
+            ValidateCommentConsistency(package, diagnostics, cancellationToken);
+        }
+
         return diagnostics;
     }
 

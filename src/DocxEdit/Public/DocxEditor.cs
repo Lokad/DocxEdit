@@ -298,15 +298,16 @@ public sealed class DocxEditor
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
-            return new DocxValidateResult { Success = false, Diagnostics = diagnostics };
+            return new DocxValidateResult { Success = false, Diagnostics = diagnostics, Profile = options.Profile };
         }
 
-        if (!TryDocumentOperation(() => DocxPackageValidator.Validate(package, cancellationToken), out IReadOnlyList<DocxDiagnostic>? validationDiagnostics, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxPackageValidator.Validate(package, options.Profile, cancellationToken), out IReadOnlyList<DocxDiagnostic>? validationDiagnostics, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxValidateResult
             {
                 Success = false,
                 Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
+                Profile = options.Profile,
                 PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
                 MainDocumentPartName = package.MainDocumentPartName
             };
@@ -317,6 +318,7 @@ public sealed class DocxEditor
         {
             Success = allDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error),
             Diagnostics = allDiagnostics,
+            Profile = options.Profile,
             PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
             MainDocumentPartName = package.MainDocumentPartName
         };

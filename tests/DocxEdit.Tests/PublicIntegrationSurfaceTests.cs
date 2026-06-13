@@ -133,6 +133,7 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("text-length=14", changeText, StringComparison.Ordinal);
         Assert.Contains("operation index=1 name=replace-text target=M.P0001 success=True", operationText, StringComparison.Ordinal);
         Assert.Contains("docxedit validate: FAILED", validateText, StringComparison.Ordinal);
+        Assert.Contains("profile=structural", validateText, StringComparison.Ordinal);
         Assert.Contains("Error E9105 part=/word/document.xml", validateText, StringComparison.Ordinal);
     }
 

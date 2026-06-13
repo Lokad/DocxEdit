@@ -60,6 +60,7 @@ public sealed record DocxMediaResult : DocxOperationResult
 
 public sealed record DocxValidateResult : DocxOperationResult
 {
+    public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
     public IReadOnlyList<string> PartNames { get; init; } = [];
     public string? MainDocumentPartName { get; init; }
 }

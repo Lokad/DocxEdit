@@ -191,6 +191,9 @@ public static class DocxTextRenderer
         ArgumentNullException.ThrowIfNull(result);
         var builder = new StringBuilder();
         builder.AppendLine(result.Success ? "docxedit validate: OK" : "docxedit validate: FAILED");
+        builder.Append("profile=")
+            .Append(result.Profile.ToString().ToLowerInvariant())
+            .AppendLine();
         foreach (DocxDiagnostic diagnostic in result.Diagnostics)
         {
             builder.Append(diagnostic.Severity)

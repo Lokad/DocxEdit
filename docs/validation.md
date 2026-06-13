@@ -20,10 +20,17 @@ This is structural validation, not full OOXML schema validation.
 
 ## Structural Package Validation
 
-`DocxEditor.Validate` and `docxedit validate input.docx` run bounded structural
-validation without editing the document. The result includes package part names, the
-main document part name, and diagnostics with part names when a problem is tied to a
-specific OOXML part.
+`DocxEditor.Validate` and `docxedit validate input.docx` run validation without
+editing the document. The result includes the selected validation profile, package
+part names, the main document part name, and diagnostics with part names when a
+problem is tied to a specific OOXML part.
+
+Supported profiles:
+
+- `structural` is the default. It runs package/XML root checks plus the
+  WordprocessingML invariants below.
+- `package` limits validation to package/XML root checks after the package has been
+  loaded safely.
 
 Current checks include:
 
@@ -43,8 +50,9 @@ Current checks include:
   `vMerge` continuations, and declared `tblGrid` width.
 
 This remains layered internal validation rather than full ISO/IEC 29500 schema
-validation. It is designed to catch common corruption and relationship mistakes with
-stable `E91xx` diagnostics.
+validation. A strict schema profile is not exposed until an actual schema validator
+bridge exists. The current profiles are designed to catch common corruption and
+relationship mistakes with stable `E91xx` diagnostics.
 
 ## Public Edit Cases
 

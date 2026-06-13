@@ -73,6 +73,7 @@ public sealed class DocxMediaOptions
 
 public sealed class DocxValidateOptions
 {
+    public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
     public int MaxZipEntries { get; init; } = 10_000;
     public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
     public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;
@@ -125,4 +126,10 @@ public enum DocxTextView
     Final,
     Original,
     Markup
+}
+
+public enum DocxValidationProfile
+{
+    Structural,
+    Package
 }

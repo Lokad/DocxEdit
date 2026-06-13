@@ -504,10 +504,11 @@ public static class DocxHelp
                     Name = "validate",
                     Category = "read",
                     Summary = "Validate package and WordprocessingML invariants",
-                    Usage = "docxedit validate input.docx [--json] [--diagnostics <path>] [--strict]",
-                    Description = "Validate package-level XML roots and WordprocessingML invariants: paired bookmark/comment ranges, duplicate semantic selectors, complex field balance, drawing relationships, image target/content-type checks, drawing geometry, basic table shape, and table visual-grid consistency.",
+                    Usage = "docxedit validate input.docx [--profile structural|package] [--json] [--diagnostics <path>] [--strict]",
+                    Description = "Validate package-level XML roots and, with the structural profile, WordprocessingML invariants: paired bookmark/comment ranges, duplicate semantic selectors, complex field balance, drawing relationships, image target/content-type checks, drawing geometry, basic table shape, and table visual-grid consistency. Package profile limits validation to package/XML root checks.",
                     Options =
                     [
+                        new("--profile structural|package", "Validation profile; structural is the default"),
                         new("--json", "Print the result object as JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),
                         new("--strict", "Return 3 when warnings are present")

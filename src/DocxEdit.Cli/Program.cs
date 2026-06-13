@@ -254,11 +254,11 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit validate input.docx [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit validate input.docx [--profile structural|package] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxValidateResult result = new DocxEditor().Validate(input);
+        DocxValidateResult result = new DocxEditor().Validate(input, new DocxValidateOptions { Profile = options.ValidationProfile });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
         {
@@ -493,6 +493,7 @@ internal static class ProgramMain
         string? Author,
         DateTimeOffset? TimestampUtc,
         DocxTextView TextView,
+        DocxValidationProfile ValidationProfile,
         string? Error)
     {
         public static ParsedOptions Parse(string[] args)
@@ -515,6 +516,7 @@ internal static class ProgramMain
             string? author = null;
             DateTimeOffset? timestampUtc = null;
             DocxTextView textView = DocxTextView.Final;
+            DocxValidationProfile validationProfile = DocxValidationProfile.Structural;
 
             for (int i = 1; i < args.Length; i++)
             {
@@ -621,6 +623,18 @@ internal static class ProgramMain
                         }
 
                         break;
+                    case "--profile":
+                        if (!TryReadValue(args, ref i, out string? profileValue))
+                        {
+                            return WithError(command, "Missing value for --profile.");
+                        }
+
+                        if (!TryParseValidationProfile(profileValue!, out validationProfile))
+                        {
+                            return WithError(command, "Invalid value for --profile. Expected structural or package.");
+                        }
+
+                        break;
                     case "--author":
                         if (!TryReadValue(args, ref i, out author))
                         {
@@ -667,7 +681,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, maxCommentText, radius, trackChanges, author, timestampUtc, textView, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, maxCommentText, radius, trackChanges, author, timestampUtc, textView, validationProfile, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -684,7 +698,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, DocxValidationProfile.Structural, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)
@@ -699,6 +713,22 @@ internal static class ProgramMain
                 _ => TrackChangesMode.Off
             };
             return normalized is "off" or "preserve" or "suggest" or "require";
+        }
+
+        private static bool TryParseValidationProfile(string value, out DocxValidationProfile profile)
+        {
+            switch (value.ToLowerInvariant())
+            {
+                case "structural":
+                    profile = DocxValidationProfile.Structural;
+                    return true;
+                case "package":
+                    profile = DocxValidationProfile.Package;
+                    return true;
+                default:
+                    profile = DocxValidationProfile.Structural;
+                    return false;
+            }
         }
 
         private static bool TryParseTextView(string value, out DocxTextView textView)

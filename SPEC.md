@@ -451,8 +451,20 @@ public sealed record DocxChangesResult : DocxOperationResult
 
 public sealed record DocxValidateResult : DocxOperationResult
 {
+    public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
     public IReadOnlyList<string> PartNames { get; init; } = [];
     public string? MainDocumentPartName { get; init; }
+}
+
+public sealed class DocxValidateOptions
+{
+    public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
+}
+
+public enum DocxValidationProfile
+{
+    Structural,
+    Package
 }
 ```
 
@@ -2411,6 +2423,15 @@ It must never modify the input stream.
 
 Because the production library cannot use the Open XML SDK, internal validation is not full schema validation. The dependency policy is explicit: the production library stays dependency-free beyond the .NET platform, so validation is a layered internal invariant checker rather than an ISO/IEC 29500 XSD validator.
 
+`DocxValidateOptions.Profile` controls how much validation is run:
+
+* `Structural` is the default and runs package/XML root checks plus DocxEdit's
+  WordprocessingML invariants.
+* `Package` limits validation to safe package loading and XML root checks.
+
+A strict schema profile is not exposed until DocxEdit has a real schema validator
+bridge.
+
 Patch apply validation must check:
 
 * ZIP package is readable.
@@ -2624,6 +2645,7 @@ docxedit styles input.docx
 docxedit media input.docx
 docxedit media input.docx --extract media
 docxedit validate input.docx
+docxedit validate input.docx --profile package
 docxedit changes input.docx
 
 docxedit check input.docx edits.docxpatch

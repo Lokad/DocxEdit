@@ -38,9 +38,28 @@ public static class ReadApiTests
         DocxValidateResult result = editor.Validate(stream);
 
         Assert.True(result.Success);
+        Assert.Equal(DocxValidationProfile.Structural, result.Profile);
         Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
         Assert.Contains("/word/document.xml", result.PartNames);
         Assert.Equal("/word/document.xml", result.MainDocumentPartName);
+    }
+
+    [Fact]
+    public static void ValidatePackageProfileSkipsWordprocessingInvariants()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Unclosed"/>
+                      <w:r><w:t>Text</w:t></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream, new DocxValidateOptions { Profile = DocxValidationProfile.Package });
+
+        Assert.True(result.Success);
+        Assert.Equal(DocxValidationProfile.Package, result.Profile);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E9103");
     }
 
     [Fact]
