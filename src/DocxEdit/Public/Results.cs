@@ -361,6 +361,8 @@ public sealed record DocxHyperlinkInfo
     public string PartName { get; init; } = string.Empty;
     public string? TargetId { get; init; }
     public string? RelationshipId { get; init; }
+    public string? RelationshipPartName { get; init; }
+    public string? RelationshipTargetMode { get; init; }
     public string? Uri { get; init; }
     public string? UriScheme { get; init; }
     public bool? IsUriValid { get; init; }

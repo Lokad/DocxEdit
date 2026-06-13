@@ -1040,6 +1040,8 @@ public sealed record DocxHyperlinkInfo
     public string PartName { get; init; } = string.Empty;
     public string? TargetId { get; init; }
     public string? RelationshipId { get; init; }
+    public string? RelationshipPartName { get; init; }
+    public string? RelationshipTargetMode { get; init; }
     public string? Uri { get; init; }
     public string? UriScheme { get; init; }
     public bool? IsUriValid { get; init; }
@@ -1058,9 +1060,11 @@ public sealed record DocxHyperlinkInfo
 ```
 
 Hyperlink IDs use the `L` namespace, for example `M.L0001`. They are metadata IDs,
-not patch edit targets. `Uri` is populated for external hyperlink relationships,
-`UriScheme`, `IsUriValid`, and `UriValidationReason` report whether the external
-target is an allowed absolute `http`, `https`, or `mailto` URI. Relative external
+not patch edit targets. `RelationshipPartName` identifies the `.rels` part that
+contains `RelationshipId`, and `RelationshipTargetMode` exposes the raw relationship
+`TargetMode` value when the relationship exists. `Uri` is populated for external
+hyperlink relationships, `UriScheme`, `IsUriValid`, and `UriValidationReason` report
+whether the external target is an allowed absolute `http`, `https`, or `mailto` URI. Relative external
 targets use `UriValidationReason = "relative-uri"`; malformed targets use
 `UriValidationReason = "malformed-uri"`; unsupported absolute schemes, including
 `file` and UNC/file-style targets parsed as `file`, use

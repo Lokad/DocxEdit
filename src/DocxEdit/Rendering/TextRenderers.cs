@@ -121,6 +121,8 @@ internal static class TextRenderers
         {
             string target = hyperlink.TargetId is null ? " target=unknown" : $" target={hyperlink.TargetId}";
             string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={Escape(hyperlink.RelationshipId)}";
+            string relationshipPart = hyperlink.RelationshipPartName is null ? string.Empty : $" relationship-part={hyperlink.RelationshipPartName}";
+            string relationshipTargetMode = hyperlink.RelationshipTargetMode is null ? string.Empty : $" target-mode={Escape(hyperlink.RelationshipTargetMode)}";
             string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{Escape(hyperlink.Uri)}\"";
             string uriScheme = hyperlink.UriScheme is null ? string.Empty : $" uri-scheme={Escape(hyperlink.UriScheme)}";
             string uriValid = hyperlink.IsUriValid is null ? string.Empty : $" uri-valid={hyperlink.IsUriValid.Value.ToString().ToLowerInvariant()}";
@@ -139,6 +141,8 @@ internal static class TextRenderers
                 .Append(hyperlink.PartName)
                 .Append(target)
                 .Append(relationshipId)
+                .Append(relationshipPart)
+                .Append(relationshipTargetMode)
                 .Append(uri)
                 .Append(uriScheme)
                 .Append(uriValid)

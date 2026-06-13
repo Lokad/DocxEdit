@@ -1681,6 +1681,8 @@ public static class ReadApiTests
         Assert.Equal("M.L0001", external.Id);
         Assert.Equal("M.P0001", external.TargetId);
         Assert.Equal("rLink", external.RelationshipId);
+        Assert.Equal("/word/_rels/document.xml.rels", external.RelationshipPartName);
+        Assert.Equal("External", external.RelationshipTargetMode);
         Assert.Equal("https://example.test/report", external.Uri);
         Assert.Equal("https", external.UriScheme);
         Assert.True(external.IsUriValid);
@@ -1698,14 +1700,20 @@ public static class ReadApiTests
         Assert.False(internalLink.IsAnchorDuplicate);
         Assert.False(internalLink.IsExternal);
         Assert.False(internalLink.IsBroken);
+        Assert.Null(internalLink.RelationshipPartName);
+        Assert.Null(internalLink.RelationshipTargetMode);
 
         DocxHyperlinkInfo broken = result.Hyperlinks[2];
         Assert.Equal("rMissing", broken.RelationshipId);
+        Assert.Equal("/word/_rels/document.xml.rels", broken.RelationshipPartName);
+        Assert.Null(broken.RelationshipTargetMode);
         Assert.True(broken.IsBroken);
         Assert.Null(broken.Uri);
 
         Assert.Contains("M.L0001 hyperlink", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("relationship-part=/word/_rels/document.xml.rels", result.Text, StringComparison.Ordinal);
+        Assert.Contains("target-mode=External", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri-scheme=https", result.Text, StringComparison.Ordinal);
         Assert.Contains("uri-valid=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("target-frame=\"_blank\"", result.Text, StringComparison.Ordinal);

@@ -721,6 +721,8 @@ internal static class DocxDocumentScanner
                 PartName = partName,
                 TargetId = FindTargetId(hyperlink, targets),
                 RelationshipId = relationshipId,
+                RelationshipPartName = string.IsNullOrWhiteSpace(relationshipId) ? null : OoxmlPath.GetRelationshipPartName(partName),
+                RelationshipTargetMode = relationship?.TargetMode,
                 Uri = externalUri,
                 UriScheme = uriValidation.Scheme,
                 IsUriValid = uriValidation.IsValid,

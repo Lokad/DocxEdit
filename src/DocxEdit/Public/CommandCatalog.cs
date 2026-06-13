@@ -344,7 +344,7 @@ public static class DocxHelp
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, completeness, and duplicate-name candidate IDs"),
                         new("ContentControls", "Structured content controls with kind, tag, alias, duplicate tag/alias candidate IDs, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, and date settings"),
                         new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
-                        new("Hyperlinks", "Structured hyperlinks with relationship ID, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
+                        new("Hyperlinks", "Structured hyperlinks with relationship ID, relationship part, target mode, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, wrap distances, anchor positioning, crop percentages, and media part"),
                         new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merge groups, vertical merge roots, and nested tables")
                     ],
@@ -364,7 +364,7 @@ public static class DocxHelp
                         ]),
                         new("Hyperlinks",
                         [
-                            "Read, outline, context, and dump --runs output surface hyperlink metadata. External links expose URI, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Patch URI targets must be absolute http, https, or mailto; relative, malformed, file/UNC-style, and unsafe-scheme targets are rejected. Internal links expose anchor or target part plus missing/duplicate anchor flags, target-frame/history metadata, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, tooltip, target-frame, history, display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
+                            "Read, outline, context, and dump --runs output surface hyperlink metadata. Relationship-backed links expose relationship ID, relationship part, target mode, URI or target part, scheme, validation status, and validation reason for unsupported schemes or relative/malformed targets. Patch URI targets must be absolute http, https, or mailto; relative, malformed, file/UNC-style, and unsafe-scheme targets are rejected. Internal links expose anchor plus missing/duplicate anchor flags, target-frame/history metadata, and broken relationship IDs are flagged. Patch operations can update URI/anchor targets, tooltip, target-frame, history, display text, insert hyperlinks, and remove hyperlink markup while preserving display runs."
                         ]),
                         new("Images",
                         [
