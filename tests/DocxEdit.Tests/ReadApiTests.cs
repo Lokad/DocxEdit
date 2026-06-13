@@ -1154,6 +1154,53 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadNumberingLabelsAreStableAcrossTrackedRunTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>First </w:t></w:r>
+                      <w:ins w:id="1" w:author="Alice"><w:r><w:t>inserted</w:t></w:r></w:ins>
+                      <w:del w:id="2" w:author="Bob"><w:r><w:delText>deleted</w:delText></w:r></w:del>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Second</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["1.", "2."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "2."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "2."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal("First inserted", finalView.Paragraphs[0].Text);
+        Assert.Equal("First deleted", originalView.Paragraphs[0].Text);
+        Assert.Equal("First [+inserted+][-deleted-]", markupView.Paragraphs[0].Text);
+    }
+
+    [Fact]
     public static void ReadUsesNumberingStartOverridePerNumberingInstance()
     {
         using MemoryStream stream = CreateDocxWithStylesAndNumbering(

@@ -138,7 +138,8 @@ Implemented areas include:
 - resolved paragraph numbering/list metadata, including abstract numbering IDs, formats,
   level text, style-linked list sources, start/suffix metadata, visible labels, and
   structured label components for deterministic decimal, letter, roman, bullet, and
-  nested `lvlText` patterns;
+  nested `lvlText` patterns, stable across final/original/markup run-level tracked
+  text views;
 - merged/nested/styled table and row/grid read metadata, including merge groups and
   vertical-merge root cells;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
