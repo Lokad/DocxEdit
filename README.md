@@ -159,8 +159,8 @@ Implemented areas include:
   metadata, and date settings;
 - lock-aware safe bookmark/content-control patch operations for plain-text content
   controls, guarded rich-text content controls, checkbox state, dropdown/combo
-  selections, date values, bookmark rename/delete, and simple same-paragraph
-  bookmark ranges;
+  selections, date values, bookmark rename/delete, and guarded same-paragraph
+  bookmark ranges, including multi-run ranges;
 - simple and complex field read/context metadata, including parsed field type,
   nesting depth, bookmark/hyperlink dependencies, safe-edit status, explicit
   dirty/lock flag patch operations for one field or all modeled fields,
@@ -199,7 +199,7 @@ decimal, letter, roman, bullet, and nested `lvlText` labels/components, selected
 creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text and guarded rich-text controls,
 checkbox toggles, dropdown/combo selections, date values, bookmark rename/delete,
-and simple same-paragraph bookmark ranges, field result recalculation and complex-field
+and guarded same-paragraph bookmark ranges, field result recalculation and complex-field
 edit workflows beyond dirty/lock flags, simple-field code/result edits, and simple
 REF-style bookmark refresh,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,

@@ -1789,9 +1789,9 @@ Rules:
   provided or `value` otherwise while preserving the `w:sdt` wrapper and properties.
 * Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
   or `F001.B0001`.
-* `replace-bookmark-text` supports complete bookmark ranges whose start/end markers are
-  direct siblings in the same paragraph and fails unsupported ranges instead of
-  flattening surrounding OOXML.
+* `replace-bookmark-text` supports complete same-paragraph bookmark ranges whose
+  start/end markers are direct siblings, including ranges spanning multiple direct
+  run siblings, and fails unsupported ranges instead of flattening surrounding OOXML.
 * `rename-bookmark` rejects invalid or duplicate new names, changes `w:bookmarkStart`
   `w:name`, and rewrites same-story `w:hyperlink/@w:anchor` values that referenced
   the old name when that old name is unambiguous.
