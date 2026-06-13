@@ -96,6 +96,15 @@ including nearby paragraph text.
 
 Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors. Explicit header/footer image IDs can be used for image replacement, alt text, and deletion.
 
+Table and cell IDs use visual grid coordinates from `read`/`context`, not raw OOXML
+cell ordinals. Cell metadata exposes physical column, visual column end, merge group,
+vertical-merge root, nested-table, `grid-before`, and `grid-after` details so agents
+can decide whether a table is safe to edit. `set-cell` targets one modeled cell and
+preserves `w:tcPr`; row operations are limited to simple rectangular tables and reject
+visual-grid shapes with `gridSpan`, omitted cells, or vertical merges unless a force
+mode is explicitly supported by that operation. Column operations are recognized only
+to return stable `E4316` diagnostics.
+
 For list-like insertions, set `copy-paragraph-properties true` on `insert-before` or
 `insert-after` with a paragraph target. The inserted paragraph copies the target
 paragraph's `w:pPr`, including style and numbering properties; an explicit `style`
