@@ -152,13 +152,24 @@ internal static class DocxPatchEngine
             });
         }
 
-        if (apply &&
+        bool shouldMarkFieldsDirty = apply &&
             options.MarkFieldsDirtyWhenEditing &&
             patch.Operations.Count != 0 &&
             patch.Operations.Any(operation => ShouldMarkFieldsDirtyAfterOperation(operation.OperationName)) &&
-            diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+            diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
+        bool containsFieldsBeforeRefresh = shouldMarkFieldsDirty && PackageContainsFieldMarkup(package, cancellationToken);
+        if (shouldMarkFieldsDirty)
         {
             diagnostics.AddRange(MarkFieldsDirty(package, cancellationToken));
+            if (containsFieldsBeforeRefresh && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+            {
+                diagnostics.Add(new DocxDiagnostic(
+                    DocxSeverity.Warning,
+                    "W5103",
+                    "Document contains fields and was marked for Word-side field refresh; DocxEdit does not recalculate field results.",
+                    Feature: "field",
+                    Fallback: "word-refresh-required"));
+            }
         }
 
         if (apply && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
@@ -196,6 +207,29 @@ internal static class DocxPatchEngine
     private static bool ShouldMarkFieldsDirtyAfterOperation(string operationName)
     {
         return operationName is not "set-field-result";
+    }
+
+    private static bool PackageContainsFieldMarkup(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        foreach (OoxmlPart part in package.Parts.Values
+            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
+                part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                !part.Name.Contains("/_rels/", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            if (document.Descendants().Any(element =>
+                element.Name == OoxmlNs.W + "fldSimple" ||
+                element.Name == OoxmlNs.W + "fldChar" ||
+                element.Name == OoxmlNs.W + "instrText"))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static TableOperationSnapshot? CaptureTableOperationSnapshot(

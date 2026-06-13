@@ -377,7 +377,7 @@ public static class DocxHelp
                         ]),
                         new("Fields",
                         [
-                            "Read and context output surface simple and complex field metadata, including field code, result-text length, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, and mark the document for field updates after edits, but Word remains responsible for recalculating field results."
+                            "Read and context output surface simple and complex field metadata, including field code, result-text length, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, and mark the document for field updates after edits, but Word remains responsible for recalculating field results. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
                         ]),
                         new("Hyperlinks",
                         [

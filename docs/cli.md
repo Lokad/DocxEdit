@@ -123,7 +123,8 @@ field XML, can set field dirty/lock flags through `set-field-dirty` and
 field code/result caches through `set-field-code` and `set-field-result`. DocxEdit
 can mark the document for field updates after edits through
 `MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field
-results.
+results. Apply diagnostics include `W5103` when a document containing fields was
+marked for Word-side refresh.
 Hyperlink records are listed by `read` and `outline`. Relationship-backed hyperlinks
 expose relationship ID, relationship part, target mode, URI or target part, scheme,
 validation status, and validation reason for unsupported schemes or

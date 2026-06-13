@@ -162,7 +162,7 @@ Implemented areas include:
   and simple same-paragraph bookmark ranges;
 - simple and complex field read/context metadata, explicit dirty/lock flag patch
   operations for one field or all modeled fields, simple-field code/result patching,
-  and field-update marking after edits;
+  field-update marking after edits, and `W5103` diagnostics for Word-side refresh;
 - hyperlink read/context/dump metadata for external links, internal anchors, relationship
   IDs/parts/target modes, broken relationship IDs, URI scheme validation,
   missing/duplicate internal anchors, unsupported internal part links, target frames,

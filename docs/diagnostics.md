@@ -32,6 +32,8 @@ Common code ranges:
   safely editable by the requested operation.
 - `E4314`: threaded comment reply operations are recognized but not supported because
   DocxEdit does not safely model commentsIds/threaded-comments metadata yet.
+- `W5103`: apply marked a document containing fields for Word-side refresh because
+  DocxEdit does not recalculate field results.
 - `E9199`/`W9199`: validation diagnostics were capped; `E9199` means omitted
   diagnostics include errors, while `W9199` means only warnings were omitted.
 
