@@ -981,6 +981,16 @@ public sealed record DocxContentControlInfo
     public string? OoxmlId { get; init; }
     public string? Tag { get; init; }
     public string? Alias { get; init; }
+    public string? PlaceholderDocPart { get; init; }
+    public bool IsShowingPlaceholderText { get; init; }
+    public string? DataBindingXPath { get; init; }
+    public string? DataBindingStoreItemId { get; init; }
+    public string? DataBindingPrefixMappings { get; init; }
+    public string? RepeatingSectionTitle { get; init; }
+    public int? RepeatingSectionItemCount { get; init; }
+    public string? ParentContentControlId { get; init; }
+    public IReadOnlyList<string> ChildContentControlIds { get; init; } = [];
+    public string SafeEditStatus { get; init; } = "unknown";
     public bool IsTagDuplicate { get; init; }
     public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
     public bool IsAliasDuplicate { get; init; }
@@ -1004,6 +1014,11 @@ Bookmark IDs use the `B` namespace and content-control IDs use the `CC` namespac
 for example `M.B0001` and `M.CC0001`. They are metadata IDs, not patch edit targets.
 Use `StartTargetId`, `EndTargetId`, or `TargetId` for edits unless a later patch
 operation explicitly accepts the metadata ID.
+Content controls expose placeholder doc-part IDs, placeholder-display state, custom
+XML data-binding attributes, repeating-section titles/item counts, direct
+parent/child content-control IDs, and a conservative `SafeEditStatus` such as
+`plain-text`, `choice`, `date`, `locked`, `unsupported-rich-text`, or
+`unsupported-repeating-section`.
 
 Duplicate bookmark names, duplicate content-control tags, and duplicate
 content-control aliases must be surfaced with boolean duplicate flags and candidate

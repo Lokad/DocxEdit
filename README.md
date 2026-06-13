@@ -152,8 +152,9 @@ Implemented areas include:
   `reopen-comment` workflows that create or update modern extension records for
   basic comments;
 - bookmark and content-control read/context metadata with selector guidance, including
-  duplicate selector candidate IDs, checkbox state, dropdown/combo item counts, and
-  date settings;
+  duplicate selector candidate IDs, placeholder/data-binding metadata, hierarchy IDs,
+  safe-edit status, checkbox state, dropdown/combo item counts, repeating-section
+  metadata, and date settings;
 - safe bookmark/content-control patch operations for plain-text content controls,
   checkbox state, dropdown/combo selections, date values, bookmark rename/delete,
   and simple same-paragraph bookmark ranges;

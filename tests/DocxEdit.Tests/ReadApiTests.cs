@@ -1539,6 +1539,30 @@ public static class ReadApiTests
                         <w:sdtContent><w:r><w:t>2026-06-12</w:t></w:r></w:sdtContent>
                       </w:sdt>
                     </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:repeatingSection w:sectionTitle="Line items"/>
+                          <w:placeholder><w:docPart w:val="DefaultPlaceholder"/></w:placeholder>
+                          <w:showingPlcHdr/>
+                          <w:dataBinding w:xpath="/root/item" w:storeItemID="{11111111-1111-1111-1111-111111111111}" w:prefixMappings="xmlns:ns='urn:test'"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:sdt>
+                            <w:sdtPr><w:repeatingSectionItem/></w:sdtPr>
+                            <w:sdtContent>
+                              <w:sdt>
+                                <w:sdtPr>
+                                  <w:text/>
+                                  <w:lock w:val="contentLocked"/>
+                                </w:sdtPr>
+                                <w:sdtContent><w:r><w:t>Nested</w:t></w:r></w:sdtContent>
+                              </w:sdt>
+                            </w:sdtContent>
+                          </w:sdt>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
             """);
         var editor = new DocxEditor();
 
@@ -1557,11 +1581,30 @@ public static class ReadApiTests
         Assert.Equal("en-US", date.DateLanguage);
         Assert.Equal("gregorian", date.DateCalendar);
         Assert.Equal("2026-06-12T00:00:00Z", date.DateValue);
+        DocxContentControlInfo repeating = result.ContentControls.Single(control => control.Kind == "repeating-section");
+        Assert.Equal("DefaultPlaceholder", repeating.PlaceholderDocPart);
+        Assert.True(repeating.IsShowingPlaceholderText);
+        Assert.Equal("/root/item", repeating.DataBindingXPath);
+        Assert.Equal("{11111111-1111-1111-1111-111111111111}", repeating.DataBindingStoreItemId);
+        Assert.Equal("xmlns:ns='urn:test'", repeating.DataBindingPrefixMappings);
+        Assert.Equal("Line items", repeating.RepeatingSectionTitle);
+        Assert.Equal(1, repeating.RepeatingSectionItemCount);
+        Assert.Null(repeating.ParentContentControlId);
+        Assert.Equal(new[] { "M.CC0005" }, repeating.ChildContentControlIds);
+        Assert.Equal("unsupported-repeating-section", repeating.SafeEditStatus);
+        DocxContentControlInfo nested = result.ContentControls.Single(control => control.Id == "M.CC0006");
+        Assert.Equal("M.CC0005", nested.ParentContentControlId);
+        Assert.Equal("locked", nested.SafeEditStatus);
         Assert.Contains("kind=checkbox", result.Text, StringComparison.Ordinal);
         Assert.Contains("checked=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("list-items=2", result.Text, StringComparison.Ordinal);
         Assert.Contains("date-format=\"yyyy-MM-dd\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("date-value=\"2026-06-12T00:00:00Z\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("placeholder-doc-part=\"DefaultPlaceholder\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("data-binding-xpath=\"/root/item\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("repeating-section-items=1", result.Text, StringComparison.Ordinal);
+        Assert.Contains("parent-control=M.CC0005", result.Text, StringComparison.Ordinal);
+        Assert.Contains("safe-edit=locked", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

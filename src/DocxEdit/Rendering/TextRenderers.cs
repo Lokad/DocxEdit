@@ -55,6 +55,16 @@ internal static class TextRenderers
             string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(control.OoxmlId)}";
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            string placeholder = control.PlaceholderDocPart is null ? string.Empty : $" placeholder-doc-part=\"{Escape(control.PlaceholderDocPart)}\"";
+            string showingPlaceholder = control.IsShowingPlaceholderText ? " showing-placeholder=true" : string.Empty;
+            string dataBindingXPath = control.DataBindingXPath is null ? string.Empty : $" data-binding-xpath=\"{Escape(control.DataBindingXPath)}\"";
+            string dataBindingStore = control.DataBindingStoreItemId is null ? string.Empty : $" data-binding-store-item-id=\"{Escape(control.DataBindingStoreItemId)}\"";
+            string dataBindingPrefixes = control.DataBindingPrefixMappings is null ? string.Empty : $" data-binding-prefixes=\"{Escape(control.DataBindingPrefixMappings)}\"";
+            string repeatingSectionTitle = control.RepeatingSectionTitle is null ? string.Empty : $" repeating-section-title=\"{Escape(control.RepeatingSectionTitle)}\"";
+            string repeatingSectionItems = control.RepeatingSectionItemCount is null ? string.Empty : $" repeating-section-items={control.RepeatingSectionItemCount.Value}";
+            string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
+            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{Escape(string.Join(",", control.ChildContentControlIds))}\"";
+            string safeEdit = $" safe-edit={Escape(control.SafeEditStatus)}";
             string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
             string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string locked = control.Lock is null ? string.Empty : $" lock={Escape(control.Lock)}";
@@ -77,6 +87,16 @@ internal static class TextRenderers
                 .Append(ooxmlId)
                 .Append(tag)
                 .Append(alias)
+                .Append(placeholder)
+                .Append(showingPlaceholder)
+                .Append(dataBindingXPath)
+                .Append(dataBindingStore)
+                .Append(dataBindingPrefixes)
+                .Append(repeatingSectionTitle)
+                .Append(repeatingSectionItems)
+                .Append(parentControl)
+                .Append(childControls)
+                .Append(safeEdit)
                 .Append(tagDuplicate)
                 .Append(aliasDuplicate)
                 .Append(locked)
@@ -252,11 +272,14 @@ internal static class TextRenderers
             string target = control.TargetId is null ? "unknown" : control.TargetId;
             string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
+            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{Escape(string.Join(",", control.ChildContentControlIds))}\"";
+            string safeEdit = $" safe-edit={Escape(control.SafeEditStatus)}";
             string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
             string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
             string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
+            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
         }
 
         foreach (DocxFieldInfo field in model.Fields)

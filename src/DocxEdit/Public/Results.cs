@@ -323,6 +323,16 @@ public sealed record DocxContentControlInfo
     public string? OoxmlId { get; init; }
     public string? Tag { get; init; }
     public string? Alias { get; init; }
+    public string? PlaceholderDocPart { get; init; }
+    public bool IsShowingPlaceholderText { get; init; }
+    public string? DataBindingXPath { get; init; }
+    public string? DataBindingStoreItemId { get; init; }
+    public string? DataBindingPrefixMappings { get; init; }
+    public string? RepeatingSectionTitle { get; init; }
+    public int? RepeatingSectionItemCount { get; init; }
+    public string? ParentContentControlId { get; init; }
+    public IReadOnlyList<string> ChildContentControlIds { get; init; } = [];
+    public string SafeEditStatus { get; init; } = "unknown";
     public bool IsTagDuplicate { get; init; }
     public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
     public bool IsAliasDuplicate { get; init; }

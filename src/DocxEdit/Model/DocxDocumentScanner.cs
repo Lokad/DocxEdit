@@ -528,23 +528,35 @@ internal static class DocxDocumentScanner
         DocxTextView textView,
         IReadOnlyDictionary<XElement, string> targets)
     {
-        var contentControls = new List<DocxContentControlInfo>();
+        var contentControls = new List<ContentControlScanEntry>();
         int controlIndex = 1;
         foreach (XElement control in document.Descendants(OoxmlNs.W + "sdt"))
         {
             XElement? properties = control.Element(OoxmlNs.W + "sdtPr");
             XElement content = control.Element(OoxmlNs.W + "sdtContent") ?? control;
-            contentControls.Add(new DocxContentControlInfo
+            string kind = ReadContentControlKind(properties);
+            string? lockValue = ReadSdtProperty(properties, "lock");
+            contentControls.Add(new ContentControlScanEntry(control, new DocxContentControlInfo
             {
                 Id = $"{idPrefix}.CC{controlIndex++:0000}",
                 Story = story,
                 PartName = partName,
                 TargetId = FindTargetId(control, targets),
-                Kind = ReadContentControlKind(properties),
+                Kind = kind,
                 OoxmlId = ReadSdtProperty(properties, "id"),
                 Tag = ReadSdtProperty(properties, "tag"),
                 Alias = ReadSdtProperty(properties, "alias"),
-                Lock = ReadSdtProperty(properties, "lock"),
+                PlaceholderDocPart = ReadPlaceholderDocPart(properties),
+                IsShowingPlaceholderText = properties?.Element(OoxmlNs.W + "showingPlcHdr") is not null,
+                DataBindingXPath = ReadSdtAttribute(properties, "dataBinding", "xpath"),
+                DataBindingStoreItemId = ReadSdtAttribute(properties, "dataBinding", "storeItemID"),
+                DataBindingPrefixMappings = ReadSdtAttribute(properties, "dataBinding", "prefixMappings"),
+                RepeatingSectionTitle = ReadSdtAttribute(properties, "repeatingSection", "sectionTitle"),
+                RepeatingSectionItemCount = kind == "repeating-section"
+                    ? content.Elements(OoxmlNs.W + "sdt").Count(child => child.Element(OoxmlNs.W + "sdtPr")?.Element(OoxmlNs.W + "repeatingSectionItem") is not null)
+                    : null,
+                SafeEditStatus = ReadContentControlSafeEditStatus(kind, lockValue),
+                Lock = lockValue,
                 Checked = ReadContentControlChecked(properties),
                 CheckedSymbol = ReadContentControlStateSymbol(properties, "checkedState"),
                 UncheckedSymbol = ReadContentControlStateSymbol(properties, "uncheckedState"),
@@ -554,10 +566,10 @@ internal static class DocxDocumentScanner
                 DateCalendar = ReadNestedSdtProperty(properties, "date", "calendar"),
                 DateValue = ReadNestedSdtProperty(properties, "date", "fullDate"),
                 TextLength = ReadText(content, textView).Length
-            });
+            }));
         }
 
-        return AnnotateDuplicateContentControlSelectors(contentControls);
+        return AnnotateContentControlHierarchy(AnnotateDuplicateContentControlSelectors(contentControls.Select(entry => entry.Info).ToArray()), contentControls);
     }
 
     private static IReadOnlyList<DocxContentControlInfo> AnnotateDuplicateContentControlSelectors(IReadOnlyList<DocxContentControlInfo> contentControls)
@@ -587,6 +599,31 @@ internal static class DocxDocumentScanner
                 return annotated;
             })
             .ToArray();
+    }
+
+    private static IReadOnlyList<DocxContentControlInfo> AnnotateContentControlHierarchy(
+        IReadOnlyList<DocxContentControlInfo> contentControls,
+        IReadOnlyList<ContentControlScanEntry> entries)
+    {
+        IReadOnlyDictionary<XElement, string> idsByElement = entries.ToDictionary(entry => entry.Element, entry => entry.Info.Id);
+        IReadOnlyDictionary<string, DocxContentControlInfo> controlsById = contentControls.ToDictionary(control => control.Id, StringComparer.Ordinal);
+        return entries.Select(entry =>
+        {
+            DocxContentControlInfo info = controlsById[entry.Info.Id];
+            XElement? parent = entry.Element.Ancestors(OoxmlNs.W + "sdt").FirstOrDefault(idsByElement.ContainsKey);
+            string? parentId = parent is null ? null : idsByElement[parent];
+            string[] childIds = entry.Element
+                .Descendants(OoxmlNs.W + "sdt")
+                .Where(child => child.Ancestors(OoxmlNs.W + "sdt").FirstOrDefault() == entry.Element)
+                .Where(idsByElement.ContainsKey)
+                .Select(child => idsByElement[child])
+                .ToArray();
+            return info with
+            {
+                ParentContentControlId = parentId,
+                ChildContentControlIds = childIds
+            };
+        }).ToArray();
     }
 
     private static IReadOnlyDictionary<string, string[]> BuildDuplicateIds<T>(
@@ -864,6 +901,39 @@ internal static class DocxDocumentScanner
             ?.Elements()
             .FirstOrDefault(element => element.Name.LocalName == localName);
         return (string?)element?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static string? ReadSdtAttribute(XElement? properties, string localName, string attributeLocalName)
+    {
+        XElement? element = properties?.Elements().FirstOrDefault(element => element.Name.LocalName == localName);
+        return (string?)element?.Attribute(OoxmlNs.W + attributeLocalName);
+    }
+
+    private static string? ReadPlaceholderDocPart(XElement? properties)
+    {
+        return (string?)properties
+            ?.Element(OoxmlNs.W + "placeholder")
+            ?.Element(OoxmlNs.W + "docPart")
+            ?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static string ReadContentControlSafeEditStatus(string kind, string? lockValue)
+    {
+        if (lockValue is "contentLocked" or "sdtContentLocked")
+        {
+            return "locked";
+        }
+
+        return kind switch
+        {
+            "plain-text" => "plain-text",
+            "checkbox" => "checkbox",
+            "dropdown-list" => "choice",
+            "combo-box" => "choice",
+            "date" => "date",
+            "repeating-section" => "unsupported-repeating-section",
+            _ => "unsupported-rich-text"
+        };
     }
 
     private static bool? ReadContentControlChecked(XElement? properties)
@@ -1260,6 +1330,8 @@ internal static class DocxDocumentScanner
     private sealed record StyleNumbering(string NumberingId, int Level, string Source);
 
     private sealed record TableMergeState(string MergeGroupId, string? RootCellId);
+
+    private sealed record ContentControlScanEntry(XElement Element, DocxContentControlInfo Info);
 
     private sealed record HyperlinkUriValidation(string? Scheme, bool? IsValid, string? Reason)
     {
