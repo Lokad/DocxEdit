@@ -79,6 +79,9 @@ including nearby paragraph text.
 - `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
 - `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
 - `delete-row`: `target`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`
+- `append-column`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `force`; recognized but fails with `E4316`
+- `insert-column-before`, `insert-column-after`: `target`, `column`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`; recognized but fails with `E4316`
+- `delete-column`: `target`, `column`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`; recognized but fails with `E4316`
 - `replace-image`: `target`, `asset`, optional `expect-content-type`, `alt`
 - `insert-image-after`: `target`, `asset`, optional `expect-content-type`, `width`, `height`, `alt`
 - `set-image-alt`: `target`, `alt`, optional `expect-content-type`

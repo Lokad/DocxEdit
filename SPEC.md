@@ -2160,6 +2160,38 @@ Rules:
 * Do not allow deleting the only row of a table.
 * Fail on merged-cell tables in v0.1 unless `force true`.
 
+### 11.11b Unsupported table-column transforms
+
+Recognized but unsupported operations:
+
+```text
+op append-column
+target M.T0001
+cell New row 1 value
+cell New row 2 value
+end
+
+op insert-column-before
+target M.T0001
+column 2
+cell New row 1 value
+end
+
+op delete-column
+target M.T0001
+column 2
+end
+```
+
+Rules:
+
+* `target` is a table ID.
+* `column` is a one-based visual column index for insert/delete operations.
+* These operations are recognized so callers receive explicit `E4316`
+  diagnostics. They fail until DocxEdit safely models table-column transforms
+  across `tblGrid`, horizontal spans, omitted cells, nested tables, and vertical
+  merge state.
+
 ### 11.12 `replace-image`
 
 ```text

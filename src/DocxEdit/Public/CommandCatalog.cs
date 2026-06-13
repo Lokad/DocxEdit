@@ -267,6 +267,7 @@ public static class DocxHelp
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
         builder.AppendLine("add-comment-reply and delete-comment-reply are recognized but fail with E4314 until threaded comment metadata is safely modeled.");
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
+        builder.AppendLine("append-column, insert-column-before, insert-column-after, and delete-column are recognized but fail with E4316 until table-column transforms are safely modeled.");
         builder.AppendLine("set-table-style, set-table-metadata, and set-row-header update table properties with explicit guards.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
@@ -782,6 +783,26 @@ public static class DocxHelp
                 PreserveOnly("insert-row-before", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
                 PreserveOnly("insert-row-after", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
                 PreserveOnly("delete-row", ["target"], ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
+                Unsupported(
+                    "append-column",
+                    ["target plus repeated cell"],
+                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
+                    ["expect-row-count", "expect-column-count", "force"]),
+                Unsupported(
+                    "insert-column-before",
+                    ["target", "column plus repeated cell"],
+                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
+                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                Unsupported(
+                    "insert-column-after",
+                    ["target", "column plus repeated cell"],
+                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
+                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                Unsupported(
+                    "delete-column",
+                    ["target", "column"],
+                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
+                    ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
                 PreserveOnly("replace-image", ["target", "asset"], ["expect-content-type", "alt"]),
                 PreserveOnly("insert-image-after", ["target", "asset"], ["expect-content-type", "width", "height", "alt"]),
                 PreserveOnly("set-image-alt", ["target", "alt"], ["expect-content-type"]),

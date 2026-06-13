@@ -129,6 +129,7 @@ internal static class DocxPatchEngine
                     "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
                     "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
                     "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
+                    "append-column" or "insert-column-before" or "insert-column-after" or "delete-column" => ExecuteUnsupportedColumnOperation(operation),
                     "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
                     "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
                     "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
@@ -2112,6 +2113,20 @@ internal static class DocxPatchEngine
                 DocxSeverity.Error,
                 "E4315",
                 $"Operation '{operation.OperationName}' is not supported because repeating-section item edits require cloning or deleting structured document tag subtrees while preserving IDs, bindings, and section boundaries.",
+                operation,
+                target)
+        ];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteUnsupportedColumnOperation(DocxPatchOperation operation)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        return
+        [
+            Diagnostic(
+                DocxSeverity.Error,
+                "E4316",
+                $"Operation '{operation.OperationName}' is not supported because column edits require rebuilding table grids, horizontal spans, omitted cells, and vertical merge state.",
                 operation,
                 target)
         ];

@@ -56,6 +56,10 @@ public static class PublicIntegrationSurfaceTests
         Assert.True(DocxHelp.TryGetPatchOperation("add-repeating-section-item", out DocxPatchOperationInfo addRepeatingSectionItem));
         Assert.Equal("unsupported", addRepeatingSectionItem.TrackChangesSupport);
         Assert.Contains("E4315", addRepeatingSectionItem.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-column-before", out DocxPatchOperationInfo insertColumnBefore));
+        Assert.Equal("unsupported", insertColumnBefore.TrackChangesSupport);
+        Assert.Contains(insertColumnBefore.RequiredFields, field => field.Contains("column", StringComparison.Ordinal));
+        Assert.Contains("E4316", insertColumnBefore.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("add-bookmark", out DocxPatchOperationInfo addBookmark));
         Assert.Contains("expect-text", addBookmark.OptionalFields);
         Assert.Equal("preserve-only", addBookmark.TrackChangesSupport);

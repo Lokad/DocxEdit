@@ -182,6 +182,8 @@ Implemented areas include:
 - check/apply operation reports with affected row/cell summaries for table edits;
 - table property patch operations for table style, caption/description metadata,
   and row repeating-header flags;
+- explicit `E4316` diagnostics for unsupported table-column insertion and deletion
+  attempts;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
   anchor positioning, aspect-lock, crop percentages, alt text, and containing target;
 - safe image patch operations for media replacement, alt/title/name metadata, extents,
@@ -218,5 +220,6 @@ relative/UNC/file hyperlink target support, advanced floating-image edit operati
 size/wrap/position/crop metadata, linked images and VML/grouped/chart/SmartArt/OLE
 drawing shapes beyond diagnostics-only preservation, complex
 merged/nested table edit transformations beyond simple cell/row and metadata edits,
+table-column transforms beyond explicit unsupported diagnostics,
 full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

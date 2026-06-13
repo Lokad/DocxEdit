@@ -4380,6 +4380,61 @@ public static class PatchApplyTests
             diagnostic.Message.Contains("vertical merges", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("append-column", """
+        target M.T0001
+        cell East
+        cell West
+        """)]
+    [InlineData("insert-column-before", """
+        target M.T0001
+        column 1
+        cell East
+        cell West
+        """)]
+    [InlineData("insert-column-after", """
+        target M.T0001
+        column 2
+        cell East
+        cell West
+        """)]
+    [InlineData("delete-column", """
+        target M.T0001
+        column 1
+        expect-contains North
+        """)]
+    public static void CheckColumnOperationsFailWithExplicitUnsupportedDiagnostic(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4316" &&
+            diagnostic.TargetId == "M.T0001" &&
+            diagnostic.Message.Contains("column edits", StringComparison.Ordinal));
+        Assert.False(Assert.Single(result.Operations).Success);
+    }
+
     [Fact]
     public static void CheckAppendRowReportsAffectedRowAndCells()
     {
