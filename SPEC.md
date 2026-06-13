@@ -2599,6 +2599,7 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * missing numbering and abstract numbering definitions as warnings when
   `/word/numbering.xml` is present;
 * settings metadata validity, including `w:updateFields`;
+* header/footer section references and relationship types;
 * content-control metadata validity, including `w:id`, `w:lock`, and checkbox
   `w:checked` values;
 * modern `commentsExtended.xml` paraId consistency;
@@ -2668,6 +2669,7 @@ E9113 drawing image relationship target or media content type is invalid
 E9114 table visual-grid metadata is inconsistent
 E9115 content-control metadata is malformed
 E9118 settings metadata is malformed
+E9119 header/footer references are missing or use the wrong relationship type
 E9199 validation diagnostics were capped and omitted diagnostics include errors
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 W9116 paragraph style reference is not defined in /word/styles.xml

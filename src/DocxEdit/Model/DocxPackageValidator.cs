@@ -122,6 +122,7 @@ internal static class DocxPackageValidator
         ValidateParagraphStyleReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateNumberingReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateNumberingDefinitions(partName, document, diagnostics);
+        ValidateHeaderFooterReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
@@ -543,6 +544,56 @@ internal static class DocxPackageValidator
             .Where(numberingId => !string.IsNullOrWhiteSpace(numberingId))
             .Select(numberingId => numberingId!)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static void ValidateHeaderFooterReferences(
+        OoxmlPackage package,
+        string partName,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(partName, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        IReadOnlyDictionary<string, OoxmlRelationship> relationships = package
+            .GetRelationships(partName, cancellationToken)
+            .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
+        ValidateStoryReferences(document, relationships, OoxmlNs.W + "headerReference", OoxmlRelTypes.Header, "header", partName, diagnostics);
+        ValidateStoryReferences(document, relationships, OoxmlNs.W + "footerReference", OoxmlRelTypes.Footer, "footer", partName, diagnostics);
+    }
+
+    private static void ValidateStoryReferences(
+        XDocument document,
+        IReadOnlyDictionary<string, OoxmlRelationship> relationships,
+        XName elementName,
+        string expectedRelationshipType,
+        string label,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        foreach (XElement reference in document.Descendants(elementName))
+        {
+            string? relationshipId = (string?)reference.Attribute(OoxmlNs.R + "id");
+            if (string.IsNullOrWhiteSpace(relationshipId))
+            {
+                diagnostics.Add(Error("E9119", $"{label}Reference is missing r:id.", partName));
+                continue;
+            }
+
+            if (!relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship))
+            {
+                diagnostics.Add(Error("E9119", $"{label}Reference targets missing relationship '{relationshipId}'.", partName));
+                continue;
+            }
+
+            if (relationship.Type != expectedRelationshipType)
+            {
+                diagnostics.Add(Error("E9119", $"{label}Reference relationship '{relationshipId}' has type '{relationship.Type}', expected {label} relationship.", partName));
+            }
+        }
     }
 
     private static void ValidateDrawingRelationships(

@@ -207,6 +207,35 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidHeaderFooterReferences()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                    <w:sectPr xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:headerReference w:type="default" r:id="rMissingHeader"/>
+                      <w:footerReference w:type="default" r:id="rWrongFooter"/>
+                    </w:sectPr>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rWrongFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footer" TargetMode="External"/>
+                </Relationships>
+                """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9119" &&
+            diagnostic.Message.Contains("rMissingHeader", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9119" &&
+            diagnostic.Message.Contains("rWrongFooter", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("expected footer relationship", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""
