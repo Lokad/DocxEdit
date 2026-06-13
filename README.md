@@ -162,8 +162,8 @@ Implemented areas include:
   and field-update marking after edits;
 - hyperlink read/context/dump metadata for external links, internal anchors, relationship
   IDs/parts/target modes, broken relationship IDs, URI scheme validation,
-  missing/duplicate internal anchors, target frames, history flags, and aggregate
-  diagnostics for invalid URI/anchor states;
+  missing/duplicate internal anchors, unsupported internal part links, target frames,
+  history flags, and aggregate diagnostics for invalid URI/anchor states;
 - hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,
   display text updates, insertion, and unlinking while preserving display runs;
 - check/apply operation reports with affected row/cell summaries for table edits;

@@ -116,6 +116,7 @@ internal static class DocxUnsupportedFeatureScanner
         AddWarningIfAny(diagnostics, "W1016", "hyperlink", "invalid-uri", CountInvalidHyperlinkUris(document, relationships), partName, story, "Hyperlink targets include unsupported or malformed external URIs.");
         AddWarningIfAny(diagnostics, "W1017", "hyperlink", "missing-anchor", CountMissingHyperlinkAnchors(document), partName, story, "Internal hyperlink anchors do not match any bookmark in the same story.");
         AddWarningIfAny(diagnostics, "W1018", "hyperlink", "duplicate-anchor", CountDuplicateHyperlinkAnchors(document), partName, story, "Internal hyperlink anchors match multiple bookmarks in the same story.");
+        AddWarningIfAny(diagnostics, "W1023", "hyperlink", "unsupported-internal-part-link", CountUnsupportedInternalPartHyperlinks(document, relationships), partName, story, "Internal part hyperlinks are preserved and modeled as target parts, but hyperlink patch edits support external URIs or anchors only.");
     }
 
     private static int Count(XDocument document, XName name)
@@ -205,6 +206,18 @@ internal static class DocxUnsupportedFeatureScanner
     {
         return Uri.TryCreate(uri, UriKind.Absolute, out Uri? parsed) &&
             parsed.Scheme is "http" or "https" or "mailto";
+    }
+
+    private static int CountUnsupportedInternalPartHyperlinks(XDocument document, IReadOnlyList<OoxmlRelationship> relationships)
+    {
+        IReadOnlyDictionary<string, OoxmlRelationship> relationshipsById = relationships.ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
+        return document
+            .Descendants(OoxmlNs.W + "hyperlink")
+            .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.R + "id"))
+            .Count(id => !string.IsNullOrWhiteSpace(id) &&
+                relationshipsById.TryGetValue(id!, out OoxmlRelationship? relationship) &&
+                !relationship.IsExternal &&
+                relationship.Type == OoxmlRelTypes.Hyperlink);
     }
 
     private static int CountMissingHyperlinkAnchors(XDocument document)

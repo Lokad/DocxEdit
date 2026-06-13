@@ -37,12 +37,17 @@ and `section-flow`.
 `W10xx` read-model warnings include `PartName`, `Story`, `Feature`, and `Fallback` metadata.
 Fallback values describe the behavior used by the reader, such as `selected-text-view`, `plain-text`,
 `changes-metadata`, `preserve-only`, `omit-from-editable-images`, `invalid-uri`,
-`missing-anchor`, `duplicate-anchor`, or `basic-section-model`.
+`missing-anchor`, `duplicate-anchor`, `unsupported-internal-part-link`, or
+`basic-section-model`.
 
 Unsupported drawing warnings distinguish editable image records from preserve-only
 OOXML shapes. Linked images (`W1019`) are not fetched or listed as editable images.
 VML (`W1020`), grouped drawings (`W1021`), OLE objects (`W1022`), charts, SmartArt,
 equations, and generic shapes are preserved but not modeled.
+
+Hyperlink warnings distinguish broken relationships (`W1015`), invalid external URI
+targets (`W1016`), missing or duplicate anchors (`W1017`/`W1018`), and preserved but
+unsupported internal part links (`W1023`).
 
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.
 

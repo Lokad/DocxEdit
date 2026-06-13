@@ -1781,6 +1781,8 @@ public static class ReadApiTests
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
                       <w:hyperlink r:id="rMailto"><w:r><w:t>Mail</w:t></w:r></w:hyperlink>
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rPart"><w:r><w:t>Part</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
                       <w:hyperlink w:anchor="Missing"><w:r><w:t>Missing</w:t></w:r></w:hyperlink>
                       <w:r><w:t xml:space="preserve"> </w:t></w:r>
                       <w:hyperlink w:anchor="Known"><w:r><w:t>Known</w:t></w:r></w:hyperlink>
@@ -1795,6 +1797,7 @@ public static class ReadApiTests
                   <Relationship Id="rMalformed" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="http://[::1" TargetMode="External"/>
                   <Relationship Id="rFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///C:/secret/report.docx" TargetMode="External"/>
                   <Relationship Id="rMailto" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="mailto:reviewer@example.test" TargetMode="External"/>
+                  <Relationship Id="rPart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="document.xml"/>
                 </Relationships>
                 """);
         var editor = new DocxEditor();
@@ -1827,6 +1830,11 @@ public static class ReadApiTests
         Assert.True(mailtoLink.IsUriValid);
         Assert.Null(mailtoLink.UriValidationReason);
 
+        DocxHyperlinkInfo partLink = result.Hyperlinks.Single(link => link.RelationshipId == "rPart");
+        Assert.False(partLink.IsExternal);
+        Assert.Equal("/word/document.xml", partLink.TargetPartName);
+        Assert.Null(partLink.UriValidationReason);
+
         DocxHyperlinkInfo missing = result.Hyperlinks.Single(link => link.Anchor == "Missing");
         Assert.True(missing.IsAnchorMissing);
         Assert.False(missing.IsAnchorDuplicate);
@@ -1848,6 +1856,7 @@ public static class ReadApiTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1016" && diagnostic.Fallback == "invalid-uri");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1017" && diagnostic.Fallback == "missing-anchor");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1018" && diagnostic.Fallback == "duplicate-anchor");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1023" && diagnostic.Fallback == "unsupported-internal-part-link");
     }
 
     [Fact]

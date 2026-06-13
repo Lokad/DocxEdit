@@ -1083,10 +1083,11 @@ targets use `UriValidationReason = "relative-uri"`; malformed targets use
 `UriValidationReason = "unsupported-uri-scheme"`.
 `Anchor` is populated for internal anchors, `IsAnchorMissing` flags anchors without a
 matching bookmark, `IsAnchorDuplicate` flags anchors that match multiple bookmarks,
+`TargetPartName` is populated for relationship-backed internal part links,
 `TargetFrame` exposes `w:tgtFrame`, `History` exposes `w:history`, and `IsBroken`
 flags missing relationship IDs. `read` diagnostics aggregate invalid URI, missing
-anchor, and duplicate-anchor cases with `Feature = "hyperlink"` and stable
-`Fallback` values.
+anchor, duplicate-anchor, and unsupported internal part-link cases with
+`Feature = "hyperlink"` and stable `Fallback` values.
 
 ### 8.11 Tracked-change and comment markup model
 

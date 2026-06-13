@@ -124,8 +124,10 @@ validation status, and validation reason for unsupported schemes or
 relative/malformed targets. Valid patch URI targets are absolute `http`, `https`,
 or `mailto`; relative, malformed, `file`, UNC/file-style, and unsafe-scheme targets
 are rejected. Internal anchor links expose missing and duplicate bookmark-anchor
-flags, and hyperlinks expose tooltip, target-frame, and history metadata when
-present. Broken relationship IDs are flagged.
+flags. Relationship-backed internal part links expose `target-part` metadata and
+emit `W1023` because patch edits support external URI or anchor targets only.
+Hyperlinks expose tooltip, target-frame, and history metadata when present. Broken
+relationship IDs are flagged.
 `read` also aggregates invalid URI, missing-anchor, and duplicate-anchor diagnostics.
 `context` annotates nearby targets with `hyperlinks` and `hyperlink-targets`; `dump --runs` annotates hyperlink runs with
 `markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
