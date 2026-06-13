@@ -159,8 +159,9 @@ Implemented areas include:
   metadata, and date settings;
 - lock-aware safe bookmark/content-control patch operations for plain-text content
   controls, guarded rich-text content controls, checkbox state, dropdown/combo
-  selections, date values, bookmark rename/delete, and guarded same-paragraph
-  bookmark ranges, including multi-run ranges;
+  selections, date values, guarded paragraph bookmark creation, bookmark
+  rename/delete, and guarded same-paragraph bookmark ranges, including multi-run
+  ranges;
 - explicit `E4315` diagnostics for unsupported repeating-section item insertion
   and deletion attempts;
 - simple and complex field read/context metadata, including parsed field type,
@@ -200,8 +201,9 @@ Known limits include exotic/custom visual numbering expansion beyond determinist
 decimal, letter, roman, bullet, and nested `lvlText` labels/components, selected-range comment
 creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text and guarded rich-text controls,
-checkbox toggles, dropdown/combo selections, date values, bookmark rename/delete,
-and guarded same-paragraph bookmark ranges, field result recalculation and complex-field
+checkbox toggles, dropdown/combo selections, date values, guarded paragraph
+bookmark creation, bookmark rename/delete, and guarded same-paragraph bookmark
+ranges, field result recalculation and complex-field
 edit workflows beyond dirty/lock flags, simple-field code/result edits, and simple
 REF-style bookmark refresh,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,

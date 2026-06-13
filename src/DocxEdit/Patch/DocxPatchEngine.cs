@@ -102,6 +102,7 @@ internal static class DocxPatchEngine
                     "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
                     "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
                     "add-repeating-section-item" or "delete-repeating-section-item" => ExecuteUnsupportedRepeatingSectionOperation(operation),
+                    "add-bookmark" => ExecuteAddBookmark(package, operation, apply, cancellationToken),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
                     "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
@@ -1113,6 +1114,82 @@ internal static class DocxPatchEngine
 
         bookmarkTarget.Start.AddAfterSelf(CreateSimpleRun(text!));
         SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteAddBookmark(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? name = ReadRequiredField(operation, "name", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        if (!IsValidBookmarkName(name!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'name' must be a non-empty bookmark name without whitespace.", operation, target)];
+        }
+
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
+        if (paragraphTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        string current = ReadVisibleText(paragraphTarget.Paragraph);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+        }
+
+        if (BookmarkNameExists(paragraphTarget.Document, name!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark name '{name}' already exists in part '{paragraphTarget.PartName}'.", operation, target)];
+        }
+
+        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark creation for {target} would cross protected OOXML boundary '{protectedFeature}'.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        string id = AllocateBookmarkId(paragraphTarget.Document);
+        var start = new XElement(
+            OoxmlNs.W + "bookmarkStart",
+            new XAttribute(OoxmlNs.W + "id", id),
+            new XAttribute(OoxmlNs.W + "name", name!));
+        var end = new XElement(
+            OoxmlNs.W + "bookmarkEnd",
+            new XAttribute(OoxmlNs.W + "id", id));
+
+        XElement? paragraphProperties = paragraphTarget.Paragraph.Element(OoxmlNs.W + "pPr");
+        if (paragraphProperties is null)
+        {
+            paragraphTarget.Paragraph.AddFirst(start);
+        }
+        else
+        {
+            paragraphProperties.AddAfterSelf(start);
+        }
+
+        paragraphTarget.Paragraph.Add(end);
+        SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
 
@@ -2380,6 +2457,25 @@ internal static class DocxPatchEngine
             .Descendants(OoxmlNs.W + "bookmarkStart")
             .Any(bookmark => bookmark != excludedStart &&
                 string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal));
+    }
+
+    private static bool BookmarkNameExists(XDocument document, string name)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Any(bookmark => string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal));
+    }
+
+    private static string AllocateBookmarkId(XDocument document)
+    {
+        int maxId = document
+            .Descendants()
+            .Where(element => element.Name == OoxmlNs.W + "bookmarkStart" || element.Name == OoxmlNs.W + "bookmarkEnd")
+            .Select(element => (string?)element.Attribute(OoxmlNs.W + "id"))
+            .Select(value => int.TryParse(value, out int id) ? id : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        return (maxId + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static bool HasInternalHyperlinkAnchor(XDocument document, string anchor)

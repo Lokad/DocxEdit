@@ -2075,6 +2075,71 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyAddBookmarkWrapsParagraphContent()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="BodyText"/></w:pPr>
+                      <w:r><w:t>Client paragraph</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-bookmark
+            target M.P0001
+            expect-text Client paragraph
+            name ClientParagraph
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
+        Assert.Equal("ClientParagraph", bookmark.Name);
+        Assert.Equal("M.P0001", bookmark.StartTargetId);
+        Assert.Equal("M.P0001", bookmark.EndTargetId);
+        Assert.Equal("Client paragraph", Assert.Single(read.Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:pPr><w:pStyle w:val=\"BodyText\" /></w:pPr><w:bookmarkStart", xml, StringComparison.Ordinal);
+        Assert.Contains("w:name=\"ClientParagraph\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:bookmarkEnd", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckAddBookmarkRejectsDuplicateName()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="ClientParagraph"/>
+                      <w:r><w:t>First</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+                    <w:p><w:r><w:t>Second</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-bookmark
+            target M.P0002
+            name ClientParagraph
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4311" &&
+            diagnostic.Message.Contains("already exists", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ApplyReplaceBookmarkTextPreservesMarkers()
     {
         using MemoryStream input = CreateDocxWithBody("""

@@ -56,6 +56,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.True(DocxHelp.TryGetPatchOperation("add-repeating-section-item", out DocxPatchOperationInfo addRepeatingSectionItem));
         Assert.Equal("unsupported", addRepeatingSectionItem.TrackChangesSupport);
         Assert.Contains("E4315", addRepeatingSectionItem.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("add-bookmark", out DocxPatchOperationInfo addBookmark));
+        Assert.Contains("expect-text", addBookmark.OptionalFields);
+        Assert.Equal("preserve-only", addBookmark.TrackChangesSupport);
         Assert.True(DocxHelp.TryRenderTopic("patch", out string patchHelp));
         Assert.Contains("preserve-only", patchHelp, StringComparison.Ordinal);
     }

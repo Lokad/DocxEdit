@@ -374,7 +374,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, placeholder/data-binding details, hierarchy IDs, safe-edit status, checkbox state, dropdown/combo item counts, repeating-section metadata, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, guarded rich-text content controls, checkbox state, dropdown/combo selections, date values, bookmark names, unreferenced bookmark markers, and guarded same-paragraph bookmark ranges, including multi-run ranges, while preserving wrappers/markers; content-control edits reject controls whose w:lock value is present and not unlocked."
+                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, placeholder/data-binding details, hierarchy IDs, safe-edit status, checkbox state, dropdown/combo item counts, repeating-section metadata, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, guarded rich-text content controls, checkbox state, dropdown/combo selections, date values, create guarded paragraph bookmarks, update bookmark names, remove unreferenced bookmark markers, and replace guarded same-paragraph bookmark ranges, including multi-run ranges, while preserving wrappers/markers; content-control edits reject controls whose w:lock value is present and not unlocked."
                         ]),
                         new("Fields",
                         [
@@ -740,6 +740,7 @@ public static class DocxHelp
                     ["target"],
                     "Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.",
                     ["index"]),
+                PreserveOnly("add-bookmark", ["target", "name"], ["expect-text"]),
                 PreserveOnly("replace-bookmark-text", ["target", "text"]),
                 PreserveOnly("rename-bookmark", ["target", "name"]),
                 PreserveOnly("delete-bookmark", ["target"]),

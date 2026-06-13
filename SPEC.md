@@ -1748,6 +1748,16 @@ target M.CC0006
 end
 ```
 
+Create a bookmark around a guarded paragraph target:
+
+```text
+op add-bookmark
+target M.P0004
+expect-text Paragraph text to bookmark.
+name ClientParagraph
+end
+```
+
 Replace a simple bookmark range while preserving markers:
 
 ```text
@@ -1803,6 +1813,11 @@ Rules:
   and section-boundary preservation.
 * Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
   or `F001.B0001`.
+* `add-bookmark` creates a complete bookmark around one modeled paragraph target,
+  preserving paragraph properties and visible text. It rejects invalid or duplicate
+  names, supports optional `expect-text`, and fails paragraphs containing protected
+  OOXML boundaries such as fields, existing bookmarks, comments, content controls,
+  drawings, or existing revision markup.
 * `replace-bookmark-text` supports complete same-paragraph bookmark ranges whose
   start/end markers are direct siblings, including ranges spanning multiple direct
   run siblings, and fails unsupported ranges instead of flattening surrounding OOXML.
