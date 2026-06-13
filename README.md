@@ -164,8 +164,9 @@ Implemented areas include:
 - simple and complex field read/context metadata, including parsed field type,
   nesting depth, bookmark/hyperlink dependencies, safe-edit status, explicit
   dirty/lock flag patch operations for one field or all modeled fields,
-  simple-field code/result patching, field-update marking after edits, and
-  `W5103` diagnostics for Word-side refresh;
+  simple-field code/result patching, simple REF/PAGEREF/NOTEREF cached-result
+  refresh from unambiguous bookmarks, field-update marking after edits, and `W5103`
+  diagnostics for Word-side refresh;
 - hyperlink read/context/dump metadata for external links, internal anchors, relationship
   IDs/parts/target modes, broken relationship IDs, URI scheme validation,
   missing/duplicate internal anchors, unsupported internal part links, target frames,
@@ -198,7 +199,8 @@ creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text and guarded rich-text controls,
 checkbox toggles, dropdown/combo selections, date values, bookmark rename/delete,
 and simple same-paragraph bookmark ranges, field result recalculation and complex-field
-edit workflows beyond dirty/lock flags and simple-field code/result edits,
+edit workflows beyond dirty/lock flags, simple-field code/result edits, and simple
+REF-style bookmark refresh,
 advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/history,
 relative/UNC/file hyperlink target support, advanced floating-image edit operations beyond
 size/wrap/position/crop metadata, linked images and VML/grouped/chart/SmartArt/OLE

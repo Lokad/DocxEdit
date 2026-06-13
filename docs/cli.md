@@ -124,8 +124,10 @@ dirty/lock flags, and whether a complex begin/separate/end sequence is complete.
 and `field-types`. DocxEdit preserves
 field XML, can set field dirty/lock flags through `set-field-dirty` and
 `set-field-lock` for one field or `target all`, and can update simple `w:fldSimple`
-field code/result caches through `set-field-code` and `set-field-result`. DocxEdit
-can mark the document for field updates after edits through
+field code/result caches through `set-field-code` and `set-field-result`.
+`refresh-field-result` updates simple REF/PAGEREF/NOTEREF cached results from one
+unambiguous same-part bookmark with simple same-paragraph content. DocxEdit can mark
+the document for field updates after edits through
 `MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field
 results. Apply diagnostics include `W5103` when a document containing fields was
 marked for Word-side refresh.

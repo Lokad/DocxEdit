@@ -1892,6 +1892,11 @@ target M.F0001
 expect-result Old cached result
 text New cached result
 end
+
+op refresh-field-result
+target M.F0001
+expect-result Old cached result
+end
 ```
 
 Rules:
@@ -1907,8 +1912,14 @@ Rules:
   an optional exact `expect-result` guard, preserves the field code and field
   boundary, and does not trigger document-level field-update marking when it is the
   only patch operation.
+* `refresh-field-result` updates simple `w:fldSimple` REF/PAGEREF/NOTEREF cached
+  results from exactly one same-part bookmark whose range is a simple same-paragraph
+  range without protected OOXML boundaries. It supports optional normalized
+  `expect-code` and exact `expect-result` guards and does not trigger
+  document-level field-update marking when it is the only patch operation.
 * Complex-field code/result replacement is not supported yet and fails with `E4313`.
-* DocxEdit does not recalculate field results.
+* DocxEdit does not recalculate field results beyond the limited REF-style refresh
+  above.
 
 ### 11.6d Hyperlink operations
 
@@ -2429,6 +2440,7 @@ set-field-dirty
 set-field-lock
 set-field-code
 set-field-result
+refresh-field-result
 set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after

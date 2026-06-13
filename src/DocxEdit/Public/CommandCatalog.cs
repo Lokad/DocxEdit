@@ -377,7 +377,7 @@ public static class DocxHelp
                         ]),
                         new("Fields",
                         [
-                            "Read and context output surface simple and complex field metadata, including parsed field type, normalized field code, result-text length, nesting depth, REF/PAGEREF/NOTEREF bookmark dependencies, HYPERLINK URI/anchor dependencies, safe-edit status, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, and mark the document for field updates after edits, but Word remains responsible for recalculating field results. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
+                            "Read and context output surface simple and complex field metadata, including parsed field type, normalized field code, result-text length, nesting depth, REF/PAGEREF/NOTEREF bookmark dependencies, HYPERLINK URI/anchor dependencies, safe-edit status, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, refresh simple REF/PAGEREF/NOTEREF cached results from unambiguous same-part bookmarks, and mark the document for field updates after other edits, but Word remains responsible for general field recalculation. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
                         ]),
                         new("Hyperlinks",
                         [
@@ -750,6 +750,7 @@ public static class DocxHelp
                 PreserveOnly("set-field-lock", ["target or all", "locked"]),
                 PreserveOnly("set-field-code", ["target", "code"], ["expect-code"]),
                 PreserveOnly("set-field-result", ["target", "text"], ["expect-result"]),
+                PreserveOnly("refresh-field-result", ["target"], ["expect-code", "expect-result"]),
                 PreserveOnly("set-hyperlink-target", ["target plus uri or anchor"], ["tooltip", "target-frame", "history"]),
                 PreserveOnly("set-hyperlink-text", ["target", "text"]),
                 PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip", "target-frame", "history"]),

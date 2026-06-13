@@ -358,6 +358,82 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyRefreshSimpleRefFieldResultFromBookmark()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Acme Corp</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:fldSimple w:instr=" REF ClientName \h " w:dirty="true">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op refresh-field-result
+            target M.F0001
+            expect-result Old cached result
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxFieldInfo field = Assert.Single(read.Fields);
+        Assert.Equal("REF ClientName \\h", field.Code);
+        Assert.Equal("ClientName", Assert.Single(field.BookmarkDependencies));
+        Assert.Equal(9, field.ResultTextLength);
+        Assert.Null(field.IsDirty);
+        Assert.Equal("Acme Corp", read.Paragraphs[1].Text);
+        output.Position = 0;
+        Assert.False(EntryExists(output, "word/settings.xml"));
+    }
+
+    [Fact]
+    public static void CheckRefreshFieldResultRejectsAmbiguousBookmark()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Acme</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="ClientName"/>
+                      <w:r><w:t>Contoso</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:fldSimple w:instr=" REF ClientName \h ">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op refresh-field-result
+            target M.F0001
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4313" &&
+            diagnostic.Message.Contains("ambiguous", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void CheckSetFieldResultRejectsComplexFields()
     {
         using MemoryStream input = CreateDocxWithBody("""

@@ -67,6 +67,7 @@ including nearby paragraph text.
 - `set-field-lock`: `target`, `locked`
 - `set-field-code`: `target`, `code`; optional `expect-code`
 - `set-field-result`: `target`, `text`; optional `expect-result`
+- `refresh-field-result`: `target`; optional `expect-code`, `expect-result`
 - `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
 - `set-hyperlink-text`: `target`, `text`
 - `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
@@ -140,8 +141,11 @@ normalized `expect-code`, preserves the cached result, and marks that field dirt
 `set-field-result` replaces the cached result runs inside `w:fldSimple`, supports
 optional exact `expect-result`, preserves the field code/boundary, and avoids
 document-level field-update marking when it is the only patch operation. Complex
-field code/result edits fail with `E4313`. DocxEdit does not recalculate field
-results; apply emits `W5103` when a document containing fields is marked for
+field code/result edits fail with `E4313`. `refresh-field-result` is a limited
+deterministic refresh for simple `w:fldSimple` REF/PAGEREF/NOTEREF fields whose
+bookmark operand resolves to exactly one same-part, simple same-paragraph bookmark
+range without protected OOXML boundaries. General field recalculation remains Word's
+responsibility; apply emits `W5103` when a document containing fields is marked for
 Word-side refresh.
 
 Hyperlink operations target hyperlink IDs from `read` or `outline`, such as

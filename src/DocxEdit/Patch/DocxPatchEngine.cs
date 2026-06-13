@@ -114,6 +114,7 @@ internal static class DocxPatchEngine
                     "set-field-lock" => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken),
                     "set-field-code" => ExecuteSetFieldCode(package, operation, apply, cancellationToken),
                     "set-field-result" => ExecuteSetFieldResult(package, operation, apply, cancellationToken),
+                    "refresh-field-result" => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
@@ -207,7 +208,7 @@ internal static class DocxPatchEngine
 
     private static bool ShouldMarkFieldsDirtyAfterOperation(string operationName)
     {
-        return operationName is not "set-field-result";
+        return operationName is not "set-field-result" and not "refresh-field-result";
     }
 
     private static bool PackageContainsFieldMarkup(OoxmlPackage package, CancellationToken cancellationToken)
@@ -1600,11 +1601,197 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteRefreshFieldResult(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? expectedCode = operation.Fields.GetValueOrDefault("expect-code");
+        string? expectedResult = operation.Fields.GetValueOrDefault("expect-result");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
+        }
+
+        if (fieldTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 fields: {target}.", operation, target)];
+        }
+
+        if (fieldTarget.Element.Name != OoxmlNs.W + "fldSimple")
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} currently supports only simple w:fldSimple REF-style fields.", operation, target)];
+        }
+
+        string currentCode = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+        if (expectedCode is not null && !string.Equals(currentCode, NormalizeFieldCodeForGuard(expectedCode), StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target)];
+        }
+
+        string currentResult = ReadVisibleText(fieldTarget.Element);
+        if (expectedResult is not null && !string.Equals(currentResult, expectedResult, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
+        }
+
+        if (!TryReadRefFieldBookmarkName(currentCode, out string? bookmarkName))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} supports only REF, PAGEREF, and NOTEREF fields with one bookmark operand.", operation, target)];
+        }
+
+        if (!TryReadSimpleBookmarkText(fieldTarget.Document, bookmarkName!, out string? bookmarkText, out string? unsupportedReason))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} cannot resolve bookmark '{bookmarkName}': {unsupportedReason}.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        ReplaceSimpleFieldResult(fieldTarget.Element, bookmarkText!);
+        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", null);
+        SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
+        return [];
+    }
+
     private static string NormalizeFieldCodeForGuard(string code)
     {
         return string.Join(
             " ",
             code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static bool TryReadRefFieldBookmarkName(string code, out string? bookmarkName)
+    {
+        bookmarkName = null;
+        string[] tokens = TokenizeFieldCodeForPatch(code);
+        if (tokens.Length < 2)
+        {
+            return false;
+        }
+
+        string fieldType = tokens[0].ToUpperInvariant();
+        if (fieldType is not ("REF" or "PAGEREF" or "NOTEREF"))
+        {
+            return false;
+        }
+
+        foreach (string token in tokens.Skip(1))
+        {
+            if (token.StartsWith('\\'))
+            {
+                continue;
+            }
+
+            bookmarkName = token;
+            return !string.IsNullOrWhiteSpace(bookmarkName);
+        }
+
+        return false;
+    }
+
+    private static string[] TokenizeFieldCodeForPatch(string code)
+    {
+        var tokens = new List<string>();
+        var current = new StringBuilder();
+        bool inQuote = false;
+        foreach (char character in code)
+        {
+            if (character == '"')
+            {
+                inQuote = !inQuote;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(character) && !inQuote)
+            {
+                AddFieldCodeToken(tokens, current);
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        AddFieldCodeToken(tokens, current);
+        return tokens.ToArray();
+    }
+
+    private static void AddFieldCodeToken(List<string> tokens, StringBuilder current)
+    {
+        if (current.Length == 0)
+        {
+            return;
+        }
+
+        tokens.Add(current.ToString());
+        current.Clear();
+    }
+
+    private static bool TryReadSimpleBookmarkText(
+        XDocument document,
+        string bookmarkName,
+        out string? text,
+        out string? unsupportedReason)
+    {
+        text = null;
+        unsupportedReason = null;
+        XElement[] starts = document
+            .Descendants(OoxmlNs.W + "bookmarkStart")
+            .Where(bookmark => string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), bookmarkName, StringComparison.Ordinal))
+            .ToArray();
+        if (starts.Length == 0)
+        {
+            unsupportedReason = "bookmark was not found";
+            return false;
+        }
+
+        if (starts.Length > 1)
+        {
+            unsupportedReason = "bookmark name is ambiguous";
+            return false;
+        }
+
+        XElement start = starts[0];
+        string? ooxmlId = (string?)start.Attribute(OoxmlNs.W + "id");
+        XElement? end = ooxmlId is null
+            ? null
+            : document
+                .Descendants(OoxmlNs.W + "bookmarkEnd")
+                .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), ooxmlId, StringComparison.Ordinal));
+        if (end is null)
+        {
+            unsupportedReason = "bookmark end marker was not found";
+            return false;
+        }
+
+        if (start.Parent is null || start.Parent != end.Parent || start.Parent.Name != OoxmlNs.W + "p")
+        {
+            unsupportedReason = "bookmark range is not a simple same-paragraph range";
+            return false;
+        }
+
+        XNode[] nodes = start.NodesAfterSelf()
+            .TakeWhile(node => node != end)
+            .ToArray();
+        if (ContainsProtectedBookmarkReplacementNode(nodes, out string? protectedFeature))
+        {
+            unsupportedReason = $"bookmark range contains protected OOXML boundary '{protectedFeature}'";
+            return false;
+        }
+
+        text = ReadVisibleText(new XElement(OoxmlNs.W + "p", nodes));
+        return true;
     }
 
     private static void ReplaceSimpleFieldResult(XElement field, string text)
