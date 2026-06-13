@@ -252,6 +252,8 @@ public static class DocxTextRenderer
             string initials = summary.Initials is null ? string.Empty : $" initials=\"{EscapeText(summary.Initials)}\"";
             string paraId = summary.ParaId is null ? string.Empty : $" para-id={EscapeText(summary.ParaId)}";
             string parentParaId = summary.ParentParaId is null ? string.Empty : $" parent-para-id={EscapeText(summary.ParentParaId)}";
+            string rootParaId = summary.RootParaId is null ? string.Empty : $" root-para-id={EscapeText(summary.RootParaId)}";
+            string isReply = summary.IsReply is null ? string.Empty : $" is-reply={summary.IsReply.Value.ToString().ToLowerInvariant()}";
             string resolved = summary.Resolved is null ? string.Empty : $" resolved={summary.Resolved.Value.ToString().ToLowerInvariant()}";
             string textLength = summary.TextLength is null ? string.Empty : $" comment-text-length={summary.TextLength}";
             string textSnippet = summary.TextSnippet is null ? string.Empty : $" comment-text=\"{EscapeText(summary.TextSnippet)}\"";
@@ -268,6 +270,8 @@ public static class DocxTextRenderer
                 .Append(initials)
                 .Append(paraId)
                 .Append(parentParaId)
+                .Append(rootParaId)
+                .Append(isReply)
                 .Append(resolved)
                 .Append(textLength)
                 .Append(textSnippet)
@@ -296,6 +300,8 @@ public static class DocxTextRenderer
             string commentInitials = change.CommentInitials is null ? string.Empty : $" comment-initials=\"{EscapeText(change.CommentInitials)}\"";
             string commentParaId = change.CommentParaId is null ? string.Empty : $" comment-para-id={EscapeText(change.CommentParaId)}";
             string commentParentParaId = change.CommentParentParaId is null ? string.Empty : $" comment-parent-para-id={EscapeText(change.CommentParentParaId)}";
+            string commentRootParaId = change.CommentRootParaId is null ? string.Empty : $" comment-root-para-id={EscapeText(change.CommentRootParaId)}";
+            string commentIsReply = change.CommentIsReply is null ? string.Empty : $" comment-is-reply={change.CommentIsReply.Value.ToString().ToLowerInvariant()}";
             string commentResolved = change.CommentResolved is null ? string.Empty : $" comment-resolved={change.CommentResolved.Value.ToString().ToLowerInvariant()}";
             string commentAnchorTarget = change.CommentAnchorTargetId is null ? string.Empty : $" comment-anchor-target={change.CommentAnchorTargetId}";
             string commentReferenceTarget = change.CommentReferenceTargetId is null ? string.Empty : $" comment-reference-target={change.CommentReferenceTargetId}";
@@ -333,6 +339,8 @@ public static class DocxTextRenderer
                 .Append(commentInitials)
                 .Append(commentParaId)
                 .Append(commentParentParaId)
+                .Append(commentRootParaId)
+                .Append(commentIsReply)
                 .Append(commentResolved)
                 .Append(commentAnchorTarget)
                 .Append(commentReferenceTarget)

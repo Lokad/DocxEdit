@@ -83,6 +83,8 @@ internal static class DocxChangeScanner
                     CommentInitials = comment?.Initials,
                     CommentParaId = comment?.ParaId,
                     CommentParentParaId = comment?.ParentParaId,
+                    CommentRootParaId = comment?.RootParaId,
+                    CommentIsReply = comment?.IsReply,
                     CommentResolved = comment?.Resolved,
                     CommentAnchorTargetId = commentAnchor?.AnchorTargetId,
                     CommentReferenceTargetId = commentAnchor?.ReferenceTargetId,
@@ -149,6 +151,8 @@ internal static class DocxChangeScanner
                     Initials = metadata?.CommentInitials,
                     ParaId = metadata?.CommentParaId,
                     ParentParaId = metadata?.CommentParentParaId,
+                    RootParaId = metadata?.CommentRootParaId,
+                    IsReply = metadata?.CommentIsReply,
                     Resolved = metadata?.CommentResolved,
                     TextLength = text?.CommentTextLength,
                     TextSnippet = text?.CommentTextSnippet,
@@ -688,6 +692,7 @@ internal static class DocxChangeScanner
 
                 string? paraId = ReadCommentParaId(comment);
                 commentExtensions.TryGetValue(paraId ?? string.Empty, out CommentExtensionMetadata? extension);
+                string? rootParaId = ResolveCommentRootParaId(paraId, commentExtensions);
                 string? text = includeCommentText ? ReadCommentText(comment) : null;
                 comments[id] = new CommentMetadata(
                     (string?)comment.Attribute(OoxmlNs.W + "author"),
@@ -695,6 +700,8 @@ internal static class DocxChangeScanner
                     (string?)comment.Attribute(OoxmlNs.W + "initials"),
                     paraId,
                     extension?.ParentParaId,
+                    rootParaId,
+                    paraId is null ? null : !string.IsNullOrWhiteSpace(extension?.ParentParaId),
                     extension?.Resolved,
                     text?.Length,
                     text is null ? null : Truncate(text, maxCommentText),
@@ -744,6 +751,33 @@ internal static class DocxChangeScanner
         }
 
         return extensions;
+    }
+
+    private static string? ResolveCommentRootParaId(
+        string? paraId,
+        IReadOnlyDictionary<string, CommentExtensionMetadata> extensions)
+    {
+        if (string.IsNullOrWhiteSpace(paraId))
+        {
+            return null;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        string current = paraId!;
+        string root = current;
+        while (seen.Add(current))
+        {
+            root = current;
+            if (!extensions.TryGetValue(current, out CommentExtensionMetadata? extension) ||
+                string.IsNullOrWhiteSpace(extension.ParentParaId))
+            {
+                return root;
+            }
+
+            current = extension.ParentParaId!;
+        }
+
+        return root;
     }
 
     private static IReadOnlyDictionary<string, CommentAnchorMetadata> BuildCommentAnchorMap(
@@ -967,6 +1001,8 @@ internal sealed record CommentMetadata(
     string? Initials,
     string? ParaId,
     string? ParentParaId,
+    string? RootParaId,
+    bool? IsReply,
     bool? Resolved,
     int? TextLength,
     string? TextSnippet,

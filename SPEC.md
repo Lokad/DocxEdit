@@ -1149,6 +1149,8 @@ public sealed record DocxChangeInfo
     public string? CommentInitials { get; init; }
     public string? CommentParaId { get; init; }
     public string? CommentParentParaId { get; init; }
+    public string? CommentRootParaId { get; init; }
+    public bool? CommentIsReply { get; init; }
     public bool? CommentResolved { get; init; }
     public string? CommentAnchorTargetId { get; init; }
     public string? CommentReferenceTargetId { get; init; }
@@ -1166,11 +1168,11 @@ public sealed record DocxChangeInfo
 }
 ```
 
-`CommentParaId`, `CommentParentParaId`, and `CommentResolved` are populated from
-Word's modern `commentsExtended.xml` metadata when it is present. They are safe
-metadata fields and do not expose comment body text. `DocxCommentThreadSummary`
-exposes the same resolution fields and the same opt-in text snippet fields at the
-thread level:
+`CommentParaId`, `CommentParentParaId`, `CommentRootParaId`, `CommentIsReply`,
+and `CommentResolved` are populated from Word's modern `commentsExtended.xml`
+metadata when it is present. They are safe metadata fields and do not expose
+comment body text. `DocxCommentThreadSummary` exposes the same root/reply and
+resolution fields, plus the same opt-in text snippet fields, at the thread level:
 
 ```csharp
 public sealed record DocxCommentThreadSummary
@@ -1185,6 +1187,8 @@ public sealed record DocxCommentThreadSummary
     public string? Initials { get; init; }
     public string? ParaId { get; init; }
     public string? ParentParaId { get; init; }
+    public string? RootParaId { get; init; }
+    public bool? IsReply { get; init; }
     public bool? Resolved { get; init; }
     public int? TextLength { get; init; }
     public string? TextSnippet { get; init; }

@@ -593,7 +593,7 @@ public static class DocxHelp
                         ]),
                         new("Text output",
                         [
-                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. Modern Word comment resolution metadata appears as para-id, parent-para-id, resolved, comment-para-id, comment-parent-para-id, and comment-resolved when commentsExtended data is present. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
+                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. Modern Word comment metadata appears as para-id, parent-para-id, root-para-id, is-reply, resolved, comment-para-id, comment-parent-para-id, comment-root-para-id, comment-is-reply, and comment-resolved when commentsExtended data is present. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
                         ]),
                         new("Timestamp notes",
                         [

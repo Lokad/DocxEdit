@@ -149,8 +149,8 @@ Implemented areas include:
   comment body IDs;
 - comment anchor/context metadata and metadata-only comment body `dump`/`context`
   targets;
-- comment resolution metadata from `commentsExtended.xml`, plus `resolve-comment` and
-  `reopen-comment` workflows that create or update modern extension records for
+- comment root/reply and resolution metadata from `commentsExtended.xml`, plus
+  `resolve-comment` and `reopen-comment` workflows that create or update modern extension records for
   basic comments, and explicit `E4314` diagnostics for unsupported threaded reply
   operations;
 - bookmark and content-control read/context metadata with selector guidance, including
