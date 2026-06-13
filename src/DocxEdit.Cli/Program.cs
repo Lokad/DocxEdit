@@ -254,11 +254,15 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit validate input.docx [--profile structural|package] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit validate input.docx [--profile structural|package] [--max-diagnostics <count>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxValidateResult result = new DocxEditor().Validate(input, new DocxValidateOptions { Profile = options.ValidationProfile });
+        DocxValidateResult result = new DocxEditor().Validate(input, new DocxValidateOptions
+        {
+            Profile = options.ValidationProfile,
+            MaxDiagnostics = options.MaxDiagnostics ?? 500
+        });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
         {
@@ -488,6 +492,7 @@ internal static class ProgramMain
         string? ExtractPath,
         int? MaxText,
         int? MaxCommentText,
+        int? MaxDiagnostics,
         int? Radius,
         TrackChangesMode TrackChanges,
         string? Author,
@@ -511,6 +516,7 @@ internal static class ProgramMain
             string? extractPath = null;
             int? maxText = null;
             int? maxCommentText = null;
+            int? maxDiagnostics = null;
             int? radius = null;
             TrackChangesMode trackChanges = TrackChangesMode.Off;
             string? author = null;
@@ -585,6 +591,19 @@ internal static class ProgramMain
                         }
 
                         maxCommentText = parsedMaxCommentText;
+                        break;
+                    case "--max-diagnostics":
+                        if (!TryReadValue(args, ref i, out string? maxDiagnosticsValue))
+                        {
+                            return WithError(command, "Missing value for --max-diagnostics.");
+                        }
+
+                        if (!int.TryParse(maxDiagnosticsValue, out int parsedMaxDiagnostics) || parsedMaxDiagnostics < 1)
+                        {
+                            return WithError(command, "Invalid value for --max-diagnostics.");
+                        }
+
+                        maxDiagnostics = parsedMaxDiagnostics;
                         break;
                     case "--radius":
                         if (!TryReadValue(args, ref i, out string? radiusValue))
@@ -681,7 +700,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, maxCommentText, radius, trackChanges, author, timestampUtc, textView, validationProfile, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, maxCommentText, maxDiagnostics, radius, trackChanges, author, timestampUtc, textView, validationProfile, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -698,7 +717,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, DocxValidationProfile.Structural, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, DocxValidationProfile.Structural, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)

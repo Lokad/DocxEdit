@@ -178,6 +178,28 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateCapsDiagnosticsWithTruncationDiagnostic()
+    {
+        string bodyXml = string.Concat(Enumerable.Range(1, 6).Select(id => $"""
+                    <w:p>
+                      <w:bookmarkStart w:id="{id}" w:name="Bookmark{id}"/>
+                      <w:r><w:t>Text {id}</w:t></w:r>
+                    </w:p>
+            """));
+        using MemoryStream stream = CreateDocxWithBody(bodyXml);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream, new DocxValidateOptions { MaxDiagnostics = 3 });
+
+        Assert.False(result.Success);
+        Assert.Equal(3, result.Diagnostics.Count);
+        Assert.Equal(2, result.Diagnostics.Count(diagnostic => diagnostic.Code == "E9103"));
+        DocxDiagnostic capped = result.Diagnostics.Last();
+        Assert.Equal("E9199", capped.Code);
+        Assert.Equal(DocxSeverity.Error, capped.Severity);
+        Assert.Contains("omitted 4 of 6", capped.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ValidateReportsInvalidDrawingGeometry()
     {
         using MemoryStream stream = CreateDocxWithBody("""

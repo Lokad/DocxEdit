@@ -32,6 +32,10 @@ Supported profiles:
 - `package` limits validation to package/XML root checks after the package has been
   loaded safely.
 
+`DocxValidateOptions.MaxDiagnostics` and CLI `--max-diagnostics` cap returned
+diagnostics. When diagnostics are omitted, validation adds `E9199` if any omitted
+diagnostic was an error or `W9199` when only warnings were omitted.
+
 Current checks include:
 
 - expected roots for known WordprocessingML parts such as the main document, styles,

@@ -459,6 +459,11 @@ public sealed record DocxValidateResult : DocxOperationResult
 public sealed class DocxValidateOptions
 {
     public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
+    public int MaxDiagnostics { get; init; } = 500;
+    public int MaxZipEntries { get; init; } = 10_000;
+    public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
+    public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;
+    public bool LeaveInputOpen { get; init; } = true;
 }
 
 public enum DocxValidationProfile
@@ -2469,6 +2474,9 @@ Because the production library cannot use the Open XML SDK, internal validation 
 
 A strict schema profile is not exposed until DocxEdit has a real schema validator
 bridge.
+`DocxValidateOptions.MaxDiagnostics` caps returned validation diagnostics. When
+diagnostics are omitted, validation adds `E9199` if omitted diagnostics include
+errors or `W9199` when only warnings are omitted.
 
 Patch apply validation must check:
 
@@ -2559,7 +2567,9 @@ E9111 comment body, anchor, or reference IDs are missing, duplicated, or inconsi
 E9112 field instruction text, result containment, or dirty/lock flag metadata is malformed
 E9113 drawing image relationship target or media content type is invalid
 E9114 table visual-grid metadata is inconsistent
+E9199 validation diagnostics were capped and omitted diagnostics include errors
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
+W9199 validation diagnostics were capped and omitted diagnostics are warnings only
 ```
 
 Unsupported or approximated feature diagnostics must be emitted as warnings during read/check/apply when they can affect the requested workflow. Repeated occurrences of the same unsupported feature in the same part should be aggregated into one warning unless the exact target list is useful for fixing the patch.

@@ -185,7 +185,7 @@ Implemented areas include:
   ranges, complex field balance/result-containment/flag consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   image relationship target/content-type checks, drawing property ID uniqueness,
   drawing extent/crop geometry, duplicate semantic selector warnings, basic table
-  shape, and table visual-grid consistency;
+  shape, table visual-grid consistency, and capped validation diagnostics;
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic

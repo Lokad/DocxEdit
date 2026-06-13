@@ -119,6 +119,7 @@ public static class CliTests
         Assert.Equal(0, validate.ExitCode);
         Assert.Contains("docxedit validate input.docx", validate.Output, StringComparison.Ordinal);
         Assert.Contains("--profile structural|package", validate.Output, StringComparison.Ordinal);
+        Assert.Contains("--max-diagnostics N", validate.Output, StringComparison.Ordinal);
         Assert.Contains("WordprocessingML invariants", validate.Output, StringComparison.Ordinal);
         Assert.Contains("stable diagnostic codes", validate.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);

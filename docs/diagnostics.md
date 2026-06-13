@@ -32,6 +32,8 @@ Common code ranges:
   safely editable by the requested operation.
 - `E4314`: threaded comment reply operations are recognized but not supported because
   DocxEdit does not safely model commentsIds/threaded-comments metadata yet.
+- `E9199`/`W9199`: validation diagnostics were capped; `E9199` means omitted
+  diagnostics include errors, while `W9199` means only warnings were omitted.
 
 Common read-model warning features include `tracked-changes`, `hyperlink`, `field`, `comment`,
 `bookmark`, `content-control`, `floating-image`, `external-image`, `chart`, `smart-art`,
@@ -77,5 +79,7 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
   part, or non-image media content type.
 - `E9114`: table visual-grid metadata is inconsistent, such as invalid `gridSpan`,
   vertical merge continuation mismatch, or row width exceeding `tblGrid`.
+- `E9199`: validation diagnostics were capped and omitted diagnostics include errors.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.
+- `W9199`: validation diagnostics were capped and omitted diagnostics are warnings only.

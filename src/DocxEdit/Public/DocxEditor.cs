@@ -313,7 +313,9 @@ public sealed class DocxEditor
             };
         }
 
-        IReadOnlyList<DocxDiagnostic> allDiagnostics = diagnostics.Concat(validationDiagnostics!).ToArray();
+        IReadOnlyList<DocxDiagnostic> allDiagnostics = CapValidationDiagnostics(
+            diagnostics.Concat(validationDiagnostics!),
+            options.MaxDiagnostics);
         return new DocxValidateResult
         {
             Success = allDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error),
@@ -322,6 +324,27 @@ public sealed class DocxEditor
             PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
             MainDocumentPartName = package.MainDocumentPartName
         };
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> CapValidationDiagnostics(
+        IEnumerable<DocxDiagnostic> diagnostics,
+        int maxDiagnostics)
+    {
+        int cap = Math.Max(1, maxDiagnostics);
+        DocxDiagnostic[] allDiagnostics = diagnostics.ToArray();
+        if (allDiagnostics.Length <= cap)
+        {
+            return allDiagnostics;
+        }
+
+        DocxDiagnostic[] kept = allDiagnostics.Take(Math.Max(0, cap - 1)).ToArray();
+        DocxDiagnostic[] omitted = allDiagnostics.Skip(kept.Length).ToArray();
+        bool omittedErrors = omitted.Any(diagnostic => diagnostic.Severity == DocxSeverity.Error);
+        DocxDiagnostic truncationDiagnostic = new(
+            omittedErrors ? DocxSeverity.Error : DocxSeverity.Warning,
+            omittedErrors ? "E9199" : "W9199",
+            $"Validation diagnostics were capped at {cap}; omitted {omitted.Length} of {allDiagnostics.Length} diagnostic(s).");
+        return kept.Append(truncationDiagnostic).ToArray();
     }
 
     public DocxChangesResult Changes(

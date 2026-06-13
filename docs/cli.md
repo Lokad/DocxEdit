@@ -15,7 +15,7 @@ dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
 - `context input.docx --id M.P0001 [--radius N] [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
 - `styles input.docx [--json] [--diagnostics path] [--strict]`
 - `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
-- `validate input.docx [--profile structural|package] [--json] [--diagnostics path] [--strict]`
+- `validate input.docx [--profile structural|package] [--max-diagnostics N] [--json] [--diagnostics path] [--strict]`
 - `changes input.docx [--include-comment-text] [--max-comment-text N] [--json] [--diagnostics path] [--strict]`
 
 `changes` lists existing tracked-change and comment markup. By default it does not
@@ -169,8 +169,9 @@ duplicate semantic selectors, complex field begin/end balance, field result
 containment, drawing relationship references, image target/content-type checks,
 duplicate drawing property IDs,
 drawing extent/crop geometry, basic table row/cell shape, and table visual-grid
-consistency. `package` limits validation to package/XML root checks. This is not full
-ISO/IEC 29500 schema validation; it is intended to catch common corruption and
+consistency. `package` limits validation to package/XML root checks. `--max-diagnostics`
+caps returned diagnostics and adds `E9199` or `W9199` when diagnostics are omitted.
+This is not full ISO/IEC 29500 schema validation; it is intended to catch common corruption and
 relationship mistakes with stable diagnostics such as `E9103`, `E9104`, `E9105`,
 `E9106`, `E9107`, `E9108`, `E9109`, `E9110`, `E9113`, `E9114`, and `W9109`.
 
