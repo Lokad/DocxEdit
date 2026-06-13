@@ -710,9 +710,9 @@ internal static class DocxDocumentScanner
             {
                 current.Code.Append(element.Value);
             }
-            else if (current.HasSeparate)
+            else
             {
-                current.ResultTextLength += ReadFieldResultTextElementLength(element, textView);
+                AddComplexFieldResultLength(stack, element, textView);
             }
         }
 
@@ -722,6 +722,26 @@ internal static class DocxDocumentScanner
         }
 
         return fields;
+    }
+
+    private static void AddComplexFieldResultLength(
+        Stack<ComplexFieldBuilder> stack,
+        XElement element,
+        DocxTextView textView)
+    {
+        int length = ReadFieldResultTextElementLength(element, textView);
+        if (length == 0)
+        {
+            return;
+        }
+
+        foreach (ComplexFieldBuilder builder in stack)
+        {
+            if (builder.HasSeparate)
+            {
+                builder.ResultTextLength += length;
+            }
+        }
     }
 
     private static IReadOnlyList<DocxHyperlinkInfo> ReadHyperlinks(

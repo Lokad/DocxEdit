@@ -1775,6 +1775,50 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadModelsNestedComplexFieldMetadataAndValidatesBalance()
+    {
+        const string nestedFieldBody = """
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> IF </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t xml:space="preserve">Prefix </w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> DATE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>June 13</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                      <w:r><w:t xml:space="preserve"> Suffix</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """;
+        var editor = new DocxEditor();
+
+        using MemoryStream readStream = CreateDocxWithBody(nestedFieldBody);
+        DocxReadResult read = editor.Read(readStream);
+
+        Assert.True(read.Success);
+        Assert.Equal(2, read.Fields.Count);
+        DocxFieldInfo inner = Assert.Single(read.Fields, field => field.Code == "DATE");
+        Assert.Equal("complex", inner.Kind);
+        Assert.Equal("M.P0001", inner.TargetId);
+        Assert.Equal(7, inner.ResultTextLength);
+        Assert.True(inner.IsComplete);
+
+        DocxFieldInfo outer = Assert.Single(read.Fields, field => field.Code == "IF");
+        Assert.Equal("complex", outer.Kind);
+        Assert.Equal("M.P0001", outer.TargetId);
+        Assert.Equal(21, outer.ResultTextLength);
+        Assert.True(outer.IsComplete);
+
+        using MemoryStream validateStream = CreateDocxWithBody(nestedFieldBody);
+        DocxValidateResult validate = editor.Validate(validateStream);
+
+        Assert.True(validate.Success);
+        Assert.DoesNotContain(validate.Diagnostics, diagnostic => diagnostic.Code is "E9104" or "E9112");
+    }
+
+    [Fact]
     public static void ContextAnnotatesTargetsWithFieldMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""
