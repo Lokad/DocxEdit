@@ -185,6 +185,28 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidSettingsMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            extra: archive => AddEntry(archive, "word/settings.xml", """
+                <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:updateFields w:val="maybe"/>
+                </w:settings>
+                """));
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9118" &&
+            diagnostic.PartName == "/word/settings.xml" &&
+            diagnostic.Message.Contains("updateFields", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""
@@ -2859,7 +2881,10 @@ public static class ReadApiTests
         return stream;
     }
 
-    private static MemoryStream CreateDocxWithBody(string bodyXml, string? documentRelationshipsXml = null)
+    private static MemoryStream CreateDocxWithBody(
+        string bodyXml,
+        string? documentRelationshipsXml = null,
+        Action<ZipArchive>? extra = null)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -2888,6 +2913,7 @@ public static class ReadApiTests
                   </w:body>
                 </w:document>
                 """);
+            extra?.Invoke(archive);
         }
 
         stream.Position = 0;

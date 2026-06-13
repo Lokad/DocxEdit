@@ -129,6 +129,10 @@ internal static class DocxPackageValidator
         {
             ValidateCommentsExtended(package, partName, document, diagnostics, cancellationToken);
         }
+        else if (string.Equals(partName, "/word/settings.xml", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSettings(document, partName, diagnostics);
+        }
 
         ValidateTables(document, partName, diagnostics);
     }
@@ -715,6 +719,23 @@ internal static class DocxPackageValidator
             {
                 diagnostics.Add(Error("E9108", $"commentsExtended paraId '{paraId}' has no matching comment paragraph.", partName));
             }
+        }
+    }
+
+    private static void ValidateSettings(
+        XDocument document,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        foreach (XElement updateFields in document.Descendants(OoxmlNs.W + "updateFields"))
+        {
+            string? value = (string?)updateFields.Attribute(OoxmlNs.W + "val");
+            if (value is null || value is "0" or "1" or "true" or "false" or "on" or "off")
+            {
+                continue;
+            }
+
+            diagnostics.Add(Error("E9118", $"Settings w:updateFields has invalid OnOff value '{value}'.", partName));
         }
     }
 
