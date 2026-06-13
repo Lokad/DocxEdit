@@ -26,6 +26,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("preserve-runs", replaceText.OptionalFields);
         Assert.Equal("tracked-simple", replaceText.TrackChangesSupport);
         Assert.Contains("E6002", replaceText.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-content-control-text", out DocxPatchOperationInfo setContentControlText));
+        Assert.Contains("expect-text", setContentControlText.OptionalFields);
+        Assert.Equal("preserve-only", setContentControlText.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("set-cell", out DocxPatchOperationInfo setCell));
         Assert.Equal("tracked-cell-simple", setCell.TrackChangesSupport);
         Assert.Contains("E6002", setCell.TrackChangesNote, StringComparison.Ordinal);

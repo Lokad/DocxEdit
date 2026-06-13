@@ -107,11 +107,13 @@ If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector
 diagnostics list candidate paragraph IDs; retry with an explicit ID.
 Patch operations can also target explicit bookmark/content-control IDs for safe shapes:
 `set-content-control-text` updates plain-text controls while preserving the wrapper,
-`set-content-control-checkbox` toggles checkbox controls and updates their displayed
-state symbol, `set-content-control-choice` selects dropdown/combo items by `value` or
-`display-text`, `set-content-control-date` updates date control `fullDate` values and
-displayed text, and `replace-bookmark-text` updates simple same-paragraph bookmark
-ranges while preserving the bookmark markers. `rename-bookmark` renames bookmark
+and can replace rich-text controls only with `expect-text` and paragraph-only content
+that has no protected OOXML boundaries. `set-content-control-checkbox` toggles
+checkbox controls and updates their displayed state symbol, `set-content-control-choice`
+selects dropdown/combo items by `value` or `display-text`, `set-content-control-date`
+updates date control `fullDate` values and displayed text, and
+`replace-bookmark-text` updates simple same-paragraph bookmark ranges while preserving
+the bookmark markers. `rename-bookmark` renames bookmark
 markers and same-story internal hyperlink anchors when the old name is unambiguous;
 `delete-bookmark` removes only complete unreferenced bookmark markers.
 `read` and `outline` also list simple and complex field metadata. Field records

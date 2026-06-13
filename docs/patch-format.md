@@ -49,7 +49,7 @@ including nearby paragraph text.
 - `insert-before`, `insert-after`: `target`, `text`, optional `style`, `copy-paragraph-properties`
 - `delete-block`: `target`, optional `expect-text`
 - `set-style`: `target`, `style`
-- `set-content-control-text`: `target`, `text`
+- `set-content-control-text`: `target`, `text`, optional `expect-text`
 - `set-content-control-checkbox`: `target`, `checked`
 - `set-content-control-choice`: `target`, exactly one of `value` or `display-text`
 - `set-content-control-date`: `target`, `value`, optional `display-text`
@@ -98,7 +98,10 @@ paragraph's `w:pPr`, including style and numbering properties; an explicit `styl
 field overrides the copied paragraph style while preserving the other copied
 properties.
 
-Use `set-content-control-text` with plain-text content-control IDs such as `M.CC0001`.
+Use `set-content-control-text` with plain-text content-control IDs such as
+`M.CC0001`. Rich-text controls are supported only with an exact `expect-text` guard
+and paragraph-only content that has no protected OOXML boundaries; replacement writes
+a single paragraph while preserving the `w:sdt` wrapper and `w:sdtPr` metadata.
 Use `set-content-control-checkbox` with checkbox controls and `checked true|false`;
 it updates `w:checked` and the displayed state symbol. The wrapper and `w:sdtPr`
 metadata are preserved. Use `set-content-control-choice` with dropdown or combo box

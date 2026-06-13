@@ -1039,7 +1039,7 @@ internal static class DocxDocumentScanner
 
         string? kind = properties.Elements()
             .Select(element => element.Name.LocalName)
-            .FirstOrDefault(name => name is "text" or "richText" or "checkBox" or "dropDownList" or "comboBox" or "date" or "repeatingSection");
+            .FirstOrDefault(name => name is "text" or "richText" or "checkBox" or "dropDownList" or "comboBox" or "date" or "picture" or "group" or "repeatingSection" or "repeatingSectionItem");
         return kind switch
         {
             "text" => "plain-text",
@@ -1048,7 +1048,10 @@ internal static class DocxDocumentScanner
             "dropDownList" => "dropdown-list",
             "comboBox" => "combo-box",
             "date" => "date",
+            "picture" => "picture",
+            "group" => "group",
             "repeatingSection" => "repeating-section",
+            "repeatingSectionItem" => "repeating-section-item",
             _ => "rich-text"
         };
     }
@@ -1109,7 +1112,11 @@ internal static class DocxDocumentScanner
             "dropdown-list" => "choice",
             "combo-box" => "choice",
             "date" => "date",
+            "rich-text" => "rich-text",
+            "picture" => "unsupported-picture",
+            "group" => "unsupported-group",
             "repeating-section" => "unsupported-repeating-section",
+            "repeating-section-item" => "unsupported-repeating-section",
             _ => "unsupported-rich-text"
         };
     }

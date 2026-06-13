@@ -1725,8 +1725,83 @@ public static class PatchApplyTests
         Assert.Contains("w:dataBinding w:xpath=\"/root/client\"", xml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void ApplySetRichTextContentControlRequiresGuardAndPreservesWrapper()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:tag w:val="summary"/>
+                          <w:richText/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:p><w:r><w:t>Old summary</w:t></w:r></w:p>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            expect-text Old summary
+            text New summary
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        DocxContentControlInfo control = Assert.Single(read.ContentControls);
+        Assert.Equal("rich-text", control.Kind);
+        Assert.Equal("rich-text", control.SafeEditStatus);
+        Assert.Equal("New summary", Assert.Single(read.Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:richText", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tag w:val=\"summary\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetRichTextContentControlRejectsMissingGuard()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr><w:richText/></w:sdtPr>
+                        <w:sdtContent>
+                          <w:p><w:r><w:t>Old summary</w:t></w:r></w:p>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text New summary
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4205", diagnostic.Code);
+        Assert.Equal("M.CC0001", diagnostic.TargetId);
+        Assert.Contains("requires expect-text", diagnostic.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("set-content-control-text", "<w:text/>", "text New Client")]
+    [InlineData("set-content-control-text", "<w:richText/>", "expect-text Old Client\ntext New Client")]
     [InlineData("set-content-control-checkbox", "<w:checkBox><w:checked w:val=\"0\"/></w:checkBox>", "checked true")]
     [InlineData("set-content-control-choice", "<w:dropDownList><w:listItem w:displayText=\"North\" w:value=\"north\"/><w:listItem w:displayText=\"South\" w:value=\"south\"/></w:dropDownList>", "value south")]
     [InlineData("set-content-control-date", "<w:date><w:fullDate w:val=\"2026-06-12T00:00:00Z\"/></w:date>", "value 2026-07-01T00:00:00Z")]

@@ -1029,8 +1029,8 @@ operation explicitly accepts the metadata ID.
 Content controls expose placeholder doc-part IDs, placeholder-display state, custom
 XML data-binding attributes, repeating-section titles/item counts, direct
 parent/child content-control IDs, and a conservative `SafeEditStatus` such as
-`plain-text`, `choice`, `date`, `locked`, `unsupported-rich-text`, or
-`unsupported-repeating-section`.
+`plain-text`, `rich-text`, `choice`, `date`, `locked`, `unsupported-picture`,
+`unsupported-group`, or `unsupported-repeating-section`.
 
 Duplicate bookmark names, duplicate content-control tags, and duplicate
 content-control aliases must be surfaced with boolean duplicate flags and candidate
@@ -1700,11 +1700,12 @@ Rules:
 
 ### 11.6a Bookmark and content-control text operations
 
-Update a plain-text content control:
+Update a plain-text or guarded rich-text content control:
 
 ```text
 op set-content-control-text
 target M.CC0001
+expect-text Current value
 text Updated value
 end
 ```
@@ -1768,6 +1769,12 @@ Rules:
 * Content-control targets use IDs from `read` or `outline`, such as `M.CC0001`,
   `H001.CC0001`, or `F001.CC0001`.
 * `set-content-control-text` supports plain-text controls (`w:sdtPr/w:text`) and
+  preserves the `w:sdt` wrapper and properties.
+* `set-content-control-text` also supports rich-text controls (`w:sdtPr/w:richText`
+  or no specific kind) when `expect-text` matches the current visible text, the
+  content container contains only paragraphs, and the replacement does not cross
+  protected OOXML boundaries such as fields, bookmarks, nested controls, comments,
+  drawings, or existing revision markup. Replacement writes a single paragraph and
   preserves the `w:sdt` wrapper and properties.
 * Content-control edit operations reject controls whose `w:lock` value is present
   and not `unlocked`.

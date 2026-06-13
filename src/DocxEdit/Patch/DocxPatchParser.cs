@@ -10,7 +10,7 @@ internal static class DocxPatchParser
         ["insert-after"] = new(["target", "style", "copy-paragraph-properties", "text"], ["copy-paragraph-properties"], []),
         ["delete-block"] = new(["target", "expect-text"], [], []),
         ["set-style"] = new(["target", "style"], [], []),
-        ["set-content-control-text"] = new(["target", "text"], [], []),
+        ["set-content-control-text"] = new(["target", "expect-text", "text"], [], []),
         ["set-content-control-checkbox"] = new(["target", "checked"], [], []),
         ["set-content-control-choice"] = new(["target", "value", "display-text"], [], []),
         ["set-content-control-date"] = new(["target", "value", "display-text"], [], []),

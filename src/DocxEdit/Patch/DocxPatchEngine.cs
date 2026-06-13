@@ -806,6 +806,7 @@ internal static class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
         if (diagnostics.Count != 0)
         {
             return diagnostics;
@@ -822,11 +823,6 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!IsPlainTextContentControl(controlTarget.ContentControl))
-        {
-            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a plain-text content control.", operation, target)];
-        }
-
         DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
         if (lockDiagnostic is not null)
         {
@@ -837,6 +833,36 @@ internal static class DocxPatchEngine
         if (content is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
+        }
+
+        string current = ReadVisibleText(content);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected content-control text does not match current text.", operation, target)];
+        }
+
+        bool isPlainText = IsPlainTextContentControl(controlTarget.ContentControl);
+        if (!isPlainText)
+        {
+            if (!IsRichTextContentControl(controlTarget.ContentControl))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a plain-text or rich-text content control.", operation, target)];
+            }
+
+            if (expected is null)
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4205", $"Rich-text content control '{target}' requires expect-text before replacement.", operation, target)];
+            }
+
+            if (content.Elements().Any(element => element.Name != OoxmlNs.W + "p"))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4310", $"Rich-text content control '{target}' contains non-paragraph content.", operation, target)];
+            }
+
+            if (TryGetProtectedTextEditFeature(content, out string protectedFeature))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4310", $"Rich-text content control '{target}' contains protected OOXML boundary '{protectedFeature}'.", operation, target)];
+            }
         }
 
         if (!apply)
@@ -1971,6 +1997,31 @@ internal static class DocxPatchEngine
         return contentControl
             .Element(OoxmlNs.W + "sdtPr")
             ?.Element(OoxmlNs.W + "text") is not null;
+    }
+
+    private static bool IsRichTextContentControl(XElement contentControl)
+    {
+        XElement? properties = contentControl.Element(OoxmlNs.W + "sdtPr");
+        if (properties is null)
+        {
+            return true;
+        }
+
+        if (properties.Element(OoxmlNs.W + "richText") is not null)
+        {
+            return true;
+        }
+
+        return !properties.Elements().Any(element => element.Name.LocalName is
+            "text" or
+            "checkBox" or
+            "dropDownList" or
+            "comboBox" or
+            "date" or
+            "picture" or
+            "group" or
+            "repeatingSection" or
+            "repeatingSectionItem");
     }
 
     private static DocxDiagnostic? ValidateContentControlUnlocked(
