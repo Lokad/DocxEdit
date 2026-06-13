@@ -123,6 +123,7 @@ internal static class DocxPackageValidator
         ValidateNumberingReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateNumberingDefinitions(partName, document, diagnostics);
         ValidateHeaderFooterReferences(package, partName, document, diagnostics, cancellationToken);
+        ValidateSectionProperties(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
@@ -592,6 +593,32 @@ internal static class DocxPackageValidator
             if (relationship.Type != expectedRelationshipType)
             {
                 diagnostics.Add(Error("E9119", $"{label}Reference relationship '{relationshipId}' has type '{relationship.Type}', expected {label} relationship.", partName));
+            }
+        }
+    }
+
+    private static void ValidateSectionProperties(
+        XDocument document,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        foreach (XElement sectionProperties in document.Descendants(OoxmlNs.W + "sectPr"))
+        {
+            string? columnCount = (string?)sectionProperties
+                .Element(OoxmlNs.W + "cols")
+                ?.Attribute(OoxmlNs.W + "num");
+            if (!string.IsNullOrWhiteSpace(columnCount) &&
+                (!int.TryParse(columnCount, out int parsedColumns) || parsedColumns <= 0))
+            {
+                diagnostics.Add(Error("E9120", $"Section columns w:num has invalid positive integer value '{columnCount}'.", partName));
+            }
+
+            string? orientation = (string?)sectionProperties
+                .Element(OoxmlNs.W + "pgSz")
+                ?.Attribute(OoxmlNs.W + "orient");
+            if (!string.IsNullOrWhiteSpace(orientation) && orientation is not ("portrait" or "landscape"))
+            {
+                diagnostics.Add(Error("E9120", $"Section page size w:orient has invalid value '{orientation}'.", partName));
             }
         }
     }

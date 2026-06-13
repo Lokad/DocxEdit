@@ -195,6 +195,7 @@ Implemented areas include:
   numbering reference warnings,
   settings metadata consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   header/footer section-reference consistency,
+  section property consistency,
   image relationship target/content-type checks, drawing property ID uniqueness,
   drawing extent/crop geometry, duplicate semantic selector warnings, basic table
   shape, table visual-grid consistency, and capped validation diagnostics;

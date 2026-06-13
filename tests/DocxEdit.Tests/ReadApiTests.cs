@@ -236,6 +236,28 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidSectionProperties()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:cols w:num="0"/>
+                      <w:pgSz w:orient="sideways"/>
+                    </w:sectPr>
+            """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9120" &&
+            diagnostic.Message.Contains("columns", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9120" &&
+            diagnostic.Message.Contains("orient", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""
