@@ -4281,6 +4281,53 @@ public static class PatchApplyTests
         Assert.Equal("East", table.Cells.Single(cell => cell.RowIndex == 2 && cell.ColumnIndex == 1).Text);
     }
 
+    [Theory]
+    [InlineData("append-row", "M.T0001")]
+    [InlineData("insert-row-before", "M.T0001.R02")]
+    [InlineData("delete-row", "M.T0001.R02")]
+    public static void CheckRowOperationsRejectVerticalMergeTables(string operationName, string target)
+    {
+        string cellFields = operationName == "delete-row"
+            ? string.Empty
+            : """
+            cell Inserted
+            cell Value
+            """;
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>South</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            target {target}
+            {cellFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4301" &&
+            diagnostic.Message.Contains("vertical merges", StringComparison.Ordinal));
+    }
+
     [Fact]
     public static void CheckAppendRowReportsAffectedRowAndCells()
     {
