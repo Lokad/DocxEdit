@@ -501,6 +501,8 @@ internal static class TextRenderers
             string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{Escape(string.Join(",", item.HyperlinkTargets))}\"";
             string commentIds = item.CommentIds.Count == 0 ? string.Empty : $" comments=\"{Escape(string.Join(",", item.CommentIds))}\"";
             string commentBodyIds = item.CommentBodyIds.Count == 0 ? string.Empty : $" comment-bodies=\"{Escape(string.Join(",", item.CommentBodyIds))}\"";
+            string caption = item.Caption is null ? string.Empty : $" caption=\"{Escape(item.Caption)}\"";
+            string description = item.Description is null ? string.Empty : $" description=\"{Escape(item.Description)}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
@@ -535,6 +537,8 @@ internal static class TextRenderers
                 .Append(hyperlinkTargets)
                 .Append(commentIds)
                 .Append(commentBodyIds)
+                .Append(caption)
+                .Append(description)
                 .Append(rowCount)
                 .Append(columnCount)
                 .Append(row)
@@ -662,11 +666,13 @@ internal static class TextRenderers
     private static string RenderTable(DocxTableInfo table)
     {
         string style = table.StyleId is null ? string.Empty : $" styleId={Escape(table.StyleId)}";
+        string caption = table.Caption is null ? string.Empty : $" caption=\"{Escape(table.Caption)}\"";
+        string description = table.Description is null ? string.Empty : $" description=\"{Escape(table.Description)}\"";
         string grid = table.GridColumnCount is null ? string.Empty : $" grid-columns={table.GridColumnCount}";
         string header = table.HasHeaderRow ? " header-row=true" : string.Empty;
         string merged = table.HasMergedCells ? " merged=true" : string.Empty;
         string nested = table.HasNestedTables ? " nested-table=true" : string.Empty;
-        return $"{table.Id} table rows={table.RowCount} columns={table.ColumnCount}{style}{grid}{header}{merged}{nested}";
+        return $"{table.Id} table rows={table.RowCount} columns={table.ColumnCount}{style}{caption}{description}{grid}{header}{merged}{nested}";
     }
 
     private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText, TargetAnnotations annotations)
@@ -876,6 +882,8 @@ internal static class TextRenderers
             Kind = "table",
             Relation = relation,
             Story = table.Story,
+            Caption = table.Caption,
+            Description = table.Description,
             RowCount = table.RowCount,
             ColumnCount = table.ColumnCount
         };

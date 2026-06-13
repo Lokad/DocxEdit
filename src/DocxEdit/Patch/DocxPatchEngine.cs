@@ -120,6 +120,7 @@ internal static class DocxPatchEngine
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
                     "set-cell" => ExecuteSetCell(package, operation, options, apply, cancellationToken),
                     "set-table-style" => ExecuteSetTableStyle(package, operation, apply, cancellationToken),
+                    "set-table-metadata" => ExecuteSetTableMetadata(package, operation, apply, cancellationToken),
                     "set-row-header" => ExecuteSetRowHeader(package, operation, apply, cancellationToken),
                     "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                     "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
@@ -4612,6 +4613,62 @@ internal static class DocxPatchEngine
         return [];
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetTableMetadata(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? expectedCaption = operation.Fields.GetValueOrDefault("expect-caption");
+        string? expectedDescription = operation.Fields.GetValueOrDefault("expect-description");
+        string? caption = operation.Fields.GetValueOrDefault("caption");
+        string? description = operation.Fields.GetValueOrDefault("description");
+        if (caption is null && description is null)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-table-metadata' requires at least one of 'caption' or 'description'.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        TableTarget? tableTarget = ResolveTableTarget(package, target!, cancellationToken);
+        if (tableTarget is null && !IsSupportedTableTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-table-metadata target '{target}'. Expected a table ID such as M.T0001 or H001.T0001.", operation, target)];
+        }
+
+        if (tableTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        string? currentCaption = ReadTableTextProperty(tableTarget.Table, "tblCaption");
+        if (expectedCaption is not null && !TableMetadataEquals(currentCaption, expectedCaption))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table caption '{expectedCaption}', found '{currentCaption ?? "none"}'.", operation, target)];
+        }
+
+        string? currentDescription = ReadTableTextProperty(tableTarget.Table, "tblDescription");
+        if (expectedDescription is not null && !TableMetadataEquals(currentDescription, expectedDescription))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table description '{expectedDescription}', found '{currentDescription ?? "none"}'.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetTableTextProperty(tableTarget.Table, "tblCaption", caption);
+        SetTableTextProperty(tableTarget.Table, "tblDescription", description);
+        SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetRowHeader(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -6962,6 +7019,19 @@ internal static class DocxPatchEngine
             ?.Attribute(OoxmlNs.W + "val");
     }
 
+    private static string? ReadTableTextProperty(XElement table, string localName)
+    {
+        return (string?)table
+            .Element(OoxmlNs.W + "tblPr")
+            ?.Element(OoxmlNs.W + localName)
+            ?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static bool TableMetadataEquals(string? current, string expected)
+    {
+        return string.Equals(current ?? string.Empty, expected, StringComparison.Ordinal);
+    }
+
     private static void SetTableStyle(XElement table, string style)
     {
         XElement? tableProperties = table.Element(OoxmlNs.W + "tblPr");
@@ -6979,6 +7049,36 @@ internal static class DocxPatchEngine
         }
 
         tableStyle.SetAttributeValue(OoxmlNs.W + "val", style);
+    }
+
+    private static void SetTableTextProperty(XElement table, string localName, string? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        XElement? tableProperties = table.Element(OoxmlNs.W + "tblPr");
+        XElement? property = tableProperties?.Element(OoxmlNs.W + localName);
+        if (value.Length == 0)
+        {
+            property?.Remove();
+            return;
+        }
+
+        if (tableProperties is null)
+        {
+            tableProperties = new XElement(OoxmlNs.W + "tblPr");
+            table.AddFirst(tableProperties);
+        }
+
+        if (property is null)
+        {
+            property = new XElement(OoxmlNs.W + localName);
+            tableProperties.Add(property);
+        }
+
+        property.SetAttributeValue(OoxmlNs.W + "val", value);
     }
 
     private static bool ReadTableRowHeader(XElement row)

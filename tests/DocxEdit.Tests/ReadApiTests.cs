@@ -520,7 +520,11 @@ public static class ReadApiTests
     {
         using MemoryStream stream = CreateDocxWithBody("""
                     <w:tbl>
-                      <w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr>
+                      <w:tblPr>
+                        <w:tblStyle w:val="TableGrid"/>
+                        <w:tblCaption w:val="Revenue summary"/>
+                        <w:tblDescription w:val="Quarterly revenue by region"/>
+                      </w:tblPr>
                       <w:tblGrid>
                         <w:gridCol w:w="2000"/>
                         <w:gridCol w:w="2000"/>
@@ -545,6 +549,8 @@ public static class ReadApiTests
 
         DocxTableInfo table = Assert.Single(result.Tables);
         Assert.Equal("TableGrid", table.StyleId);
+        Assert.Equal("Revenue summary", table.Caption);
+        Assert.Equal("Quarterly revenue by region", table.Description);
         Assert.Equal(3, table.GridColumnCount);
         Assert.True(table.HasHeaderRow);
         Assert.True(table.HasMergedCells);
@@ -557,9 +563,16 @@ public static class ReadApiTests
         Assert.Equal(2, offset.ColumnIndex);
         Assert.Equal(1, offset.PhysicalColumnIndex);
 
-        Assert.Contains("M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true merged=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001 table rows=2 columns=3 styleId=TableGrid caption=\"Revenue summary\" description=\"Quarterly revenue by region\" grid-columns=3 header-row=true merged=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("M.T0001.R01 row cells=3 header=true cant-split=true", result.Text, StringComparison.Ordinal);
         Assert.Contains("M.T0001.R02 row cells=2 grid-before=1", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxContextResult context = editor.Context(stream, "M.T0001.R01.C01");
+        DocxContextItem parent = Assert.Single(context.Items, item => item.Id == "M.T0001");
+        Assert.Equal("Revenue summary", parent.Caption);
+        Assert.Equal("Quarterly revenue by region", parent.Description);
+        Assert.Contains("caption=\"Revenue summary\" description=\"Quarterly revenue by region\"", context.Text, StringComparison.Ordinal);
     }
 
     [Fact]

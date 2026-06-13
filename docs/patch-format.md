@@ -73,6 +73,7 @@ including nearby paragraph text.
 - `remove-hyperlink`: `target`
 - `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
 - `set-table-style`: `target`, `style`, optional `expect-style`
+- `set-table-metadata`: `target`, `caption` and/or `description`, optional `expect-caption`, `expect-description`
 - `set-row-header`: `target`, `header`, optional `expect-header`
 - `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
 - `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
@@ -154,6 +155,10 @@ Use table guards whenever possible:
 
 - `expect-text` verifies the selected cell's current visible text for `set-cell`.
 - `expect-style` verifies the selected table's current `w:tblStyle`.
+- `expect-caption` verifies the selected table's current `w:tblCaption`; missing
+  and empty values are equivalent.
+- `expect-description` verifies the selected table's current `w:tblDescription`;
+  missing and empty values are equivalent.
 - `expect-header` verifies the selected row's current repeating-header flag.
 - `expect-row-count` verifies the target table's row count.
 - `expect-column-count` verifies the target table's logical column count.
@@ -162,11 +167,14 @@ Use table guards whenever possible:
 
 CLI examples prefer `--output output.docx`; `-o output.docx` is also accepted.
 
-Unsupported fields are rejected. `expect-hash`, `preserve-size`, and `caption` are not supported.
+Unsupported fields are rejected. `expect-hash` and `preserve-size` are not supported.
 
 `delete-row` `expect-contains` is a row-text guard: the operation fails unless the
 resolved row's final visible text contains the supplied value exactly.
 `set-table-style` updates `w:tblPr/w:tblStyle` and creates `w:tblPr` when missing.
+`set-table-metadata` updates table `w:tblPr/w:tblCaption` and
+`w:tblPr/w:tblDescription`, creating `w:tblPr` when missing. Use an empty heredoc
+value for `caption` or `description` to remove that metadata element.
 `set-row-header` sets or clears the row's `w:tblHeader` flag while preserving other
 row properties.
 

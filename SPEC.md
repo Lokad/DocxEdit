@@ -856,6 +856,8 @@ public sealed record DocxTableInfo(
     IReadOnlyList<DocxTableCellInfo> Cells)
 {
     public string? StyleId { get; init; }
+    public string? Caption { get; init; }
+    public string? Description { get; init; }
     public int? GridColumnCount { get; init; }
     public bool HasHeaderRow { get; init; }
     public bool HasMergedCells { get; init; }
@@ -1221,6 +1223,8 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public IReadOnlyList<string> CommentIds { get; init; } = [];
     public IReadOnlyList<string> CommentBodyIds { get; init; } = [];
+    public string? Caption { get; init; }
+    public string? Description { get; init; }
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -1238,7 +1242,8 @@ Paragraph and cell context items include `CommentIds` and `CommentBodyIds` when
 comment anchors or references are attached to that target. Comment body targets such
 as `C001.C0001` and `comment:<id>` return a `Kind = "comment"` context item whose
 metadata links back to the anchor target and does not include comment body text.
-Cell context items also expose visual-grid and merge metadata, including
+Table context items expose `Caption` and `Description` when `w:tblCaption` or
+`w:tblDescription` are present. Cell context items also expose visual-grid and merge metadata, including
 `VisualColumnEndIndex`, `MergeGroupId`, `VerticalMerge`, and
 `VerticalMergeRootCellId`, when those values are present on the target cell.
 
@@ -1533,6 +1538,7 @@ replace-paragraph
 delete-block
 set-cell
 set-table-style
+set-table-metadata
 set-row-header
 delete-row
 replace-image
@@ -1986,7 +1992,32 @@ Rules:
 * Create `w:tblPr` and `w:tblStyle` when missing.
 * Preserve table grid, rows, cells, and existing table properties.
 
-### 11.7b `set-row-header`
+### 11.7b `set-table-metadata`
+
+```text
+op set-table-metadata
+target M.T0001
+expect-caption Existing caption
+caption Updated caption
+description <<<
+Updated accessibility description.
+>>>
+end
+```
+
+Rules:
+
+* Target must be a table.
+* At least one of `caption` or `description` is required.
+* `expect-caption` and `expect-description` are optional guards against the
+  current `w:tblCaption` and `w:tblDescription` values. Missing and empty values
+  are equivalent for these guards.
+* Non-empty `caption` and `description` values create or update
+  `w:tblPr/w:tblCaption` and `w:tblPr/w:tblDescription`.
+* Empty heredoc values remove the corresponding metadata element.
+* Preserve table grid, rows, cells, style, and other existing table properties.
+
+### 11.7c `set-row-header`
 
 ```text
 op set-row-header
@@ -2390,6 +2421,7 @@ set-hyperlink-text
 insert-hyperlink-after
 remove-hyperlink
 set-table-style
+set-table-metadata
 set-row-header
 append-row
 insert-row-before
@@ -3368,7 +3400,7 @@ docxedit help patch
 * operation examples
 * track-changes explanation and generated per-operation support table
 * warning that `expect-hash` is unsupported
-* warning that `preserve-size` and `caption` are unsupported
+* warning that `preserve-size` is unsupported
 
 `docxedit help changes` must describe `Summary`, `GroupSummary`, `TargetSummary`,
 `CommentSummary`, target status/source/reason fields, comment anchor fields,

@@ -248,6 +248,8 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public IReadOnlyList<string> CommentIds { get; init; } = [];
     public IReadOnlyList<string> CommentBodyIds { get; init; } = [];
+    public string? Caption { get; init; }
+    public string? Description { get; init; }
     public int? RowCount { get; init; }
     public int? ColumnCount { get; init; }
     public int? RowIndex { get; init; }
@@ -401,6 +403,8 @@ public sealed record DocxTableInfo(
     IReadOnlyList<DocxTableCellInfo> Cells)
 {
     public string? StyleId { get; init; }
+    public string? Caption { get; init; }
+    public string? Description { get; init; }
     public int? GridColumnCount { get; init; }
     public bool HasHeaderRow { get; init; }
     public bool HasMergedCells { get; init; }

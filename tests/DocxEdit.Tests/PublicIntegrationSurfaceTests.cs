@@ -32,6 +32,10 @@ public static class PublicIntegrationSurfaceTests
         Assert.True(DocxHelp.TryGetPatchOperation("set-table-style", out DocxPatchOperationInfo setTableStyle));
         Assert.Contains("expect-style", setTableStyle.OptionalFields);
         Assert.Equal("preserve-only", setTableStyle.TrackChangesSupport);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-table-metadata", out DocxPatchOperationInfo setTableMetadata));
+        Assert.Contains("expect-caption", setTableMetadata.OptionalFields);
+        Assert.Contains("expect-description", setTableMetadata.OptionalFields);
+        Assert.Equal("preserve-only", setTableMetadata.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("set-row-header", out DocxPatchOperationInfo setRowHeader));
         Assert.Contains("expect-header", setRowHeader.OptionalFields);
         Assert.Equal("preserve-only", setRowHeader.TrackChangesSupport);

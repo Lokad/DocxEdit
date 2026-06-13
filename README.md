@@ -170,7 +170,8 @@ Implemented areas include:
 - hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,
   display text updates, insertion, and unlinking while preserving display runs;
 - check/apply operation reports with affected row/cell summaries for table edits;
-- table property patch operations for table style and row repeating-header flags;
+- table property patch operations for table style, caption/description metadata,
+  and row repeating-header flags;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
   anchor positioning, aspect-lock, crop percentages, alt text, and containing target;
 - safe image patch operations for media replacement, alt/title/name metadata, extents,
@@ -198,5 +199,6 @@ advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/hi
 relative/UNC/file hyperlink target support, advanced floating-image edit operations beyond
 size/wrap/position/crop metadata, linked images and VML/grouped/chart/SmartArt/OLE
 drawing shapes beyond diagnostics-only preservation, complex
-merged/nested table edit transformations, full tracked-change edit coverage, and full
+merged/nested table edit transformations beyond simple cell/row and metadata edits,
+full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

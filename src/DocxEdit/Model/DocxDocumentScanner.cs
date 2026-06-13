@@ -301,8 +301,8 @@ internal static class DocxDocumentScanner
     {
         var cells = new List<DocxTableCellInfo>();
         var rows = new List<DocxTableRowInfo>();
-        string? styleId = (string?)table
-            .Element(OoxmlNs.W + "tblPr")
+        XElement? tableProperties = table.Element(OoxmlNs.W + "tblPr");
+        string? styleId = (string?)tableProperties
             ?.Element(OoxmlNs.W + "tblStyle")
             ?.Attribute(OoxmlNs.W + "val");
         int? gridColumnCount = table
@@ -392,6 +392,8 @@ internal static class DocxDocumentScanner
         return new DocxTableInfo(id, story, rowIndex - 1, Math.Max(maxColumns, gridColumnCount ?? 0), cells)
         {
             StyleId = styleId,
+            Caption = (string?)tableProperties?.Element(OoxmlNs.W + "tblCaption")?.Attribute(OoxmlNs.W + "val"),
+            Description = (string?)tableProperties?.Element(OoxmlNs.W + "tblDescription")?.Attribute(OoxmlNs.W + "val"),
             GridColumnCount = gridColumnCount,
             HasHeaderRow = rows.Any(row => row.IsHeader),
             HasMergedCells = cells.Any(cell => cell.ColumnSpan > 1 || cell.VerticalMerge is not null) ||

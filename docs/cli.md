@@ -155,14 +155,15 @@ extents, `set-image-wrap` updates anchored image wrap mode/distances, and
 preserve-only. Linked images are never fetched and are omitted from editable image
 records; VML, grouped drawings, charts, SmartArt, OLE objects, equations, and generic
 shapes are reported as diagnostics and preserved.
-Table output includes table style ID, declared grid column count, header-row,
-merged-cell, and nested-table flags when present. Row lines include physical cell
-count, omitted grid columns (`grid-before`/`grid-after`), header status, and
-`cant-split`. Cell lines include logical target column plus `physical-column`, span,
-visual column end, merge group ID, vertical-merge root cell, vertical merge, and
-nested-table metadata. Row operations still reject unsafe
+Table output includes table style ID, caption, description, declared grid column
+count, header-row, merged-cell, and nested-table flags when present. Row lines
+include physical cell count, omitted grid columns (`grid-before`/`grid-after`),
+header status, and `cant-split`. Cell lines include logical target column plus
+`physical-column`, span, visual column end, merge group ID, vertical-merge root cell,
+vertical merge, and nested-table metadata. Row operations still reject unsafe
 non-rectangular tables unless `force true` is explicitly supplied. `set-table-style`
-updates `w:tblStyle`; `set-row-header` sets or clears the row repeating-header flag.
+updates `w:tblStyle`; `set-table-metadata` sets or clears `w:tblCaption` and
+`w:tblDescription`; `set-row-header` sets or clears the row repeating-header flag.
 `validate` supports `--profile structural|package`. `structural` is the default and
 runs bounded structural package checks plus WordprocessingML invariants: known part
 roots, paired bookmark/comment ranges, commentsExtended paraId consistency,

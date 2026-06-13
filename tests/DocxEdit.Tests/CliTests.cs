@@ -68,6 +68,7 @@ public static class CliTests
         Assert.Contains("find <<<", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op set-cell", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-table-style", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("set-table-metadata", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-row-header", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("add-comment-reply", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("E4314", patchHelp.Output, StringComparison.Ordinal);

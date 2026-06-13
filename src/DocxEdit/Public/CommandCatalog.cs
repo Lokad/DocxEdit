@@ -266,7 +266,7 @@ public static class DocxHelp
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
         builder.AppendLine("add-comment-reply and delete-comment-reply are recognized but fail with E4314 until threaded comment metadata is safely modeled.");
-        builder.AppendLine("set-table-style and set-row-header update table properties with explicit guards.");
+        builder.AppendLine("set-table-style, set-table-metadata, and set-row-header update table properties with explicit guards.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("set-image-size updates DrawingML extents without replacing media bytes.");
@@ -275,7 +275,7 @@ public static class DocxHelp
         builder.AppendLine("set-image-crop updates DrawingML a:srcRect crop percentages without replacing media bytes.");
         builder.AppendLine("Linked images and unsupported drawing shapes are reported as diagnostics and preserved.");
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
-        builder.AppendLine("Unsupported fields are rejected. expect-hash, preserve-size, and caption are not supported.");
+        builder.AppendLine("Unsupported fields are rejected. expect-hash and preserve-size are not supported.");
         return builder.ToString();
     }
 
@@ -389,7 +389,7 @@ public static class DocxHelp
                         ]),
                         new("Tables",
                         [
-                            "Read and context output surface table style/grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. Row operations reject non-rectangular tables unless force true is explicit."
+                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. Table metadata operations can set or clear caption/description values. Row operations reject non-rectangular tables unless force true is explicit."
                         ])
                     ],
                     Examples =
@@ -763,6 +763,7 @@ public static class DocxHelp
                     TrackChangesNote = "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002."
                 },
                 PreserveOnly("set-table-style", ["target", "style"], ["expect-style"]),
+                PreserveOnly("set-table-metadata", ["target plus caption or description"], ["expect-caption", "expect-description"]),
                 PreserveOnly("set-row-header", ["target", "header"], ["expect-header"]),
                 PreserveOnly("append-row", ["target plus repeated cell"], ["expect-row-count", "expect-column-count"]),
                 PreserveOnly("insert-row-before", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),

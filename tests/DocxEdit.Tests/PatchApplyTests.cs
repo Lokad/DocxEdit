@@ -3053,11 +3053,55 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetTableMetadataUpdatesAndClearsCaptionDescription()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblCaption w:val="Old caption"/>
+                        <w:tblDescription w:val="Old description"/>
+                      </w:tblPr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-metadata
+            target M.T0001
+            expect-caption Old caption
+            expect-description Old description
+            caption Revenue table
+            description <<<
+            >>>
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal("Revenue table", table.Caption);
+        Assert.Null(table.Description);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:tblCaption w:val=\"Revenue table\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("tblDescription", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CheckTablePropertyGuardsRejectMismatches()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:tbl>
-                      <w:tblPr><w:tblStyle w:val="ExistingStyle"/></w:tblPr>
+                      <w:tblPr>
+                        <w:tblStyle w:val="ExistingStyle"/>
+                        <w:tblCaption w:val="Existing caption"/>
+                      </w:tblPr>
                       <w:tr>
                         <w:trPr><w:tblHeader/></w:trPr>
                         <w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc>
@@ -3078,6 +3122,12 @@ public static class PatchApplyTests
             expect-header false
             header false
             end
+
+            op set-table-metadata
+            target M.T0001
+            expect-caption Other caption
+            caption Updated caption
+            end
             """);
 
         DocxCheckResult result = new DocxEditor().Check(input, patch);
@@ -3085,6 +3135,10 @@ public static class PatchApplyTests
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E3201" &&
+            diagnostic.TargetId == "M.T0001" &&
+            diagnostic.Message.Contains("caption", StringComparison.Ordinal));
     }
 
     [Fact]
