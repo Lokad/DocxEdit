@@ -1630,15 +1630,19 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void ApplySetContentControlTextPreservesWrapper()
+    public static void ApplySetContentControlTextPreservesSdtProperties()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
                       <w:sdt>
                         <w:sdtPr>
                           <w:text/>
+                          <w:id w:val="99"/>
                           <w:tag w:val="client-name"/>
                           <w:alias w:val="Client Name"/>
+                          <w:lock w:val="unlocked"/>
+                          <w:placeholder><w:docPart w:val="DefaultPlaceholder"/></w:placeholder>
+                          <w:dataBinding w:xpath="/root/client" w:storeItemID="{11111111-1111-1111-1111-111111111111}" w:prefixMappings="xmlns:ns='urn:test'"/>
                         </w:sdtPr>
                         <w:sdtContent>
                           <w:r><w:t>Old Client</w:t></w:r>
@@ -1664,11 +1668,61 @@ public static class PatchApplyTests
         Assert.Equal("New Client", Assert.Single(read.Paragraphs).Text);
         DocxContentControlInfo control = Assert.Single(read.ContentControls);
         Assert.Equal("plain-text", control.Kind);
+        Assert.Equal("99", control.OoxmlId);
         Assert.Equal("client-name", control.Tag);
+        Assert.Equal("Client Name", control.Alias);
+        Assert.Equal("unlocked", control.Lock);
+        Assert.Equal("DefaultPlaceholder", control.PlaceholderDocPart);
+        Assert.Equal("/root/client", control.DataBindingXPath);
+        Assert.Equal("{11111111-1111-1111-1111-111111111111}", control.DataBindingStoreItemId);
+        Assert.Equal("xmlns:ns='urn:test'", control.DataBindingPrefixMappings);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("<w:sdt>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:id w:val=\"99\"", xml, StringComparison.Ordinal);
         Assert.Contains("w:tag w:val=\"client-name\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:lock w:val=\"unlocked\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:docPart w:val=\"DefaultPlaceholder\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:dataBinding w:xpath=\"/root/client\"", xml, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("set-content-control-text", "<w:text/>", "text New Client")]
+    [InlineData("set-content-control-checkbox", "<w:checkBox><w:checked w:val=\"0\"/></w:checkBox>", "checked true")]
+    [InlineData("set-content-control-choice", "<w:dropDownList><w:listItem w:displayText=\"North\" w:value=\"north\"/><w:listItem w:displayText=\"South\" w:value=\"south\"/></w:dropDownList>", "value south")]
+    [InlineData("set-content-control-date", "<w:date><w:fullDate w:val=\"2026-06-12T00:00:00Z\"/></w:date>", "value 2026-07-01T00:00:00Z")]
+    public static void CheckContentControlEditsRejectLockedControls(
+        string operationName,
+        string kindXml,
+        string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody($"""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          {kindXml}
+                          <w:lock w:val="sdtContentLocked"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Old Client</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            target M.CC0001
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4310", diagnostic.Code);
+        Assert.Equal("M.CC0001", diagnostic.TargetId);
+        Assert.Contains("locked by w:lock='sdtContentLocked'", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]

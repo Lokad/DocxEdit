@@ -373,7 +373,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, placeholder/data-binding details, hierarchy IDs, safe-edit status, checkbox state, dropdown/combo item counts, repeating-section metadata, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, dropdown/combo selections, date values, bookmark names, unreferenced bookmark markers, and simple same-paragraph bookmark range IDs while preserving wrappers/markers."
+                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, placeholder/data-binding details, hierarchy IDs, safe-edit status, checkbox state, dropdown/combo item counts, repeating-section metadata, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, checkbox state, dropdown/combo selections, date values, bookmark names, unreferenced bookmark markers, and simple same-paragraph bookmark range IDs while preserving wrappers/markers; content-control edits reject controls whose w:lock value is present and not unlocked."
                         ]),
                         new("Fields",
                         [

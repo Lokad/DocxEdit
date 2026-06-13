@@ -157,7 +157,7 @@ Implemented areas include:
   duplicate selector candidate IDs, placeholder/data-binding metadata, hierarchy IDs,
   safe-edit status, checkbox state, dropdown/combo item counts, repeating-section
   metadata, and date settings;
-- safe bookmark/content-control patch operations for plain-text content controls,
+- lock-aware safe bookmark/content-control patch operations for plain-text content controls,
   checkbox state, dropdown/combo selections, date values, bookmark rename/delete,
   and simple same-paragraph bookmark ranges;
 - simple and complex field read/context metadata, explicit dirty/lock flag patch

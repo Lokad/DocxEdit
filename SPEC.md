@@ -1749,6 +1749,8 @@ Rules:
   `H001.CC0001`, or `F001.CC0001`.
 * `set-content-control-text` supports plain-text controls (`w:sdtPr/w:text`) and
   preserves the `w:sdt` wrapper and properties.
+* Content-control edit operations reject controls whose `w:lock` value is present
+  and not `unlocked`.
 * `set-content-control-checkbox` supports checkbox controls (`w:sdtPr/w:checkBox`),
   updates `w:checked`, and updates the displayed state symbol.
 * `set-content-control-choice` supports dropdown and combo box controls

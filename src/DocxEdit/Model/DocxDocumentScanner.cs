@@ -535,7 +535,7 @@ internal static class DocxDocumentScanner
             XElement? properties = control.Element(OoxmlNs.W + "sdtPr");
             XElement content = control.Element(OoxmlNs.W + "sdtContent") ?? control;
             string kind = ReadContentControlKind(properties);
-            string? lockValue = ReadSdtProperty(properties, "lock");
+            string? lockValue = ReadSdtLock(properties);
             contentControls.Add(new ContentControlScanEntry(control, new DocxContentControlInfo
             {
                 Id = $"{idPrefix}.CC{controlIndex++:0000}",
@@ -893,6 +893,17 @@ internal static class DocxDocumentScanner
         return (string?)element?.Attribute(OoxmlNs.W + "val");
     }
 
+    private static string? ReadSdtLock(XElement? properties)
+    {
+        XElement? element = properties?.Elements().FirstOrDefault(element => element.Name.LocalName == "lock");
+        if (element is null)
+        {
+            return null;
+        }
+
+        return (string?)element.Attribute(OoxmlNs.W + "val") ?? "locked";
+    }
+
     private static string? ReadNestedSdtProperty(XElement? properties, string parentLocalName, string localName)
     {
         XElement? element = properties
@@ -919,7 +930,8 @@ internal static class DocxDocumentScanner
 
     private static string ReadContentControlSafeEditStatus(string kind, string? lockValue)
     {
-        if (lockValue is "contentLocked" or "sdtContentLocked")
+        if (!string.IsNullOrWhiteSpace(lockValue) &&
+            !string.Equals(lockValue, "unlocked", StringComparison.Ordinal))
         {
             return "locked";
         }

@@ -792,6 +792,12 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a plain-text content control.", operation, target)];
         }
 
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        if (lockDiagnostic is not null)
+        {
+            return [lockDiagnostic];
+        }
+
         XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
         if (content is null)
         {
@@ -840,6 +846,12 @@ internal static class DocxPatchEngine
         if (checkBox is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a checkbox content control.", operation, target)];
+        }
+
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        if (lockDiagnostic is not null)
+        {
+            return [lockDiagnostic];
         }
 
         XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
@@ -899,6 +911,12 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a dropdown or combo box content control.", operation, target)];
         }
 
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        if (lockDiagnostic is not null)
+        {
+            return [lockDiagnostic];
+        }
+
         ContentControlChoice? choice = ResolveContentControlChoice(list, value, displayText);
         if (choice is null)
         {
@@ -954,6 +972,12 @@ internal static class DocxPatchEngine
         if (date is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a date content control.", operation, target)];
+        }
+
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        if (lockDiagnostic is not null)
+        {
+            return [lockDiagnostic];
         }
 
         XElement? content = controlTarget.ContentControl.Element(OoxmlNs.W + "sdtContent");
@@ -1912,6 +1936,31 @@ internal static class DocxPatchEngine
         return contentControl
             .Element(OoxmlNs.W + "sdtPr")
             ?.Element(OoxmlNs.W + "text") is not null;
+    }
+
+    private static DocxDiagnostic? ValidateContentControlUnlocked(
+        XElement contentControl,
+        DocxPatchOperation operation,
+        string target)
+    {
+        XElement? lockElement = contentControl.Element(OoxmlNs.W + "sdtPr")?.Element(OoxmlNs.W + "lock");
+        if (lockElement is null)
+        {
+            return null;
+        }
+
+        string lockValue = (string?)lockElement.Attribute(OoxmlNs.W + "val") ?? "locked";
+        if (string.Equals(lockValue, "unlocked", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return Diagnostic(
+            DocxSeverity.Error,
+            "E4310",
+            $"Content control '{target}' is locked by w:lock='{lockValue}'.",
+            operation,
+            target);
     }
 
     private static void SetCheckboxChecked(XElement checkBox, bool checkedValue)

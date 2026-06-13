@@ -104,9 +104,10 @@ metadata are preserved. Use `set-content-control-choice` with dropdown or combo 
 controls and exactly one of `value` or `display-text`; it verifies the list item and
 updates the displayed content. Use `set-content-control-date` with date controls; it
 updates `w:fullDate` to `value` and uses `display-text` for the visible content when
-provided. Use `replace-bookmark-text` with simple same-paragraph bookmark IDs such as
-`M.B0001`; the bookmark start/end markers are preserved and unsupported ranges fail
-instead of flattening surrounding XML. Use `rename-bookmark` to change a bookmark
+provided. Content-control edit operations reject controls whose `w:lock` value is not
+`unlocked`. Use `replace-bookmark-text` with simple same-paragraph bookmark IDs such
+as `M.B0001`; the bookmark start/end markers are preserved and unsupported ranges
+fail instead of flattening surrounding XML. Use `rename-bookmark` to change a bookmark
 name; DocxEdit rejects duplicate new names and updates same-story internal hyperlink
 anchors when the old name is unambiguous. Use `delete-bookmark` to remove complete
 unreferenced bookmark markers while preserving the bookmarked content.
