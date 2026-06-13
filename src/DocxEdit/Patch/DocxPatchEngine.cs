@@ -1089,15 +1089,34 @@ internal static class DocxPatchEngine
 
         if (bookmarkTarget.End is null ||
             bookmarkTarget.Start.Parent is null ||
-            bookmarkTarget.Start.Parent != bookmarkTarget.End.Parent ||
-            bookmarkTarget.Start.Parent.Name != OoxmlNs.W + "p")
+            bookmarkTarget.End.Parent is null ||
+            bookmarkTarget.Start.Parent.Name != OoxmlNs.W + "p" ||
+            bookmarkTarget.End.Parent.Name != OoxmlNs.W + "p")
         {
-            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is not a simple same-paragraph range.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is not a paragraph-bounded range.", operation, target)];
         }
 
-        XNode[] nodes = bookmarkTarget.Start.NodesAfterSelf()
-            .TakeWhile(node => node != bookmarkTarget.End)
-            .ToArray();
+        XElement startParagraph = bookmarkTarget.Start.Parent;
+        XElement endParagraph = bookmarkTarget.End.Parent;
+        bool sameParagraph = startParagraph == endParagraph;
+        XNode[] intermediateNodes = [];
+        string? rangeFailure = null;
+        XNode[] nodes = sameParagraph
+            ? bookmarkTarget.Start.NodesAfterSelf()
+                .TakeWhile(node => node != bookmarkTarget.End)
+                .ToArray()
+            : GetMultiParagraphBookmarkReplacementNodes(
+                startParagraph,
+                bookmarkTarget.Start,
+                endParagraph,
+                bookmarkTarget.End,
+                out intermediateNodes,
+                out rangeFailure);
+        if (!sameParagraph && rangeFailure is not null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is not a supported same-story multi-paragraph range: {rangeFailure}.", operation, target)];
+        }
+
         if (ContainsProtectedBookmarkReplacementNode(nodes, out string? protectedFeature))
         {
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' replacement would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
@@ -1108,12 +1127,26 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        foreach (XNode node in nodes)
+        if (sameParagraph)
         {
-            node.Remove();
+            foreach (XNode node in nodes)
+            {
+                node.Remove();
+            }
+
+            bookmarkTarget.Start.AddAfterSelf(CreateSimpleRun(text!));
+        }
+        else
+        {
+            ReplaceMultiParagraphBookmarkText(
+                startParagraph,
+                bookmarkTarget.Start,
+                endParagraph,
+                bookmarkTarget.End,
+                intermediateNodes,
+                text!);
         }
 
-        bookmarkTarget.Start.AddAfterSelf(CreateSimpleRun(text!));
         SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
         return [];
     }
@@ -2435,6 +2468,121 @@ internal static class DocxPatchEngine
         {
             content.Add(CreateSimpleRun(text));
         }
+    }
+
+    private static XNode[] GetMultiParagraphBookmarkReplacementNodes(
+        XElement startParagraph,
+        XElement start,
+        XElement endParagraph,
+        XElement end,
+        out XNode[] intermediateNodes,
+        out string? failure)
+    {
+        intermediateNodes = [];
+        failure = null;
+        if (startParagraph.Parent is null || startParagraph.Parent != endParagraph.Parent)
+        {
+            failure = "markers must be in sibling paragraphs under the same container";
+            return [];
+        }
+
+        var selected = new List<XNode>();
+        selected.AddRange(start.NodesAfterSelf());
+
+        var between = new List<XNode>();
+        bool foundEndParagraph = false;
+        foreach (XNode node in startParagraph.NodesAfterSelf())
+        {
+            if (node == endParagraph)
+            {
+                foundEndParagraph = true;
+                break;
+            }
+
+            between.Add(node);
+        }
+
+        if (!foundEndParagraph)
+        {
+            failure = "end marker paragraph must follow the start marker paragraph";
+            return [];
+        }
+
+        XElement? unsupportedBlock = between
+            .OfType<XElement>()
+            .FirstOrDefault(element => element.Name != OoxmlNs.W + "p");
+        if (unsupportedBlock is not null)
+        {
+            failure = $"range crosses unsupported block '{unsupportedBlock.Name.LocalName}'";
+            return [];
+        }
+
+        intermediateNodes = between.ToArray();
+        selected.AddRange(intermediateNodes);
+        selected.AddRange(endParagraph.Nodes().TakeWhile(node => node != end));
+        return selected.ToArray();
+    }
+
+    private static void ReplaceMultiParagraphBookmarkText(
+        XElement startParagraph,
+        XElement start,
+        XElement endParagraph,
+        XElement end,
+        XNode[] intermediateNodes,
+        string text)
+    {
+        string[] paragraphs = SplitReplacementParagraphText(text);
+
+        foreach (XNode node in start.NodesAfterSelf().ToArray())
+        {
+            node.Remove();
+        }
+
+        start.AddAfterSelf(CreateSimpleRun(paragraphs[0]));
+
+        foreach (XNode node in intermediateNodes)
+        {
+            node.Remove();
+        }
+
+        if (paragraphs.Length == 1)
+        {
+            XNode[] trailingNodes = end.NodesAfterSelf().ToArray();
+            end.Remove();
+            startParagraph.Add(end);
+            foreach (XNode node in trailingNodes)
+            {
+                startParagraph.Add(node);
+            }
+
+            endParagraph.Remove();
+            return;
+        }
+
+        for (int i = 1; i < paragraphs.Length - 1; i++)
+        {
+            endParagraph.AddBeforeSelf(CreateSimpleParagraph(paragraphs[i]));
+        }
+
+        foreach (XNode node in endParagraph.Nodes().TakeWhile(node => node != end).ToArray())
+        {
+            if (node is XElement element && element.Name == OoxmlNs.W + "pPr")
+            {
+                continue;
+            }
+
+            node.Remove();
+        }
+
+        end.AddBeforeSelf(CreateSimpleRun(paragraphs[^1]));
+    }
+
+    private static string[] SplitReplacementParagraphText(string text)
+    {
+        return text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
     }
 
     private static bool ContainsProtectedBookmarkReplacementNode(IEnumerable<XNode> nodes, out string? feature)

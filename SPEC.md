@@ -1824,9 +1824,11 @@ Rules:
   names, supports optional `expect-text`, and fails paragraphs containing protected
   OOXML boundaries such as fields, existing bookmarks, comments, content controls,
   drawings, or existing revision markup.
-* `replace-bookmark-text` supports complete same-paragraph bookmark ranges whose
-  start/end markers are direct siblings, including ranges spanning multiple direct
-  run siblings, and fails unsupported ranges instead of flattening surrounding OOXML.
+* `replace-bookmark-text` supports complete paragraph-bounded bookmark ranges whose
+  contents do not cross protected OOXML boundaries. Same-paragraph multi-run ranges
+  and same-container multi-paragraph ranges are supported. Newline-separated
+  replacement text becomes multiple paragraphs. Markers are preserved, and unsupported
+  ranges fail instead of flattening surrounding OOXML.
 * `rename-bookmark` rejects invalid or duplicate new names, changes `w:bookmarkStart`
   `w:name`, and rewrites same-story `w:hyperlink/@w:anchor` values that referenced
   the old name when that old name is unambiguous.

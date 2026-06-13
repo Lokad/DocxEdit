@@ -163,8 +163,8 @@ Implemented areas include:
 - lock-aware safe bookmark/content-control patch operations for plain-text content
   controls, guarded rich-text content controls, checkbox state, dropdown/combo
   selections, date values, guarded paragraph bookmark creation, bookmark
-  rename/delete, and guarded same-paragraph bookmark ranges, including multi-run
-  ranges;
+  rename/delete, and guarded paragraph-bounded bookmark ranges, including
+  multi-run and multi-paragraph ranges;
 - explicit `E4315` diagnostics for unsupported repeating-section item insertion
   and deletion attempts;
 - simple and complex field read/context metadata, including parsed field type,
@@ -211,7 +211,7 @@ decimal, letter, roman, bullet, and nested `lvlText` labels/components, selected
 creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text and guarded rich-text controls,
 checkbox toggles, dropdown/combo selections, date values, guarded paragraph
-bookmark creation, bookmark rename/delete, and guarded same-paragraph bookmark
+bookmark creation, bookmark rename/delete, and guarded paragraph-bounded bookmark
 ranges, field result recalculation and complex-field
 edit workflows beyond dirty/lock flags, simple-field code/result edits, and simple
 REF-style bookmark refresh,

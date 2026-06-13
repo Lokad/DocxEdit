@@ -2212,6 +2212,91 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyReplaceBookmarkTextHandlesMultiParagraphRange()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old first</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Old middle</w:t></w:r></w:p>
+                    <w:p>
+                      <w:r><w:t>Old last</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text <<<
+            New first
+            New last
+            >>>
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(["New first", "New last"], read.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
+        Assert.Equal("M.P0001", bookmark.StartTargetId);
+        Assert.Equal("M.P0002", bookmark.EndTargetId);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkEnd w:id=\"4\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old first", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old middle", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old last", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReplaceBookmarkTextPreservesMultiParagraphBoundaryText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old first</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Old middle</w:t></w:r></w:p>
+                    <w:p>
+                      <w:r><w:t>Old last</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text New Client
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("Before New Client After", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkEnd w:id=\"4\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old first", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old middle", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old last", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyRenameBookmarkUpdatesNameAndInternalHyperlinkAnchors()
     {
         using MemoryStream input = CreateDocxWithBody("""

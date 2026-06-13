@@ -113,12 +113,14 @@ controls and exactly one of `value` or `display-text`; it verifies the list item
 updates the displayed content. Use `set-content-control-date` with date controls; it
 updates `w:fullDate` to `value` and uses `display-text` for the visible content when
 provided. Content-control edit operations reject controls whose `w:lock` value is not
-`unlocked`. Use `replace-bookmark-text` with simple same-paragraph bookmark IDs such
-as `M.B0001`; the bookmark start/end markers are preserved and unsupported ranges
-fail instead of flattening surrounding XML. Use `rename-bookmark` to change a bookmark
-name; DocxEdit rejects duplicate new names and updates same-story internal hyperlink
-anchors when the old name is unambiguous. Use `delete-bookmark` to remove complete
-unreferenced bookmark markers while preserving the bookmarked content.
+`unlocked`. Use `replace-bookmark-text` with complete paragraph-bounded bookmark IDs
+such as `M.B0001`; same-paragraph and same-container multi-paragraph ranges preserve
+the bookmark start/end markers. Newline-separated replacement text becomes multiple
+paragraphs. Unsupported ranges fail instead of flattening surrounding XML. Use
+`rename-bookmark` to change a bookmark name; DocxEdit rejects duplicate new names and
+updates same-story internal hyperlink anchors when the old name is unambiguous. Use
+`delete-bookmark` to remove complete unreferenced bookmark markers while preserving
+the bookmarked content.
 
 `add-comment` targets a modeled paragraph such as `M.P0004`, creates the comments
 part/relationship/content type when needed, appends a new comment body, and anchors

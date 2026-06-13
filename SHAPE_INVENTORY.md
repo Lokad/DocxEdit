@@ -35,16 +35,16 @@ unsupported WordprocessingML shapes without private document details.
 
 ## Bookmarks
 
-- Complete same-paragraph bookmark ranges are modeled and can be renamed,
+- Complete paragraph-bounded bookmark ranges are modeled and can be renamed,
   deleted when unreferenced, and replaced when protected boundaries are absent.
 - Same-paragraph replacements support ranges spanning multiple direct run
-  siblings.
+  siblings. Same-container multi-paragraph replacements are supported.
 - Whole-paragraph bookmark creation is supported with `expect-text`, duplicate
   name checks, and protected-boundary checks.
 - Duplicate bookmark names are surfaced with candidate IDs so agents can switch
   to explicit selectors.
-- Multi-paragraph, table-spanning, cross-story, and protected-boundary bookmark
-  replacement remains unsupported.
+- Table-spanning, cross-story, and protected-boundary bookmark replacement remains
+  unsupported.
 - Hidden Word bookmarks and incomplete ranges are surfaced as metadata and
   validation diagnostics where pairing is malformed.
 
