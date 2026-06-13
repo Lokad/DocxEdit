@@ -120,6 +120,37 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateWarnsOnMissingParagraphStyleDefinition()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="MissingStyle"/></w:pPr>
+                      <w:r><w:t>Styled text</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="KnownStyle">
+                    <w:name w:val="Known Style"/>
+                  </w:style>
+                </w:styles>
+                """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9116" &&
+            diagnostic.Feature == "style" &&
+            diagnostic.Fallback == "missing-style-definition" &&
+            diagnostic.Message.Contains("MissingStyle", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""

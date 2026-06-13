@@ -119,6 +119,7 @@ internal static class DocxPackageValidator
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateFieldFlags(document, partName, diagnostics);
         ValidateContentControls(document, partName, diagnostics);
+        ValidateParagraphStyleReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
@@ -385,6 +386,60 @@ internal static class DocxPackageValidator
         }
 
         diagnostics.Add(Error("E9115", $"Content control w:{localName} has invalid OnOff value '{value}'.", partName));
+    }
+
+    private static void ValidateParagraphStyleReferences(
+        OoxmlPackage package,
+        string partName,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        HashSet<string>? paragraphStyleIds = ReadParagraphStyleIds(package, cancellationToken);
+        if (paragraphStyleIds is null)
+        {
+            return;
+        }
+
+        foreach (string styleId in document
+            .Descendants(OoxmlNs.W + "pStyle")
+            .Select(style => (string?)style.Attribute(OoxmlNs.W + "val"))
+            .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
+            .Select(styleId => styleId!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal))
+        {
+            if (!paragraphStyleIds.Contains(styleId))
+            {
+                diagnostics.Add(Warning(
+                    "W9116",
+                    $"Paragraph style reference '{styleId}' is not defined in /word/styles.xml.",
+                    partName,
+                    "style",
+                    "missing-style-definition"));
+            }
+        }
+    }
+
+    private static HashSet<string>? ReadParagraphStyleIds(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        OoxmlPart? stylesPart = package.GetPart("/word/styles.xml");
+        if (stylesPart is null)
+        {
+            return null;
+        }
+
+        using Stream stream = stylesPart.OpenRead();
+        XDocument styles = SafeXml.Load(stream, cancellationToken);
+        return styles
+            .Descendants(OoxmlNs.W + "style")
+            .Where(style => string.Equals((string?)style.Attribute(OoxmlNs.W + "type"), "paragraph", StringComparison.Ordinal))
+            .Select(style => (string?)style.Attribute(OoxmlNs.W + "styleId"))
+            .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
+            .Select(styleId => styleId!)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     private static void ValidateDrawingRelationships(
