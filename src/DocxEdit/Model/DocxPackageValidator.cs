@@ -120,6 +120,8 @@ internal static class DocxPackageValidator
         ValidateFieldFlags(document, partName, diagnostics);
         ValidateContentControls(document, partName, diagnostics);
         ValidateParagraphStyleReferences(package, partName, document, diagnostics, cancellationToken);
+        ValidateNumberingReferences(package, partName, document, diagnostics, cancellationToken);
+        ValidateNumberingDefinitions(partName, document, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
@@ -439,6 +441,103 @@ internal static class DocxPackageValidator
             .Select(style => (string?)style.Attribute(OoxmlNs.W + "styleId"))
             .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
             .Select(styleId => styleId!)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static void ValidateNumberingReferences(
+        OoxmlPackage package,
+        string partName,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(partName, "/word/numbering.xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        HashSet<string>? numberingIds = ReadNumberingIds(package, cancellationToken);
+        if (numberingIds is null)
+        {
+            return;
+        }
+
+        foreach (string numberingId in document
+            .Descendants(OoxmlNs.W + "numPr")
+            .Elements(OoxmlNs.W + "numId")
+            .Select(numId => (string?)numId.Attribute(OoxmlNs.W + "val"))
+            .Where(numberingId => !string.IsNullOrWhiteSpace(numberingId) && numberingId != "0")
+            .Select(numberingId => numberingId!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal))
+        {
+            if (!numberingIds.Contains(numberingId))
+            {
+                diagnostics.Add(Warning(
+                    "W9117",
+                    $"Numbering reference '{numberingId}' is not defined in /word/numbering.xml.",
+                    partName,
+                    "numbering",
+                    "missing-numbering-definition"));
+            }
+        }
+    }
+
+    private static void ValidateNumberingDefinitions(
+        string partName,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics)
+    {
+        if (!string.Equals(partName, "/word/numbering.xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var abstractIds = document
+            .Descendants(OoxmlNs.W + "abstractNum")
+            .Select(abstractNum => (string?)abstractNum.Attribute(OoxmlNs.W + "abstractNumId"))
+            .Where(abstractId => !string.IsNullOrWhiteSpace(abstractId))
+            .Select(abstractId => abstractId!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (string abstractId in document
+            .Descendants(OoxmlNs.W + "num")
+            .Elements(OoxmlNs.W + "abstractNumId")
+            .Select(abstractNumId => (string?)abstractNumId.Attribute(OoxmlNs.W + "val"))
+            .Where(abstractId => !string.IsNullOrWhiteSpace(abstractId))
+            .Select(abstractId => abstractId!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal))
+        {
+            if (!abstractIds.Contains(abstractId))
+            {
+                diagnostics.Add(Warning(
+                    "W9117",
+                    $"Numbering definition references missing abstractNumId '{abstractId}'.",
+                    partName,
+                    "numbering",
+                    "missing-abstract-numbering-definition"));
+            }
+        }
+    }
+
+    private static HashSet<string>? ReadNumberingIds(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        OoxmlPart? numberingPart = package.GetPart("/word/numbering.xml");
+        if (numberingPart is null)
+        {
+            return null;
+        }
+
+        using Stream stream = numberingPart.OpenRead();
+        XDocument numbering = SafeXml.Load(stream, cancellationToken);
+        return numbering
+            .Descendants(OoxmlNs.W + "num")
+            .Select(num => (string?)num.Attribute(OoxmlNs.W + "numId"))
+            .Where(numberingId => !string.IsNullOrWhiteSpace(numberingId))
+            .Select(numberingId => numberingId!)
             .ToHashSet(StringComparer.Ordinal);
     }
 

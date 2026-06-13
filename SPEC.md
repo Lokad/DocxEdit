@@ -2596,6 +2596,8 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
   candidate metadata IDs;
 * missing paragraph style definitions as warnings when `/word/styles.xml` is
   present;
+* missing numbering and abstract numbering definitions as warnings when
+  `/word/numbering.xml` is present;
 * content-control metadata validity, including `w:id`, `w:lock`, and checkbox
   `w:checked` values;
 * modern `commentsExtended.xml` paraId consistency;
@@ -2667,6 +2669,7 @@ E9115 content-control metadata is malformed
 E9199 validation diagnostics were capped and omitted diagnostics include errors
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 W9116 paragraph style reference is not defined in /word/styles.xml
+W9117 numbering or abstract numbering reference is not defined in /word/numbering.xml
 W9199 validation diagnostics were capped and omitted diagnostics are warnings only
 ```
 

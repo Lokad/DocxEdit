@@ -151,6 +151,40 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateWarnsOnMissingNumberingDefinitions()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr>
+                      <w:r><w:t>Numbered text</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+                """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9117" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "missing-numbering-definition" &&
+            diagnostic.Message.Contains("'42'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9117" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "missing-abstract-numbering-definition" &&
+            diagnostic.Message.Contains("'7'", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""
