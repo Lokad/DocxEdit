@@ -15,14 +15,17 @@ internal static class DocxPackageValidator
             ? BuildStoryPrefixes(package, cancellationToken)
             : new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            .Where(part => part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) ||
+                part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
             ValidateRoot(part.Name, document.Root, diagnostics);
+            bool isXmlPart = part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase);
             if (profile == DocxValidationProfile.Structural &&
+                isXmlPart &&
                 part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase))
             {
                 storyPrefixes.TryGetValue(part.Name, out string? storyPrefix);
@@ -85,6 +88,7 @@ internal static class DocxPackageValidator
 
         XName? expected = partName switch
         {
+            _ when partName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase) => OoxmlNs.Rel + "Relationships",
             "/word/document.xml" => OoxmlNs.W + "document",
             "/word/styles.xml" => OoxmlNs.W + "styles",
             "/word/numbering.xml" => OoxmlNs.W + "numbering",

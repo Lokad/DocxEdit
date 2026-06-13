@@ -288,6 +288,26 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidRelationshipPartRoot()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            extra: archive => AddEntry(archive, "word/_rels/header1.xml.rels", """
+                <BrokenRelationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+                """));
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9102" &&
+            diagnostic.PartName == "/word/_rels/header1.xml.rels" &&
+            diagnostic.Message.Contains("Relationships", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""

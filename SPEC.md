@@ -2588,7 +2588,7 @@ Patch apply validation must check:
 `DocxEditor.Validate` and `docxedit validate` must additionally scan safe XML parts
 without editing and report stable `E91xx` diagnostics with `PartName` metadata for:
 
-* expected roots for known WordprocessingML parts (`document`, `styles`, `numbering`,
+* expected roots for relationship parts and known WordprocessingML parts (`document`, `styles`, `numbering`,
   `settings`, `comments`, `commentsExtended`, headers, footers, footnotes, and
   endnotes);
 * paired bookmark and comment range start/end IDs;
