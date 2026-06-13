@@ -1192,7 +1192,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void ApplyInsertAfterCanCopyParagraphPropertiesForListItem()
+    public static void ApplyTextEditAndInsertAfterPreserveListParagraphProperties()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -1210,6 +1210,12 @@ public static class PatchApplyTests
         using var patch = new StringReader("""
             docxpatch 1
 
+            op replace-text
+            target M.P0001
+            find First
+            with Updated
+            end
+
             op insert-after
             target M.P0001
             copy-paragraph-properties true
@@ -1221,7 +1227,7 @@ public static class PatchApplyTests
 
         Assert.True(result.Success);
         output.Position = 0;
-        Assert.Equal(new[] { "First item", "Second item" }, new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
+        Assert.Equal(new[] { "Updated item", "Second item" }, new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Equal(2, CountOccurrences(xml, "w:pStyle w:val=\"ListParagraph\""));
