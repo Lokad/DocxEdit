@@ -2190,6 +2190,33 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyDeleteCommentRemovesHeaderAnchorsAndExtendedMetadata()
+    {
+        using MemoryStream input = CreateDocxWithHeaderComment();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-comment
+            target comment:3
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string headerXml = ReadEntry(output, "word/header1.xml");
+        Assert.DoesNotContain("commentRangeStart", headerXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("commentRangeEnd", headerXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("commentReference", headerXml, StringComparison.Ordinal);
+        Assert.Contains("Header text", headerXml, StringComparison.Ordinal);
+        output.Position = 0;
+        string commentsExtendedXml = ReadEntry(output, "word/commentsExtended.xml");
+        Assert.DoesNotContain("00ABCDEF", commentsExtendedXml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertBeforeParagraphAddsParagraphAtTargetPosition()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -3968,6 +3995,73 @@ public static class PatchApplyTests
             {
                 AddEntry(archive, "word/commentsExtended.xml", commentsExtendedXml);
             }
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithHeaderComment()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+                  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExtended+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+                  <Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <w:body>
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                    <w:sectPr><w:headerReference w:type="default" r:id="rHeader"/></w:sectPr>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p>
+                    <w:commentRangeStart w:id="3"/>
+                    <w:r><w:t>Header text</w:t></w:r>
+                    <w:commentRangeEnd w:id="3"/>
+                    <w:r><w:commentReference w:id="3"/></w:r>
+                  </w:p>
+                </w:hdr>
+                """);
+            AddEntry(archive, "word/comments.xml", """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+            AddEntry(archive, "word/commentsExtended.xml", """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00ABCDEF" w15:done="1"/>
+                </w15:commentsEx>
+                """);
         }
 
         stream.Position = 0;
