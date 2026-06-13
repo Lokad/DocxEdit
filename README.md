@@ -160,9 +160,11 @@ Implemented areas include:
 - lock-aware safe bookmark/content-control patch operations for plain-text content controls,
   checkbox state, dropdown/combo selections, date values, bookmark rename/delete,
   and simple same-paragraph bookmark ranges;
-- simple and complex field read/context metadata, explicit dirty/lock flag patch
-  operations for one field or all modeled fields, simple-field code/result patching,
-  field-update marking after edits, and `W5103` diagnostics for Word-side refresh;
+- simple and complex field read/context metadata, including parsed field type,
+  nesting depth, bookmark/hyperlink dependencies, safe-edit status, explicit
+  dirty/lock flag patch operations for one field or all modeled fields,
+  simple-field code/result patching, field-update marking after edits, and
+  `W5103` diagnostics for Word-side refresh;
 - hyperlink read/context/dump metadata for external links, internal anchors, relationship
   IDs/parts/target modes, broken relationship IDs, URI scheme validation,
   missing/duplicate internal anchors, unsupported internal part links, target frames,

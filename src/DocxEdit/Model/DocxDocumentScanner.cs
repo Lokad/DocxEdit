@@ -659,6 +659,9 @@ internal static class DocxDocumentScanner
         {
             if (element.Name == OoxmlNs.W + "fldSimple")
             {
+                string code = NormalizeFieldCode((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+                FieldCodeMetadata metadata = AnalyzeFieldCode(code);
+                bool? isLocked = ReadOnOffAttribute(element, "fldLock");
                 fields.Add(new DocxFieldInfo
                 {
                     Id = $"{idPrefix}.F{fieldIndex++:0000}",
@@ -666,10 +669,15 @@ internal static class DocxDocumentScanner
                     PartName = partName,
                     TargetId = FindTargetId(element, targets),
                     Kind = "simple",
-                    Code = NormalizeFieldCode((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty),
+                    FieldType = metadata.FieldType,
+                    Code = code,
                     ResultTextLength = ReadText(element, textView).Length,
+                    NestingDepth = stack.Count,
+                    BookmarkDependencies = metadata.BookmarkDependencies,
+                    HyperlinkDependencies = metadata.HyperlinkDependencies,
+                    SafeEditStatus = DetermineFieldSafeEditStatus("simple", complete: true, isLocked),
                     IsDirty = ReadOnOffAttribute(element, "dirty"),
-                    IsLocked = ReadOnOffAttribute(element, "fldLock"),
+                    IsLocked = isLocked,
                     IsComplete = true
                 });
                 continue;
@@ -680,7 +688,7 @@ internal static class DocxDocumentScanner
                 string? fieldCharType = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
                 if (string.Equals(fieldCharType, "begin", StringComparison.Ordinal))
                 {
-                    stack.Push(new ComplexFieldBuilder(element, FindTargetId(element, targets))
+                    stack.Push(new ComplexFieldBuilder(element, FindTargetId(element, targets), stack.Count)
                     {
                         IsDirty = ReadOnOffAttribute(element, "dirty"),
                         IsLocked = ReadOnOffAttribute(element, "fldLock")
@@ -873,6 +881,142 @@ internal static class DocxDocumentScanner
         return string.Join(
             " ",
             code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static FieldCodeMetadata AnalyzeFieldCode(string code)
+    {
+        string[] tokens = TokenizeFieldCode(code);
+        if (tokens.Length == 0)
+        {
+            return new FieldCodeMetadata(null, [], []);
+        }
+
+        string fieldType = NormalizeFieldType(tokens[0]);
+        var bookmarkDependencies = new List<string>();
+        var hyperlinkDependencies = new List<string>();
+        if (fieldType is "REF" or "PAGEREF" or "NOTEREF")
+        {
+            AddFirstFieldOperand(tokens, bookmarkDependencies);
+        }
+        else if (fieldType == "HYPERLINK")
+        {
+            ReadHyperlinkFieldDependencies(tokens, hyperlinkDependencies, bookmarkDependencies);
+        }
+
+        return new FieldCodeMetadata(
+            fieldType,
+            DistinctNonEmpty(bookmarkDependencies),
+            DistinctNonEmpty(hyperlinkDependencies));
+    }
+
+    private static string[] TokenizeFieldCode(string code)
+    {
+        var tokens = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuote = false;
+        foreach (char character in code)
+        {
+            if (character == '"')
+            {
+                inQuote = !inQuote;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(character) && !inQuote)
+            {
+                AddCurrentFieldToken(tokens, current);
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        AddCurrentFieldToken(tokens, current);
+        return tokens.ToArray();
+    }
+
+    private static void AddCurrentFieldToken(List<string> tokens, System.Text.StringBuilder current)
+    {
+        if (current.Length == 0)
+        {
+            return;
+        }
+
+        tokens.Add(current.ToString());
+        current.Clear();
+    }
+
+    private static string NormalizeFieldType(string token)
+    {
+        return token.StartsWith('=') ? "FORMULA" : token.ToUpperInvariant();
+    }
+
+    private static void AddFirstFieldOperand(string[] tokens, List<string> dependencies)
+    {
+        foreach (string token in tokens.Skip(1))
+        {
+            if (token.StartsWith('\\'))
+            {
+                continue;
+            }
+
+            dependencies.Add(token);
+            return;
+        }
+    }
+
+    private static void ReadHyperlinkFieldDependencies(
+        string[] tokens,
+        List<string> hyperlinkDependencies,
+        List<string> bookmarkDependencies)
+    {
+        bool expectsAnchor = false;
+        for (int i = 1; i < tokens.Length; i++)
+        {
+            string token = tokens[i];
+            if (expectsAnchor)
+            {
+                bookmarkDependencies.Add(token);
+                expectsAnchor = false;
+                continue;
+            }
+
+            if (string.Equals(token, "\\l", StringComparison.OrdinalIgnoreCase))
+            {
+                expectsAnchor = true;
+                continue;
+            }
+
+            if (token.StartsWith('\\'))
+            {
+                continue;
+            }
+
+            hyperlinkDependencies.Add(token);
+        }
+    }
+
+    private static string[] DistinctNonEmpty(IEnumerable<string> values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static string DetermineFieldSafeEditStatus(string kind, bool complete, bool? isLocked)
+    {
+        if (!complete)
+        {
+            return "malformed";
+        }
+
+        if (isLocked == true)
+        {
+            return "locked";
+        }
+
+        return kind == "simple" ? "simple-code-result" : "flags-only";
     }
 
     private static bool? ReadOnOffAttribute(XElement element, string localName)
@@ -1372,10 +1516,16 @@ internal static class DocxDocumentScanner
         public static HyperlinkUriValidation None { get; } = new(null, null, null);
     }
 
-    private sealed class ComplexFieldBuilder(XElement startElement, string? targetId)
+    private sealed record FieldCodeMetadata(
+        string? FieldType,
+        IReadOnlyList<string> BookmarkDependencies,
+        IReadOnlyList<string> HyperlinkDependencies);
+
+    private sealed class ComplexFieldBuilder(XElement startElement, string? targetId, int nestingDepth)
     {
         public XElement StartElement { get; } = startElement;
         public string? TargetId { get; } = targetId;
+        public int NestingDepth { get; } = nestingDepth;
         public System.Text.StringBuilder Code { get; } = new();
         public int ResultTextLength { get; set; }
         public bool HasSeparate { get; set; }
@@ -1385,6 +1535,8 @@ internal static class DocxDocumentScanner
         public DocxFieldInfo ToInfo(string id, string story, string partName, bool complete)
         {
             _ = StartElement;
+            string code = NormalizeFieldCode(Code.ToString());
+            FieldCodeMetadata metadata = AnalyzeFieldCode(code);
             return new DocxFieldInfo
             {
                 Id = id,
@@ -1392,8 +1544,13 @@ internal static class DocxDocumentScanner
                 PartName = partName,
                 TargetId = TargetId,
                 Kind = "complex",
-                Code = NormalizeFieldCode(Code.ToString()),
+                FieldType = metadata.FieldType,
+                Code = code,
                 ResultTextLength = ResultTextLength,
+                NestingDepth = NestingDepth,
+                BookmarkDependencies = metadata.BookmarkDependencies,
+                HyperlinkDependencies = metadata.HyperlinkDependencies,
+                SafeEditStatus = DetermineFieldSafeEditStatus("complex", complete, IsLocked),
                 IsDirty = IsDirty,
                 IsLocked = IsLocked,
                 IsComplete = complete

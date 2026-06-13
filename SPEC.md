@@ -1052,8 +1052,13 @@ public sealed record DocxFieldInfo
     public string PartName { get; init; } = string.Empty;
     public string? TargetId { get; init; }
     public string Kind { get; init; } = "unknown";
+    public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
     public int ResultTextLength { get; init; }
+    public int NestingDepth { get; init; }
+    public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];
+    public IReadOnlyList<string> HyperlinkDependencies { get; init; } = [];
+    public string SafeEditStatus { get; init; } = "unknown";
     public bool? IsDirty { get; init; }
     public bool? IsLocked { get; init; }
     public bool IsComplete { get; init; }
@@ -1219,6 +1224,7 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> FieldIds { get; init; } = [];
     public IReadOnlyList<string> FieldCodes { get; init; } = [];
     public IReadOnlyList<string> FieldKinds { get; init; } = [];
+    public IReadOnlyList<string> FieldTypes { get; init; } = [];
     public IReadOnlyList<string> HyperlinkIds { get; init; } = [];
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public IReadOnlyList<string> CommentIds { get; init; } = [];
@@ -1267,7 +1273,7 @@ M.P0001 heading level=1 styleId=Heading1 text="Executive Summary"
 M.P0002 paragraph list numId=42 level=0 abstractNumId=7 format=decimal level-text="%1." text="Revenue increased"
 M.B0001 bookmark name="ClientName" ooxml-id=1 story="main" part=/word/document.xml start=M.P0002 end=M.P0002 complete=True
 M.CC0001 content-control kind=plain-text story="main" part=/word/document.xml target=M.P0002 tag="client_name" alias="Client Name" text-length=4
-M.F0001 field kind=complex story="main" part=/word/document.xml target=M.P0002 code="REF ClientName \h" result-text-length=4 dirty=True complete=True
+M.F0001 field kind=complex type=REF story="main" part=/word/document.xml target=M.P0002 code="REF ClientName \h" result-text-length=4 nesting-depth=0 bookmark-dependencies="ClientName" safe-edit=flags-only dirty=True complete=True
 M.L0001 hyperlink story="main" part=/word/document.xml target=M.P0002 relationship-id=rLink uri="https://example.test/report" uri-scheme=https uri-valid=true tooltip="Open report" target-frame="_blank" history=false external=True broken=False display-text-length=6
 M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
   M.T0001.R01 row cells=3 header=true
@@ -1305,7 +1311,7 @@ M.S0001 section columns=2 orientation=landscape
 M.I0001 image layout=inline target=M.P0002 part=/word/media/image1.png
 M.B0001 bookmark name="ClientName" start=M.P0002 end=M.P0002
 M.CC0001 content-control kind=plain-text target=M.P0002 tag="client_name" alias="Client Name"
-M.F0001 field kind=complex target=M.P0002 code="REF ClientName \h"
+M.F0001 field kind=complex type=REF target=M.P0002 code="REF ClientName \h" nesting-depth=0 safe-edit=flags-only
 M.L0001 hyperlink target=M.P0002 destination="https://example.test/report" broken=False
 ```
 
@@ -1394,7 +1400,7 @@ text. The default `MaxText` is `0`; callers must opt in to text snippets.
 
 ```text
 before M.P0003 paragraph story="main" text=""
-target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" fields="M.F0001" field-codes="REF ClientName \h" field-kinds="complex" hyperlinks="M.L0001" hyperlink-targets="https://example.test/report" comments="3" comment-bodies="C001.C0001" text=""
+target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" fields="M.F0001" field-codes="REF ClientName \h" field-kinds="complex" field-types="REF" hyperlinks="M.L0001" hyperlink-targets="https://example.test/report" comments="3" comment-bodies="C001.C0001" text=""
 after M.P0005 paragraph story="main" text=""
 ```
 
@@ -2953,6 +2959,8 @@ v0.1 may support replacing entirely inside a hyperlink, but not across hyperlink
 When a document contains fields and edits are applied:
 
 * Preserve field XML.
+* Surface normalized field code, parsed type, nesting depth, bookmark/hyperlink
+  dependencies, and safe-edit status.
 * Do not attempt to evaluate fields.
 * If `MarkFieldsDirtyWhenEditing` is true, set the document settings `w:updateFields`
   flag so Word can refresh field results on open.

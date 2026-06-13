@@ -360,7 +360,7 @@ public static class DocxHelp
                     [
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, completeness, and duplicate-name candidate IDs"),
                         new("ContentControls", "Structured content controls with kind, tag, alias, placeholder/data-binding metadata, hierarchy IDs, safe-edit status, duplicate tag/alias candidate IDs, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, repeating-section metadata, and date settings"),
-                        new("Fields", "Structured fields with kind, code, containing target, result length, dirty/lock flags, and completeness"),
+                        new("Fields", "Structured fields with kind, parsed type, code, containing target, result length, nesting depth, bookmark/hyperlink dependencies, safe-edit status, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, relationship part, target mode, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, wrap distances, anchor positioning, crop percentages, and media part"),
                         new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merge groups, vertical merge roots, and nested tables")
@@ -377,7 +377,7 @@ public static class DocxHelp
                         ]),
                         new("Fields",
                         [
-                            "Read and context output surface simple and complex field metadata, including field code, result-text length, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, and mark the document for field updates after edits, but Word remains responsible for recalculating field results. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
+                            "Read and context output surface simple and complex field metadata, including parsed field type, normalized field code, result-text length, nesting depth, REF/PAGEREF/NOTEREF bookmark dependencies, HYPERLINK URI/anchor dependencies, safe-edit status, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, and mark the document for field updates after edits, but Word remains responsible for recalculating field results. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
                         ]),
                         new("Hyperlinks",
                         [

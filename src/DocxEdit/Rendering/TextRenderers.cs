@@ -116,11 +116,16 @@ internal static class TextRenderers
         foreach (DocxFieldInfo field in model.Fields)
         {
             string target = field.TargetId is null ? " target=unknown" : $" target={field.TargetId}";
+            string fieldType = field.FieldType is null ? string.Empty : $" type={Escape(field.FieldType)}";
+            string bookmarkDependencies = field.BookmarkDependencies.Count == 0 ? string.Empty : $" bookmark-dependencies=\"{Escape(string.Join(",", field.BookmarkDependencies))}\"";
+            string hyperlinkDependencies = field.HyperlinkDependencies.Count == 0 ? string.Empty : $" hyperlink-dependencies=\"{Escape(string.Join(",", field.HyperlinkDependencies))}\"";
+            string safeEdit = $" safe-edit={Escape(field.SafeEditStatus)}";
             string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
             string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
             builder.Append(field.Id)
                 .Append(" field kind=")
                 .Append(Escape(field.Kind))
+                .Append(fieldType)
                 .Append(" story=\"")
                 .Append(Escape(field.Story))
                 .Append("\" part=")
@@ -130,6 +135,11 @@ internal static class TextRenderers
                 .Append(Escape(field.Code))
                 .Append("\" result-text-length=")
                 .Append(field.ResultTextLength)
+                .Append(" nesting-depth=")
+                .Append(field.NestingDepth)
+                .Append(bookmarkDependencies)
+                .Append(hyperlinkDependencies)
+                .Append(safeEdit)
                 .Append(dirty)
                 .Append(locked)
                 .Append(" complete=")
@@ -286,7 +296,9 @@ internal static class TextRenderers
         foreach (DocxFieldInfo field in model.Fields)
         {
             string target = field.TargetId is null ? "unknown" : field.TargetId;
-            lines.Add($"{field.Id} field kind={Escape(field.Kind)} target={target} code=\"{Escape(field.Code)}\"");
+            string fieldType = field.FieldType is null ? string.Empty : $" type={Escape(field.FieldType)}";
+            string safeEdit = $" safe-edit={Escape(field.SafeEditStatus)}";
+            lines.Add($"{field.Id} field kind={Escape(field.Kind)}{fieldType} target={target} code=\"{Escape(field.Code)}\" nesting-depth={field.NestingDepth}{safeEdit}");
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
@@ -497,6 +509,7 @@ internal static class TextRenderers
             string fieldIds = item.FieldIds.Count == 0 ? string.Empty : $" fields=\"{Escape(string.Join(",", item.FieldIds))}\"";
             string fieldCodes = item.FieldCodes.Count == 0 ? string.Empty : $" field-codes=\"{Escape(string.Join(",", item.FieldCodes))}\"";
             string fieldKinds = item.FieldKinds.Count == 0 ? string.Empty : $" field-kinds=\"{Escape(string.Join(",", item.FieldKinds))}\"";
+            string fieldTypes = item.FieldTypes.Count == 0 ? string.Empty : $" field-types=\"{Escape(string.Join(",", item.FieldTypes))}\"";
             string hyperlinkIds = item.HyperlinkIds.Count == 0 ? string.Empty : $" hyperlinks=\"{Escape(string.Join(",", item.HyperlinkIds))}\"";
             string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{Escape(string.Join(",", item.HyperlinkTargets))}\"";
             string commentIds = item.CommentIds.Count == 0 ? string.Empty : $" comments=\"{Escape(string.Join(",", item.CommentIds))}\"";
@@ -533,6 +546,7 @@ internal static class TextRenderers
                 .Append(fieldIds)
                 .Append(fieldCodes)
                 .Append(fieldKinds)
+                .Append(fieldTypes)
                 .Append(hyperlinkIds)
                 .Append(hyperlinkTargets)
                 .Append(commentIds)
@@ -749,6 +763,7 @@ internal static class TextRenderers
         var fieldIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var fieldCodes = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var fieldKinds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var fieldTypes = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var hyperlinkIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var hyperlinkTargets = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var commentIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -765,6 +780,7 @@ internal static class TextRenderers
             AddAnnotation(fieldIds, field.TargetId, field.Id);
             AddAnnotation(fieldCodes, field.TargetId, field.Code);
             AddAnnotation(fieldKinds, field.TargetId, field.Kind);
+            AddAnnotation(fieldTypes, field.TargetId, field.FieldType);
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
@@ -802,6 +818,7 @@ internal static class TextRenderers
             ToArrayDictionary(fieldIds),
             ToArrayDictionary(fieldCodes),
             ToArrayDictionary(fieldKinds),
+            ToArrayDictionary(fieldTypes),
             ToArrayDictionary(hyperlinkIds),
             ToArrayDictionary(hyperlinkTargets),
             ToArrayDictionary(commentIds),
@@ -819,6 +836,7 @@ internal static class TextRenderers
             FieldIds = LookupAnnotations(annotations.FieldIdsByTarget, item.Id),
             FieldCodes = LookupAnnotations(annotations.FieldCodesByTarget, item.Id),
             FieldKinds = LookupAnnotations(annotations.FieldKindsByTarget, item.Id),
+            FieldTypes = LookupAnnotations(annotations.FieldTypesByTarget, item.Id),
             HyperlinkIds = LookupAnnotations(annotations.HyperlinkIdsByTarget, item.Id),
             HyperlinkTargets = LookupAnnotations(annotations.HyperlinkTargetsByTarget, item.Id),
             CommentIds = LookupAnnotations(annotations.CommentIdsByTarget, item.Id),
@@ -1004,6 +1022,7 @@ internal static class TextRenderers
         IReadOnlyDictionary<string, string[]> FieldIdsByTarget,
         IReadOnlyDictionary<string, string[]> FieldCodesByTarget,
         IReadOnlyDictionary<string, string[]> FieldKindsByTarget,
+        IReadOnlyDictionary<string, string[]> FieldTypesByTarget,
         IReadOnlyDictionary<string, string[]> HyperlinkIdsByTarget,
         IReadOnlyDictionary<string, string[]> HyperlinkTargetsByTarget,
         IReadOnlyDictionary<string, string[]> CommentIdsByTarget,

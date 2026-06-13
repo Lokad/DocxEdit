@@ -1764,9 +1764,14 @@ public static class ReadApiTests
         DocxFieldInfo simple = result.Fields[0];
         Assert.Equal("M.F0001", simple.Id);
         Assert.Equal("simple", simple.Kind);
+        Assert.Equal("DATE", simple.FieldType);
         Assert.Equal("DATE", simple.Code);
         Assert.Equal("M.P0001", simple.TargetId);
         Assert.Equal(13, simple.ResultTextLength);
+        Assert.Equal(0, simple.NestingDepth);
+        Assert.Empty(simple.BookmarkDependencies);
+        Assert.Empty(simple.HyperlinkDependencies);
+        Assert.Equal("locked", simple.SafeEditStatus);
         Assert.True(simple.IsDirty);
         Assert.True(simple.IsLocked);
         Assert.True(simple.IsComplete);
@@ -1774,16 +1779,22 @@ public static class ReadApiTests
         DocxFieldInfo complex = result.Fields[1];
         Assert.Equal("M.F0002", complex.Id);
         Assert.Equal("complex", complex.Kind);
+        Assert.Equal("REF", complex.FieldType);
         Assert.Equal(@"REF ClientName \h", complex.Code);
         Assert.Equal("M.P0002", complex.TargetId);
         Assert.Equal(13, complex.ResultTextLength);
+        Assert.Equal(0, complex.NestingDepth);
+        Assert.Equal(new[] { "ClientName" }, complex.BookmarkDependencies);
+        Assert.Empty(complex.HyperlinkDependencies);
+        Assert.Equal("flags-only", complex.SafeEditStatus);
         Assert.True(complex.IsDirty);
         Assert.Null(complex.IsLocked);
         Assert.True(complex.IsComplete);
 
-        Assert.Contains("M.F0001 field kind=simple", result.Text, StringComparison.Ordinal);
-        Assert.Contains("code=\"DATE\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.F0001 field kind=simple type=DATE", result.Text, StringComparison.Ordinal);
+        Assert.Contains("safe-edit=locked", result.Text, StringComparison.Ordinal);
         Assert.Contains(@"code=""REF ClientName \\h""", result.Text, StringComparison.Ordinal);
+        Assert.Contains("bookmark-dependencies=\"ClientName\"", result.Text, StringComparison.Ordinal);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1003" && diagnostic.Fallback == "modeled-metadata");
     }
 
@@ -1814,14 +1825,18 @@ public static class ReadApiTests
         Assert.Equal(2, read.Fields.Count);
         DocxFieldInfo inner = Assert.Single(read.Fields, field => field.Code == "DATE");
         Assert.Equal("complex", inner.Kind);
+        Assert.Equal("DATE", inner.FieldType);
         Assert.Equal("M.P0001", inner.TargetId);
         Assert.Equal(7, inner.ResultTextLength);
+        Assert.Equal(1, inner.NestingDepth);
         Assert.True(inner.IsComplete);
 
         DocxFieldInfo outer = Assert.Single(read.Fields, field => field.Code == "IF");
         Assert.Equal("complex", outer.Kind);
+        Assert.Equal("IF", outer.FieldType);
         Assert.Equal("M.P0001", outer.TargetId);
         Assert.Equal(21, outer.ResultTextLength);
+        Assert.Equal(0, outer.NestingDepth);
         Assert.True(outer.IsComplete);
 
         using MemoryStream validateStream = CreateDocxWithBody(nestedFieldBody);
@@ -1852,9 +1867,36 @@ public static class ReadApiTests
         Assert.Equal(new[] { "M.F0001" }, item.FieldIds);
         Assert.Equal(new[] { "PAGE" }, item.FieldCodes);
         Assert.Equal(new[] { "complex" }, item.FieldKinds);
+        Assert.Equal(new[] { "PAGE" }, item.FieldTypes);
         Assert.Contains("fields=\"M.F0001\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("field-codes=\"PAGE\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("field-kinds=\"complex\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("field-types=\"PAGE\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadModelsHyperlinkFieldDependencies()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> HYPERLINK "https://example.test/report" \l "Section1" </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>Report link</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxFieldInfo field = Assert.Single(result.Fields);
+        Assert.Equal("HYPERLINK", field.FieldType);
+        Assert.Equal(new[] { "Section1" }, field.BookmarkDependencies);
+        Assert.Equal(new[] { "https://example.test/report" }, field.HyperlinkDependencies);
+        Assert.Equal("flags-only", field.SafeEditStatus);
+        Assert.Contains("hyperlink-dependencies=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("bookmark-dependencies=\"Section1\"", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -244,6 +244,7 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> FieldIds { get; init; } = [];
     public IReadOnlyList<string> FieldCodes { get; init; } = [];
     public IReadOnlyList<string> FieldKinds { get; init; } = [];
+    public IReadOnlyList<string> FieldTypes { get; init; } = [];
     public IReadOnlyList<string> HyperlinkIds { get; init; } = [];
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public IReadOnlyList<string> CommentIds { get; init; } = [];
@@ -363,8 +364,13 @@ public sealed record DocxFieldInfo
     public string PartName { get; init; } = string.Empty;
     public string? TargetId { get; init; }
     public string Kind { get; init; } = "unknown";
+    public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
     public int ResultTextLength { get; init; }
+    public int NestingDepth { get; init; }
+    public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];
+    public IReadOnlyList<string> HyperlinkDependencies { get; init; } = [];
+    public string SafeEditStatus { get; init; } = "unknown";
     public bool? IsDirty { get; init; }
     public bool? IsLocked { get; init; }
     public bool IsComplete { get; init; }

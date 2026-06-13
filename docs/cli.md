@@ -115,9 +115,11 @@ ranges while preserving the bookmark markers. `rename-bookmark` renames bookmark
 markers and same-story internal hyperlink anchors when the old name is unambiguous;
 `delete-bookmark` removes only complete unreferenced bookmark markers.
 `read` and `outline` also list simple and complex field metadata. Field records
-include kind, field code, containing target, result text length, dirty/lock flags,
-and whether a complex begin/separate/end sequence is complete. `context` annotates
-nearby targets with `fields`, `field-codes`, and `field-kinds`. DocxEdit preserves
+include kind, parsed field type, normalized field code, containing target, result
+text length, nesting depth, bookmark/hyperlink dependencies, safe-edit status,
+dirty/lock flags, and whether a complex begin/separate/end sequence is complete.
+`context` annotates nearby targets with `fields`, `field-codes`, `field-kinds`,
+and `field-types`. DocxEdit preserves
 field XML, can set field dirty/lock flags through `set-field-dirty` and
 `set-field-lock` for one field or `target all`, and can update simple `w:fldSimple`
 field code/result caches through `set-field-code` and `set-field-result`. DocxEdit
