@@ -391,7 +391,7 @@ public static class DocxHelp
                         ]),
                         new("Tables",
                         [
-                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. Table metadata operations can set or clear caption/description values. Row operations reject non-rectangular tables unless force true is explicit."
+                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. Table metadata operations can set or clear caption/description values. Row operations reject visual-grid tables with gridSpan, gridBefore, gridAfter, or vertical merges unless a force mode is explicitly supported by that operation."
                         ])
                     ],
                     Examples =

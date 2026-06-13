@@ -4466,6 +4466,68 @@ public static class PatchApplyTests
     }
 
     [Theory]
+    [InlineData("horizontal-merge", """
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>North revenue</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+        """)]
+    [InlineData("grid-before", """
+                    <w:tbl>
+                      <w:tr>
+                        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Indented</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+        """)]
+    [InlineData("grid-after", """
+                    <w:tbl>
+                      <w:tr>
+                        <w:trPr><w:gridAfter w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Trailing omitted</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+        """)]
+    public static void CheckRowOperationsRejectVisualGridTables(string caseName, string tableXml)
+    {
+        _ = caseName;
+        using MemoryStream input = CreateDocxWithBody(tableXml);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            cell East
+            cell Margin
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4301" &&
+            diagnostic.TargetId == "M.T0001" &&
+            diagnostic.Message.Contains("not rectangular", StringComparison.Ordinal));
+    }
+
+    [Theory]
     [InlineData("append-column", """
         target M.T0001
         cell East

@@ -7518,9 +7518,83 @@ internal static class DocxPatchEngine
     private static bool IsRectangular(XElement table, out int columnCount)
     {
         XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
-        columnCount = rows.Length == 0 ? 0 : rows[0].Elements(OoxmlNs.W + "tc").Count();
-        int expectedColumnCount = columnCount;
-        return expectedColumnCount != 0 && rows.All(row => row.Elements(OoxmlNs.W + "tc").Count() == expectedColumnCount);
+        columnCount = 0;
+        if (rows.Length == 0)
+        {
+            return false;
+        }
+
+        int? expectedColumnCount = null;
+        foreach (XElement row in rows)
+        {
+            if (ReadTableRowGridOffset(row, "gridBefore") != 0 ||
+                ReadTableRowGridOffset(row, "gridAfter") != 0)
+            {
+                return false;
+            }
+
+            int visualColumnCount = 0;
+            foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+            {
+                int columnSpan = ReadTableCellColumnSpan(cell);
+                if (columnSpan != 1 || ReadTableCellVerticalMerge(cell) is not null)
+                {
+                    return false;
+                }
+
+                visualColumnCount += columnSpan;
+            }
+
+            if (visualColumnCount == 0)
+            {
+                return false;
+            }
+
+            if (expectedColumnCount is null)
+            {
+                expectedColumnCount = visualColumnCount;
+                continue;
+            }
+
+            if (visualColumnCount != expectedColumnCount.Value)
+            {
+                return false;
+            }
+        }
+
+        columnCount = expectedColumnCount ?? 0;
+        return columnCount != 0;
+    }
+
+    private static int ReadTableRowGridOffset(XElement row, string localName)
+    {
+        string? value = (string?)row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + localName)
+            ?.Attribute(OoxmlNs.W + "val");
+        return int.TryParse(value, out int parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    private static int ReadTableCellColumnSpan(XElement cell)
+    {
+        string? spanText = (string?)cell
+            .Element(OoxmlNs.W + "tcPr")
+            ?.Element(OoxmlNs.W + "gridSpan")
+            ?.Attribute(OoxmlNs.W + "val");
+        return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
+    }
+
+    private static string? ReadTableCellVerticalMerge(XElement cell)
+    {
+        XElement? verticalMerge = cell
+            .Element(OoxmlNs.W + "tcPr")
+            ?.Element(OoxmlNs.W + "vMerge");
+        if (verticalMerge is null)
+        {
+            return null;
+        }
+
+        return (string?)verticalMerge.Attribute(OoxmlNs.W + "val") ?? "continue";
     }
 
     private static string? ReadTableStyleId(XElement table)

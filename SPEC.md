@@ -2117,7 +2117,8 @@ Rules:
 
 * Target must be a table.
 * `expect-row-count` and `expect-column-count` are supported guards.
-* Only support rectangular tables without vertical merges in v0.1.
+* Only support rectangular tables without `gridSpan`, `gridBefore`, `gridAfter`,
+  or vertical merges in v0.1.
 * Clone the last row’s row properties and cell properties.
 * Number of `cell` fields must equal logical column count.
 * Preserve table style and grid.
@@ -2160,7 +2161,9 @@ Rules:
 * `expect-row-count`, `expect-column-count`, `expect-cell-count`, and
   `expect-contains` are supported guards.
 * Do not allow deleting the only row of a table.
-* Fail on merged-cell tables in v0.1 unless `force true`.
+* Fail on visual-grid tables with `gridSpan`, `gridBefore`, `gridAfter`, or
+  vertical merges in v0.1 unless `force true` is explicitly supported by that
+  operation.
 
 ### 11.11b Unsupported table-column transforms
 

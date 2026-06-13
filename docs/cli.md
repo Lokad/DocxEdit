@@ -166,8 +166,9 @@ count, header-row, merged-cell, and nested-table flags when present. Row lines
 include physical cell count, omitted grid columns (`grid-before`/`grid-after`),
 header status, and `cant-split`. Cell lines include logical target column plus
 `physical-column`, span, visual column end, merge group ID, vertical-merge root cell,
-vertical merge, and nested-table metadata. Row operations still reject unsafe
-non-rectangular tables unless `force true` is explicitly supplied. `set-table-style`
+vertical merge, and nested-table metadata. Row operations reject visual-grid tables
+with `gridSpan`, `gridBefore`, `gridAfter`, or vertical merges unless a force mode is
+explicitly supported by that operation. `set-table-style`
 updates `w:tblStyle`; `set-table-metadata` sets or clears `w:tblCaption` and
 `w:tblDescription`; `set-row-header` sets or clears the row repeating-header flag.
 `validate` supports `--profile structural|package`. `structural` is the default and
