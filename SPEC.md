@@ -790,6 +790,7 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? Format { get; init; }
     public string? LevelText { get; init; }
     public string? LabelText { get; init; }
+    public IReadOnlyList<DocxListLabelComponent> LabelComponents { get; init; } = [];
     public string LabelStatus { get; init; } = "not-resolved";
     public IReadOnlyList<string> LabelWarnings { get; init; } = [];
     public int? StartValue { get; init; }
@@ -799,16 +800,20 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? ParagraphStyleId { get; init; }
     public string Source { get; init; } = "direct";
 }
+
+public sealed record DocxListLabelComponent(int Level, int Value, string Text, string Format);
 ```
 
 `DocxListInfo` resolves direct paragraph numbering and paragraph-style numbering when
 available. `Source` is `direct`, `style`, or `style-inherited`. `LabelText` is the
 visible label when DocxEdit can deterministically expand the level text from known
-counters and supported formats. `LabelStatus` is `resolved`, `partial`, `unsupported`,
-or `not-resolved`; `LabelWarnings` names missing counters, missing definitions, and
-unsupported formats without exposing document text. Supported label formats include
-decimal, zero-padded decimal, upper/lower letters, upper/lower roman numerals,
-bullets, and nested `lvlText` tokens whose referenced counters are known.
+counters and supported formats. `LabelComponents` contains one structured component
+per expanded `%n` token with source level, raw counter value, formatted text, and
+format. `LabelStatus` is `resolved`, `partial`, `unsupported`, or `not-resolved`;
+`LabelWarnings` names missing counters, missing definitions, and unsupported formats
+without exposing document text. Supported label formats include decimal, zero-padded
+decimal, upper/lower letters, upper/lower roman numerals, bullets, and nested
+`lvlText` tokens whose referenced counters are known.
 
 ### 8.4 Run model
 

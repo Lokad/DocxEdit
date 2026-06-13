@@ -133,8 +133,9 @@ Implemented areas include:
 - safe ZIP/package loading without filesystem extraction;
 - stable IDs for paragraphs, tables, cells, images, sections, headers, and footers;
 - resolved paragraph numbering/list metadata, including abstract numbering IDs, formats,
-  level text, style-linked list sources, start/suffix metadata, and visible labels for
-  deterministic decimal, letter, roman, bullet, and nested `lvlText` patterns;
+  level text, style-linked list sources, start/suffix metadata, visible labels, and
+  structured label components for deterministic decimal, letter, roman, bullet, and
+  nested `lvlText` patterns;
 - merged/nested/styled table and row/grid read metadata, including merge groups and
   vertical-merge root cells;
 - styles, media, outline, find, dump, and tracked-change markup summaries;
@@ -188,7 +189,7 @@ Implemented areas include:
 - post-edit validation for touched XML parts before writing output.
 
 Known limits include exotic/custom visual numbering expansion beyond deterministic
-decimal, letter, roman, bullet, and nested `lvlText` labels, selected-range comment
+decimal, letter, roman, bullet, and nested `lvlText` labels/components, selected-range comment
 creation and full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text controls, checkbox toggles,
 dropdown/combo selections, date values, bookmark rename/delete, and simple same-paragraph bookmark ranges, field result recalculation and complex-field

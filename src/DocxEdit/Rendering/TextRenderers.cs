@@ -581,6 +581,9 @@ internal static class TextRenderers
         string labelWarnings = list.LabelWarnings.Count == 0
             ? string.Empty
             : $" label-warnings=\"{Escape(string.Join(",", list.LabelWarnings))}\"";
+        string labelComponents = list.LabelComponents.Count == 0
+            ? string.Empty
+            : $" label-components=\"{Escape(string.Join(",", list.LabelComponents.Select(component => $"{component.Level}:{component.Value}:{component.Format}:{component.Text}")))}\"";
         string start = list.StartValue is null ? string.Empty : $" start={list.StartValue}";
         string suffix = list.Suffix is null ? string.Empty : $" suffix={Escape(list.Suffix)}";
         string legal = list.IsLegal ? " legal=true" : string.Empty;
@@ -589,7 +592,7 @@ internal static class TextRenderers
         string source = string.Equals(list.Source, "direct", StringComparison.Ordinal)
             ? string.Empty
             : $" source={Escape(list.Source)}";
-        return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{start}{suffix}{legal}{restart}";
+        return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{labelComponents}{start}{suffix}{legal}{restart}";
     }
 
     private static string RenderImage(DocxImageInfo image)

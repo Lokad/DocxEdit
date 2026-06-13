@@ -278,6 +278,7 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? Format { get; init; }
     public string? LevelText { get; init; }
     public string? LabelText { get; init; }
+    public IReadOnlyList<DocxListLabelComponent> LabelComponents { get; init; } = [];
     public string LabelStatus { get; init; } = "not-resolved";
     public IReadOnlyList<string> LabelWarnings { get; init; } = [];
     public int? StartValue { get; init; }
@@ -287,6 +288,8 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? ParagraphStyleId { get; init; }
     public string Source { get; init; } = "direct";
 }
+
+public sealed record DocxListLabelComponent(int Level, int Value, string Text, string Format);
 
 public sealed record DocxRunInfo(string Text)
 {

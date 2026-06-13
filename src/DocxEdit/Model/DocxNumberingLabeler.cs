@@ -25,10 +25,12 @@ internal sealed class DocxNumberingLabeler
         ResetDeeperLevels(counters, list.Level);
 
         List<string> warnings = [];
-        string? label = FormatLabel(list, counters, warnings);
+        List<DocxListLabelComponent> components = [];
+        string? label = FormatLabel(list, counters, warnings, components);
         return list with
         {
             LabelText = label,
+            LabelComponents = components.ToArray(),
             LabelStatus = label is null
                 ? "unsupported"
                 : warnings.Count == 0 ? "resolved" : "partial",
@@ -55,7 +57,11 @@ internal sealed class DocxNumberingLabeler
         }
     }
 
-    private string? FormatLabel(DocxListInfo list, IReadOnlyDictionary<int, int> counters, List<string> warnings)
+    private string? FormatLabel(
+        DocxListInfo list,
+        IReadOnlyDictionary<int, int> counters,
+        List<string> warnings,
+        List<DocxListLabelComponent> components)
     {
         if (string.IsNullOrWhiteSpace(list.Format) || string.IsNullOrWhiteSpace(list.LevelText))
         {
@@ -73,7 +79,7 @@ internal sealed class DocxNumberingLabeler
             return list.LevelText;
         }
 
-        string label = ExpandTokens(list, counters, warnings);
+        string label = ExpandTokens(list, counters, warnings, components);
         if (!label.Contains('%', StringComparison.Ordinal))
         {
             return label;
@@ -83,7 +89,11 @@ internal sealed class DocxNumberingLabeler
         return label;
     }
 
-    private string ExpandTokens(DocxListInfo list, IReadOnlyDictionary<int, int> counters, List<string> warnings)
+    private string ExpandTokens(
+        DocxListInfo list,
+        IReadOnlyDictionary<int, int> counters,
+        List<string> warnings,
+        List<DocxListLabelComponent> components)
     {
         string levelText = list.LevelText ?? string.Empty;
         var builder = new System.Text.StringBuilder(levelText.Length);
@@ -121,7 +131,8 @@ internal sealed class DocxNumberingLabeler
             DocxListInfo tokenLevelInfo = tokenLevel == list.Level
                 ? list
                 : _numbering.Resolve(list.NumberingId, tokenLevel, list.Source);
-            string? formatted = FormatCounter(value, list.IsLegal ? "decimal" : tokenLevelInfo.Format);
+            string format = list.IsLegal ? "decimal" : tokenLevelInfo.Format ?? string.Empty;
+            string? formatted = FormatCounter(value, format);
             if (formatted is null)
             {
                 builder.Append('%').Append(tokenText);
@@ -129,6 +140,7 @@ internal sealed class DocxNumberingLabeler
                 continue;
             }
 
+            components.Add(new DocxListLabelComponent(tokenLevel, value, formatted, format));
             builder.Append(formatted);
         }
 

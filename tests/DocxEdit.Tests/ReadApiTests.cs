@@ -848,7 +848,11 @@ public static class ReadApiTests
         Assert.All(result.Paragraphs, paragraph => Assert.Equal("resolved", paragraph.List?.LabelStatus));
         Assert.Equal(3, result.Paragraphs[0].List?.StartValue);
         Assert.Equal("space", result.Paragraphs[0].List?.Suffix);
-        Assert.Contains("M.P0002 paragraph list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.b)\" start=2", result.Text, StringComparison.Ordinal);
+        DocxListLabelComponent[] components = result.Paragraphs[1].List!.LabelComponents.ToArray();
+        Assert.Equal(2, components.Length);
+        Assert.Equal(new DocxListLabelComponent(0, 3, "3", "decimal"), components[0]);
+        Assert.Equal(new DocxListLabelComponent(1, 2, "b", "lowerLetter"), components[1]);
+        Assert.Contains("M.P0002 paragraph list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.b)\" label-components=\"0:3:decimal:3,1:2:lowerLetter:b\" start=2", result.Text, StringComparison.Ordinal);
     }
 
     [Fact]

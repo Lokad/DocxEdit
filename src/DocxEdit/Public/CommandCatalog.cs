@@ -369,7 +369,7 @@ public static class DocxHelp
                     [
                         new("List and style metadata",
                         [
-                            "Paragraph records may include StyleId, StyleName, and resolved List metadata. List metadata reports concrete numbering ID, zero-based level, abstract numbering ID, format, level text, paragraph style link, source=style or source=style-inherited when numbering comes from style inheritance, and visible labels for deterministic decimal, letter, roman, bullet, and nested lvlText patterns."
+                            "Paragraph records may include StyleId, StyleName, and resolved List metadata. List metadata reports concrete numbering ID, zero-based level, abstract numbering ID, format, level text, paragraph style link, source=style or source=style-inherited when numbering comes from style inheritance, visible labels, and structured label components for deterministic decimal, letter, roman, bullet, and nested lvlText patterns."
                         ]),
                         new("Bookmarks and content controls",
                         [
