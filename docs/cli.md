@@ -169,13 +169,14 @@ stable diagnostics such as `E9103`, `E9104`, `E9105`, `E9106`, `E9107`, `E9108`,
 - `check input.docx edits.docxpatch [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 - `apply input.docx edits.docxpatch --output output.docx [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
 
-Track-change modes are `off`, `preserve`, `suggest`, and `require`. Supported tracked output includes simple `replace-text`, whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes, and simple single-paragraph table-cell text replacement. Tracked text output is limited to shapes without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails unsupported operations or unsupported shapes; `suggest` warns and applies unsupported edits directly.
+Track-change modes are `off`, `preserve`, `suggest`, and `require`. Supported tracked output includes simple `replace-text`, whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes, and simple single-paragraph table-cell text replacement. Tracked text output is limited to shapes without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails preserve-only operations with `E6001` and unsupported tracked shapes with `E6002`; `suggest` warns with `W4001` or `W4002` and applies the direct edit.
 `docxedit help patch` includes a track-change support table generated from
 `DocxHelp.Catalog`, including operation-specific support values such as
 `tracked-simple`, `tracked-paragraph`, `tracked-style`, `tracked-cell-simple`,
 `preserve-only`, and `unsupported`. `preserve-only` means existing revision markup is
 preserved but the operation does not create new revision markup; `suggest` applies
-directly with `W4001`, and `require` fails with `E6001`.
+directly with `W4001`, and `require` fails with `E6001`. The `W4001` and `E6001`
+messages include the catalog support value.
 Plain text `check` and `apply` output includes one `operation index=...` line per
 patch operation with operation name, target, and success. Table operations also emit
 `affected id=...` row/cell lines with action, parent, row/column, and row-count

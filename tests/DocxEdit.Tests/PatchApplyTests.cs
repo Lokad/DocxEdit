@@ -433,7 +433,10 @@ public static class PatchApplyTests
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("does not generate new revision markup", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("M.L0001", diagnostic.TargetId);
     }
 
     [Fact]
@@ -666,7 +669,9 @@ public static class PatchApplyTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.True(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("apply operation 'set-content-control-text' directly", diagnostic.Message, StringComparison.Ordinal);
         output.Position = 0;
         Assert.Equal("Customer", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }

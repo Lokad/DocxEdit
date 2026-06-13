@@ -175,7 +175,8 @@ Implemented areas include:
   paragraph insertion/deletion, paragraph style changes, and simple table-cell text
   replacement with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog,
-  including tracked and preserve-only operation classifications;
+  including tracked and preserve-only operation classifications, with `W4001` and
+  `E6001` diagnostics that report the catalog support value;
 - structural package validation through `validate`, including known part roots, paired
   ranges, complex field balance and field flag consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   image relationship target/content-type checks, drawing property ID uniqueness,

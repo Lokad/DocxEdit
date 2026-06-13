@@ -2330,6 +2330,8 @@ set-hyperlink-target
 set-hyperlink-text
 insert-hyperlink-after
 remove-hyperlink
+set-table-style
+set-row-header
 append-row
 insert-row-before
 insert-row-after
@@ -2348,9 +2350,12 @@ set-section-orientation
 ```
 
 In `Suggest`, these preserve-only operations apply directly and return `W4001`
-warnings.
+warnings. The diagnostic message includes the operation's shared catalog support
+value, such as `preserve-only`.
 
-In `Require`, they fail.
+In `Require`, they fail with `E6001`. The diagnostic message includes the
+operation's shared catalog support value so integrations can distinguish
+preserve-only operations from unclassified operations.
 
 Revision metadata:
 

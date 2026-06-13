@@ -18,8 +18,12 @@ Common code ranges:
 - `E90xx`: post-edit validation failure.
 - `E91xx`: structural package validation failure from `validate`.
 - `W91xx`: validation warning from `validate`.
-- `W4001`: `TrackChangesMode.Suggest` warning for an operation without tracked-change output; the edit is applied directly.
+- `W4001`: `TrackChangesMode.Suggest` warning for an operation without tracked-change
+  output; the message includes the shared catalog support value, and the edit is
+  applied directly.
 - `W4002`: `TrackChangesMode.Suggest` warning for a `replace-text` shape that cannot be represented as simple tracked-change output; the edit is applied directly.
+- `E6001`: `TrackChangesMode.Require` error for an operation without generated
+  tracked-change output; the message includes the shared catalog support value.
 - `E4312`: comment resolution state cannot be edited because the comment body shape
   cannot safely host modern resolution metadata.
 - `E4313`: field code/result replacement was requested for a field shape that is not

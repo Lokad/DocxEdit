@@ -184,7 +184,9 @@ revision markup, and must have compatible direct run-property shape.
 Known operations without generated revision output are classified as `preserve-only`
 in the shared help catalog: they preserve existing revision markup, apply directly
 under `TrackChangesMode.Suggest` with `W4001`, and fail under
-`TrackChangesMode.Require` with `E6001`. Supported tracked operations still fail
+`TrackChangesMode.Require` with `E6001`. The `W4001` and `E6001` messages include
+the catalog support value so integrations can distinguish intentionally preserve-only
+operations from unclassified operations. Supported tracked operations still fail
 unsupported target shapes with `E6002`; `TrackChangesMode.Suggest` warns with `W4002`
 and applies the direct edit instead.
 Existing tracked-change and comment markup is preserved unless the targeted operation

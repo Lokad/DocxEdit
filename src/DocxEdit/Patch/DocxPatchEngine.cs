@@ -80,13 +80,13 @@ internal static class DocxPatchEngine
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
             {
-                operationDiagnostics.Add(Diagnostic(DocxSeverity.Error, "E6001", $"TrackChangesMode.Require is not supported for operation '{operation.OperationName}'.", operation, operation.Fields.GetValueOrDefault("target")));
+                operationDiagnostics.Add(Diagnostic(DocxSeverity.Error, "E6001", BuildUnsupportedTrackedOperationMessage(options.TrackChanges, operation), operation, operation.Fields.GetValueOrDefault("target")));
             }
             else
             {
                 if (options.TrackChanges == TrackChangesMode.Suggest && !supportsTrackedChanges)
                 {
-                    operationDiagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4001", $"TrackChangesMode.Suggest is not supported for operation '{operation.OperationName}'; applying the edit directly.", operation, operation.Fields.GetValueOrDefault("target")));
+                    operationDiagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4001", BuildUnsupportedTrackedOperationMessage(options.TrackChanges, operation), operation, operation.Fields.GetValueOrDefault("target")));
                 }
 
                 operationDiagnostics.AddRange(operation.OperationName switch
@@ -170,14 +170,26 @@ internal static class DocxPatchEngine
 
     private static bool SupportsTrackedChangeOutput(string operationName)
     {
-        return operationName is
-            "replace-text" or
-            "replace-paragraph" or
-            "insert-before" or
-            "insert-after" or
-            "delete-block" or
-            "set-style" or
-            "set-cell";
+        return DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operation) &&
+            operation.TrackChangesSupport.StartsWith("tracked-", StringComparison.Ordinal);
+    }
+
+    private static string BuildUnsupportedTrackedOperationMessage(TrackChangesMode mode, DocxPatchOperation operation)
+    {
+        string operationName = operation.OperationName;
+        string support = DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operationInfo)
+            ? operationInfo.TrackChangesSupport
+            : "unclassified";
+
+        return mode switch
+        {
+            TrackChangesMode.Require =>
+                $"TrackChangesMode.Require cannot apply operation '{operationName}' as tracked output because its catalog support is '{support}'. Existing tracked-change markup is preserved, but this operation does not generate new revision markup.",
+            TrackChangesMode.Suggest =>
+                $"TrackChangesMode.Suggest will apply operation '{operationName}' directly because its catalog support is '{support}'. Existing tracked-change markup is preserved, but this operation does not generate new revision markup.",
+            _ =>
+                $"TrackChangesMode.{mode} does not generate tracked output for operation '{operationName}' because its catalog support is '{support}'."
+        };
     }
 
     private static bool ShouldMarkFieldsDirtyAfterOperation(string operationName)
