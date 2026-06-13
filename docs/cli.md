@@ -24,13 +24,13 @@ docxedit read report.docx --summary
 When running this repository from source, replace `docxedit` with:
 
 ```text
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj --
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj --
 ```
 
 For example:
 
 ```text
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- read report.docx --summary
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- read report.docx --summary
 ```
 
 ## Recommended Workflow
@@ -192,7 +192,7 @@ the same data is in `Runs`.
 | Sections | `read`, `outline` | Section operations target main-document section IDs |
 
 For a full inventory of supported and unsupported shapes, see
-[status.md](status.md) and [SHAPE_INVENTORY.md](../SHAPE_INVENTORY.md).
+[status.md](status.md).
 
 ## Check And Apply
 

@@ -36,7 +36,7 @@ $ChallengeRoot = Join-Path $RepoRoot "agent-challenges/challenges"
 $SchemaPath = Join-Path $RepoRoot "agent-challenges/final.schema.json"
 $PrivateRoot = Join-Path $RepoRoot "private-cases"
 $ArtifactRoot = Join-Path $RepoRoot "artifacts/agent-challenges"
-$CliProject = Join-Path $RepoRoot "src/DocxEdit.Cli/DocxEdit.Cli.csproj"
+$CliProject = Join-Path $RepoRoot "src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj"
 
 function Test-IsUnderPath([string] $Path, [string] $Root) {
     $resolvedPath = [System.IO.Path]::GetFullPath($Path).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
@@ -638,7 +638,7 @@ $commands = @($events.Commands)
 $usedForbiddenPattern = '(?i)(Expand-Archive|unzip|python-docx|DocumentFormat\.OpenXml|Word\.Application|winword|word[\\/][^ ]*\.xml|System\.IO\.Compression\.ZipFile|ZipArchive)'
 $metrics = [pscustomobject]@{
     CommandCount = $commands.Count
-    UsedDocxEdit = Test-AnyCommand $commands '(?i)(docxedit\.ps1|DocxEdit\.Cli|docxedit)'
+    UsedDocxEdit = Test-AnyCommand $commands '(?i)(docxedit\.ps1|Lokad\.DocxEdit\.Cli|docxedit)'
     UsedChanges = Test-AnyCommand $commands '(?i)\bchanges\b'
     UsedMarkupView = Test-AnyCommand $commands '(?i)--view\s+markup'
     UsedCheck = Test-AnyCommand $commands '(?i)\bcheck\b'

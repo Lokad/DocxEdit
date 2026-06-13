@@ -81,7 +81,7 @@ Create this structure:
 
 ```text
 .gitignore
-DocxEdit.slnx
+Lokad.DocxEdit.slnx
 Directory.Build.props
 Directory.Build.rsp
 Directory.Packages.props                # optional; no production package refs
@@ -89,25 +89,25 @@ README.md
 CHANGELOG.md
 LICENSE.txt
 src/
-  DocxEdit/
-    DocxEdit.csproj
+  Lokad.DocxEdit/
+    Lokad.DocxEdit.csproj
     Public/
     Ooxml/
     Model/
     Patch/
     Rendering/
     Validation/
-  DocxEdit.Cli/
-    DocxEdit.Cli.csproj
+  Lokad.DocxEdit.Cli/
+    Lokad.DocxEdit.Cli.csproj
     Program.cs
 tests/
-  DocxEdit.Tests/
-    DocxEdit.Tests.csproj
+  Lokad.DocxEdit.Tests/
+    Lokad.DocxEdit.Tests.csproj
     Fixtures/
     Unit/
     Golden/
-  DocxEdit.OfficeTests/
-    DocxEdit.OfficeTests.csproj
+  Lokad.DocxEdit.OfficeTests/
+    Lokad.DocxEdit.OfficeTests.csproj
     OfficeInterop/
 tools/
   CheckDocxCase.ps1
@@ -198,7 +198,7 @@ The CLI can be published as a single executable for local use. .NET supports sin
 Example:
 
 ```bash
-dotnet publish src/DocxEdit.Cli/DocxEdit.Cli.csproj \
+dotnet publish src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj \
   -c Release \
   -r win-x64 \
   --self-contained false \
@@ -216,7 +216,7 @@ The public API must be stream-first and command-line agnostic.
 Expose a simple façade:
 
 ```csharp
-namespace DocxEdit;
+namespace Lokad.DocxEdit;
 
 public sealed class DocxEditor
 {
@@ -295,7 +295,7 @@ The library must not require file paths. The CLI may provide path-based wrappers
 Patches need to reference image assets. Since the library must work without file-system access, asset references are logical names resolved through an asset provider.
 
 ```csharp
-namespace DocxEdit;
+namespace Lokad.DocxEdit;
 
 public interface IDocxAssetProvider
 {
@@ -3354,7 +3354,7 @@ Also allow optional Microsoft Word-generated fixtures for real-world compatibili
 
 ### 23.4 Office integration tests
 
-Create `DocxEdit.OfficeTests`.
+Create `Lokad.DocxEdit.OfficeTests`.
 
 These tests are optional and run only when:
 

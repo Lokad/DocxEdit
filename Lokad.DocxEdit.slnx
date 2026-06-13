@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj" />
+    <Project Path="src/Lokad.DocxEdit/Lokad.DocxEdit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lokad.DocxEdit.OfficeTests/Lokad.DocxEdit.OfficeTests.csproj" />
+    <Project Path="tests/Lokad.DocxEdit.Tests/Lokad.DocxEdit.Tests.csproj" />
+  </Folder>
+</Solution>

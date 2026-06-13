@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $PrivateRoot = Join-Path $RepoRoot "private-cases"
 $ArtifactRoot = Join-Path $RepoRoot "artifacts/private-edit"
-$CliProject = Join-Path $RepoRoot "src/DocxEdit.Cli/DocxEdit.Cli.csproj"
+$CliProject = Join-Path $RepoRoot "src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj"
 
 function Resolve-ExistingPath([string] $Path) {
     return (Resolve-Path -LiteralPath $Path).Path

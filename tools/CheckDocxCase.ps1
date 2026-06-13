@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $CaseRoot = Join-Path $RepoRoot "edit-cases/cases"
 $ArtifactRoot = Join-Path $RepoRoot "artifacts/edit-cases"
-$CliProject = Join-Path $RepoRoot "src/DocxEdit.Cli/DocxEdit.Cli.csproj"
+$CliProject = Join-Path $RepoRoot "src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj"
 
 function ConvertTo-ProcessArgument([string] $Argument) {
     if ([string]::IsNullOrEmpty($Argument)) {

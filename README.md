@@ -5,7 +5,7 @@ DocxEdit is a stream-first .NET library and local CLI for inspecting and editing
 The package identity is `Lokad.DocxEdit`. The production library has no NuGet dependencies beyond the .NET platform libraries.
 
 For a concise inventory of supported and unsupported OOXML shapes, see
-[`SHAPE_INVENTORY.md`](SHAPE_INVENTORY.md).
+[`docs/status.md`](docs/status.md).
 
 ## DocxPatch DSL
 
@@ -78,7 +78,7 @@ Fresh agents are expected to rely on `docxedit help patch`, `docxedit help chang
 ## Library Quick Start
 
 ```csharp
-using DocxEdit;
+using Lokad.DocxEdit;
 
 await using Stream input = File.OpenRead("report.docx");
 DocxReadResult read = new DocxEditor().Read(input);
@@ -107,10 +107,10 @@ string contextText = DocxTextRenderer.RenderContext(context);
 ## CLI Quick Start
 
 ```powershell
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- read report.docx
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- changes report.docx
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- check report.docx edits.docxpatch
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- apply report.docx edits.docxpatch -o report.edited.docx
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- read report.docx
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- changes report.docx
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- check report.docx edits.docxpatch
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- apply report.docx edits.docxpatch -o report.edited.docx
 ```
 
 ## Documentation
@@ -120,9 +120,9 @@ See [docs/cli.md](docs/cli.md), [docs/patch-format.md](docs/patch-format.md), [d
 ## Build And Test
 
 ```powershell
-dotnet build DocxEdit.slnx
-dotnet test DocxEdit.slnx
-dotnet pack src/DocxEdit/DocxEdit.csproj -c Release
+dotnet build Lokad.DocxEdit.slnx
+dotnet test Lokad.DocxEdit.slnx
+dotnet pack src/Lokad.DocxEdit/Lokad.DocxEdit.csproj -c Release
 ```
 
 Generated packages are written under ignored `artifacts/nuget/`.
