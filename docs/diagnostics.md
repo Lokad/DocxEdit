@@ -83,7 +83,16 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
   vertical merge continuation mismatch, or row width exceeding `tblGrid`.
 - `E9115`: content-control metadata is malformed, such as invalid `w:id`,
   duplicate `w:id`, invalid `w:lock`, or invalid checkbox `w:checked` values.
+- `E9118`: settings metadata is malformed, such as an invalid `w:updateFields`
+  boolean value.
+- `E9119`: header or footer section references are missing a relationship, point
+  to a missing relationship ID, or use the wrong relationship type.
+- `E9120`: section properties are malformed, such as invalid column counts or page
+  orientation values.
 - `E9199`: validation diagnostics were capped and omitted diagnostics include errors.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.
+- `W9116`: a paragraph references a style ID that is missing from `styles.xml`.
+- `W9117`: a paragraph numbering reference, numbering definition, or abstract
+  numbering definition is missing.
 - `W9199`: validation diagnostics were capped and omitted diagnostics are warnings only.

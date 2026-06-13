@@ -39,7 +39,14 @@ diagnostic was an error or `W9199` when only warnings were omitted.
 Current checks include:
 
 - expected roots for known WordprocessingML parts such as the main document, styles,
-  numbering, settings, comments, commentsExtended, headers, and footers;
+  numbering, settings, comments, commentsExtended, headers, footers, footnotes,
+  and endnotes, plus relationship part roots;
+- section header/footer references that must resolve to relationships with the
+  matching header or footer relationship type;
+- paragraph style references and numbering definitions, reported as warnings when
+  they point to missing style, numbering, or abstract-numbering definitions;
+- settings metadata for update-fields values;
+- section property values for columns and page orientation;
 - paired bookmark and comment range start/end IDs;
 - comment body, anchor, and reference ID consistency;
 - modern `commentsExtended.xml` paraId consistency;
@@ -59,6 +66,10 @@ This remains layered internal validation rather than full ISO/IEC 29500 schema
 validation. A strict schema profile is not exposed until an actual schema validator
 bridge exists. The current profiles are designed to catch common corruption and
 relationship mistakes with stable `E91xx` diagnostics.
+
+Public unit tests maintain a small synthetic validation fixture corpus with
+known-good documents, malformed structural cases, and warning-only cases. Patch
+tests also validate representative generated documents after successful edits.
 
 ## Public Edit Cases
 

@@ -62,6 +62,31 @@ public static class ReadApiTests
         Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E9103");
     }
 
+    [Theory]
+    [InlineData("basic-document", true, null)]
+    [InlineData("unclosed-bookmark", false, "E9103")]
+    [InlineData("invalid-relationship-root", false, "E9102")]
+    [InlineData("missing-style-definition", true, "W9116")]
+    public static void ValidateFixtureCorpusCoversKnownGoodAndMalformedDocuments(
+        string fixtureName,
+        bool expectedSuccess,
+        string? expectedDiagnosticCode)
+    {
+        using MemoryStream stream = CreateValidationFixture(fixtureName);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.Equal(expectedSuccess, result.Success);
+        if (expectedDiagnosticCode is null)
+        {
+            Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+        }
+        else
+        {
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == expectedDiagnosticCode);
+        }
+    }
+
     [Fact]
     public static void ValidateWarnsOnDuplicateSemanticSelectors()
     {
@@ -3077,6 +3102,43 @@ public static class ReadApiTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static MemoryStream CreateValidationFixture(string fixtureName)
+    {
+        return fixtureName switch
+        {
+            "basic-document" => CreateDocx(),
+            "unclosed-bookmark" => CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Unclosed"/>
+                      <w:r><w:t>Text</w:t></w:r>
+                    </w:p>
+                """),
+            "invalid-relationship-root" => CreateDocxWithBody(
+                """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                """,
+                extra: archive => AddEntry(archive, "word/_rels/header1.xml.rels", """
+                    <BrokenRelationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+                    """)),
+            "missing-style-definition" => CreateDocxWithStylesAndNumbering(
+                """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="MissingStyle"/></w:pPr>
+                      <w:r><w:t>Styled text</w:t></w:r>
+                    </w:p>
+                """,
+                """
+                    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:style w:type="paragraph" w:styleId="KnownStyle"/>
+                    </w:styles>
+                    """,
+                """
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """),
+            _ => throw new ArgumentOutOfRangeException(nameof(fixtureName), fixtureName, "Unknown validation fixture.")
+        };
     }
 
     private static MemoryStream CreateDocxWithImageRelationshipIssues()

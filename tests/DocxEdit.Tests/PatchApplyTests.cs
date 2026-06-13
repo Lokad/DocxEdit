@@ -3989,6 +3989,58 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyGeneratedDocumentPassesStructuralValidation()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol w:w="2400"/><w:gridCol w:w="2400"/></w:tblGrid>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            expect-text Anchor
+            find Anchor
+            with Updated anchor
+            end
+
+            op add-bookmark
+            target M.P0001
+            expect-text Updated anchor
+            name ReviewAnchor
+            end
+
+            op set-table-metadata
+            target M.T0001
+            caption Review table
+            description Generated validation fixture
+            end
+
+            op append-row
+            target M.T0001
+            cell South
+            cell Profit
+            end
+            """);
+
+        DocxApplyResult apply = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(apply.Success);
+        output.Position = 0;
+        DocxValidateResult validate = new DocxEditor().Validate(output);
+        Assert.True(validate.Success, string.Join(Environment.NewLine, validate.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
+        Assert.DoesNotContain(validate.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+    }
+
+    [Fact]
     public static void ApplyInsertImageAfterPreservesPngAspectRatioWhenOnlyWidthIsSupplied()
     {
         using MemoryStream input = CreateDocx("Intro");
