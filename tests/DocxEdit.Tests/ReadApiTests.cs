@@ -1429,6 +1429,64 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadResolvesHeaderAndFooterNumberingWhenRequested()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Main body</w:t></w:r></w:p>
+                    <w:sectPr xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:headerReference w:type="default" r:id="rHeader"/>
+                      <w:footerReference w:type="default" r:id="rFooter"/>
+                    </w:sectPr>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                </Relationships>
+                """,
+            archive =>
+            {
+                AddEntry(archive, "word/styles.xml", """
+                    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """);
+                AddEntry(archive, "word/numbering.xml", """
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:abstractNum w:abstractNumId="7">
+                        <w:lvl w:ilvl="0">
+                          <w:start w:val="1"/>
+                          <w:numFmt w:val="decimal"/>
+                          <w:lvlText w:val="%1."/>
+                        </w:lvl>
+                      </w:abstractNum>
+                      <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                    </w:numbering>
+                    """);
+                AddEntry(archive, "word/header1.xml", """
+                    <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Header item</w:t></w:r></w:p>
+                    </w:hdr>
+                    """);
+                AddEntry(archive, "word/footer1.xml", """
+                    <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Footer item</w:t></w:r></w:p>
+                    </w:ftr>
+                    """);
+            });
+
+        DocxReadResult result = new DocxEditor().Read(stream, new DocxReadOptions { IncludeHeadersFooters = true });
+
+        DocxParagraphInfo header = Assert.Single(result.Paragraphs, paragraph => paragraph.Id == "H001.P0001");
+        DocxParagraphInfo footer = Assert.Single(result.Paragraphs, paragraph => paragraph.Id == "F001.P0001");
+        Assert.Equal("1.", header.List?.LabelText);
+        Assert.Equal("1.", footer.List?.LabelText);
+        Assert.Contains("H001.P0001 paragraph list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"1.\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("F001.P0001 paragraph list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"1.\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void FindCanSearchHeaderAndFooterStoriesWhenRequested()
     {
         using MemoryStream stream = CreateDocx();
