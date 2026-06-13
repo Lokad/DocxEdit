@@ -286,6 +286,36 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliApplyCanReplaceBookmarkText()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string output = Path.Combine(temp.Path, "output.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateDocxWithBookmark(input);
+        File.WriteAllText(patch, """
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text Customer
+            end
+            """);
+
+        CliResult check = RunCli("check", input, patch);
+        CliResult apply = RunCli("apply", input, patch, "--output", output);
+
+        Assert.Equal(0, check.ExitCode);
+        Assert.Equal(0, apply.ExitCode);
+        Assert.True(File.Exists(output));
+        string xml = ReadEntry(output, "word/document.xml");
+        Assert.Contains("w:bookmarkStart w:id=\"1\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkEnd w:id=\"1\"", xml, StringComparison.Ordinal);
+        Assert.Contains("Customer", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:t>Client</w:t>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliChangesPrintsSafeTrackedMarkupSummary()
     {
         using TempDirectory temp = TempDirectory.Create();
@@ -594,6 +624,40 @@ public static class CliTests
             <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
               <w:body>
                 <w:p><w:r><w:t>Revenue increased</w:t></w:r></w:p>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void CreateDocxWithBookmark(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p>
+                  <w:r><w:t>Before </w:t></w:r>
+                  <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                  <w:r><w:t>Client</w:t></w:r>
+                  <w:bookmarkEnd w:id="1"/>
+                  <w:r><w:t> After</w:t></w:r>
+                </w:p>
               </w:body>
             </w:document>
             """);
