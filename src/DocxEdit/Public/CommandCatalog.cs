@@ -538,7 +538,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "Validate package and WordprocessingML invariants",
                     Usage = "docxedit validate input.docx [--profile structural|package] [--max-diagnostics <count>] [--json] [--diagnostics <path>] [--strict]",
-                    Description = "Validate package-level XML roots and, with the structural profile, WordprocessingML invariants: paired bookmark/comment ranges, duplicate semantic selectors, complex field balance, content-control metadata, drawing relationships, image target/content-type checks, drawing geometry, basic table shape, and table visual-grid consistency. Package profile limits validation to package/XML root checks. Diagnostics are capped and report E9199 or W9199 when omitted.",
+                    Description = "Validate package-level XML roots and, with the structural profile, WordprocessingML invariants: paired bookmark/comment ranges, duplicate semantic selectors, commentsExtended consistency, complex field balance/result containment, content-control metadata, paragraph style and numbering references, settings updateFields, header/footer references, section properties, drawing relationships, image target/content-type checks, drawing geometry, basic table shape, and table visual-grid consistency. Package profile limits validation to package/XML root checks. Diagnostics are capped and report E9199 or W9199 when omitted.",
                     Options =
                     [
                         new("--profile structural|package", "Validation profile; structural is the default"),
