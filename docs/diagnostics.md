@@ -59,7 +59,8 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9109`: DrawingML extents are missing or non-positive.
 - `E9110`: DrawingML crop percentages are malformed or leave no visible image area.
 - `E9111`: comment body, anchor, or reference IDs are missing, duplicated, or inconsistent.
-- `E9112`: field instruction text or dirty/lock flag metadata is malformed.
+- `E9112`: field instruction text, result containment, or dirty/lock flag metadata
+  is malformed.
 - `E9113`: DrawingML image references use a non-image relationship, missing target
   part, or non-image media content type.
 - `E9114`: table visual-grid metadata is inconsistent, such as invalid `gridSpan`,

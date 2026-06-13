@@ -39,8 +39,8 @@ Current checks include:
 - paired bookmark and comment range start/end IDs;
 - comment body, anchor, and reference ID consistency;
 - modern `commentsExtended.xml` paraId consistency;
-- complex field begin/separate/end balance, instruction-text containment, and
-  dirty/lock flag validity;
+- complex field begin/separate/end balance, instruction-text containment,
+  cached-result containment, and dirty/lock flag validity;
 - DrawingML `a:blip` relationship references, image relationship target parts, and
   image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;

@@ -241,6 +241,15 @@ internal static class DocxPackageValidator
                 continue;
             }
 
+            if (element.Name == OoxmlNs.W + "t" &&
+                stack.Count > 0 &&
+                !stack.Peek().HasSeparate &&
+                !string.IsNullOrWhiteSpace(element.Value))
+            {
+                diagnostics.Add(Error("E9112", "Field result text appears before the complex field separate marker.", partName));
+                continue;
+            }
+
             if (element.Name != OoxmlNs.W + "fldChar")
             {
                 continue;

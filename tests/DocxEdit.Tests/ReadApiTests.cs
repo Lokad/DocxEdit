@@ -291,6 +291,9 @@ public static class ReadApiTests
                       <w:r><w:fldChar w:fldCharType="separate"/></w:r>
                       <w:r><w:fldChar w:fldCharType="separate"/></w:r>
                       <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:t>Cached result too early</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
                     </w:p>
             """);
         var editor = new DocxEditor();
@@ -307,6 +310,9 @@ public static class ReadApiTests
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E9112" &&
             diagnostic.Message.Contains("w:fldLock", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("result text appears before", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E9104" &&
             diagnostic.Message.Contains("separate appears without", StringComparison.Ordinal));
