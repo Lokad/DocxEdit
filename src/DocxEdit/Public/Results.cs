@@ -366,6 +366,7 @@ public sealed record DocxFieldInfo
     public string Kind { get; init; } = "unknown";
     public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
+    public string CachedResultText { get; init; } = string.Empty;
     public int ResultTextLength { get; init; }
     public int NestingDepth { get; init; }
     public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];

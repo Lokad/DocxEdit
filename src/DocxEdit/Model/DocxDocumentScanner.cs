@@ -662,6 +662,7 @@ internal static class DocxDocumentScanner
                 string code = NormalizeFieldCode((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
                 FieldCodeMetadata metadata = AnalyzeFieldCode(code);
                 bool? isLocked = ReadOnOffAttribute(element, "fldLock");
+                string cachedResultText = ReadText(element, textView);
                 fields.Add(new DocxFieldInfo
                 {
                     Id = $"{idPrefix}.F{fieldIndex++:0000}",
@@ -671,7 +672,8 @@ internal static class DocxDocumentScanner
                     Kind = "simple",
                     FieldType = metadata.FieldType,
                     Code = code,
-                    ResultTextLength = ReadText(element, textView).Length,
+                    CachedResultText = cachedResultText,
+                    ResultTextLength = cachedResultText.Length,
                     NestingDepth = stack.Count,
                     BookmarkDependencies = metadata.BookmarkDependencies,
                     HyperlinkDependencies = metadata.HyperlinkDependencies,
@@ -722,7 +724,7 @@ internal static class DocxDocumentScanner
             }
             else
             {
-                AddComplexFieldResultLength(stack, element, textView);
+                AddComplexFieldResultText(stack, element, textView);
             }
         }
 
@@ -734,13 +736,13 @@ internal static class DocxDocumentScanner
         return fields;
     }
 
-    private static void AddComplexFieldResultLength(
+    private static void AddComplexFieldResultText(
         Stack<ComplexFieldBuilder> stack,
         XElement element,
         DocxTextView textView)
     {
-        int length = ReadFieldResultTextElementLength(element, textView);
-        if (length == 0)
+        string text = ReadFieldResultTextElement(element, textView);
+        if (text.Length == 0)
         {
             return;
         }
@@ -749,7 +751,7 @@ internal static class DocxDocumentScanner
         {
             if (builder.HasSeparate)
             {
-                builder.ResultTextLength += length;
+                builder.ResultText.Append(text);
             }
         }
     }
@@ -856,24 +858,24 @@ internal static class DocxDocumentScanner
         return null;
     }
 
-    private static int ReadFieldResultTextElementLength(XElement element, DocxTextView textView)
+    private static string ReadFieldResultTextElement(XElement element, DocxTextView textView)
     {
         if (!ShouldIncludeTextElement(element, textView))
         {
-            return 0;
+            return string.Empty;
         }
 
         if (element.Name == OoxmlNs.W + "t" || element.Name == OoxmlNs.W + "delText")
         {
-            return ApplyMarkupTextView(element, element.Value, textView).Length;
+            return ApplyMarkupTextView(element, element.Value, textView);
         }
 
         if (element.Name == OoxmlNs.W + "tab" || element.Name == OoxmlNs.W + "br")
         {
-            return 1;
+            return ApplyMarkupTextView(element, element.Name == OoxmlNs.W + "tab" ? "\t" : "\n", textView);
         }
 
-        return 0;
+        return string.Empty;
     }
 
     private static string NormalizeFieldCode(string code)
@@ -1534,7 +1536,7 @@ internal static class DocxDocumentScanner
         public string? TargetId { get; } = targetId;
         public int NestingDepth { get; } = nestingDepth;
         public System.Text.StringBuilder Code { get; } = new();
-        public int ResultTextLength { get; set; }
+        public System.Text.StringBuilder ResultText { get; } = new();
         public bool HasSeparate { get; set; }
         public bool? IsDirty { get; init; }
         public bool? IsLocked { get; init; }
@@ -1543,6 +1545,7 @@ internal static class DocxDocumentScanner
         {
             _ = StartElement;
             string code = NormalizeFieldCode(Code.ToString());
+            string resultText = ResultText.ToString();
             FieldCodeMetadata metadata = AnalyzeFieldCode(code);
             return new DocxFieldInfo
             {
@@ -1553,7 +1556,8 @@ internal static class DocxDocumentScanner
                 Kind = "complex",
                 FieldType = metadata.FieldType,
                 Code = code,
-                ResultTextLength = ResultTextLength,
+                CachedResultText = resultText,
+                ResultTextLength = resultText.Length,
                 NestingDepth = NestingDepth,
                 BookmarkDependencies = metadata.BookmarkDependencies,
                 HyperlinkDependencies = metadata.HyperlinkDependencies,

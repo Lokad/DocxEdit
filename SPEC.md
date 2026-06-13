@@ -1054,6 +1054,7 @@ public sealed record DocxFieldInfo
     public string Kind { get; init; } = "unknown";
     public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
+    public string CachedResultText { get; init; } = string.Empty;
     public int ResultTextLength { get; init; }
     public int NestingDepth { get; init; }
     public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];
@@ -1066,8 +1067,9 @@ public sealed record DocxFieldInfo
 ```
 
 Field IDs use the `F` namespace, for example `M.F0001`. They are metadata IDs, not
-general text edit targets. `set-field-dirty` and `set-field-lock` explicitly accept
-field metadata IDs.
+general text edit targets. `CachedResultText` is the stored visible result currently
+in the document, not a recalculated value. `set-field-dirty` and `set-field-lock`
+explicitly accept field metadata IDs.
 
 ### 8.10 Hyperlink model
 
@@ -1273,7 +1275,7 @@ M.P0001 heading level=1 styleId=Heading1 text="Executive Summary"
 M.P0002 paragraph list numId=42 level=0 abstractNumId=7 format=decimal level-text="%1." text="Revenue increased"
 M.B0001 bookmark name="ClientName" ooxml-id=1 story="main" part=/word/document.xml start=M.P0002 end=M.P0002 complete=True
 M.CC0001 content-control kind=plain-text story="main" part=/word/document.xml target=M.P0002 tag="client_name" alias="Client Name" text-length=4
-M.F0001 field kind=complex type=REF story="main" part=/word/document.xml target=M.P0002 code="REF ClientName \h" result-text-length=4 nesting-depth=0 bookmark-dependencies="ClientName" safe-edit=flags-only dirty=True complete=True
+M.F0001 field kind=complex type=REF story="main" part=/word/document.xml target=M.P0002 code="REF ClientName \h" cached-result="Acme" result-text-length=4 nesting-depth=0 bookmark-dependencies="ClientName" safe-edit=flags-only dirty=True complete=True
 M.L0001 hyperlink story="main" part=/word/document.xml target=M.P0002 relationship-id=rLink uri="https://example.test/report" uri-scheme=https uri-valid=true tooltip="Open report" target-frame="_blank" history=false external=True broken=False display-text-length=6
 M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
   M.T0001.R01 row cells=3 header=true

@@ -1809,6 +1809,7 @@ public static class ReadApiTests
         Assert.Equal("DATE", simple.FieldType);
         Assert.Equal("DATE", simple.Code);
         Assert.Equal("M.P0001", simple.TargetId);
+        Assert.Equal("June 12, 2026", simple.CachedResultText);
         Assert.Equal(13, simple.ResultTextLength);
         Assert.Equal(0, simple.NestingDepth);
         Assert.Empty(simple.BookmarkDependencies);
@@ -1824,6 +1825,7 @@ public static class ReadApiTests
         Assert.Equal("REF", complex.FieldType);
         Assert.Equal(@"REF ClientName \h", complex.Code);
         Assert.Equal("M.P0002", complex.TargetId);
+        Assert.Equal("Client result", complex.CachedResultText);
         Assert.Equal(13, complex.ResultTextLength);
         Assert.Equal(0, complex.NestingDepth);
         Assert.Equal(new[] { "ClientName" }, complex.BookmarkDependencies);
@@ -1834,6 +1836,7 @@ public static class ReadApiTests
         Assert.True(complex.IsComplete);
 
         Assert.Contains("M.F0001 field kind=simple type=DATE", result.Text, StringComparison.Ordinal);
+        Assert.Contains("cached-result=\"June 12, 2026\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("safe-edit=locked", result.Text, StringComparison.Ordinal);
         Assert.Contains(@"code=""REF ClientName \\h""", result.Text, StringComparison.Ordinal);
         Assert.Contains("bookmark-dependencies=\"ClientName\"", result.Text, StringComparison.Ordinal);
@@ -1869,6 +1872,7 @@ public static class ReadApiTests
         Assert.Equal("complex", inner.Kind);
         Assert.Equal("DATE", inner.FieldType);
         Assert.Equal("M.P0001", inner.TargetId);
+        Assert.Equal("June 13", inner.CachedResultText);
         Assert.Equal(7, inner.ResultTextLength);
         Assert.Equal(1, inner.NestingDepth);
         Assert.True(inner.IsComplete);
@@ -1877,6 +1881,7 @@ public static class ReadApiTests
         Assert.Equal("complex", outer.Kind);
         Assert.Equal("IF", outer.FieldType);
         Assert.Equal("M.P0001", outer.TargetId);
+        Assert.Equal("Prefix June 13 Suffix", outer.CachedResultText);
         Assert.Equal(21, outer.ResultTextLength);
         Assert.Equal(0, outer.NestingDepth);
         Assert.True(outer.IsComplete);

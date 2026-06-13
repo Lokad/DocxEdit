@@ -133,6 +133,8 @@ internal static class TextRenderers
                 .Append(target)
                 .Append(" code=\"")
                 .Append(Escape(field.Code))
+                .Append("\" cached-result=\"")
+                .Append(Escape(field.CachedResultText))
                 .Append("\" result-text-length=")
                 .Append(field.ResultTextLength)
                 .Append(" nesting-depth=")

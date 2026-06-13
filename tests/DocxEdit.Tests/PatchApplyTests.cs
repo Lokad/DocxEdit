@@ -348,6 +348,7 @@ public static class PatchApplyTests
         output.Position = 0;
         DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
         Assert.Equal("REF ClientName \\h", field.Code);
+        Assert.Equal("New cached result", field.CachedResultText);
         Assert.Equal(17, field.ResultTextLength);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
@@ -390,6 +391,7 @@ public static class PatchApplyTests
         DocxFieldInfo field = Assert.Single(read.Fields);
         Assert.Equal("REF ClientName \\h", field.Code);
         Assert.Equal("ClientName", Assert.Single(field.BookmarkDependencies));
+        Assert.Equal("Acme Corp", field.CachedResultText);
         Assert.Equal(9, field.ResultTextLength);
         Assert.Null(field.IsDirty);
         Assert.Equal("Acme Corp", read.Paragraphs[1].Text);

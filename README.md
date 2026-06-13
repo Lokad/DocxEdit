@@ -165,8 +165,8 @@ Implemented areas include:
 - explicit `E4315` diagnostics for unsupported repeating-section item insertion
   and deletion attempts;
 - simple and complex field read/context metadata, including parsed field type,
-  nesting depth, bookmark/hyperlink dependencies, safe-edit status, explicit
-  dirty/lock flag patch operations for one field or all modeled fields,
+  cached result text/length, nesting depth, bookmark/hyperlink dependencies,
+  safe-edit status, explicit dirty/lock flag patch operations for one field or all modeled fields,
   simple-field code/result patching, simple REF/PAGEREF/NOTEREF cached-result
   refresh from unambiguous bookmarks, field-update marking after edits, and `W5103`
   diagnostics for Word-side refresh;
