@@ -258,6 +258,36 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidFootnoteAndEndnoteRoots()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            extra: archive =>
+            {
+                AddEntry(archive, "word/footnotes.xml", """
+                    <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """);
+                AddEntry(archive, "word/endnotes.xml", """
+                    <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """);
+            });
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9102" &&
+            diagnostic.PartName == "/word/footnotes.xml" &&
+            diagnostic.Message.Contains("footnotes", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9102" &&
+            diagnostic.PartName == "/word/endnotes.xml" &&
+            diagnostic.Message.Contains("endnotes", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsWordprocessingInvariants()
     {
         using MemoryStream stream = CreateDocxWithBody("""

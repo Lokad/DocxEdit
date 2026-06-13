@@ -91,6 +91,8 @@ internal static class DocxPackageValidator
             "/word/settings.xml" => OoxmlNs.W + "settings",
             "/word/comments.xml" => OoxmlNs.W + "comments",
             "/word/commentsExtended.xml" => OoxmlNs.W15 + "commentsEx",
+            "/word/footnotes.xml" => OoxmlNs.W + "footnotes",
+            "/word/endnotes.xml" => OoxmlNs.W + "endnotes",
             _ when partName.StartsWith("/word/header", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "hdr",
             _ when partName.StartsWith("/word/footer", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "ftr",
             _ => null

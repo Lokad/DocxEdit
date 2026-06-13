@@ -2589,7 +2589,8 @@ Patch apply validation must check:
 without editing and report stable `E91xx` diagnostics with `PartName` metadata for:
 
 * expected roots for known WordprocessingML parts (`document`, `styles`, `numbering`,
-  `settings`, `comments`, `commentsExtended`, headers, and footers);
+  `settings`, `comments`, `commentsExtended`, headers, footers, footnotes, and
+  endnotes);
 * paired bookmark and comment range start/end IDs;
 * comment body, anchor, and reference ID consistency;
 * duplicate bookmark names and duplicate content-control tag/alias values with
