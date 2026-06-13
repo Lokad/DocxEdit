@@ -101,6 +101,7 @@ internal static class DocxPatchEngine
                     "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
                     "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
                     "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
+                    "add-repeating-section-item" or "delete-repeating-section-item" => ExecuteUnsupportedRepeatingSectionOperation(operation),
                     "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
                     "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
                     "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
@@ -2020,6 +2021,20 @@ internal static class DocxPatchEngine
                 DocxSeverity.Error,
                 "E4314",
                 $"Operation '{operation.OperationName}' is not supported because threaded comment replies require commentsIds/threaded-comments metadata that DocxEdit does not safely model yet.",
+                operation,
+                target)
+        ];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteUnsupportedRepeatingSectionOperation(DocxPatchOperation operation)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        return
+        [
+            Diagnostic(
+                DocxSeverity.Error,
+                "E4315",
+                $"Operation '{operation.OperationName}' is not supported because repeating-section item edits require cloning or deleting structured document tag subtrees while preserving IDs, bindings, and section boundaries.",
                 operation,
                 target)
         ];

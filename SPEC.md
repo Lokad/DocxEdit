@@ -1736,6 +1736,16 @@ target M.CC0004
 value 2026-07-01T00:00:00Z
 display-text 2026-07-01
 end
+
+op add-repeating-section-item
+target M.CC0005
+index 1
+text Added item
+end
+
+op delete-repeating-section-item
+target M.CC0006
+end
 ```
 
 Replace a simple bookmark range while preserving markers:
@@ -1787,6 +1797,10 @@ Rules:
 * `set-content-control-date` supports date controls (`w:sdtPr/w:date`), updates
   `w:fullDate` to `value`, and updates the displayed content to `display-text` when
   provided or `value` otherwise while preserving the `w:sdt` wrapper and properties.
+* `add-repeating-section-item` and `delete-repeating-section-item` are recognized so
+  callers receive explicit `E4315` diagnostics. They fail until DocxEdit safely
+  models repeating-section subtree insertion/deletion, including IDs, data bindings,
+  and section-boundary preservation.
 * Bookmark targets use IDs from `read` or `outline`, such as `M.B0001`, `H001.B0001`,
   or `F001.B0001`.
 * `replace-bookmark-text` supports complete same-paragraph bookmark ranges whose

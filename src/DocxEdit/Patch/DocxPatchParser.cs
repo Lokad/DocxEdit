@@ -14,6 +14,8 @@ internal static class DocxPatchParser
         ["set-content-control-checkbox"] = new(["target", "checked"], [], []),
         ["set-content-control-choice"] = new(["target", "value", "display-text"], [], []),
         ["set-content-control-date"] = new(["target", "value", "display-text"], [], []),
+        ["add-repeating-section-item"] = new(["target", "source", "index", "text"], [], ["index"]),
+        ["delete-repeating-section-item"] = new(["target", "index"], [], ["index"]),
         ["replace-bookmark-text"] = new(["target", "text"], [], []),
         ["rename-bookmark"] = new(["target", "name"], [], []),
         ["delete-bookmark"] = new(["target"], [], []),

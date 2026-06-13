@@ -266,6 +266,7 @@ public static class DocxHelp
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
         builder.AppendLine("add-comment-reply and delete-comment-reply are recognized but fail with E4314 until threaded comment metadata is safely modeled.");
+        builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
         builder.AppendLine("set-table-style, set-table-metadata, and set-row-header update table properties with explicit guards.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
@@ -729,6 +730,16 @@ public static class DocxHelp
                 PreserveOnly("set-content-control-checkbox", ["target", "checked"]),
                 PreserveOnly("set-content-control-choice", ["target plus value or display-text"]),
                 PreserveOnly("set-content-control-date", ["target", "value"], ["display-text"]),
+                Unsupported(
+                    "add-repeating-section-item",
+                    ["target"],
+                    "Repeating-section item insertion is not safely modeled yet; check/apply fails with E4315.",
+                    ["source", "index", "text"]),
+                Unsupported(
+                    "delete-repeating-section-item",
+                    ["target"],
+                    "Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.",
+                    ["index"]),
                 PreserveOnly("replace-bookmark-text", ["target", "text"]),
                 PreserveOnly("rename-bookmark", ["target", "name"]),
                 PreserveOnly("delete-bookmark", ["target"]),

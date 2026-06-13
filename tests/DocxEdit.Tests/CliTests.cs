@@ -71,8 +71,10 @@ public static class CliTests
         Assert.Contains("set-table-metadata", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-row-header", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("add-comment-reply", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("add-repeating-section-item", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("refresh-field-result", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("E4314", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("E4315", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("insert-after", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("expect-row-count", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-section-orientation", patchHelp.Output, StringComparison.Ordinal);

@@ -161,6 +161,8 @@ Implemented areas include:
   controls, guarded rich-text content controls, checkbox state, dropdown/combo
   selections, date values, bookmark rename/delete, and guarded same-paragraph
   bookmark ranges, including multi-run ranges;
+- explicit `E4315` diagnostics for unsupported repeating-section item insertion
+  and deletion attempts;
 - simple and complex field read/context metadata, including parsed field type,
   nesting depth, bookmark/hyperlink dependencies, safe-edit status, explicit
   dirty/lock flag patch operations for one field or all modeled fields,

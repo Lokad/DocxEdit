@@ -2038,6 +2038,43 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckRepeatingSectionItemOperationsFailWithExplicitUnsupportedDiagnostic()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:repeatingSection w:sectionTitle="Line items"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:sdt>
+                            <w:sdtPr><w:repeatingSectionItem/></w:sdtPr>
+                            <w:sdtContent><w:r><w:t>Existing</w:t></w:r></w:sdtContent>
+                          </w:sdt>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-repeating-section-item
+            target M.CC0001
+            index 1
+            text Added
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4315" &&
+            diagnostic.TargetId == "M.CC0001" &&
+            diagnostic.Message.Contains("repeating-section item edits", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ApplyReplaceBookmarkTextPreservesMarkers()
     {
         using MemoryStream input = CreateDocxWithBody("""
