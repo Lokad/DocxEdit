@@ -1,232 +1,391 @@
 # Patch Format
 
-Patch files start with `docxpatch 1` and then one or more operation blocks.
+`.docxpatch` is DocxEdit's line-based DSL for Word edits. A patch names one or
+more operations, each operation targets a stable ID or selector discovered through
+the CLI, and guarded fields verify that the document still has the expected shape
+before anything is written.
+
+Use [cli.md](cli.md) to discover targets and run `check` before `apply`.
+
+## File Shape
+
+Every patch starts with `docxpatch 1`:
+
+```text
+docxpatch 1
+
+# Blank lines and comment lines are ignored.
+op replace-text
+target M.P0004
+expect-text <<<
+The current paragraph text.
+>>>
+find current
+with revised
+end
+```
+
+Rules:
+
+- The first non-empty line must be `docxpatch 1`.
+- Each operation starts with `op <name>` and ends with `end`.
+- Field lines use `field value`.
+- Multi-line values use heredocs:
+
+  ```text
+  text <<<
+  First line.
+  Second line.
+  >>>
+  ```
+
+- Field names are operation-specific. Unknown fields fail validation.
+- Boolean fields must be `true` or `false`.
+- Integer fields must parse as integers.
+- Repeated fields are preserved for operations that need them, such as repeated
+  `cell` fields in row operations.
+- `expect-hash` and `preserve-size` are not supported.
+
+## Minimal Examples
+
+Replace text inside one paragraph:
 
 ```text
 docxpatch 1
 
 op replace-text
-target M.P0001
+target M.P0004
 expect-text <<<
-current text
+The paragraph as it currently appears.
 >>>
-find current
-with updated
+find currently appears
+with now reads
 end
 ```
 
-Fields are line based. Heredocs use `<<<` and close with `>>>`. Repeated fields are preserved for operations such as table row edits.
+Replace one table cell with row and column guards:
+
+```text
+docxpatch 1
+
+op set-cell
+target M.T0001.R02.C03
+expect-row-count 4
+expect-column-count 3
+expect-text <<<
+old cell text
+>>>
+text <<<
+updated cell text
+>>>
+end
+```
+
+Add a paragraph-level comment:
+
+```text
+docxpatch 1
+
+op add-comment
+target M.P0004
+expect-text <<<
+Reviewed paragraph text.
+>>>
+text <<<
+Please verify this statement.
+>>>
+author Reviewer
+end
+```
+
+Replace an image while preserving its existing supported drawing layout:
+
+```text
+docxpatch 1
+
+op replace-image
+target M.I0001
+asset chart.png
+expect-content-type image/png
+alt Updated chart
+end
+```
 
 ## Selectors
 
-Explicit IDs remain the most stable selectors:
+Explicit IDs are the safest selectors:
 
-- `M.P0001`: main paragraph
-- `H001.P0001` / `F001.P0001`: header/footer paragraph
-- `M.T0001`, `M.T0001.R02`, `M.T0001.R02.C03`: table, row, cell
-- `H001.T0001`, `H001.T0001.R02`, `H001.T0001.R02.C03`: header table, row, cell
-- `F001.T0001`, `F001.T0001.R02`, `F001.T0001.R02.C03`: footer table, row, cell
-- `M.I0001`: inline main-document image
-- `H001.I0001` / `F001.I0001`: inline header/footer image
-- `M.S0001`: main-document section
+- `M.P0001`: main paragraph.
+- `H001.P0001` / `F001.P0001`: header or footer paragraph.
+- `M.T0001`: table.
+- `M.T0001.R02`: row.
+- `M.T0001.R02.C03`: cell.
+- `H001.T0001.R02.C03` / `F001.T0001.R02.C03`: header or footer cell.
+- `M.I0001`: image.
+- `H001.I0001` / `F001.I0001`: header or footer image.
+- `M.S0001`: section.
+- `M.B0001`: bookmark.
+- `M.CC0001`: content control.
+- `M.F0001`: field.
+- `M.L0001`: hyperlink.
+- `C001.C0001` or `comment:3`: comment body.
 
-Paragraph operations also support:
+Paragraph operations also support semantic selectors:
 
-- `heading:"Exact heading"`
-- `heading:2:"Exact heading"`
-- `text:"contained paragraph text"`
-- `bookmark:"BookmarkName"`
-- `content-control:"TagOrAlias"`
+- `heading:"Exact heading"`.
+- `heading:2:"Exact heading"`.
+- `text:"contained paragraph text"`.
+- `bookmark:"BookmarkName"`.
+- `content-control:"TagOrAlias"`.
 
-Ambiguous selectors fail with `E1202`; use a more specific selector or an explicit ID.
-Parsed selectors that match no target fail with `E1201` and include nearby target IDs without
-including nearby paragraph text.
+Ambiguous selectors fail with `E1202`; use an explicit ID from `read`,
+`context`, or `find`. Selectors with no match fail with `E1201`.
 
-## Supported Operations
+## Guards
 
-- `replace-text`: `target`, `find`, `with`, optional `expect-text`, `preserve-runs`, `occurrence`. Under `TrackChangesMode.Suggest` or `Require`, simple text-only replacements are emitted as tracked `w:del`/`w:ins` markup with the configured author and timestamp.
-- `replace-paragraph`: `target`, `text`, optional `expect-text`, `style`
-- `insert-before`, `insert-after`: `target`, `text`, optional `style`, `copy-paragraph-properties`
-- `delete-block`: `target`, optional `expect-text`
-- `set-style`: `target`, `style`
-- `set-content-control-text`: `target`, `text`, optional `expect-text`
-- `set-content-control-checkbox`: `target`, `checked`
-- `set-content-control-choice`: `target`, exactly one of `value` or `display-text`
-- `set-content-control-date`: `target`, `value`, optional `display-text`
-- `replace-bookmark-text`: `target`, `text`
-- `rename-bookmark`: `target`, `name`
-- `delete-bookmark`: `target`
-- `add-comment`: `target`, `text`; optional `expect-text`, `author`, `initials`, `date`
-- `set-comment-text`: `target`, `text`
-- `resolve-comment`: `target`
-- `reopen-comment`: `target`
-- `delete-comment`: `target`
-- `add-comment-reply`: `target`, `text`, optional `author`, `initials`, `date`; recognized but fails with `E4314`
-- `delete-comment-reply`: `target`; recognized but fails with `E4314`
-- `set-field-dirty`: `target`, `dirty`
-- `set-field-lock`: `target`, `locked`
-- `set-field-code`: `target`, `code`; optional `expect-code`
-- `set-field-result`: `target`, `text`; optional `expect-result`
-- `refresh-field-result`: `target`; optional `expect-code`, `expect-result`
-- `set-hyperlink-target`: `target`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
-- `set-hyperlink-text`: `target`, `text`
-- `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
-- `remove-hyperlink`: `target`
-- `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
-- `set-table-style`: `target`, `style`, optional `expect-style`
-- `set-table-metadata`: `target`, `caption` and/or `description`, optional `expect-caption`, `expect-description`
-- `set-row-header`: `target`, `header`, optional `expect-header`
-- `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
-- `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
-- `delete-row`: `target`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`
-- `append-column`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `force`; recognized but fails with `E4316`
-- `insert-column-before`, `insert-column-after`: `target`, `column`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`; recognized but fails with `E4316`
-- `delete-column`: `target`, `column`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`; recognized but fails with `E4316`
-- `replace-image`: `target`, `asset`, optional `expect-content-type`, `alt`
-- `insert-image-after`: `target`, `asset`, optional `expect-content-type`, `width`, `height`, `alt`
-- `set-image-alt`: `target`, `alt`, optional `expect-content-type`
-- `set-image-metadata`: `target`, at least one of `alt`, `title`, or `name`, optional `expect-content-type`
-- `set-image-size`: `target`, `width` and/or `height`, optional `expect-content-type`
-- `set-image-wrap`: `target`, optional `mode`, `dist-top`, `dist-bottom`, `dist-left`, `dist-right`, optional `expect-content-type`
-- `set-image-position`: `target`, optional `horizontal-relative`, `horizontal-offset`, `horizontal-align`, `vertical-relative`, `vertical-offset`, `vertical-align`, optional `expect-content-type`
-- `set-image-crop`: `target`, at least one of `left-percent`, `top-percent`, `right-percent`, or `bottom-percent`, optional `expect-content-type`
-- `delete-image`: `target`, optional `expect-content-type`
-- `set-section-columns`: `target`, `count`, optional `expect-columns`, `expect-orientation`
-- `set-section-orientation`: `target`, `orientation`, optional `expect-columns`, `expect-orientation`
+Guard fields make patches reviewable and safer to rerun. Prefer them whenever the
+current content or structure is known.
 
-Explicit header/footer paragraph IDs can be used for paragraph text/style edits, block insertion/deletion, and image insertion after the paragraph. Explicit header/footer table IDs can be used for simple table edits and as block insertion/deletion anchors. Explicit header/footer image IDs can be used for image replacement, alt text, and deletion.
+| Guard | Typical operations | Meaning |
+| --- | --- | --- |
+| `expect-text` | Paragraphs, cells, comments, content controls | Visible text must match before editing |
+| `expect-row-count` | Table and row edits | Target table must have the expected number of rows |
+| `expect-column-count` | Table and row edits | Target table must have the expected logical column count |
+| `expect-cell-count` | Row insert/delete | Target row must have the expected physical cell count |
+| `expect-contains` | `delete-row` | Row text must contain the exact guard value |
+| `expect-style` | `set-table-style` | Current table style must match |
+| `expect-caption` | `set-table-metadata` | Current table caption must match; missing and empty are equivalent |
+| `expect-description` | `set-table-metadata` | Current table description must match; missing and empty are equivalent |
+| `expect-header` | `set-row-header` | Current repeating-header flag must match |
+| `expect-content-type` | Image operations | Current media content type must match |
+| `expect-code` | Field code edits | Normalized field code must match |
+| `expect-result` | Field result edits | Cached field result must match |
+| `expect-columns` | Section edits | Current section column count must match |
+| `expect-orientation` | Section edits | Current section orientation must match |
 
-Table and cell IDs use visual grid coordinates from `read`/`context`, not raw OOXML
-cell ordinals. Cell metadata exposes physical column, visual column end, merge group,
-vertical-merge root, nested-table, `grid-before`, and `grid-after` details so agents
-can decide whether a table is safe to edit. `set-cell` targets one modeled cell and
-preserves `w:tcPr`; row operations are limited to simple rectangular tables and reject
-visual-grid shapes with `gridSpan`, omitted cells, or vertical merges unless a force
-mode is explicitly supported by that operation. Column operations are recognized only
-to return stable `E4316` diagnostics.
+Guard failures are reported as `E32xx` diagnostics.
 
-For list-like insertions, set `copy-paragraph-properties true` on `insert-before` or
-`insert-after` with a paragraph target. The inserted paragraph copies the target
-paragraph's `w:pPr`, including style and numbering properties; an explicit `style`
-field overrides the copied paragraph style while preserving the other copied
-properties.
+## Operation Reference
 
-Use `set-content-control-text` with plain-text content-control IDs such as
-`M.CC0001`. Rich-text controls are supported only with an exact `expect-text` guard
-and paragraph-only content that has no protected OOXML boundaries; replacement writes
-a single paragraph while preserving the `w:sdt` wrapper and `w:sdtPr` metadata.
-Use `set-content-control-checkbox` with checkbox controls and `checked true|false`;
-it updates `w:checked` and the displayed state symbol. The wrapper and `w:sdtPr`
-metadata are preserved. Use `set-content-control-choice` with dropdown or combo box
-controls and exactly one of `value` or `display-text`; it verifies the list item and
-updates the displayed content. Use `set-content-control-date` with date controls; it
-updates `w:fullDate` to `value` and uses `display-text` for the visible content when
-provided. Content-control edit operations reject controls whose `w:lock` value is not
-`unlocked`. Use `replace-bookmark-text` with complete paragraph-bounded bookmark IDs
-such as `M.B0001`; same-paragraph and same-container multi-paragraph ranges preserve
-the bookmark start/end markers. Newline-separated replacement text becomes multiple
-paragraphs. Unsupported ranges fail instead of flattening surrounding XML. Use
-`rename-bookmark` to change a bookmark name; DocxEdit rejects duplicate new names and
-updates same-story internal hyperlink anchors when the old name is unambiguous. Use
-`delete-bookmark` to remove complete unreferenced bookmark markers while preserving
-the bookmarked content.
+The built-in reference is always available:
 
-`add-comment` targets a modeled paragraph such as `M.P0004`, creates the comments
-part/relationship/content type when needed, appends a new comment body, and anchors
-the whole paragraph with matching range/reference markers. It accepts optional
-`expect-text`, `author`, `initials`, and ISO-8601 `date` fields. Existing comment
-operations target either `comment:<id>` from `changes` output or a comment body target
-such as `C001.C0001`. `set-comment-text` replaces the comment body with a single
-paragraph while preserving comment metadata. `resolve-comment` and
-`reopen-comment` create or update the matching `commentsExtended.xml` `w15:done`
-flag for basic comments; unsupported body shapes fail with `E4312`. `delete-comment`
-removes the comment body, matching range/reference markers from document stories, and
-matching `commentsExtended.xml` records when present. Threaded reply operations are
-recognized as `add-comment-reply` and `delete-comment-reply` so agents receive stable
-`E4314` diagnostics instead of generic unknown-operation errors; DocxEdit does not
-edit threaded reply metadata yet.
+```text
+docxedit help patch
+```
 
-Field operations target field IDs from `read` or `outline`, such as `M.F0001`,
-`H001.F0001`, or `F001.F0001`. `set-field-dirty` updates `w:dirty` and
-`set-field-lock` updates `w:fldLock` on `w:fldSimple` or the complex field begin
-`w:fldChar`; use `target all` to update every modeled field in main/header/footer
-stories. `set-field-code` updates `w:fldSimple/@w:instr`, supports optional
-normalized `expect-code`, preserves the cached result, and marks that field dirty.
-`set-field-result` replaces the cached result runs inside `w:fldSimple`, supports
-optional exact `expect-result`, preserves the field code/boundary, and avoids
-document-level field-update marking when it is the only patch operation. Complex
-field code/result edits fail with `E4313`. `refresh-field-result` is a limited
-deterministic refresh for simple `w:fldSimple` REF/PAGEREF/NOTEREF fields whose
-bookmark operand resolves to exactly one same-part, simple same-paragraph bookmark
-range without protected OOXML boundaries. General field recalculation remains Word's
-responsibility; apply emits `W5103` when a document containing fields is marked for
-Word-side refresh.
+The tables below group the same operations by editing area.
 
-Hyperlink operations target hyperlink IDs from `read` or `outline`, such as
-`M.L0001`, `H001.L0001`, or `F001.L0001`. Use `uri` for external absolute
-`http`, `https`, or `mailto` links and `anchor` for internal bookmark anchors.
-Relative targets, malformed URIs, `file`, UNC/file-style targets, and unsafe schemes
-are rejected. Relationship-backed internal part links are preserved and surfaced as
-`target-part` metadata, but patch edits support external URI or bookmark-anchor
-targets only. `target-frame` writes `w:tgtFrame`, and `history true|false` writes
-`w:history`. `remove-hyperlink` unwraps the hyperlink and keeps its child runs as
-ordinary document content.
+### Paragraphs And Blocks
 
-Use table guards whenever possible:
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target |
+| `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style |
+| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target |
+| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target |
+| `delete-block` | `target` | `expect-text` | Deletes the target block |
+| `set-style` | `target`, `style` | | Sets paragraph style |
 
-- `expect-text` verifies the selected cell's current visible text for `set-cell`.
-- `expect-style` verifies the selected table's current `w:tblStyle`.
-- `expect-caption` verifies the selected table's current `w:tblCaption`; missing
-  and empty values are equivalent.
-- `expect-description` verifies the selected table's current `w:tblDescription`;
-  missing and empty values are equivalent.
-- `expect-header` verifies the selected row's current repeating-header flag.
-- `expect-row-count` verifies the target table's row count.
-- `expect-column-count` verifies the target table's logical column count.
-- `expect-cell-count` verifies a targeted row's physical cell count for row insert/delete.
-- `expect-contains` verifies a row's visible text before `delete-row`.
+For list-like insertions, use `copy-paragraph-properties true` with a paragraph
+target. The new paragraph copies the target paragraph properties, including list
+numbering. An explicit `style` overrides only the copied paragraph style.
 
-CLI examples prefer `--output output.docx`; `-o output.docx` is also accepted.
+### Content Controls
 
-Unsupported fields are rejected. `expect-hash` and `preserve-size` are not supported.
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `set-content-control-text` | `target`, `text` | `expect-text` | Plain-text controls are supported; guarded simple rich-text controls are supported when safe |
+| `set-content-control-checkbox` | `target`, `checked` | | Updates checkbox state and displayed symbol |
+| `set-content-control-choice` | `target` plus `value` or `display-text` | | Selects a dropdown/combo item |
+| `set-content-control-date` | `target`, `value` | `display-text` | Updates date value and visible text |
+| `add-repeating-section-item` | `target` | `source`, `index`, `text` | Recognized but fails with `E4315` |
+| `delete-repeating-section-item` | `target` | `index` | Recognized but fails with `E4315` |
 
-`delete-row` `expect-contains` is a row-text guard: the operation fails unless the
-resolved row's final visible text contains the supplied value exactly.
-`set-table-style` updates `w:tblPr/w:tblStyle` and creates `w:tblPr` when missing.
-`set-table-metadata` updates table `w:tblPr/w:tblCaption` and
-`w:tblPr/w:tblDescription`, creating `w:tblPr` when missing. Use an empty heredoc
-value for `caption` or `description` to remove that metadata element.
-`set-row-header` sets or clears the row's `w:tblHeader` flag while preserving other
-row properties.
+Content-control edits preserve the `w:sdt` wrapper and metadata when supported.
+Controls with a lock value other than unlocked are rejected.
 
-`replace-image` `alt` updates the target inline or anchored DrawingML object's
-description while replacing the media bytes. Use `set-image-alt` when only the
-description should change. Use `set-image-metadata` to update DrawingML `docPr`
-description (`alt`), `title`, and `name` without replacing media bytes. Use
-`set-image-size` to update DrawingML `wp:extent` and picture transform extents; if
-only `width` or `height` is provided, DocxEdit preserves the current aspect ratio
-when it can infer one. Use `set-image-wrap` on anchored images to update `wp:wrap*`
-mode and anchor wrap distances; inline images reject wrap edits. Use
-`set-image-position` on anchored images to update `wp:positionH`/`wp:positionV`
-relative bases, signed offsets, or alignments. Use `set-image-crop` to update
-DrawingML `a:srcRect` crop percentages without replacing media bytes; omitted crop
-sides keep their current value, zero-valued sides are removed, and opposing side sums
-must remain below 100 percent.
+### Bookmarks
 
-Tracked output is intentionally narrow. It supports simple `replace-text`,
-whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes,
-and simple single-paragraph table-cell text replacement. Tracked text shapes must
-contain no tabs or line breaks, must not cross protected OOXML boundaries such as
-hyperlinks, fields, comments, bookmarks, content controls, drawings, or existing
-revision markup, and must have compatible direct run-property shape.
-Known operations without generated revision output are classified as `preserve-only`
-in the shared help catalog: they preserve existing revision markup, apply directly
-under `TrackChangesMode.Suggest` with `W4001`, and fail under
-`TrackChangesMode.Require` with `E6001`. The `W4001` and `E6001` messages include
-the catalog support value so integrations can distinguish intentionally preserve-only
-operations from unclassified operations. Supported tracked operations still fail
-unsupported target shapes with `E6002`; `TrackChangesMode.Suggest` warns with `W4002`
-and applies the direct edit instead.
-Existing tracked-change and comment markup is preserved unless the targeted operation
-would directly replace that protected boundary. Generated revision IDs are allocated
-after existing `w:id` values to avoid collisions.
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `add-bookmark` | `target`, `name` | `expect-text` | Creates a guarded paragraph bookmark |
+| `replace-bookmark-text` | `target`, `text` | | Replaces a complete paragraph-bounded bookmark range |
+| `rename-bookmark` | `target`, `name` | | Renames markers and same-story internal hyperlink anchors when unambiguous |
+| `delete-bookmark` | `target` | | Removes complete unreferenced bookmark markers, preserving content |
+
+Bookmark names must be non-empty and contain no whitespace. Duplicate new names
+are rejected.
+
+### Comments
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `add-comment` | `target`, `text` | `expect-text`, `author`, `initials`, `date` | Anchors a new comment to a modeled paragraph |
+| `set-comment-text` | `target`, `text` | | Replaces one comment body |
+| `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
+| `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
+| `delete-comment` | `target` | | Removes body, range/reference markers, and matching extension records |
+| `add-comment-reply` | `target`, `text` | `author`, `initials`, `date` | Recognized but fails with `E4314` |
+| `delete-comment-reply` | `target` | | Recognized but fails with `E4314` |
+
+Existing comment operations target `comment:<id>` from `changes` or a comment body
+ID such as `C001.C0001`. Threaded replies are not safely modeled yet.
+
+### Fields
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `set-field-dirty` | `target`, `dirty` | | `target` can be a field ID or `all` |
+| `set-field-lock` | `target`, `locked` | | `target` can be a field ID or `all` |
+| `set-field-code` | `target`, `code` | `expect-code` | Simple `w:fldSimple` fields only |
+| `set-field-result` | `target`, `text` | `expect-result` | Simple `w:fldSimple` cached result only |
+| `refresh-field-result` | `target` | `expect-code`, `expect-result` | Limited refresh for simple REF/PAGEREF/NOTEREF fields |
+
+Complex field code/result edits fail with `E4313`. General field recalculation is
+Word's responsibility. Apply emits `W5103` when edits mark fields for Word-side
+refresh.
+
+### Hyperlinks
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `set-hyperlink-target` | `target` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history` | Updates external URI or internal bookmark anchor |
+| `set-hyperlink-text` | `target`, `text` | | Updates visible hyperlink text |
+| `insert-hyperlink-after` | `target`, `text` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history` | Inserts a new hyperlink paragraph after the target |
+| `remove-hyperlink` | `target` | | Removes hyperlink markup and preserves display runs |
+
+External `uri` values must be absolute `http`, `https`, or `mailto` URIs.
+Relative targets, malformed URIs, `file`, UNC/file-style paths, and unsafe schemes
+are rejected. Internal links use bookmark `anchor` values.
+
+### Tables
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell |
+| `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
+| `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
+| `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
+| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count` | Appends a row to a simple table |
+| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts before a row |
+| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts after a row |
+| `delete-row` | `target` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Deletes a row |
+| `append-column` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `force` | Recognized but fails with `E4316` |
+| `insert-column-before` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Recognized but fails with `E4316` |
+| `insert-column-after` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Recognized but fails with `E4316` |
+| `delete-column` | `target`, `column` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Recognized but fails with `E4316` |
+
+Table and cell IDs use visual grid coordinates from `read` or `context`, not raw
+OOXML cell ordinals. Table metadata exposes spans, omitted grid columns,
+merge-group IDs, vertical-merge roots, and nested-table flags so an agent can
+decide whether a table is safe to edit.
+
+Row operations are limited to simple rectangular tables unless the operation
+explicitly supports `force true`. Use `force true` only when replacing or
+rebuilding the affected table content is intended.
+
+Use an empty heredoc for `caption` or `description` to remove that metadata
+element:
+
+```text
+caption <<<
+>>>
+```
+
+### Images
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `replace-image` | `target`, `asset` | `expect-content-type`, `alt` | Replaces media bytes and preserves supported drawing layout |
+| `insert-image-after` | `target`, `asset` | `expect-content-type`, `width`, `height`, `alt` | Inserts an inline image paragraph after a paragraph target |
+| `set-image-alt` | `target`, `alt` | `expect-content-type` | Updates DrawingML description |
+| `set-image-metadata` | `target` plus `alt`, `title`, or `name` | `expect-content-type` | Updates DrawingML `docPr` metadata |
+| `set-image-size` | `target` plus `width` or `height` | `expect-content-type` | Updates DrawingML extents |
+| `set-image-wrap` | `target` plus `mode` or a distance field | `expect-content-type` | Anchored images only |
+| `set-image-position` | `target` plus relative, offset, or align field | `expect-content-type` | Anchored images only |
+| `set-image-crop` | `target` plus one crop percentage | `expect-content-type` | Updates DrawingML crop percentages |
+| `delete-image` | `target` | `expect-content-type` | Deletes the modeled image |
+
+Image dimensions and distances accept `emu`, `in`, `cm`, `pt`, and `px` suffixes.
+If only `width` or `height` is supplied, DocxEdit preserves the current aspect
+ratio when it can infer one. Crop fields are percentages:
+`left-percent`, `top-percent`, `right-percent`, and `bottom-percent`; opposing
+side sums must remain below 100.
+
+Linked images are not fetched or listed as editable image records. VML, grouped
+drawings, charts, SmartArt, OLE objects, equations, and generic shapes are
+preserved but not edited.
+
+### Sections
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `set-section-columns` | `target`, `count` | `expect-columns`, `expect-orientation` | Column count must be 1 through 4 |
+| `set-section-orientation` | `target`, `orientation` | `expect-columns`, `expect-orientation` | `orientation` is `portrait` or `landscape` |
+
+Section operations target main-document section IDs such as `M.S0001`.
+
+## Header And Footer Targets
+
+Explicit header/footer paragraph IDs can be used for paragraph text/style edits,
+block insertion/deletion, and image insertion after the paragraph.
+
+Explicit header/footer table IDs can be used for simple table edits and as block
+insertion/deletion anchors.
+
+Explicit header/footer image IDs can be used for image replacement, alt text,
+metadata, size, crop, wrap/position where supported, and deletion.
+
+## Track Changes
+
+Track-change behavior is selected by `check` or `apply`, not inside the patch:
+
+```text
+docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes require --author Agent
+```
+
+Generated tracked output is intentionally narrow:
+
+- `replace-text`: simple text-only replacements.
+- `replace-paragraph`: simple whole-paragraph text replacements.
+- `insert-before` / `insert-after`: simple paragraph insertions.
+- `delete-block`: simple paragraph deletions.
+- `set-style`: paragraph property revisions.
+- `set-cell`: simple single-paragraph cell replacement.
+
+Other known operations are classified as `preserve-only`: they preserve existing
+tracked-change markup but do not create new revision markup. In `suggest` mode
+they apply directly with `W4001`; in `require` mode they fail with `E6001`.
+
+Even supported tracked operations can fail for unsupported shapes, such as tabs,
+line breaks, protected OOXML boundaries, existing revision markup, or mixed direct
+run formatting. Those cases produce `W4002` in `suggest` mode or `E6002` in
+`require` mode.
+
+## Assets
+
+Image operations read `asset` from the local filesystem. Relative paths are
+resolved from the current working directory of the CLI process. Use
+`expect-content-type` when replacing or deleting an image so accidental target
+mixups fail early.
+
+## Diagnostics
+
+Run `check` first:
+
+```text
+docxedit check input.docx edits.docxpatch
+```
+
+Common diagnostics:
+
+- `E12xx`: selector parse, not found, or ambiguous.
+- `E20xx`: patch syntax error.
+- `E32xx`: guard failure.
+- `E42xx`: missing or invalid operation field.
+- `E43xx`: unsafe edit shape or unsupported protected boundary.
+- `E52xx`: image asset or DrawingML issue.
+- `E60xx`: track-change mode issue.
+- `E62xx`: section edit issue.
+
+See [diagnostics.md](diagnostics.md) for the full diagnostic map.

@@ -1,229 +1,276 @@
 # CLI
 
-Run locally with:
+`docxedit` is the command-line surface for inspecting a `.docx`, locating stable
+targets, validating a `.docxpatch`, and writing a new edited `.docx`.
 
-```powershell
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- <command> [options]
+The normal loop is:
+
+1. Inspect the document structure.
+2. Locate one or more stable target IDs.
+3. Inspect the target and nearby markup.
+4. Write a `.docxpatch`.
+5. Run `check`.
+6. Run `apply`.
+7. Validate the output.
+
+## Running The CLI
+
+When installed as a tool or exposed by an integration, examples use `docxedit`:
+
+```text
+docxedit read report.docx --summary
 ```
 
-## Read And Explore
+When running this repository from source, replace `docxedit` with:
 
-- `read input.docx [--summary] [--headers-footers] [--all-stories] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
-- `outline input.docx [--headers-footers] [--json] [--diagnostics path] [--strict]`
-- `find input.docx "text" [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
-- `dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
-- `context input.docx --id M.P0001 [--radius N] [--headers-footers] [--view final|original|markup] [--max-text N] [--json] [--diagnostics path] [--strict]`
-- `styles input.docx [--json] [--diagnostics path] [--strict]`
-- `media input.docx [--extract dir] [--json] [--diagnostics path] [--strict]`
-- `validate input.docx [--profile structural|package] [--max-diagnostics N] [--json] [--diagnostics path] [--strict]`
-- `changes input.docx [--include-comment-text] [--max-comment-text N] [--json] [--diagnostics path] [--strict]`
+```text
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj --
+```
 
-`changes` lists existing tracked-change and comment markup. By default it does not
-print revision text or comment body text. It reports counts, IDs, type, story, part,
-target, revision/comment metadata, text length, and child element count.
-JSON output includes `Summary` counts by type, `GroupSummary` counts by
-`story`, `part`, `author`, and `target`, `TargetSummary` compact per-target
-rollups, `CommentSummary` compact per-comment rollups, and `Changes` records.
-Comment body snippets appear only when `--include-comment-text` is passed; bound them
-with `--max-comment-text N`.
-Plain text output includes the same group summaries as lines like
-`summary group=story key="main" type=inserted-run count=1`.
-It also includes `target-summary` and `comment-summary` lines before individual
-records. With `--include-comment-text`, comment summaries and comment body records
-add `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
-Patch operations can create comments on modeled paragraph IDs with `add-comment`.
-Existing comment operations can target `comment:<id>` or comment body IDs such as
-`C001.C0001`: `set-comment-text` replaces a comment body under explicit patch
-control, `resolve-comment` and `reopen-comment` create or update modern
-`commentsExtended` resolution metadata for basic comments, and `delete-comment`
-removes the comment body plus matching range/reference markers. `add-comment-reply`
-and `delete-comment-reply` are recognized but fail with `E4314` until threaded
-reply metadata is safely modeled.
+For example:
 
-Some records legitimately have `target=unknown`: for example package-level range
-markers or markup not inside or adjacent to a modeled paragraph, table, cell, or
-section target. Each record has `target-status` (`targeted`, `comment-anchor`, or
-`targetless`), `target-source` (`ancestor`, `adjacent-range`, `comment-anchor`, or
-`none`), and optional `target-reason`, `nearest-target`, and `target-note` fields.
-`nearest-target` is context only, not exact ownership. Body-level range boundaries
-that are linked by adjacent-target heuristics use `target-source=adjacent-range`.
-Range start/end records that share a revision or comment ID expose
-`paired-change-id`, which helps recover sparse end-marker metadata from the matching
-start record. Comment records are linked by `comment-id`; when possible, comment
-body records also include `comment-anchor-target`, `comment-reference-target`,
-`comment-anchor-story`, and `comment-anchor-part` so an agent can navigate from the
-comment-story record back to the main document anchor without printing comment text.
-Modern Word comment resolution metadata appears as `comment-para-id`,
-`comment-parent-para-id`, and `comment-resolved` on records, and as `para-id`,
-`parent-para-id`, and `resolved` on `comment-summary` lines.
-`TimestampUtc` and `CommentTimestampUtc` serialize as nullable UTC ISO-8601 values.
-Raw JSON uses UTC values such as `+00:00`; JSON consumers that parse dates may display
-those values in a local timezone, so inspect the raw serialized value when the offset
-matters.
-Use `dump --runs` on a target to see run-level `markup=...`, `revision-id`, and
-`comment-id` annotations for nearby tracked-change/comment markup. With `--json`,
-`dump --runs` also exposes those annotations as structured `Runs` objects.
-Use `dump --id C001.C0001` or `dump --id comment:3` to inspect comment body
-metadata without printing the comment body text.
-Change IDs from `changes` identify markup records. Run IDs from `dump --runs` identify
-rendered run/marker lines and are a separate namespace.
-Use `docxedit dump report.docx --id M.P0004 --runs --json` when structured run
-metadata is easier for an integration to consume than text output.
+```text
+dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- read report.docx --summary
+```
 
-`context` summarizes nearby modeled structure around one target without broad document
-text. Its default `--max-text` is `0`, so paragraph and cell text fields are present
-but empty. Comment anchors are exposed as `comments` and `comment-bodies` fields, and
-comment body IDs such as `C001.C0001` or `comment:3` can be used as metadata-only
-targets. Use `--radius` to include same-kind neighbors and raise `--max-text` only
-when short snippets are needed.
-Read text views are `final` (default), `original`, and `markup`. Markup view includes inserted and deleted text with lightweight `[+text+]` and `[-text-]` markers.
-`read --summary` prints package/story counts without listing every target, which is
-useful for large-document validation.
-Paragraph lines may include `styleId=...` and resolved list metadata. List metadata
-starts with the concrete `numId` and zero-based level, then includes resolved
-`abstractNumId`, numbering `format`, `level-text`, paragraph style link, and
-`source=style` or `source=style-inherited` when the list comes from paragraph style
-inheritance rather than direct paragraph numbering. Deterministic labels are exposed
-as `label="..."` with `label-components` entries in `level:value:format:text` form
-and `label-status=resolved|partial|unsupported`; `start`, `suffix`, `legal=true`,
-`restart-after-level`, and `label-warnings` appear when they are known or needed.
-Supported label formats include decimal, zero-padded decimal, upper/lower letters,
-upper/lower roman numerals, bullets, and nested `lvlText` tokens whose referenced
-counters are known. The same compact list metadata appears on numbered heading
-`outline` lines and paragraph `find` matches. Unsupported picture bullets and custom
-numbering formats are preserved and reported through diagnostics.
-`styles` output includes inheritance links such as `based-on`, `next`, `linked`, and
-style-level numbering defaults when present.
-`read` and `outline` list bookmark and content-control metadata when present.
-Bookmark records include name, OOXML ID, story, part, start/end targets, duplicate
-name candidate IDs, and whether the range is complete. Content-control records
-include kind, tag, alias, placeholder/data-binding metadata, parent/child control
-IDs, safe-edit status, duplicate tag/alias candidate IDs, lock, story, part,
-containing target, text length, checkbox state, dropdown/combo item count,
-repeating-section metadata, and date settings when present. `context` annotates nearby targets with
-`bookmark-names`, `content-controls`, `content-control-tags`, and
-`content-control-aliases` so agents can connect selector names to stable target IDs.
-If `bookmark:"Name"` or `content-control:"TagOrAlias"` is ambiguous, selector
-diagnostics list candidate paragraph IDs; retry with an explicit ID.
-Patch operations can also target explicit bookmark/content-control IDs for safe shapes:
-`set-content-control-text` updates plain-text controls while preserving the wrapper,
-and can replace rich-text controls only with `expect-text` and paragraph-only content
-that has no protected OOXML boundaries. `set-content-control-checkbox` toggles
-checkbox controls and updates their displayed state symbol, `set-content-control-choice`
-selects dropdown/combo items by `value` or `display-text`, `set-content-control-date`
-updates date control `fullDate` values and displayed text, and
-`replace-bookmark-text` updates simple same-paragraph bookmark ranges while preserving
-the bookmark markers. `rename-bookmark` renames bookmark
-markers and same-story internal hyperlink anchors when the old name is unambiguous;
-`delete-bookmark` removes only complete unreferenced bookmark markers.
-`read` and `outline` also list simple and complex field metadata. Field records
-include kind, parsed field type, normalized field code, containing target, result
-text length, nesting depth, bookmark/hyperlink dependencies, safe-edit status,
-dirty/lock flags, and whether a complex begin/separate/end sequence is complete.
-`context` annotates nearby targets with `fields`, `field-codes`, `field-kinds`,
-and `field-types`. DocxEdit preserves
-field XML, can set field dirty/lock flags through `set-field-dirty` and
-`set-field-lock` for one field or `target all`, and can update simple `w:fldSimple`
-field code/result caches through `set-field-code` and `set-field-result`.
-`refresh-field-result` updates simple REF/PAGEREF/NOTEREF cached results from one
-unambiguous same-part bookmark with simple same-paragraph content. DocxEdit can mark
-the document for field updates after edits through
-`MarkFieldsDirtyWhenEditing`; Word remains responsible for recalculating field
-results. Apply diagnostics include `W5103` when a document containing fields was
-marked for Word-side refresh.
-Hyperlink records are listed by `read` and `outline`. Relationship-backed hyperlinks
-expose relationship ID, relationship part, target mode, URI or target part, scheme,
-validation status, and validation reason for unsupported schemes or
-relative/malformed targets. Valid patch URI targets are absolute `http`, `https`,
-or `mailto`; relative, malformed, `file`, UNC/file-style, and unsafe-scheme targets
-are rejected. Internal anchor links expose missing and duplicate bookmark-anchor
-flags. Relationship-backed internal part links expose `target-part` metadata and
-emit `W1023` because patch edits support external URI or anchor targets only.
-Hyperlinks expose tooltip, target-frame, and history metadata when present. Broken
-relationship IDs are flagged.
-`read` also aggregates invalid URI, missing-anchor, and duplicate-anchor diagnostics.
-`context` annotates nearby targets with `hyperlinks` and `hyperlink-targets`; `dump --runs` annotates hyperlink runs with
-`markup=hyperlink`, `hyperlink-relationship-id`, and `hyperlink-anchor` when present.
-Hyperlink patch operations can update URI/anchor targets, tooltip, target-frame,
-history, display text, insert new hyperlink paragraphs after a target, and remove
-hyperlink markup while preserving the displayed runs.
-Image records from `read`, `outline`, and `media` include `layout=inline` or
-`layout=anchor`, the media relationship ID, containing paragraph/cell target,
-DrawingML extent in EMUs, `docPr` description/title/name when present, wrap mode,
-`behind-doc` for floating drawings, wrap distances, anchor relative positioning,
-relative height, overlap/aspect-lock flags, and `crop-left-percent`/
-`crop-top-percent`/`crop-right-percent`/`crop-bottom-percent` when DrawingML crop
-metadata is present. Replacement, alt-text, and docPr metadata operations preserve
-the existing drawing layout where supported. `set-image-size` updates DrawingML
-extents, `set-image-wrap` updates anchored image wrap mode/distances, and
-`set-image-position` updates anchored relative positions, offsets, and alignments.
-`set-image-crop` updates DrawingML crop percentages; unsupported drawing shapes remain
-preserve-only. Linked images are never fetched and are omitted from editable image
-records; VML, grouped drawings, charts, SmartArt, OLE objects, equations, and generic
-shapes are reported as diagnostics and preserved.
-Table output includes table style ID, caption, description, declared grid column
-count, header-row, merged-cell, and nested-table flags when present. Row lines
-include physical cell count, omitted grid columns (`grid-before`/`grid-after`),
-header status, and `cant-split`. Cell lines include logical target column plus
-`physical-column`, span, visual column end, merge group ID, vertical-merge root cell,
-vertical merge, and nested-table metadata. Row operations reject visual-grid tables
-with `gridSpan`, `gridBefore`, `gridAfter`, or vertical merges unless a force mode is
-explicitly supported by that operation. `set-table-style`
-updates `w:tblStyle`; `set-table-metadata` sets or clears `w:tblCaption` and
-`w:tblDescription`; `set-row-header` sets or clears the row repeating-header flag.
-`validate` supports `--profile structural|package`. `structural` is the default and
-runs bounded structural package checks plus WordprocessingML invariants: known part
-roots, paired bookmark/comment ranges, commentsExtended paraId consistency,
-duplicate semantic selectors, complex field begin/end balance, field result
-containment, content-control metadata validity, paragraph style and numbering
-references, settings updateFields values, header/footer references, section
-properties, drawing relationship references, image target/content-type checks,
-duplicate drawing property IDs, drawing extent/crop geometry, basic table row/cell
-shape, and table visual-grid consistency. `package` limits validation to package/XML root checks. `--max-diagnostics`
-caps returned diagnostics and adds `E9199` or `W9199` when diagnostics are omitted.
-This is not full ISO/IEC 29500 schema validation; it is intended to catch common corruption and
-relationship mistakes with stable diagnostics such as `E9103`, `E9104`, `E9105`,
-`E9106`, `E9107`, `E9108`, `E9109`, `E9110`, `E9113`, `E9114`, `E9115`,
-`E9118`, `E9119`, `E9120`, `W9109`, `W9116`, and `W9117`.
+## Recommended Workflow
 
-## Patch
+Start with low-text inspection. This gives counts, IDs, diagnostics, and markup
+metadata without dumping the whole document:
 
-- `check input.docx edits.docxpatch [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
-- `apply input.docx edits.docxpatch --output output.docx [--track-changes mode] [--author name] [--timestamp-utc instant] [--json] [--report path] [--diagnostics path] [--strict]`
+```text
+docxedit read report.docx --summary
+docxedit validate report.docx
+docxedit changes report.docx
+```
 
-Track-change modes are `off`, `preserve`, `suggest`, and `require`. Supported tracked output includes simple `replace-text`, whole-paragraph replacement, inserted/deleted paragraph text, paragraph style changes, and simple single-paragraph table-cell text replacement. Tracked text output is limited to shapes without tabs or line breaks, protected OOXML boundaries, existing revision markup, or mixed direct run formatting. `require` fails preserve-only operations with `E6001` and unsupported tracked shapes with `E6002`; `suggest` warns with `W4001` or `W4002` and applies the direct edit.
-`docxedit help patch` includes a track-change support table generated from
-`DocxHelp.Catalog`, including operation-specific support values such as
-`tracked-simple`, `tracked-paragraph`, `tracked-style`, `tracked-cell-simple`,
-`preserve-only`, and `unsupported`. `preserve-only` means existing revision markup is
-preserved but the operation does not create new revision markup; `suggest` applies
-directly with `W4001`, and `require` fails with `E6001`. The `W4001` and `E6001`
-messages include the catalog support value.
-Plain text `check` and `apply` output includes one `operation index=...` line per
-patch operation with operation name, target, and success. Table operations also emit
-`affected id=...` row/cell lines with action, parent, row/column, and row-count
-metadata. Use `--report` for the full JSON operation report.
+Find or inspect the target:
+
+```text
+docxedit find report.docx "old wording"
+docxedit dump report.docx --id M.P0004 --runs
+docxedit context report.docx --id M.P0004
+```
+
+Write an `edits.docxpatch`, then validate it before producing a new document:
+
+```text
+docxedit check report.docx edits.docxpatch
+docxedit apply report.docx edits.docxpatch --output report.edited.docx
+docxedit validate report.edited.docx
+```
+
+Use `--json` when another program will consume the result. Use plain text when an
+agent or human needs compact context.
+
+## Commands
+
+| Command | Purpose | Common use |
+| --- | --- | --- |
+| `read` | Structural document view | Broad inventory of paragraphs, tables, images, fields, links, bookmarks, content controls, sections |
+| `outline` | Compact navigational view | Headings, tables, images, sections, headers, footers |
+| `find` | Text search | Locate stable paragraph or cell targets from visible text |
+| `dump` | Detailed target view | Inspect one target, optionally with run-level markup |
+| `context` | Nearby target context | Inspect neighbors and attached metadata without broad text |
+| `styles` | Style inventory | Discover valid paragraph, character, and table styles |
+| `media` | Image inventory and extraction | List or extract embedded image parts |
+| `changes` | Existing markup inventory | Track changes, comments, anchors, and comment bodies without text by default |
+| `validate` | Package and structural checks | Detect common corruption, bad references, malformed markup, and table shape issues |
+| `check` | Dry-run patch validation | Validate selectors, guards, assets, and track-change constraints |
+| `apply` | Patch application | Write a new edited `.docx`; the input is not modified |
+| `help` | Built-in command guidance | Show command-specific or patch-operation help |
+
+## Common Options
+
+| Option | Applies to | Meaning |
+| --- | --- | --- |
+| `--json` | Most commands | Emit the structured result object as JSON |
+| `--diagnostics path` | Most commands | Write diagnostics JSON to a separate file |
+| `--strict` | Most commands | Return exit code `3` when warnings are present |
+| `--view final/original/markup` | Text reads | Select how tracked inserted/deleted text is rendered |
+| `--max-text N` | Text reads | Limit rendered text per field |
+| `--headers-footers` | Read commands | Include modeled header and footer stories |
+| `--all-stories` | `read` | Include every modeled story |
+| `--report path` | `check`, `apply` | Write full operation report JSON |
+| `--track-changes mode` | `check`, `apply` | Control generated revision markup |
+| `--author name` | `check`, `apply` | Author used for generated revisions |
+| `--timestamp-utc instant` | `check`, `apply` | UTC timestamp used for generated revisions |
+
+Text views:
+
+- `final`: default; shows the accepted visible text.
+- `original`: shows text before tracked insertions/deletions.
+- `markup`: includes inserted and deleted text with lightweight markers such as
+  `[+inserted+]` and `[-deleted-]`.
+
+## Target IDs
+
+Most edits should use explicit IDs from `read`, `outline`, `find`, `dump`, or
+`context`.
+
+Common IDs:
+
+- `M.P0001`: main-document paragraph.
+- `H001.P0001` / `F001.P0001`: header or footer paragraph.
+- `M.T0001`: table.
+- `M.T0001.R02`: table row.
+- `M.T0001.R02.C03`: table cell using visual grid coordinates.
+- `M.I0001`: image.
+- `M.S0001`: section.
+- `M.B0001`: bookmark.
+- `M.CC0001`: content control.
+- `M.F0001`: field.
+- `M.L0001`: hyperlink.
+- `C001.C0001` or `comment:3`: comment body target.
+
+Semantic selectors such as `heading:"Exact heading"`,
+`bookmark:"BookmarkName"`, and `content-control:"TagOrAlias"` are documented in
+[patch-format.md](patch-format.md). Prefer explicit IDs after discovery,
+especially when selector diagnostics report duplicates.
+
+## Privacy Defaults
+
+DocxEdit is designed so an agent can inspect document shape before exposing text.
+
+- `read --summary` prints package and story counts without listing every target.
+- `context` defaults to `--max-text 0`; paragraph and cell text fields are present
+  but empty.
+- `changes` does not print revision text or comment body text by default.
+- `dump --id C001.C0001` and `dump --id comment:3` print comment body metadata,
+  not comment body text.
+- Comment snippets require `changes --include-comment-text`; bound them with
+  `--max-comment-text N`.
+
+For private inputs, start with `read --summary`, `validate`, `changes`, and
+metadata-only `context`.
+
+## Existing Markup
+
+Use `changes` first when a document may contain tracked changes or comments:
+
+```text
+docxedit changes report.docx
+docxedit changes report.docx --json
+```
+
+`changes` reports summary counts, group summaries, target summaries, comment
+summaries, and individual markup records. Records include IDs, type, story, part,
+author/timestamp metadata, target IDs when known, text length, and child element
+counts.
+
+Target fields help interpret sparse OOXML markup:
+
+- `target-status`: whether the record is targeted, attached by a comment anchor,
+  or targetless.
+- `target-source`: whether the target came from an ancestor, adjacent range,
+  comment anchor, or no source.
+- `paired-change-id`: links related range start/end records.
+- `nearest-target`: nearby context only; not exact ownership.
+
+Use `dump --runs` on the target to see run-level annotations:
+
+```text
+docxedit dump report.docx --id M.P0004 --runs --view markup
+```
+
+Run lines expose markup such as inserted/deleted runs, revision IDs, authors,
+timestamps, comment IDs, comment ranges, and hyperlink annotations. In JSON output,
+the same data is in `Runs`.
+
+## Feature Discovery
+
+| Feature | Inspect with | Editing notes |
+| --- | --- | --- |
+| Lists and numbering | `read`, `outline`, `find` | Paragraphs may include resolved list labels, numbering format, level text, style-linked numbering, and diagnostics for unsupported custom formats |
+| Bookmarks | `read`, `context` | Use bookmark IDs or unambiguous `bookmark:"Name"` selectors; duplicate names are diagnosed |
+| Content controls | `read`, `context` | Metadata includes kind, tag, alias, lock state, safe-edit status, checkbox/dropdown/date details, and duplicate selector candidates |
+| Comments | `changes`, `context`, `dump` | Comment operations target a paragraph, `comment:<id>`, or a comment body ID |
+| Fields | `read`, `outline`, `context` | DocxEdit can update simple field metadata/caches, but Word remains responsible for general recalculation |
+| Hyperlinks | `read`, `outline`, `context`, `dump --runs` | External patch targets must be absolute `http`, `https`, or `mailto`; internal targets use bookmark anchors |
+| Images | `read`, `outline`, `media` | Editable image records are inline or anchored DrawingML images; linked images and complex drawing shapes are preserve-only diagnostics |
+| Tables | `read`, `context` | Cell IDs use visual grid coordinates; row operations are safest on simple rectangular tables |
+| Sections | `read`, `outline` | Section operations target main-document section IDs |
+
+For a full inventory of supported and unsupported shapes, see
+[status.md](status.md) and [SHAPE_INVENTORY.md](../SHAPE_INVENTORY.md).
+
+## Check And Apply
+
+`check` validates a patch without writing output:
+
+```text
+docxedit check report.docx edits.docxpatch
+```
+
+`apply` writes a new `.docx`:
+
+```text
+docxedit apply report.docx edits.docxpatch --output report.edited.docx
+```
+
+Both commands report one operation line per patch operation. Table operations also
+report affected row/cell IDs. Use `--report path` for the full JSON report.
+
+Track-change modes:
+
+| Mode | Behavior |
+| --- | --- |
+| `off` | Apply direct edits |
+| `preserve` | Apply direct edits while preserving existing tracked-change markup where possible |
+| `suggest` | Generate new revision markup for supported operations; warn and apply directly for preserve-only operations or unsupported shapes |
+| `require` | Require generated revision markup; fail preserve-only operations and unsupported tracked shapes |
+
+Generated tracked output is intentionally narrow. It supports simple text
+replacement, whole-paragraph replacement, inserted/deleted paragraph text,
+paragraph style changes, and simple single-paragraph table-cell replacement.
+Unsupported tracked shapes produce `W4001`, `W4002`, `E6001`, or `E6002`
+depending on the selected mode.
+
+## Validation And Exit Codes
+
+Use `validate` before and after editing:
+
+```text
+docxedit validate report.docx
+docxedit validate report.edited.docx --profile structural
+```
+
+Profiles:
+
+- `structural`: default; package/XML root checks plus common WordprocessingML
+  invariants.
+- `package`: package/XML root checks only.
+
+Validation is not full ISO/IEC 29500 schema validation. It is a bounded set of
+stable checks for package roots, relationships, comments, fields, content
+controls, drawings, headers/footers, sections, numbering references, and table
+shape.
 
 Exit codes:
 
-- `0`: success
-- `1`: operation failed
-- `2`: invalid CLI usage
-- `3`: strict mode saw warnings or errors
-- `4`: unexpected CLI exception
+- `0`: success.
+- `1`: operation failed.
+- `2`: invalid CLI usage.
+- `3`: strict mode saw warnings or errors.
+- `4`: unexpected CLI exception.
 
-## Help
+Diagnostics are documented in [diagnostics.md](diagnostics.md). Validation details
+are documented in [validation.md](validation.md).
 
-Command-specific help is available for common agent workflows:
+## Built-In Help
 
-```powershell
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help dump
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help context
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help changes
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help validate
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help check
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help apply
-dotnet run --project src/DocxEdit.Cli/DocxEdit.Cli.csproj -- help patch
+The CLI includes task-specific help:
+
+```text
+docxedit --help
+docxedit help dump
+docxedit help context
+docxedit help changes
+docxedit help validate
+docxedit help check
+docxedit help apply
+docxedit help patch
 ```
 
-Examples use `--output` for clarity; `-o` remains supported as a short alias.
+`docxedit help patch` is generated from the shared library command catalog. It is
+the most compact source for exact operation fields and track-change support.
