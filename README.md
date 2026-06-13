@@ -4,6 +4,9 @@ DocxEdit is a stream-first .NET library and local CLI for inspecting and editing
 
 The package identity is `Lokad.DocxEdit`. The production library has no NuGet dependencies beyond the .NET platform libraries.
 
+For a concise inventory of supported and unsupported OOXML shapes, see
+[`SHAPE_INVENTORY.md`](SHAPE_INVENTORY.md).
+
 ## DocxPatch DSL
 
 The core editing interface is `.docxpatch`: a small text DSL for describing Word document edits without touching raw WordprocessingML. The CLI helps an agent discover stable targets in the document, then the patch file describes what should change.
