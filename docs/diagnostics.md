@@ -81,6 +81,8 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
   part, or non-image media content type.
 - `E9114`: table visual-grid metadata is inconsistent, such as invalid `gridSpan`,
   vertical merge continuation mismatch, or row width exceeding `tblGrid`.
+- `E9115`: content-control metadata is malformed, such as invalid `w:id`,
+  duplicate `w:id`, invalid `w:lock`, or invalid checkbox `w:checked` values.
 - `E9199`: validation diagnostics were capped and omitted diagnostics include errors.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.

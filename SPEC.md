@@ -2559,6 +2559,8 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * comment body, anchor, and reference ID consistency;
 * duplicate bookmark names and duplicate content-control tag/alias values with
   candidate metadata IDs;
+* content-control metadata validity, including `w:id`, `w:lock`, and checkbox
+  `w:checked` values;
 * modern `commentsExtended.xml` paraId consistency;
 * complex field begin/separate/end balance, instruction-text containment, cached-result containment, and dirty/lock flag validity;
 * DrawingML `a:blip` relationship references, image target parts, and image media
@@ -2624,6 +2626,7 @@ E9111 comment body, anchor, or reference IDs are missing, duplicated, or inconsi
 E9112 field instruction text, result containment, or dirty/lock flag metadata is malformed
 E9113 drawing image relationship target or media content type is invalid
 E9114 table visual-grid metadata is inconsistent
+E9115 content-control metadata is malformed
 E9199 validation diagnostics were capped and omitted diagnostics include errors
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 W9199 validation diagnostics were capped and omitted diagnostics are warnings only

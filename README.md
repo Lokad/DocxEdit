@@ -187,7 +187,8 @@ Implemented areas include:
   including tracked and preserve-only operation classifications, with `W4001` and
   `E6001` diagnostics that report the catalog support value;
 - structural/package validation profiles through `validate`, including known part roots, paired
-  ranges, complex field balance/result-containment/flag consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
+  ranges, complex field balance/result-containment/flag consistency,
+  content-control metadata consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   image relationship target/content-type checks, drawing property ID uniqueness,
   drawing extent/crop geometry, duplicate semantic selector warnings, basic table
   shape, table visual-grid consistency, and capped validation diagnostics;

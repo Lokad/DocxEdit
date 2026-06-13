@@ -118,6 +118,7 @@ internal static class DocxPackageValidator
 
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateFieldFlags(document, partName, diagnostics);
+        ValidateContentControls(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
@@ -327,6 +328,63 @@ internal static class DocxPackageValidator
         }
 
         diagnostics.Add(Error("E9112", $"Field attribute w:{localName} has invalid OnOff value '{value}'.", partName));
+    }
+
+    private static void ValidateContentControls(XDocument document, string partName, List<DocxDiagnostic> diagnostics)
+    {
+        var controlIds = new List<string>();
+        foreach (XElement properties in document.Descendants(OoxmlNs.W + "sdtPr"))
+        {
+            XElement? idElement = properties.Element(OoxmlNs.W + "id");
+            string? id = (string?)idElement?.Attribute(OoxmlNs.W + "val");
+            if (id is not null)
+            {
+                if (!int.TryParse(id, out _))
+                {
+                    diagnostics.Add(Error("E9115", $"Content control w:id has invalid integer value '{id}'.", partName));
+                }
+
+                controlIds.Add(id);
+            }
+
+            string? lockValue = (string?)properties.Element(OoxmlNs.W + "lock")?.Attribute(OoxmlNs.W + "val");
+            if (lockValue is not null && lockValue is not ("unlocked" or "sdtLocked" or "contentLocked" or "sdtContentLocked"))
+            {
+                diagnostics.Add(Error("E9115", $"Content control w:lock has invalid value '{lockValue}'.", partName));
+            }
+
+            XElement? checkedElement = properties
+                .Element(OoxmlNs.W + "checkBox")
+                ?.Element(OoxmlNs.W + "checked");
+            if (checkedElement is not null)
+            {
+                ValidateContentControlOnOffAttribute(checkedElement, "checked", partName, diagnostics);
+            }
+        }
+
+        foreach (IGrouping<string, string> group in controlIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .GroupBy(id => id, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            diagnostics.Add(Error("E9115", $"Duplicate content control w:id '{group.Key}' appears {group.Count()} times.", partName));
+        }
+    }
+
+    private static void ValidateContentControlOnOffAttribute(
+        XElement element,
+        string localName,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        string? value = (string?)element.Attribute(OoxmlNs.W + "val");
+        if (value is null || value is "0" or "1" or "true" or "false" or "on" or "off")
+        {
+            return;
+        }
+
+        diagnostics.Add(Error("E9115", $"Content control w:{localName} has invalid OnOff value '{value}'.", partName));
     }
 
     private static void ValidateDrawingRelationships(

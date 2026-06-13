@@ -45,6 +45,8 @@ Current checks include:
 - modern `commentsExtended.xml` paraId consistency;
 - complex field begin/separate/end balance, instruction-text containment,
   cached-result containment, and dirty/lock flag validity;
+- content-control metadata validity for `w:id`, `w:lock`, and checkbox
+  `w:checked` values;
 - DrawingML `a:blip` relationship references, image relationship target parts, and
   image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;

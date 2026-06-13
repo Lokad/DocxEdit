@@ -347,6 +347,48 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ValidateReportsInvalidContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="abc"/>
+                          <w:lock w:val="maybe"/>
+                          <w:checkBox><w:checked w:val="maybe"/></w:checkBox>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>One</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:sdt>
+                        <w:sdtPr><w:id w:val="42"/></w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Two</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:sdt>
+                        <w:sdtPr><w:id w:val="42"/></w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Three</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("invalid integer", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("w:lock", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("w:checked", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("Duplicate content control", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ValidateReportsInvalidCommentsExtendedMetadata()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

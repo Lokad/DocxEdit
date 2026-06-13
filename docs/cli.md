@@ -174,14 +174,15 @@ updates `w:tblStyle`; `set-table-metadata` sets or clears `w:tblCaption` and
 runs bounded structural package checks plus WordprocessingML invariants: known part
 roots, paired bookmark/comment ranges, commentsExtended paraId consistency,
 duplicate semantic selectors, complex field begin/end balance, field result
-containment, drawing relationship references, image target/content-type checks,
-duplicate drawing property IDs,
+containment, content-control metadata validity, drawing relationship references,
+image target/content-type checks, duplicate drawing property IDs,
 drawing extent/crop geometry, basic table row/cell shape, and table visual-grid
 consistency. `package` limits validation to package/XML root checks. `--max-diagnostics`
 caps returned diagnostics and adds `E9199` or `W9199` when diagnostics are omitted.
 This is not full ISO/IEC 29500 schema validation; it is intended to catch common corruption and
 relationship mistakes with stable diagnostics such as `E9103`, `E9104`, `E9105`,
 `E9106`, `E9107`, `E9108`, `E9109`, `E9110`, `E9113`, `E9114`, and `W9109`.
+`E9115` reports malformed content-control metadata.
 
 ## Patch
 
