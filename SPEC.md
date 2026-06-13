@@ -1487,6 +1487,8 @@ replace-text
 replace-paragraph
 delete-block
 set-cell
+set-table-style
+set-row-header
 delete-row
 replace-image
 delete-image
@@ -1907,6 +1909,41 @@ Rules:
 * Replace cell content with a single paragraph.
 * If the cell contains multiple paragraphs, nested tables, images, or fields, fail unless `force true` is supplied.
 * `force true` still preserves `w:tcPr`.
+
+### 11.7a `set-table-style`
+
+```text
+op set-table-style
+target M.T0001
+expect-style ExistingStyle
+style TableGrid
+end
+```
+
+Rules:
+
+* Target must be a table.
+* `expect-style` is an optional guard against the current `w:tblStyle` value.
+* Create `w:tblPr` and `w:tblStyle` when missing.
+* Preserve table grid, rows, cells, and existing table properties.
+
+### 11.7b `set-row-header`
+
+```text
+op set-row-header
+target M.T0001.R01
+expect-header false
+header true
+end
+```
+
+Rules:
+
+* Target must be a table row.
+* `header` and `expect-header` use `true` or `false`.
+* Setting `header true` creates `w:trPr/w:tblHeader` when missing.
+* Setting `header false` removes `w:tblHeader` while preserving other row
+  properties.
 
 ### 11.8 `append-row`
 

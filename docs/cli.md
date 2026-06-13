@@ -151,7 +151,8 @@ count, omitted grid columns (`grid-before`/`grid-after`), header status, and
 `cant-split`. Cell lines include logical target column plus `physical-column`, span,
 visual column end, merge group ID, vertical-merge root cell, vertical merge, and
 nested-table metadata. Row operations still reject unsafe
-non-rectangular tables unless `force true` is explicitly supplied.
+non-rectangular tables unless `force true` is explicitly supplied. `set-table-style`
+updates `w:tblStyle`; `set-row-header` sets or clears the row repeating-header flag.
 `validate` runs bounded structural package checks and WordprocessingML invariants:
 known part roots, paired bookmark/comment ranges, commentsExtended paraId consistency,
 duplicate semantic selectors, complex field begin/end balance, drawing relationship

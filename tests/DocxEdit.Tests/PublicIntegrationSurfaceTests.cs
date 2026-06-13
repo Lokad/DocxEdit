@@ -29,6 +29,12 @@ public static class PublicIntegrationSurfaceTests
         Assert.True(DocxHelp.TryGetPatchOperation("set-cell", out DocxPatchOperationInfo setCell));
         Assert.Equal("tracked-cell-simple", setCell.TrackChangesSupport);
         Assert.Contains("E6002", setCell.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-table-style", out DocxPatchOperationInfo setTableStyle));
+        Assert.Contains("expect-style", setTableStyle.OptionalFields);
+        Assert.Equal("preserve-only", setTableStyle.TrackChangesSupport);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-row-header", out DocxPatchOperationInfo setRowHeader));
+        Assert.Contains("expect-header", setRowHeader.OptionalFields);
+        Assert.Equal("preserve-only", setRowHeader.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo removeHyperlink));
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupport);
         Assert.Contains("does not create new revision markup", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);

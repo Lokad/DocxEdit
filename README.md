@@ -166,6 +166,7 @@ Implemented areas include:
 - hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,
   display text updates, insertion, and unlinking while preserving display runs;
 - check/apply operation reports with affected row/cell summaries for table edits;
+- table property patch operations for table style and row repeating-header flags;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
   anchor positioning, aspect-lock, crop percentages, alt text, and containing target;
 - safe image patch operations for media replacement, alt/title/name metadata, extents,

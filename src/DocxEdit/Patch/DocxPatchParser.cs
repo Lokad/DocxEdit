@@ -31,6 +31,8 @@ internal static class DocxPatchParser
         ["insert-hyperlink-after"] = new(["target", "text", "uri", "anchor", "tooltip", "target-frame", "history"], ["history"], []),
         ["remove-hyperlink"] = new(["target"], [], []),
         ["set-cell"] = new(["target", "expect-text", "expect-row-count", "expect-column-count", "text", "force"], ["force"], ["expect-row-count", "expect-column-count"]),
+        ["set-table-style"] = new(["target", "expect-style", "style"], [], []),
+        ["set-row-header"] = new(["target", "expect-header", "header"], ["expect-header", "header"], []),
         ["append-row"] = new(["target", "expect-row-count", "expect-column-count", "cell"], [], ["expect-row-count", "expect-column-count"]),
         ["insert-row-before"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
         ["insert-row-after"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),

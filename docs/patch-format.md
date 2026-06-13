@@ -70,6 +70,8 @@ including nearby paragraph text.
 - `insert-hyperlink-after`: `target`, `text`, exactly one of `uri` or `anchor`, optional `tooltip`, `target-frame`, `history`
 - `remove-hyperlink`: `target`
 - `set-cell`: `target`, `text`, optional `expect-text`, `expect-row-count`, `expect-column-count`, `force`
+- `set-table-style`: `target`, `style`, optional `expect-style`
+- `set-row-header`: `target`, `header`, optional `expect-header`
 - `append-row`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`
 - `insert-row-before`, `insert-row-after`: `target`, repeated `cell`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`
 - `delete-row`: `target`, optional `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force`
@@ -142,6 +144,8 @@ ordinary document content.
 Use table guards whenever possible:
 
 - `expect-text` verifies the selected cell's current visible text for `set-cell`.
+- `expect-style` verifies the selected table's current `w:tblStyle`.
+- `expect-header` verifies the selected row's current repeating-header flag.
 - `expect-row-count` verifies the target table's row count.
 - `expect-column-count` verifies the target table's logical column count.
 - `expect-cell-count` verifies a targeted row's physical cell count for row insert/delete.
@@ -153,6 +157,9 @@ Unsupported fields are rejected. `expect-hash`, `preserve-size`, and `caption` a
 
 `delete-row` `expect-contains` is a row-text guard: the operation fails unless the
 resolved row's final visible text contains the supplied value exactly.
+`set-table-style` updates `w:tblPr/w:tblStyle` and creates `w:tblPr` when missing.
+`set-row-header` sets or clears the row's `w:tblHeader` flag while preserving other
+row properties.
 
 `replace-image` `alt` updates the target inline or anchored DrawingML object's
 description while replacing the media bytes. Use `set-image-alt` when only the

@@ -118,6 +118,8 @@ internal static class DocxPatchEngine
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
                     "set-cell" => ExecuteSetCell(package, operation, options, apply, cancellationToken),
+                    "set-table-style" => ExecuteSetTableStyle(package, operation, apply, cancellationToken),
+                    "set-row-header" => ExecuteSetRowHeader(package, operation, apply, cancellationToken),
                     "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                     "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
                     "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
@@ -4458,6 +4460,91 @@ internal static class DocxPatchEngine
         return diagnostics;
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetTableStyle(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? style = ReadRequiredField(operation, "style", diagnostics);
+        string? expectedStyle = operation.Fields.GetValueOrDefault("expect-style");
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        TableTarget? tableTarget = ResolveTableTarget(package, target!, cancellationToken);
+        if (tableTarget is null && !IsSupportedTableTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-table-style target '{target}'. Expected a table ID such as M.T0001 or H001.T0001.", operation, target)];
+        }
+
+        if (tableTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        string? currentStyle = ReadTableStyleId(tableTarget.Table);
+        if (expectedStyle is not null && !string.Equals(currentStyle, expectedStyle, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table style '{expectedStyle}', found '{currentStyle ?? "none"}'.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetTableStyle(tableTarget.Table, style!);
+        SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);
+        return [];
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetRowHeader(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        _ = ReadRequiredField(operation, "header", diagnostics);
+        bool? header = ReadBooleanField(operation, "header", diagnostics);
+        bool? expectedHeader = ReadBooleanField(operation, "expect-header", diagnostics);
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        RowTarget? rowTarget = ResolveRowTarget(package, target!, cancellationToken);
+        if (rowTarget is null && !IsSupportedRowTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-row-header target '{target}'. Expected a table row ID such as M.T0001.R02 or H001.T0001.R02.", operation, target)];
+        }
+
+        if (rowTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        bool currentHeader = ReadTableRowHeader(rowTarget.Row);
+        if (expectedHeader is not null && currentHeader != expectedHeader)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row header '{expectedHeader.Value.ToString().ToLowerInvariant()}', found '{currentHeader.ToString().ToLowerInvariant()}'.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return [];
+        }
+
+        SetTableRowHeader(rowTarget.Row, header!.Value);
+        SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
+        return [];
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ExecuteAppendRow(
         OoxmlPackage package,
         DocxPatchOperation operation,
@@ -6755,6 +6842,72 @@ internal static class DocxPatchEngine
         columnCount = rows.Length == 0 ? 0 : rows[0].Elements(OoxmlNs.W + "tc").Count();
         int expectedColumnCount = columnCount;
         return expectedColumnCount != 0 && rows.All(row => row.Elements(OoxmlNs.W + "tc").Count() == expectedColumnCount);
+    }
+
+    private static string? ReadTableStyleId(XElement table)
+    {
+        return (string?)table
+            .Element(OoxmlNs.W + "tblPr")
+            ?.Element(OoxmlNs.W + "tblStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+    }
+
+    private static void SetTableStyle(XElement table, string style)
+    {
+        XElement? tableProperties = table.Element(OoxmlNs.W + "tblPr");
+        if (tableProperties is null)
+        {
+            tableProperties = new XElement(OoxmlNs.W + "tblPr");
+            table.AddFirst(tableProperties);
+        }
+
+        XElement? tableStyle = tableProperties.Element(OoxmlNs.W + "tblStyle");
+        if (tableStyle is null)
+        {
+            tableStyle = new XElement(OoxmlNs.W + "tblStyle");
+            tableProperties.AddFirst(tableStyle);
+        }
+
+        tableStyle.SetAttributeValue(OoxmlNs.W + "val", style);
+    }
+
+    private static bool ReadTableRowHeader(XElement row)
+    {
+        XElement? tableHeader = row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + "tblHeader");
+        if (tableHeader is null)
+        {
+            return false;
+        }
+
+        string? value = (string?)tableHeader.Attribute(OoxmlNs.W + "val");
+        return value is null || value is "1" or "true" or "on";
+    }
+
+    private static void SetTableRowHeader(XElement row, bool header)
+    {
+        XElement? rowProperties = row.Element(OoxmlNs.W + "trPr");
+        XElement? tableHeader = rowProperties?.Element(OoxmlNs.W + "tblHeader");
+        if (!header)
+        {
+            tableHeader?.Remove();
+            return;
+        }
+
+        if (rowProperties is null)
+        {
+            rowProperties = new XElement(OoxmlNs.W + "trPr");
+            row.AddFirst(rowProperties);
+        }
+
+        if (tableHeader is null)
+        {
+            tableHeader = new XElement(OoxmlNs.W + "tblHeader");
+            rowProperties.AddFirst(tableHeader);
+        }
+
+        tableHeader.SetAttributeValue(OoxmlNs.W + "val", null);
     }
 
     private static bool IsVerticalMergeContinuation(XElement cell)

@@ -63,6 +63,8 @@ public static class CliTests
         Assert.Equal(DocxHelp.RenderTopic("patch"), patchHelp.Output);
         Assert.Contains("find <<<", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("op set-cell", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("set-table-style", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("set-row-header", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("insert-after", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("expect-row-count", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-section-orientation", patchHelp.Output, StringComparison.Ordinal);

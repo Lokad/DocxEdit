@@ -2713,6 +2713,84 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetTableStyleAndRowHeaderFlag()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-style
+            target M.T0001
+            style TableGrid
+            end
+
+            op set-row-header
+            target M.T0001.R01
+            expect-header false
+            header true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal("TableGrid", table.StyleId);
+        Assert.True(table.HasHeaderRow);
+        Assert.True(table.Rows[0].IsHeader);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:tblStyle w:val=\"TableGrid\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:tblHeader", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckTablePropertyGuardsRejectMismatches()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblPr><w:tblStyle w:val="ExistingStyle"/></w:tblPr>
+                      <w:tr>
+                        <w:trPr><w:tblHeader/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-style
+            target M.T0001
+            expect-style OtherStyle
+            style TableGrid
+            end
+
+            op set-row-header
+            target M.T0001.R01
+            expect-header false
+            header false
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
+    }
+
+    [Fact]
     public static void CheckAppendRowRejectsCellCountMismatch()
     {
         using MemoryStream input = CreateDocxWithBody("""

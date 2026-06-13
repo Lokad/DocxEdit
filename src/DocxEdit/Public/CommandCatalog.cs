@@ -249,6 +249,7 @@ public static class DocxHelp
         builder.AppendLine();
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
+        builder.AppendLine("set-table-style and set-row-header update table properties with explicit guards.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("set-image-size updates DrawingML extents without replacing media bytes.");
@@ -719,6 +720,8 @@ public static class DocxHelp
                     TrackChangesSupport = "tracked-cell-simple",
                     TrackChangesNote = "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002."
                 },
+                PreserveOnly("set-table-style", ["target", "style"], ["expect-style"]),
+                PreserveOnly("set-row-header", ["target", "header"], ["expect-header"]),
                 PreserveOnly("append-row", ["target plus repeated cell"], ["expect-row-count", "expect-column-count"]),
                 PreserveOnly("insert-row-before", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
                 PreserveOnly("insert-row-after", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
