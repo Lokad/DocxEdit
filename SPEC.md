@@ -2517,6 +2517,7 @@ insert-before         inserted paragraph text as w:ins
 insert-after          inserted paragraph text as w:ins
 delete-block          simple paragraph targets as w:del text
 set-style             paragraph property revision with w:pPrChange
+set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
 ```
 
@@ -2526,8 +2527,10 @@ must not be inside existing revision markup, and must have compatible direct
 run-property shape. `delete-block` tracked output is paragraph-only. `set-cell`
 tracked output is limited to text-only cell paragraphs without `force true`; for
 compatible multi-paragraph cells, deleted text remains in its original paragraphs
-and inserted replacement text is emitted in the first paragraph. `set-style`
-records the previous paragraph properties in `w:pPrChange`.
+and inserted replacement text is emitted in the first paragraph. `set-hyperlink-text`
+preserves the hyperlink wrapper and relationship or anchor while replacing simple
+display text with generated revisions. `set-style` records the previous paragraph
+properties in `w:pPrChange`.
 
 Known preserve-only operations:
 
@@ -2550,7 +2553,6 @@ set-field-code
 set-field-result
 refresh-field-result
 set-hyperlink-target
-set-hyperlink-text
 insert-hyperlink-after
 remove-hyperlink
 set-table-style

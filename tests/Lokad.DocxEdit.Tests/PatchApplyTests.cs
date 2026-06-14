@@ -2803,6 +2803,180 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireAllowsSetHyperlinkText()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            text New link
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForSetHyperlinkText()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            text New link
+            end
+            """);
+
+        DateTimeOffset timestamp = DateTimeOffset.Parse("2026-06-08T12:00:00Z").ToUniversalTime();
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Reviewer",
+            TimestampUtc = timestamp,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Equal(["1", "2"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:hyperlink", xml, StringComparison.Ordinal);
+        Assert.Contains("r:id=\"rLink\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old link</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New link</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:author=\"Reviewer\"", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("New link", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Old link", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("[-Old link-][+New link+]", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs).Text);
+        output.Position = 0;
+        DocxHyperlinkInfo hyperlink = Assert.Single(new DocxEditor().Read(output).Hyperlinks);
+        Assert.Equal("https://example.test/old", hyperlink.Uri);
+        Assert.Equal(8, hyperlink.DisplayTextLength);
+        output.Position = 0;
+        DocxChangesResult changes = new DocxEditor().Changes(output);
+        Assert.Contains(changes.Changes, change => change.Type == "deleted-run" && change.RevisionId == "1" && change.Author == "Reviewer");
+        Assert.Contains(changes.Changes, change => change.Type == "inserted-run" && change.RevisionId == "2" && change.Author == "Reviewer");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForHeaderAndFooterHyperlinkText()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooterContent(
+            """
+                  <w:p>
+                    <w:hyperlink w:anchor="HeaderAnchor">
+                      <w:r><w:t>Header link</w:t></w:r>
+                    </w:hyperlink>
+                  </w:p>
+            """,
+            """
+                  <w:p>
+                    <w:hyperlink w:anchor="FooterAnchor">
+                      <w:r><w:t>Footer link</w:t></w:r>
+                    </w:hyperlink>
+                  </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target H001.L0001
+            text Header new
+            end
+
+            op set-hyperlink-text
+            target F001.L0001
+            text Footer new
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(["1", "2"], result.Operations[0].GeneratedRevisionIds);
+        Assert.Equal(["3", "4"], result.Operations[1].GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Story == "header[1]" && paragraph.Text == "Header new");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Story == "footer[1]" && paragraph.Text == "Footer new");
+        Assert.Contains(read.Hyperlinks, hyperlink => hyperlink.Story == "header[1]" && hyperlink.Anchor == "HeaderAnchor");
+        Assert.Contains(read.Hyperlinks, hyperlink => hyperlink.Story == "footer[1]" && hyperlink.Anchor == "FooterAnchor");
+        output.Position = 0;
+        Assert.Contains("<w:delText>Header link</w:delText>", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("<w:delText>Footer link</w:delText>", ReadEntry(output, "word/footer1.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsSetHyperlinkTextWithExistingRevision()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:hyperlink w:anchor="Anchor">
+                        <w:ins w:id="9" w:author="Reviewer" w:date="2026-06-01T00:00:00Z">
+                          <w:r><w:t>Old link</w:t></w:r>
+                        </w:ins>
+                      </w:hyperlink>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            text New link
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("protected OOXML boundary 'tracked-insertion'", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplySetHyperlinkAnchorPreservesSharedRelationship()
     {
         using MemoryStream input = CreateDocxWithBodyAndRelationships(

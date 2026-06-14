@@ -878,10 +878,12 @@ public static class DocxHelp
                     ["target plus uri or anchor"],
                     "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
                     ["tooltip", "target-frame", "history"]),
-                PreserveOnly(
+                Tracked(
                     "set-hyperlink-text",
                     ["target", "text"],
-                    "Hyperlink display text replacement must preserve the hyperlink wrapper and relationship; generated revision markup is not modeled yet."),
+                    TrackClassTextRun,
+                    "tracked-hyperlink-text",
+                    "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002."),
                 PreserveOnly(
                     "insert-hyperlink-after",
                     ["target", "text plus uri or anchor"],

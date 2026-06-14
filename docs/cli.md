@@ -222,7 +222,8 @@ Track-change modes:
 
 Generated tracked output is intentionally narrow. It supports simple text
 replacement, whole-paragraph replacement, inserted/deleted paragraph text,
-paragraph style changes, and simple single-paragraph table-cell replacement.
+paragraph style changes, simple hyperlink display text, and simple table-cell
+replacement including compatible multi-paragraph text-only cells.
 Unsupported tracked shapes produce `W4001`, `W4002`, `E6001`, or `E6002`
 depending on the selected mode.
 
