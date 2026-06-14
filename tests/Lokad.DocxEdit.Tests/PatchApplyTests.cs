@@ -8360,6 +8360,39 @@ public static class PatchApplyTests
         Assert.Contains("tracked row operations do not support force true", diagnostic.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsVisualGridRowStructureRevisions()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>North total</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-row-before
+            target M.T0001.R01
+            cell Inserted total
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("tracked row operations require a simple rectangular table", diagnostic.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("insert-row-before", """
         target M.T0001.R02
@@ -8410,12 +8443,10 @@ public static class PatchApplyTests
     [Theory]
     [InlineData("append-row", "M.T0001")]
     [InlineData("insert-row-before", "M.T0001.R02")]
-    [InlineData("delete-row", "M.T0001.R02")]
-    public static void CheckRowOperationsRejectVerticalMergeTables(string operationName, string target)
+    [InlineData("insert-row-after", "M.T0001.R01")]
+    public static void CheckRowInsertionRejectsVerticalMergeBoundaries(string operationName, string target)
     {
-        string cellFields = operationName == "delete-row"
-            ? string.Empty
-            : """
+        string cellFields = """
             cell Inserted
             cell Value
             """;
@@ -8451,7 +8482,55 @@ public static class PatchApplyTests
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E4301" &&
-            diagnostic.Message.Contains("vertical merges", StringComparison.Ordinal));
+            diagnostic.Message.Contains("vertical merge", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ApplyDeleteRowPromotesVerticalMergeContinuation()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>South</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>East</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Cost</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-row
+            target M.T0001.R01
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal(2, table.RowCount);
+        DocxTableCellInfo promoted = table.Cells.Single(cell => cell.RowIndex == 1 && cell.ColumnIndex == 1);
+        Assert.Equal("restart", promoted.VerticalMerge);
+        Assert.Equal("M.T0001.R01.C01", promoted.VerticalMergeRootCellId);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:vMerge w:val=\"restart\"", xml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -8493,10 +8572,11 @@ public static class PatchApplyTests
                       </w:tr>
                     </w:tbl>
         """)]
-    public static void CheckRowOperationsRejectVisualGridTables(string caseName, string tableXml)
+    public static void ApplyAppendRowAllowsSafeVisualGridTables(string caseName, string tableXml)
     {
         _ = caseName;
         using MemoryStream input = CreateDocxWithBody(tableXml);
+        using var output = new MemoryStream();
         using var patch = new StringReader("""
             docxpatch 1
 
@@ -8507,13 +8587,94 @@ public static class PatchApplyTests
             end
             """);
 
-        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
 
-        Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Code == "E4301" &&
-            diagnostic.TargetId == "M.T0001" &&
-            diagnostic.Message.Contains("not rectangular", StringComparison.Ordinal));
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal(3, table.RowCount);
+        Assert.Contains(table.Cells, cell => cell.RowIndex == 3 && cell.ColumnIndex == 1 && cell.Text == "East");
+        Assert.Contains(table.Cells, cell => cell.RowIndex == 3 && cell.Text == "Margin");
+    }
+
+    [Fact]
+    public static void ApplyInsertRowBeforePreservesGridBeforeShape()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Indented</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-row-before
+            target M.T0001.R01
+            cell Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        DocxTableCellInfo inserted = table.Cells.Single(cell => cell.RowIndex == 1);
+        Assert.Equal("M.T0001.R01.C02", inserted.Id);
+        Assert.Equal(2, inserted.ColumnIndex);
+        Assert.Equal("Inserted", inserted.Text);
+        output.Position = 0;
+        Assert.Equal(2, CountOccurrences(ReadDocumentXml(output), "<w:gridBefore"));
+    }
+
+    [Fact]
+    public static void ApplyInsertRowBeforePreservesHorizontalSpanShape()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>Total</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-row-before
+            target M.T0001.R01
+            cell Inserted total
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        DocxTableCellInfo inserted = table.Cells.Single(cell => cell.RowIndex == 1);
+        Assert.Equal(1, inserted.ColumnIndex);
+        Assert.Equal(2, inserted.ColumnSpan);
+        Assert.Equal(2, inserted.VisualColumnEndIndex);
+        Assert.Equal("Inserted total", inserted.Text);
+        output.Position = 0;
+        Assert.Equal(2, CountOccurrences(ReadDocumentXml(output), "<w:gridSpan w:val=\"2\""));
     }
 
     [Theory]

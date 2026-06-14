@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -326,9 +327,9 @@ internal static class DocxPatchEngine
         int? cellCount)
     {
         int rowCount = table.Elements(OoxmlNs.W + "tr").Count();
-        int columnCount = IsRectangular(table, out int rectangularColumnCount)
-            ? rectangularColumnCount
-            : table.Elements(OoxmlNs.W + "tr").Select(row => row.Elements(OoxmlNs.W + "tc").Count()).DefaultIfEmpty(0).Max();
+        int columnCount = TryGetConsistentVisualColumnCount(table, out int visualColumnCount)
+            ? visualColumnCount
+            : table.Elements(OoxmlNs.W + "tr").Select(ReadTableRowVisualColumnCount).DefaultIfEmpty(0).Max();
         string? tableId = ExtractTableId(target);
         return new TableOperationSnapshot(target, tableId, rowIndex, columnIndex, rowCount, columnCount, cellCount);
     }
@@ -7301,19 +7302,26 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' has no rows to clone.", operation, target)];
         }
 
-        if (ContainsVerticalMerges(tableTarget.Table))
+        if (!TryGetConsistentVisualColumnCount(tableTarget.Table, out int columnCount))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' contains vertical merges that are not supported by append-row.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be appended safely.", operation, target)];
         }
 
-        if (!IsRectangular(tableTarget.Table, out int columnCount))
+        XElement templateRow = rows[^1];
+        if (!CanAppendRowWithVerticalMerges(tableTarget.Table, templateRow, out string? verticalMergeReason))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be appended safely.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' cannot be appended safely: {verticalMergeReason}.", operation, target)];
         }
 
-        if (cellTexts.Length != columnCount)
+        int expectedCellCount = templateRow.Elements(OoxmlNs.W + "tc").Count();
+        if (expectedCellCount == 0)
         {
-            return [Diagnostic(DocxSeverity.Error, "E4303", $"append-row expected {columnCount} cell field(s), but received {cellTexts.Length}.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' has no cells to clone.", operation, target)];
+        }
+
+        if (cellTexts.Length != expectedCellCount)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4303", $"append-row expected {expectedCellCount} cell field(s), but received {cellTexts.Length}.", operation, target)];
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
@@ -7332,7 +7340,7 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        XElement newRow = CreateRowFromTemplate(rows[^1], cellTexts);
+        XElement newRow = CreateRowFromTemplate(templateRow, cellTexts);
         if (useTrackedChanges)
         {
             MarkRowRevision(package, newRow, OoxmlNs.W + "ins", options, generatedRevisionIds, cancellationToken);
@@ -7385,9 +7393,9 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        if (ContainsVerticalMerges(rowTarget.Table))
+        if (!CanInsertRowWithVerticalMerges(rowTarget.Table, rowTarget.Row, insertAfter, out string? verticalMergeReason))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' contains vertical merges that are not supported by {operation.OperationName}.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' cannot be edited safely by {operation.OperationName}: {verticalMergeReason}.", operation, target)];
         }
 
         int expectedCellCount;
@@ -7395,11 +7403,15 @@ internal static class DocxPatchEngine
         {
             expectedCellCount = columnCount;
         }
+        else if (TryGetConsistentVisualColumnCount(rowTarget.Table, out _))
+        {
+            expectedCellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
+        }
         else
         {
             if (!force)
             {
-                return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be edited safely without force true.", operation, target)];
+                return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be edited safely without force true.", operation, target)];
             }
 
             expectedCellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
@@ -7495,14 +7507,16 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4304", $"Cannot delete the last row of table '{target}'.", operation, target)];
         }
 
-        if (ContainsVerticalMerges(rowTarget.Table))
+        if (!CanDeleteRowWithVerticalMerges(rowTarget.Table, rowTarget.Row, out string? verticalMergeReason))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' contains vertical merges that are not supported by delete-row.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' cannot be edited safely by delete-row: {verticalMergeReason}.", operation, target)];
         }
 
-        if (!force && !IsRectangular(rowTarget.Table, out _))
+        if (!force &&
+            !IsRectangular(rowTarget.Table, out _) &&
+            !TryGetConsistentVisualColumnCount(rowTarget.Table, out _))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be edited safely without force true.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be edited safely without force true.", operation, target)];
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
@@ -7527,6 +7541,7 @@ internal static class DocxPatchEngine
         }
         else
         {
+            PromoteVerticalMergeContinuationsAfterDeletedRow(rowTarget.Table, rowTarget.Row);
             rowTarget.Row.Remove();
         }
 
@@ -7556,9 +7571,9 @@ internal static class DocxPatchEngine
 
         if (expectedColumnCount is not null)
         {
-            if (!IsRectangular(table, out int actualColumnCount))
+            if (!TryGetConsistentVisualColumnCount(table, out int actualColumnCount))
             {
-                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), but table is not rectangular.", operation, target));
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), but table does not have a consistent visual grid.", operation, target));
             }
             else if (actualColumnCount != expectedColumnCount)
             {
@@ -7608,6 +7623,12 @@ internal static class DocxPatchEngine
         if (table.Elements(OoxmlNs.W + "tr").Any(RowHasTrackedRowRevision))
         {
             AddTrackedRowStructureUnsupported(options, operation, target, "table already contains tracked row insertion, deletion, or property revision markup", diagnostics);
+            return false;
+        }
+
+        if (!IsRectangular(table, out _))
+        {
+            AddTrackedRowStructureUnsupported(options, operation, target, "tracked row operations require a simple rectangular table", diagnostics);
             return false;
         }
 
@@ -9895,6 +9916,222 @@ internal static class DocxPatchEngine
         return table.Descendants(OoxmlNs.W + "vMerge").Any();
     }
 
+    private static bool CanAppendRowWithVerticalMerges(XElement table, XElement templateRow, [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (!ContainsVerticalMerges(table) || !RowHasVerticalMerge(templateRow))
+        {
+            return true;
+        }
+
+        unsupportedReason = "the last row contains vertical merge cells, so appending would need to decide whether to extend or terminate those merge chains";
+        return false;
+    }
+
+    private static bool CanInsertRowWithVerticalMerges(
+        XElement table,
+        XElement templateRow,
+        bool insertAfter,
+        [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (!ContainsVerticalMerges(table))
+        {
+            return true;
+        }
+
+        if (RowHasVerticalMerge(templateRow))
+        {
+            unsupportedReason = "the template row contains vertical merge cells";
+            return false;
+        }
+
+        XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
+        int rowIndex = Array.IndexOf(rows, templateRow);
+        if (rowIndex < 0)
+        {
+            unsupportedReason = "the target row was not found in its table";
+            return false;
+        }
+
+        int boundaryBeforeRowIndex = insertAfter ? rowIndex + 1 : rowIndex;
+        if (VerticalMergeContinuesAcrossInsertionBoundary(rows, boundaryBeforeRowIndex))
+        {
+            unsupportedReason = "the insertion boundary crosses an active vertical merge chain";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool CanDeleteRowWithVerticalMerges(XElement table, XElement row, [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (!ContainsVerticalMerges(table))
+        {
+            return true;
+        }
+
+        if (!TryGetConsistentVisualColumnCount(table, out _))
+        {
+            unsupportedReason = "the table does not have a consistent visual grid";
+            return false;
+        }
+
+        XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
+        int rowIndex = Array.IndexOf(rows, row);
+        if (rowIndex < 0)
+        {
+            unsupportedReason = "the target row was not found in its table";
+            return false;
+        }
+
+        XElement? nextRow = rowIndex + 1 < rows.Length ? rows[rowIndex + 1] : null;
+        if (nextRow is null)
+        {
+            return true;
+        }
+
+        foreach (TableCellGridSlot deletedSlot in EnumerateTableRowCells(row))
+        {
+            if (!string.Equals(ReadTableCellVerticalMerge(deletedSlot.Cell), "restart", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            XElement? nextCell = FindCellByVisualColumn(nextRow, deletedSlot.ColumnIndex);
+            if (nextCell is null || !string.Equals(ReadTableCellVerticalMerge(nextCell), "continue", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            int nextCellSpan = ReadTableCellColumnSpan(nextCell);
+            if (nextCellSpan != deletedSlot.ColumnSpan)
+            {
+                unsupportedReason = "a vertical merge continuation below the deleted root has a different column span";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool VerticalMergeContinuesAcrossInsertionBoundary(IReadOnlyList<XElement> rows, int boundaryBeforeRowIndex)
+    {
+        if (boundaryBeforeRowIndex <= 0 || boundaryBeforeRowIndex >= rows.Count)
+        {
+            return false;
+        }
+
+        return rows[boundaryBeforeRowIndex]
+            .Elements(OoxmlNs.W + "tc")
+            .Any(cell => string.Equals(ReadTableCellVerticalMerge(cell), "continue", StringComparison.Ordinal));
+    }
+
+    private static bool RowHasVerticalMerge(XElement row)
+    {
+        return row.Elements(OoxmlNs.W + "tc").Any(cell => ReadTableCellVerticalMerge(cell) is not null);
+    }
+
+    private static void PromoteVerticalMergeContinuationsAfterDeletedRow(XElement table, XElement row)
+    {
+        if (!ContainsVerticalMerges(table))
+        {
+            return;
+        }
+
+        XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
+        int rowIndex = Array.IndexOf(rows, row);
+        if (rowIndex < 0 || rowIndex + 1 >= rows.Length)
+        {
+            return;
+        }
+
+        XElement nextRow = rows[rowIndex + 1];
+        foreach (TableCellGridSlot deletedSlot in EnumerateTableRowCells(row))
+        {
+            if (!string.Equals(ReadTableCellVerticalMerge(deletedSlot.Cell), "restart", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            XElement? nextCell = FindCellByVisualColumn(nextRow, deletedSlot.ColumnIndex);
+            if (nextCell is not null && string.Equals(ReadTableCellVerticalMerge(nextCell), "continue", StringComparison.Ordinal))
+            {
+                SetTableCellVerticalMerge(nextCell, "restart");
+            }
+        }
+    }
+
+    private static void SetTableCellVerticalMerge(XElement cell, string value)
+    {
+        XElement? cellProperties = cell.Element(OoxmlNs.W + "tcPr");
+        if (cellProperties is null)
+        {
+            cellProperties = new XElement(OoxmlNs.W + "tcPr");
+            cell.AddFirst(cellProperties);
+        }
+
+        XElement? verticalMerge = cellProperties.Element(OoxmlNs.W + "vMerge");
+        if (verticalMerge is null)
+        {
+            verticalMerge = new XElement(OoxmlNs.W + "vMerge");
+            cellProperties.Add(verticalMerge);
+        }
+
+        verticalMerge.SetAttributeValue(OoxmlNs.W + "val", value);
+    }
+
+    private static bool TryGetConsistentVisualColumnCount(XElement table, out int columnCount)
+    {
+        columnCount = 0;
+        int? expectedColumnCount = null;
+        foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
+        {
+            int rowColumnCount = ReadTableRowVisualColumnCount(row);
+            if (rowColumnCount == 0)
+            {
+                return false;
+            }
+
+            if (expectedColumnCount is null)
+            {
+                expectedColumnCount = rowColumnCount;
+                continue;
+            }
+
+            if (rowColumnCount != expectedColumnCount.Value)
+            {
+                return false;
+            }
+        }
+
+        columnCount = expectedColumnCount ?? 0;
+        return columnCount != 0;
+    }
+
+    private static int ReadTableRowVisualColumnCount(XElement row)
+    {
+        int visualColumnCount = ReadTableRowGridOffset(row, "gridBefore") + ReadTableRowGridOffset(row, "gridAfter");
+        foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+        {
+            visualColumnCount += ReadTableCellColumnSpan(cell);
+        }
+
+        return visualColumnCount;
+    }
+
+    private static IEnumerable<TableCellGridSlot> EnumerateTableRowCells(XElement row)
+    {
+        int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+        foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+        {
+            int columnSpan = ReadTableCellColumnSpan(cell);
+            yield return new TableCellGridSlot(cell, columnIndex, columnSpan);
+            columnIndex += columnSpan;
+        }
+    }
+
     private static bool IsRectangular(XElement table, out int columnCount)
     {
         XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
@@ -10502,6 +10739,8 @@ internal sealed record TableOperationSnapshot(
     int RowCountBefore,
     int ColumnCount,
     int? CellCount);
+
+internal sealed record TableCellGridSlot(XElement Cell, int ColumnIndex, int ColumnSpan);
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
 

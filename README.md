@@ -89,9 +89,10 @@ revision IDs. Pass that report back to `changes --operation-report` to annotate
 matching revision records with the originating operation index, name, and target.
 `dump` also shows target-scoped change metadata for tracked records, which lets
 agents verify property revisions without reading raw OOXML.
-Simple rectangular row insertion/deletion edits are tracked as row structure
-revisions; forced or complex table row shapes fall back or fail with explicit
-diagnostics.
+Direct row insertion/deletion can clone safe visual-grid row shapes and preserve
+their table-grid metadata. Generated row insertion/deletion revisions remain
+limited to simple rectangular tables; visual-grid shapes fall back or fail with
+explicit diagnostics.
 Section column and orientation edits are tracked as section property revisions
 when the section does not already carry `w:sectPrChange` markup.
 

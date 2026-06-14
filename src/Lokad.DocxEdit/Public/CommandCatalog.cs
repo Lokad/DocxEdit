@@ -451,7 +451,7 @@ public static class DocxHelp
                         ]),
                         new("Tables",
                         [
-                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. set-cell targets visual-grid cell IDs or merge-group IDs; visual columns inside a horizontal span resolve to the spanning cell while vertical-merge continuation cells are rejected. Table metadata operations can set or clear caption/description values. Row operations reject visual-grid tables with gridSpan, gridBefore, gridAfter, or vertical merges unless a force mode is explicitly supported by that operation."
+                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. set-cell targets visual-grid cell IDs or merge-group IDs; visual columns inside a horizontal span resolve to the spanning cell while vertical-merge continuation cells are rejected. Table metadata operations can set or clear caption/description values. Direct row operations can clone consistent visual-grid row shapes and delete safe vertical-merge rows; generated tracked row revisions remain limited to simple rectangular tables."
                         ])
                     ],
                     Examples =
@@ -946,28 +946,28 @@ public static class DocxHelp
                     ["target plus repeated cell"],
                     TrackClassRowStructure,
                     "tracked-row-insert",
-                    "Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; complex shapes warn with W4002 or fail with E6002.",
+                    "Direct mode appends by cloning the last row shape when the table has a consistent visual grid and the last row does not contain vertical merge cells. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; visual-grid or other complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count"]),
                 Tracked(
                     "insert-row-before",
                     ["target plus repeated cell"],
                     TrackClassRowStructure,
                     "tracked-row-insert",
-                    "Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.",
+                    "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
                 Tracked(
                     "insert-row-after",
                     ["target plus repeated cell"],
                     TrackClassRowStructure,
                     "tracked-row-insert",
-                    "Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.",
+                    "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
                 Tracked(
                     "delete-row",
                     ["target"],
                     TrackClassRowStructure,
                     "tracked-row-delete",
-                    "Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.",
+                    "Direct mode deletes rows in consistent visual-grid tables and promotes the next vertical-merge continuation when deleting a merge root. Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
                 Unsupported(
                     "append-column",

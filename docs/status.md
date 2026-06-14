@@ -61,6 +61,9 @@ Implemented areas include:
   and row repeating-header flags;
 - table-cell text replacement by visual-grid cell ID or merge-group ID while
   preserving cell properties and horizontal spans;
+- direct row insertion/deletion for consistent visual-grid tables by cloning row
+  shape metadata, with vertical-merge root deletion promoting the next
+  continuation when spans match;
 - explicit `E4316` diagnostics for unsupported table-column insertion and deletion
   attempts;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
@@ -117,7 +120,7 @@ relative/UNC/file hyperlink target support, advanced floating-image edit operati
 size/wrap/position/crop metadata, linked images and VML/grouped/chart/SmartArt/OLE
 drawing shapes beyond diagnostics-only preservation, complex
 merged/nested table edit transformations beyond visual cell/merge-root text,
-simple row, and metadata edits,
+safe visual-grid row cloning/deletion, simple tracked row, and metadata edits,
 table-column transforms beyond explicit unsupported diagnostics,
 full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

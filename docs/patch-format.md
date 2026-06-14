@@ -290,10 +290,10 @@ are rejected. Internal links use bookmark `anchor` values.
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
-| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count` | Appends a row to a simple table |
-| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts before a row |
-| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts after a row |
-| `delete-row` | `target` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Deletes a row |
+| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count` | Appends by cloning the last row shape when the visual grid is consistent |
+| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts before a row by cloning the target row shape when safe |
+| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts after a row by cloning the target row shape when safe |
+| `delete-row` | `target` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Deletes a row; direct mode can promote the next vertical-merge continuation |
 | `append-column` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `force` | Recognized but fails with `E4316` |
 | `insert-column-before` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Recognized but fails with `E4316` |
 | `insert-column-after` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Recognized but fails with `E4316` |
@@ -307,9 +307,13 @@ metadata exposes spans, omitted grid columns, merge-group IDs, vertical-merge
 roots, and nested-table flags so an agent can decide whether a table is safe to
 edit.
 
-Row operations are limited to simple rectangular tables unless the operation
-explicitly supports `force true`. Use `force true` only when replacing or
-rebuilding the affected table content is intended.
+Direct row operations support consistent visual-grid tables by cloning the
+template row shape, including `gridBefore`, `gridAfter`, and `gridSpan`
+metadata. Insertion is rejected when the insertion boundary would cross an
+active vertical merge chain. Deleting a vertical-merge root promotes the next
+continuation to `restart` when the spans match. Generated tracked row revisions
+remain limited to simple rectangular tables; visual-grid row edits under
+`suggest` fall back with `W4002`, and `require` fails with `E6002`.
 
 Use an empty heredoc for `caption` or `description` to remove that metadata
 element:
@@ -419,10 +423,10 @@ set-cell | text-run | tracked-cell-simple | Targets can be visual-grid cell IDs 
 set-table-style | table-property | tracked-table-style | Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.
 set-table-metadata | preserve-only | preserve-only | Table caption and description updates are table metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-row-header | row-property | tracked-row-header | Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.
-append-row | row-structure | tracked-row-insert | Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; complex shapes warn with W4002 or fail with E6002.
-insert-row-before | row-structure | tracked-row-insert | Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.
-insert-row-after | row-structure | tracked-row-insert | Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.
-delete-row | row-structure | tracked-row-delete | Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.
+append-row | row-structure | tracked-row-insert | Direct mode appends by cloning the last row shape when the table has a consistent visual grid and the last row does not contain vertical merge cells. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; visual-grid or other complex shapes warn with W4002 or fail with E6002.
+insert-row-before | row-structure | tracked-row-insert | Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.
+insert-row-after | row-structure | tracked-row-insert | Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.
+delete-row | row-structure | tracked-row-delete | Direct mode deletes rows in consistent visual-grid tables and promotes the next vertical-merge continuation when deleting a merge root. Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.
 append-column | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
 insert-column-before | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
 insert-column-after | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.

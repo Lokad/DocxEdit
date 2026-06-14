@@ -2227,11 +2227,12 @@ Rules:
 
 * Target must be a table.
 * `expect-row-count` and `expect-column-count` are supported guards.
-* Only support rectangular tables without `gridSpan`, `gridBefore`, `gridAfter`,
-  or vertical merges in v0.1.
+* The table must have a consistent visual grid.
 * Clone the last row’s row properties and cell properties.
-* Number of `cell` fields must equal logical column count.
+* Number of `cell` fields must equal the physical cell count of the cloned row.
 * Preserve table style and grid.
+* If the last row contains vertical merge cells, fail because appending would
+  need to choose whether to extend or terminate those merge chains.
 * In tracked output, mark the inserted row through `w:trPr/w:ins`.
 * Tracked output is limited to simple rectangular tables without nested tables or
   existing row-level revision markers.
@@ -2253,9 +2254,12 @@ Row target form:
 M.T0001.R03
 ```
 
-Rules are the same as `append-row`. In tracked output, mark the inserted row
-through `w:trPr/w:ins`; `force true` remains a direct-edit fallback under
-`Suggest` or an `E6002` failure under `Require`.
+Rules are the same as `append-row`, except the template is the target row. The
+insertion boundary must not cross an active vertical merge chain, and the target
+row must not itself contain vertical merge cells. In tracked output, mark the
+inserted row through `w:trPr/w:ins`; `force true`, visual-grid, and other
+complex shapes remain a direct-edit fallback under `Suggest` or an `E6002`
+failure under `Require`.
 
 ### 11.10 `insert-row-after`
 
@@ -2276,13 +2280,16 @@ Rules:
 * `expect-row-count`, `expect-column-count`, `expect-cell-count`, and
   `expect-contains` are supported guards.
 * Do not allow deleting the only row of a table.
-* Fail on visual-grid tables with `gridSpan`, `gridBefore`, `gridAfter`, or
-  vertical merges in v0.1 unless `force true` is explicitly supported by that
-  operation.
+* Direct deletion supports consistent visual-grid tables.
+* When deleting a row whose vertical-merge root is followed by a matching
+  continuation, promote the next continuation from `continue` to `restart`.
+* Fail when vertical-merge promotion would require changing a continuation whose
+  column span differs from the deleted root.
 * In tracked output, keep the row and mark it through `w:trPr/w:del`.
 * Tracked output is limited to simple rectangular tables without nested tables or
-  existing row-level revision markers; `force true` remains a direct-edit
-  fallback under `Suggest` or an `E6002` failure under `Require`.
+  existing row-level revision markers; `force true`, visual-grid, and other
+  complex shapes remain a direct-edit fallback under `Suggest` or an `E6002`
+  failure under `Require`.
 
 ### 11.11b Unsupported table-column transforms
 
@@ -3300,8 +3307,12 @@ Current behavior:
 
 * `set-cell` works for visual-grid cell IDs and merge-group IDs unless the
   resolved target is a vertical merge continuation.
-* Row insert/delete operations fail on tables with vertical merges.
-* Row insert/delete operations fail on non-rectangular tables unless `force true`.
+* Direct row insertion can clone safe visual-grid row shapes when the insertion
+  boundary does not cross an active vertical merge chain.
+* Direct row deletion can delete safe visual-grid rows and promote the next
+  vertical-merge continuation when deleting a root.
+* Generated tracked row insertion/deletion remains limited to simple rectangular
+  tables.
 
 ### 18.3 Cell replacement
 
