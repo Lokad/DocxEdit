@@ -775,10 +775,12 @@ public static class DocxHelp
                     TrackClassParagraphProperty,
                     "tracked-style",
                     "Suggest/Require emit paragraph property revisions with w:pPrChange."),
-                PreserveOnly(
+                Tracked(
                     "set-content-control-text",
                     ["target", "text"],
-                    "Content-control text replacement must preserve the wrapper, bindings, and locks; generated revision markup inside the wrapper is not modeled yet.",
+                    TrackClassTextRun,
+                    "tracked-content-control-text",
+                    "Suggest/Require emit w:del/w:ins inside simple plain-text content controls while preserving the wrapper, bindings, and locks; rich-text or complex content controls warn with W4002 or fail with E6002.",
                     ["expect-text"]),
                 PreserveOnly(
                     "set-content-control-checkbox",

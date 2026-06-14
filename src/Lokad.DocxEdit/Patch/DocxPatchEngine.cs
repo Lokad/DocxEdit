@@ -118,7 +118,7 @@ internal static class DocxPatchEngine
                     "insert-after" => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, generatedRevisionIds, cancellationToken),
                     "delete-block" => ExecuteDeleteBlock(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-style" => ExecuteSetStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
+                    "set-content-control-text" => ExecuteSetContentControlText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
                     "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
                     "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
@@ -873,7 +873,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetContentControlText(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -938,14 +940,46 @@ internal static class DocxPatchEngine
             }
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        XElement? trackedContainer = null;
+        string trackedCurrent = current;
+        if (useTrackedChanges)
+        {
+            if (!isPlainText)
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "rich-text content-control tracked replacement is not modeled yet", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (!TryGetTrackedContentControlTextContainer(content, text!, out trackedContainer, out trackedCurrent, out string? trackedUnsupportedReason))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            ReplaceWholeParagraphTextWithTrackedChanges(package, trackedContainer!, trackedCurrent, text!, options, generatedRevisionIds, cancellationToken);
+            SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
+            return diagnostics;
         }
 
         ReplaceContentControlText(content, text!);
         SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetContentControlCheckbox(
@@ -3620,6 +3654,65 @@ internal static class DocxPatchEngine
             {
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetTrackedContentControlTextContainer(
+        XElement content,
+        string replacement,
+        out XElement? trackedContainer,
+        out string current,
+        out string? unsupportedReason)
+    {
+        trackedContainer = null;
+        current = string.Empty;
+        unsupportedReason = null;
+        XElement[] paragraphs = content.Elements(OoxmlNs.W + "p").ToArray();
+        if (paragraphs.Length > 1)
+        {
+            unsupportedReason = "plain-text content control contains multiple paragraphs";
+            return false;
+        }
+
+        if (paragraphs.Length == 1)
+        {
+            if (content.Elements().Any(element => element.Name != OoxmlNs.W + "p"))
+            {
+                unsupportedReason = "plain-text content control mixes paragraph and non-paragraph content";
+                return false;
+            }
+
+            trackedContainer = paragraphs[0];
+        }
+        else
+        {
+            if (!content.Elements(OoxmlNs.W + "r").Any())
+            {
+                unsupportedReason = "plain-text content control has no run content";
+                return false;
+            }
+
+            if (content.Elements().Any(element => element.Name != OoxmlNs.W + "r"))
+            {
+                unsupportedReason = "plain-text content control contains non-run content";
+                return false;
+            }
+
+            trackedContainer = content;
+        }
+
+        if (TryGetProtectedTextEditFeature(trackedContainer, out string protectedFeature))
+        {
+            unsupportedReason = $"plain-text content control contains protected OOXML boundary '{protectedFeature}'";
+            return false;
+        }
+
+        current = ReadVisibleText(trackedContainer);
+        if (!TryValidateTrackedWholeParagraphReplacement(trackedContainer, current, replacement, style: null, out unsupportedReason))
+        {
+            return false;
         }
 
         return true;

@@ -62,9 +62,9 @@ Implemented areas include:
 - safe image patch operations for media replacement, alt/title/name metadata, extents,
   anchored wrap mode/distances, anchored positioning, and crop percentages;
 - tracked-change output for simple text replacement, whole-paragraph replacement,
-  paragraph insertion/deletion, paragraph style changes, simple hyperlink display
-  text, and simple table-cell text replacement with author, timestamp, and
-  revision IDs;
+  paragraph insertion/deletion, paragraph style changes, simple plain-text
+  content controls, simple hyperlink display text, and simple table-cell text
+  replacement with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog,
   including tracked and preserve-only operation classifications, with `W4001` and
   `E6001` diagnostics that report the catalog support value;

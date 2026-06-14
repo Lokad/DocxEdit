@@ -1301,11 +1301,15 @@ public static class PatchApplyTests
                     <w:p>
                       <w:sdt>
                         <w:sdtPr>
-                          <w:text/>
-                          <w:tag w:val="client-name"/>
+                          <w:checkBox>
+                            <w:checked w:val="0"/>
+                            <w:checkedState w:val="2612"/>
+                            <w:uncheckedState w:val="2610"/>
+                          </w:checkBox>
+                          <w:tag w:val="accepted"/>
                         </w:sdtPr>
                         <w:sdtContent>
-                          <w:r><w:t>Client</w:t></w:r>
+                          <w:r><w:t>Unchecked</w:t></w:r>
                         </w:sdtContent>
                       </w:sdt>
                     </w:p>
@@ -1314,9 +1318,9 @@ public static class PatchApplyTests
         using var patch = new StringReader("""
             docxpatch 1
 
-            op set-content-control-text
+            op set-content-control-checkbox
             target M.CC0001
-            text Customer
+            checked true
             end
             """);
 
@@ -1325,11 +1329,11 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
         Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("apply operation 'set-content-control-text' directly", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("apply operation 'set-content-control-checkbox' directly", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
         Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
         output.Position = 0;
-        Assert.Equal("Customer", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        Assert.Equal(char.ConvertFromUtf32(0x2612), Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
 
     [Fact]
@@ -3512,12 +3516,8 @@ public static class PatchApplyTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.True(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
-        Assert.Contains("operation 'set-content-control-text'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
-        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["1", "2"], Assert.Single(result.Operations).GeneratedRevisionIds);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output);
         Assert.Equal("New Client", Assert.Single(read.Paragraphs).Text);
@@ -3538,47 +3538,78 @@ public static class PatchApplyTests
         Assert.Contains("w:alias w:val=\"Client Name\"", xml, StringComparison.Ordinal);
         Assert.Contains("w:lock w:val=\"unlocked\"", xml, StringComparison.Ordinal);
         Assert.Contains("w:dataBinding w:xpath=\"/root/client\"", xml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old Client</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New Client</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Old Client", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("[-Old Client-][+New Client+]", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs).Text);
     }
 
-    [Theory]
-    [InlineData("<w:text/>", "<w:r><w:t>Old Client</w:t></w:r>", "text New Client")]
-    [InlineData("<w:richText/>", "<w:p><w:r><w:t>Old Client</w:t></w:r></w:p>", "expect-text Old Client\ntext New Client")]
-    public static void CheckTrackChangesRequireRejectsSetContentControlTextAsPreserveOnly(
-        string kindXml,
-        string contentXml,
-        string operationFields)
+    [Fact]
+    public static void CheckTrackChangesRequireAllowsPlainTextContentControlText()
     {
-        using MemoryStream input = CreateDocxWithBody($"""
+        using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
                       <w:sdt>
                         <w:sdtPr>
-                          {kindXml}
+                          <w:text/>
                           <w:tag w:val="client-name"/>
                         </w:sdtPr>
                         <w:sdtContent>
-                          {contentXml}
+                          <w:r><w:t>Old Client</w:t></w:r>
                         </w:sdtContent>
                       </w:sdt>
                     </w:p>
             """);
-        using var patch = new StringReader($"""
+        using var patch = new StringReader("""
             docxpatch 1
 
             op set-content-control-text
             target M.CC0001
-            {operationFields}
+            text New Client
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsRichTextContentControlText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:richText/>
+                          <w:tag w:val="client-name"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:p><w:r><w:t>Old Client</w:t></w:r></w:p>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            expect-text Old Client
+            text New Client
             end
             """);
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
         Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
         Assert.Contains("operation 'set-content-control-text'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Contains("rich-text content-control tracked replacement is not modeled yet", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
         Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
