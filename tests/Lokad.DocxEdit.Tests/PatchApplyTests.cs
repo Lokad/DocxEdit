@@ -1362,6 +1362,70 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestCoversParagraphStylePropertyShapes()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody(
+            """
+                  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+                  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """,
+            """
+                    <w:p><w:r><w:t>No properties</w:t></w:r></w:p>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Normal"/></w:pPr>
+                      <w:r><w:t>Existing style</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr>
+                        <w:spacing w:before="120"/>
+                        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>Complex properties</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target M.P0001
+            style Heading2
+            end
+
+            op set-style
+            target M.P0002
+            style Heading2
+            end
+
+            op set-style
+            target M.P0003
+            style Heading2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Reviewer",
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(["1"], result.Operations[0].GeneratedRevisionIds);
+        Assert.Equal(["2"], result.Operations[1].GeneratedRevisionIds);
+        Assert.Equal(["3"], result.Operations[2].GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(3, CountOccurrences(xml, "<w:pPrChange "));
+        Assert.Equal(3, CountOccurrences(xml, "w:pStyle w:val=\"Heading2\""));
+        Assert.Contains("<w:spacing w:before=\"120\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:numPr>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        DocxChangesResult changes = new DocxEditor().Changes(output);
+        Assert.Contains(changes.Summary, summary => summary.Type == "paragraph-properties-change" && summary.Count == 3);
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForSetCell()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -5793,6 +5857,15 @@ public static class PatchApplyTests
 
     private static MemoryStream CreateDocxWithStyles(string styleElements)
     {
+        return CreateDocxWithStylesAndBody(
+            styleElements,
+            """
+                    <w:p><w:r><w:t>Styled paragraph</w:t></w:r></w:p>
+            """);
+    }
+
+    private static MemoryStream CreateDocxWithStylesAndBody(string styleElements, string bodyXml)
+    {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -5817,7 +5890,9 @@ public static class PatchApplyTests
             AddEntry(archive, "word/document.xml", """
                 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
                   <w:body>
-                    <w:p><w:r><w:t>Styled paragraph</w:t></w:r></w:p>
+
+                """ + bodyXml + """
+
                   </w:body>
                 </w:document>
                 """);
