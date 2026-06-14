@@ -3587,7 +3587,7 @@ internal static class DocxPatchEngine
                 continue;
             }
 
-            string signature = run.Element(OoxmlNs.W + "rPr")?.ToString(SaveOptions.DisableFormatting) ?? string.Empty;
+            string signature = CanonicalRunPropertiesSignature(run.Element(OoxmlNs.W + "rPr"));
             if (firstSignature is null)
             {
                 firstSignature = signature;
@@ -3601,6 +3601,69 @@ internal static class DocxPatchEngine
         }
 
         return false;
+    }
+
+    private static string CanonicalRunPropertiesSignature(XElement? runProperties)
+    {
+        if (runProperties is null)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        AppendCanonicalElement(builder, runProperties);
+        return builder.ToString();
+    }
+
+    private static void AppendCanonicalElement(StringBuilder builder, XElement element)
+    {
+        builder.Append('{')
+            .Append(element.Name.NamespaceName)
+            .Append('}')
+            .Append(element.Name.LocalName)
+            .Append('[');
+
+        foreach (XAttribute attribute in element.Attributes()
+            .Where(attribute => !attribute.IsNamespaceDeclaration)
+            .OrderBy(attribute => attribute.Name.NamespaceName, StringComparer.Ordinal)
+            .ThenBy(attribute => attribute.Name.LocalName, StringComparer.Ordinal)
+            .ThenBy(attribute => attribute.Value, StringComparer.Ordinal))
+        {
+            builder.Append('{')
+                .Append(attribute.Name.NamespaceName)
+                .Append('}')
+                .Append(attribute.Name.LocalName)
+                .Append('=')
+                .Append(attribute.Value)
+                .Append(';');
+        }
+
+        builder.Append(']');
+
+        foreach (string childSignature in element.Nodes()
+            .Select(CanonicalNodeSignature)
+            .Where(signature => signature.Length != 0)
+            .OrderBy(signature => signature, StringComparer.Ordinal))
+        {
+            builder.Append(childSignature);
+        }
+    }
+
+    private static string CanonicalNodeSignature(XNode node)
+    {
+        if (node is XElement element)
+        {
+            var builder = new StringBuilder();
+            AppendCanonicalElement(builder, element);
+            return builder.ToString();
+        }
+
+        if (node is XText text && !string.IsNullOrWhiteSpace(text.Value))
+        {
+            return text.Value;
+        }
+
+        return string.Empty;
     }
 
     private static bool RunHasVisibleText(XElement run)

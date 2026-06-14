@@ -425,9 +425,11 @@ The patch engine uses the support class, while the detailed support value explai
 the narrower operation shape, such as `tracked-simple` or `tracked-cell-simple`.
 
 Even supported tracked operations can fail for unsupported shapes, such as tabs,
-line breaks, protected OOXML boundaries, existing revision markup, or mixed direct
-run formatting. Those cases produce `W4002` in `suggest` mode or `E6002` in
-`require` mode. The diagnostic includes the operation name, target ID, catalog
+line breaks, protected OOXML boundaries, existing revision markup, or genuinely
+mixed direct run formatting. Equivalent direct run formatting is compared through
+canonicalized `w:rPr`, so harmless child or attribute ordering differences do not
+force fallback. Unsupported shapes produce `W4002` in `suggest` mode or `E6002`
+in `require` mode. The diagnostic includes the operation name, target ID, catalog
 support value, and exact unsupported-shape reason; `W4002` also says the edit is
 being applied directly.
 

@@ -888,6 +888,44 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestReplacesAcrossRunsWithEquivalentDirectFormatting()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:rPr><w:b/><w:i/></w:rPr><w:t>Revenue</w:t></w:r>
+                      <w:r><w:rPr><w:i/><w:b/></w:rPr><w:t> </w:t></w:r>
+                      <w:r><w:rPr><w:b/><w:i/></w:rPr><w:t>increased</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Revenue increased
+            with Revenue rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Equal(["1", "2"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:delText>Revenue increased</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Revenue rose</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:b", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:i", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceText()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
