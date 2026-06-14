@@ -85,6 +85,7 @@ internal static class DocxChangeScanner
                     CommentParaId = comment?.ParaId,
                     CommentParentParaId = comment?.ParentParaId,
                     CommentRootParaId = comment?.RootParaId,
+                    CommentDurableId = comment?.DurableId,
                     CommentIsReply = comment?.IsReply,
                     CommentResolved = comment?.Resolved,
                     CommentAnchorTargetId = commentAnchor?.AnchorTargetId,
@@ -153,6 +154,7 @@ internal static class DocxChangeScanner
                     ParaId = metadata?.CommentParaId,
                     ParentParaId = metadata?.CommentParentParaId,
                     RootParaId = metadata?.CommentRootParaId,
+                    DurableId = metadata?.CommentDurableId,
                     IsReply = metadata?.CommentIsReply,
                     Resolved = metadata?.CommentResolved,
                     TextLength = text?.CommentTextLength,
@@ -669,6 +671,7 @@ internal static class DocxChangeScanner
 
         var comments = new Dictionary<string, CommentMetadata>(StringComparer.Ordinal);
         IReadOnlyDictionary<string, CommentExtensionMetadata> commentExtensions = BuildCommentExtensionMap(package, cancellationToken);
+        IReadOnlyDictionary<string, CommentIdMetadata> commentIds = BuildCommentIdMap(package, cancellationToken);
         foreach (OoxmlRelationship relationship in package
             .GetRelationships(package.MainDocumentPartName, cancellationToken)
             .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
@@ -693,6 +696,7 @@ internal static class DocxChangeScanner
 
                 string? paraId = ReadCommentParaId(comment);
                 commentExtensions.TryGetValue(paraId ?? string.Empty, out CommentExtensionMetadata? extension);
+                commentIds.TryGetValue(paraId ?? string.Empty, out CommentIdMetadata? commentId);
                 string? rootParaId = ResolveCommentRootParaId(paraId, commentExtensions);
                 string? text = includeCommentText ? ReadCommentText(comment) : null;
                 comments[id] = new CommentMetadata(
@@ -702,6 +706,7 @@ internal static class DocxChangeScanner
                     paraId,
                     extension?.ParentParaId,
                     rootParaId,
+                    commentId?.DurableId,
                     paraId is null ? null : !string.IsNullOrWhiteSpace(extension?.ParentParaId),
                     extension?.Resolved,
                     text?.Length,
@@ -752,6 +757,61 @@ internal static class DocxChangeScanner
         }
 
         return extensions;
+    }
+
+    private static IReadOnlyDictionary<string, CommentIdMetadata> BuildCommentIdMap(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        var ids = new Dictionary<string, CommentIdMetadata>(StringComparer.Ordinal);
+        foreach (string partName in GetCommentsIdsPartNames(package, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (XElement commentId in document.Descendants(OoxmlNs.W16Cid + "commentId"))
+            {
+                string? paraId = (string?)commentId.Attribute(OoxmlNs.W16Cid + "paraId");
+                if (string.IsNullOrWhiteSpace(paraId))
+                {
+                    continue;
+                }
+
+                ids[paraId] = new CommentIdMetadata((string?)commentId.Attribute(OoxmlNs.W16Cid + "durableId"));
+            }
+        }
+
+        return ids;
+    }
+
+    private static IReadOnlyList<string> GetCommentsIdsPartNames(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return [];
+        }
+
+        var partNames = package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsIds && relationship.ResolvedTarget is not null)
+            .Select(relationship => relationship.ResolvedTarget!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (package.GetPart("/word/commentsIds.xml") is not null &&
+            !partNames.Contains("/word/commentsIds.xml", StringComparer.OrdinalIgnoreCase))
+        {
+            partNames.Add("/word/commentsIds.xml");
+        }
+
+        return partNames;
     }
 
     private static string? ResolveCommentRootParaId(
@@ -1053,6 +1113,7 @@ internal sealed record CommentMetadata(
     string? ParaId,
     string? ParentParaId,
     string? RootParaId,
+    string? DurableId,
     bool? IsReply,
     bool? Resolved,
     int? TextLength,
@@ -1062,6 +1123,8 @@ internal sealed record CommentMetadata(
 internal sealed record CommentExtensionMetadata(
     string? ParentParaId,
     bool? Resolved);
+
+internal sealed record CommentIdMetadata(string? DurableId);
 
 internal sealed record CommentAnchorMetadata(
     string? AnchorTargetId,

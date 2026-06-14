@@ -48,7 +48,7 @@ Common code ranges:
 - `E4313`: field code/result replacement was requested for a field shape that is not
   safely editable by the requested operation.
 - `E4314`: threaded comment reply operations are recognized but not supported because
-  DocxEdit does not safely model commentsIds/threaded-comments metadata yet.
+  DocxEdit does not safely modify threaded comment metadata yet.
 - `E4315`: repeating-section item operations are recognized but not supported because
   DocxEdit does not safely model repeating-section subtree insertion/deletion yet.
 - `E4316`: table column operations are recognized but not supported because DocxEdit
@@ -117,6 +117,9 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
   orientation values.
 - `E9121`: tracked revision markup is malformed, such as missing revision metadata,
   orphan `w:delText`, or malformed paragraph property revisions.
+- `E9122`: `commentsIds.xml` metadata is malformed, such as missing or duplicate
+  `w16cid:paraId` / `w16cid:durableId`, or a paraId without a matching comment
+  paragraph.
 - `E9199`: validation diagnostics were capped and omitted diagnostics include errors.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.

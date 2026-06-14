@@ -1189,6 +1189,7 @@ public sealed record DocxChangeInfo
     public string? CommentParaId { get; init; }
     public string? CommentParentParaId { get; init; }
     public string? CommentRootParaId { get; init; }
+    public string? CommentDurableId { get; init; }
     public bool? CommentIsReply { get; init; }
     public bool? CommentResolved { get; init; }
     public string? CommentAnchorTargetId { get; init; }
@@ -1209,9 +1210,11 @@ public sealed record DocxChangeInfo
 
 `CommentParaId`, `CommentParentParaId`, `CommentRootParaId`, `CommentIsReply`,
 and `CommentResolved` are populated from Word's modern `commentsExtended.xml`
-metadata when it is present. They are safe metadata fields and do not expose
-comment body text. `DocxCommentThreadSummary` exposes the same root/reply and
-resolution fields, plus the same opt-in text snippet fields, at the thread level:
+metadata when it is present. `CommentDurableId` is populated from
+`commentsIds.xml` when a matching `w16cid:paraId` record is present. They are
+safe metadata fields and do not expose comment body text.
+`DocxCommentThreadSummary` exposes the same root/reply, durable ID, and resolution
+fields, plus the same opt-in text snippet fields, at the thread level:
 
 ```csharp
 public sealed record DocxCommentThreadSummary
@@ -1227,6 +1230,7 @@ public sealed record DocxCommentThreadSummary
     public string? ParaId { get; init; }
     public string? ParentParaId { get; init; }
     public string? RootParaId { get; init; }
+    public string? DurableId { get; init; }
     public bool? IsReply { get; init; }
     public bool? Resolved { get; init; }
     public int? TextLength { get; init; }
@@ -1965,7 +1969,7 @@ Rules:
   matching `commentsExtended.xml` records when present.
 * `add-comment-reply` and `delete-comment-reply` are recognized so callers receive
   explicit `E4314` diagnostics. They fail until DocxEdit safely models
-  commentsIds/threaded-comments metadata.
+  threaded-comment reply body edits and related thread metadata updates.
 * Selected-range comment creation and full threaded comment workflows are out of
   scope for v0.1.
 
@@ -2780,6 +2784,7 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * content-control metadata validity, including `w:id`, `w:lock`, and checkbox
   `w:checked` values;
 * modern `commentsExtended.xml` paraId consistency;
+* modern `commentsIds.xml` paraId/durableId consistency;
 * complex field begin/separate/end balance, instruction-text containment, cached-result containment, and dirty/lock flag validity;
 * DrawingML `a:blip` relationship references, image target parts, and image media
   content types;
@@ -2848,6 +2853,8 @@ E9115 content-control metadata is malformed
 E9118 settings metadata is malformed
 E9119 header/footer references are missing or use the wrong relationship type
 E9120 section properties are malformed
+E9121 tracked revision markup is malformed
+E9122 commentsIds metadata is malformed
 E9199 validation diagnostics were capped and omitted diagnostics include errors
 W9109 duplicate semantic selectors make bookmark/content-control selectors ambiguous
 W9116 paragraph style reference is not defined in /word/styles.xml

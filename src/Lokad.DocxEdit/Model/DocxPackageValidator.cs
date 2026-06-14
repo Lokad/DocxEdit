@@ -95,6 +95,7 @@ internal static class DocxPackageValidator
             "/word/settings.xml" => OoxmlNs.W + "settings",
             "/word/comments.xml" => OoxmlNs.W + "comments",
             "/word/commentsExtended.xml" => OoxmlNs.W15 + "commentsEx",
+            "/word/commentsIds.xml" => OoxmlNs.W16Cid + "commentsIds",
             "/word/footnotes.xml" => OoxmlNs.W + "footnotes",
             "/word/endnotes.xml" => OoxmlNs.W + "endnotes",
             _ when partName.StartsWith("/word/header", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "hdr",
@@ -137,6 +138,10 @@ internal static class DocxPackageValidator
         if (string.Equals(partName, "/word/commentsExtended.xml", StringComparison.OrdinalIgnoreCase))
         {
             ValidateCommentsExtended(package, partName, document, diagnostics, cancellationToken);
+        }
+        else if (string.Equals(partName, "/word/commentsIds.xml", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateCommentsIds(package, partName, document, diagnostics, cancellationToken);
         }
         else if (string.Equals(partName, "/word/settings.xml", StringComparison.OrdinalIgnoreCase))
         {
@@ -887,6 +892,68 @@ internal static class DocxPackageValidator
             if (!commentParaIds.Contains(paraId))
             {
                 diagnostics.Add(Error("E9108", $"commentsExtended paraId '{paraId}' has no matching comment paragraph.", partName));
+            }
+        }
+    }
+
+    private static void ValidateCommentsIds(
+        OoxmlPackage package,
+        string partName,
+        XDocument document,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
+    {
+        HashSet<string> commentParaIds = ReadCommentParaIds(package, cancellationToken);
+        var ids = document
+            .Descendants(OoxmlNs.W16Cid + "commentId")
+            .Select(element => (
+                ParaId: (string?)element.Attribute(OoxmlNs.W16Cid + "paraId"),
+                DurableId: (string?)element.Attribute(OoxmlNs.W16Cid + "durableId")))
+            .ToArray();
+
+        foreach ((string? paraId, _) in ids.Where(item => string.IsNullOrWhiteSpace(item.ParaId)))
+        {
+            diagnostics.Add(Error("E9122", "commentsIds commentId is missing w16cid:paraId.", partName));
+        }
+
+        foreach ((string? paraId, string? durableId) in ids.Where(item => string.IsNullOrWhiteSpace(item.DurableId)))
+        {
+            string target = string.IsNullOrWhiteSpace(paraId) ? "with no paraId" : $"for paraId '{paraId}'";
+            diagnostics.Add(Error("E9122", $"commentsIds commentId {target} is missing w16cid:durableId.", partName));
+        }
+
+        foreach (IGrouping<string, string> group in ids
+            .Select(item => item.ParaId)
+            .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+            .Select(paraId => paraId!)
+            .GroupBy(paraId => paraId, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            diagnostics.Add(Error("E9122", $"Duplicate commentsIds paraId '{group.Key}' appears {group.Count()} times.", partName));
+        }
+
+        foreach (IGrouping<string, string> group in ids
+            .Select(item => item.DurableId)
+            .Where(durableId => !string.IsNullOrWhiteSpace(durableId))
+            .Select(durableId => durableId!)
+            .GroupBy(durableId => durableId, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            diagnostics.Add(Error("E9122", $"Duplicate commentsIds durableId '{group.Key}' appears {group.Count()} times.", partName));
+        }
+
+        foreach (string paraId in ids
+            .Select(item => item.ParaId)
+            .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
+            .Select(paraId => paraId!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal))
+        {
+            if (!commentParaIds.Contains(paraId))
+            {
+                diagnostics.Add(Error("E9122", $"commentsIds paraId '{paraId}' has no matching comment paragraph.", partName));
             }
         }
     }

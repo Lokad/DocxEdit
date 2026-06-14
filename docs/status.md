@@ -26,7 +26,8 @@ Implemented areas include:
   comment body IDs;
 - comment anchor/context metadata and metadata-only comment body `dump`/`context`
   targets;
-- comment root/reply and resolution metadata from `commentsExtended.xml`, plus
+- comment root/reply and resolution metadata from `commentsExtended.xml`, durable
+  comment IDs from `commentsIds.xml`, plus
   `resolve-comment` and `reopen-comment` workflows that create or update modern extension records for
   basic comments, and explicit `E4314` diagnostics for unsupported threaded reply
   operations;
@@ -128,8 +129,9 @@ unsupported WordprocessingML shapes without private document details.
   `context` without exposing body text by default.
 - `commentsExtended.xml` `w15:commentEx` records are modeled for para IDs,
   parent/root para IDs, reply classification, and resolved state.
-- `commentsIds` and full threaded-comment reply bodies are not safely modeled.
-  Reply operations are recognized and fail with `E4314`.
+- `commentsIds.xml` durable IDs are modeled and validated. Full threaded-comment
+  reply body editing is not safely modeled; reply operations are recognized and
+  fail with `E4314`.
 - Comment anchors, references, body IDs, duplicate IDs, orphan anchors, and
   orphan extension records are validated.
 - Comment creation, body replacement, resolution toggles, reopening, and deletion

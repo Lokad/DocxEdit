@@ -5356,6 +5356,52 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyDeleteCommentRemovesCommentsIdsMetadata()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            commentsIdsXml: """
+                <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+                  <w16cid:commentId w16cid:paraId="00ABCDEF" w16cid:durableId="7F0A11BC"/>
+                </w16cid:commentsIds>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-comment
+            target comment:3
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string commentsIdsXml = ReadEntry(output, "word/commentsIds.xml");
+        Assert.DoesNotContain("00ABCDEF", commentsIdsXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("commentId", commentsIdsXml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.True(new DocxEditor().Validate(output).Success);
+    }
+
+    [Fact]
     public static void ApplyDeleteCommentRemovesBodyAndAnchors()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
@@ -5461,7 +5507,7 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E4314" &&
             diagnostic.TargetId == "comment:3" &&
-            diagnostic.Message.Contains("threaded comment replies", StringComparison.Ordinal));
+            diagnostic.Message.Contains("comment-thread metadata", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -8202,27 +8248,25 @@ public static class PatchApplyTests
     private static MemoryStream CreateDocxWithBodyAndComments(
         string bodyXml,
         string commentsXml,
-        string? commentsExtendedXml = null)
+        string? commentsExtendedXml = null,
+        string? commentsIdsXml = null)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            string contentTypesXml = commentsExtendedXml is null
-                ? """
+            string commentsExtendedOverride = commentsExtendedXml is null
+                ? string.Empty
+                : "                  <Override PartName=\"/word/commentsExtended.xml\" ContentType=\"application/vnd.ms-word.commentsExtended+xml\"/>\n";
+            string commentsIdsOverride = commentsIdsXml is null
+                ? string.Empty
+                : "                  <Override PartName=\"/word/commentsIds.xml\" ContentType=\"application/vnd.ms-word.commentsIds+xml\"/>\n";
+            string contentTypesXml = """
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                   <Default Extension="xml" ContentType="application/xml"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
                   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
-                </Types>
-                """
-                : """
-                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-                  <Default Extension="xml" ContentType="application/xml"/>
-                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-                  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
-                  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExtended+xml"/>
+                """ + commentsExtendedOverride + commentsIdsOverride + """
                 </Types>
                 """;
             AddEntry(archive, "[Content_Types].xml", contentTypesXml);
@@ -8231,16 +8275,16 @@ public static class PatchApplyTests
                   <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
                 </Relationships>
                 """);
-            string relationshipsXml = commentsExtendedXml is null
-                ? """
+            string commentsExtendedRelationship = commentsExtendedXml is null
+                ? string.Empty
+                : "                  <Relationship Id=\"rCommentsExtended\" Type=\"http://schemas.microsoft.com/office/2011/relationships/commentsExtended\" Target=\"commentsExtended.xml\"/>\n";
+            string commentsIdsRelationship = commentsIdsXml is null
+                ? string.Empty
+                : "                  <Relationship Id=\"rCommentsIds\" Type=\"http://schemas.microsoft.com/office/2016/09/relationships/commentsIds\" Target=\"commentsIds.xml\"/>\n";
+            string relationshipsXml = """
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
-                </Relationships>
-                """
-                : """
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
-                  <Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
+                """ + commentsExtendedRelationship + commentsIdsRelationship + """
                 </Relationships>
                 """;
             AddEntry(archive, "word/_rels/document.xml.rels", relationshipsXml);
@@ -8258,6 +8302,11 @@ public static class PatchApplyTests
             if (commentsExtendedXml is not null)
             {
                 AddEntry(archive, "word/commentsExtended.xml", commentsExtendedXml);
+            }
+
+            if (commentsIdsXml is not null)
+            {
+                AddEntry(archive, "word/commentsIds.xml", commentsIdsXml);
             }
         }
 

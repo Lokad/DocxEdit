@@ -1734,6 +1734,7 @@ internal static class DocxPatchEngine
 
         string commentId = (string?)commentTarget.Comment.Attribute(OoxmlNs.W + "id") ?? string.Empty;
         RemoveCommentExtensionRecords(package, commentTarget.Comment, cancellationToken);
+        RemoveCommentIdRecords(package, commentTarget.Comment, cancellationToken);
         commentTarget.Comment.Remove();
         SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
         RemoveCommentAnchors(package, commentId, cancellationToken);
@@ -2403,7 +2404,7 @@ internal static class DocxPatchEngine
             Diagnostic(
                 DocxSeverity.Error,
                 "E4314",
-                $"Operation '{operation.OperationName}' is not supported because threaded comment replies require commentsIds/threaded-comments metadata that DocxEdit does not safely model yet.",
+                $"Operation '{operation.OperationName}' is not supported because threaded comment reply edits require comment-thread metadata that DocxEdit does not safely modify yet.",
                 operation,
                 target)
         ];
@@ -3096,6 +3097,28 @@ internal static class DocxPatchEngine
         return partNames;
     }
 
+    private static IReadOnlyList<string> GetCommentsIdsPartNames(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        if (package.MainDocumentPartName is null)
+        {
+            return [];
+        }
+
+        var partNames = package
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsIds && relationship.ResolvedTarget is not null)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
+            .Select(relationship => relationship.ResolvedTarget!)
+            .ToList();
+        if (package.GetPart("/word/commentsIds.xml") is not null &&
+            !partNames.Contains("/word/commentsIds.xml", StringComparer.Ordinal))
+        {
+            partNames.Add("/word/commentsIds.xml");
+        }
+
+        return partNames;
+    }
+
     private static DocxDiagnostic? ValidateExistingCommentsPart(OoxmlPackage package, CancellationToken cancellationToken)
     {
         foreach (string partName in GetCommentsPartNames(package, cancellationToken))
@@ -3486,6 +3509,35 @@ internal static class DocxPatchEngine
             foreach (XElement extensionRecord in extensionRecords)
             {
                 extensionRecord.Remove();
+            }
+
+            SaveDocumentPart(package, partName, document);
+        }
+    }
+
+    private static void RemoveCommentIdRecords(OoxmlPackage package, XElement comment, CancellationToken cancellationToken)
+    {
+        string? paraId = ReadCommentParaId(comment);
+        if (string.IsNullOrWhiteSpace(paraId))
+        {
+            return;
+        }
+
+        foreach (string partName in GetCommentsIdsPartNames(package, cancellationToken))
+        {
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement[] commentIdRecords = document
+                .Descendants(OoxmlNs.W16Cid + "commentId")
+                .Where(element => string.Equals((string?)element.Attribute(OoxmlNs.W16Cid + "paraId"), paraId, StringComparison.Ordinal))
+                .ToArray();
+            if (commentIdRecords.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (XElement commentIdRecord in commentIdRecords)
+            {
+                commentIdRecord.Remove();
             }
 
             SaveDocumentPart(package, partName, document);

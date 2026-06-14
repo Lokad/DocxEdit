@@ -253,6 +253,7 @@ public static class DocxTextRenderer
             string paraId = summary.ParaId is null ? string.Empty : $" para-id={EscapeText(summary.ParaId)}";
             string parentParaId = summary.ParentParaId is null ? string.Empty : $" parent-para-id={EscapeText(summary.ParentParaId)}";
             string rootParaId = summary.RootParaId is null ? string.Empty : $" root-para-id={EscapeText(summary.RootParaId)}";
+            string durableId = summary.DurableId is null ? string.Empty : $" durable-id={EscapeText(summary.DurableId)}";
             string isReply = summary.IsReply is null ? string.Empty : $" is-reply={summary.IsReply.Value.ToString().ToLowerInvariant()}";
             string resolved = summary.Resolved is null ? string.Empty : $" resolved={summary.Resolved.Value.ToString().ToLowerInvariant()}";
             string textLength = summary.TextLength is null ? string.Empty : $" comment-text-length={summary.TextLength}";
@@ -271,6 +272,7 @@ public static class DocxTextRenderer
                 .Append(paraId)
                 .Append(parentParaId)
                 .Append(rootParaId)
+                .Append(durableId)
                 .Append(isReply)
                 .Append(resolved)
                 .Append(textLength)
@@ -305,6 +307,7 @@ public static class DocxTextRenderer
             string commentParaId = change.CommentParaId is null ? string.Empty : $" comment-para-id={EscapeText(change.CommentParaId)}";
             string commentParentParaId = change.CommentParentParaId is null ? string.Empty : $" comment-parent-para-id={EscapeText(change.CommentParentParaId)}";
             string commentRootParaId = change.CommentRootParaId is null ? string.Empty : $" comment-root-para-id={EscapeText(change.CommentRootParaId)}";
+            string commentDurableId = change.CommentDurableId is null ? string.Empty : $" comment-durable-id={EscapeText(change.CommentDurableId)}";
             string commentIsReply = change.CommentIsReply is null ? string.Empty : $" comment-is-reply={change.CommentIsReply.Value.ToString().ToLowerInvariant()}";
             string commentResolved = change.CommentResolved is null ? string.Empty : $" comment-resolved={change.CommentResolved.Value.ToString().ToLowerInvariant()}";
             string commentAnchorTarget = change.CommentAnchorTargetId is null ? string.Empty : $" comment-anchor-target={change.CommentAnchorTargetId}";
@@ -348,6 +351,7 @@ public static class DocxTextRenderer
                 .Append(commentParaId)
                 .Append(commentParentParaId)
                 .Append(commentRootParaId)
+                .Append(commentDurableId)
                 .Append(commentIsReply)
                 .Append(commentResolved)
                 .Append(commentAnchorTarget)

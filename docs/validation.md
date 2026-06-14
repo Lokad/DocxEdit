@@ -40,8 +40,8 @@ diagnostic was an error or `W9199` when only warnings were omitted.
 Current checks include:
 
 - expected roots for known WordprocessingML parts such as the main document, styles,
-  numbering, settings, comments, commentsExtended, headers, footers, footnotes,
-  and endnotes, plus relationship part roots;
+  numbering, settings, comments, commentsExtended, commentsIds, headers, footers,
+  footnotes, and endnotes, plus relationship part roots;
 - section header/footer references that must resolve to relationships with the
   matching header or footer relationship type;
 - paragraph style references and numbering definitions, reported as warnings when
@@ -51,6 +51,7 @@ Current checks include:
 - paired bookmark and comment range start/end IDs;
 - comment body, anchor, and reference ID consistency;
 - modern `commentsExtended.xml` paraId consistency;
+- modern `commentsIds.xml` paraId/durableId consistency;
 - complex field begin/separate/end balance, instruction-text containment,
   cached-result containment, and dirty/lock flag validity;
 - content-control metadata validity for `w:id`, `w:lock`, and checkbox
