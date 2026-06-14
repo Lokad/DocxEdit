@@ -862,6 +862,74 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
     }
 
+    [Theory]
+    [InlineData("softHyphen", "<w:r><w:t>A</w:t><w:softHyphen/><w:t>B</w:t></w:r>")]
+    [InlineData("sym", "<w:r><w:t>A</w:t><w:sym w:font=\"Wingdings\" w:char=\"F0FC\"/><w:t>B</w:t></w:r>")]
+    [InlineData("cr", "<w:r><w:t>A</w:t><w:cr/><w:t>B</w:t></w:r>")]
+    public static void CheckTrackChangesRequireRejectsNonTextRunContent(string unsupportedContent, string runXml)
+    {
+        using MemoryStream input = CreateDocxWithBody($"""
+                    <w:p>
+                      {runXml}
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find AB
+            with AC
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains($"unsupported run content '{unsupportedContent}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestFallsBackAndPreservesSoftHyphenRunContent()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>A</w:t><w:softHyphen/><w:t>B</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find AB
+            with AC
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Contains("unsupported run content 'softHyphen'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:softHyphen", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("AC", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
     [Fact]
     public static void CheckTrackChangesRequireRejectsMixedRunFormatting()
     {

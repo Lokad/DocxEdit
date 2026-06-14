@@ -2514,11 +2514,12 @@ set-style             paragraph property revision with w:pPrChange
 set-cell              simple single-paragraph cells as w:del/w:ins text
 ```
 
-The supported tracked text shapes must not contain tabs or line breaks, must not cross
-protected OOXML boundaries, must not be inside existing revision markup, and must have
-compatible direct run-property shape. `delete-block` tracked output is paragraph-only.
-`set-cell` tracked output is limited to simple single-paragraph cells without
-`force true`. `set-style` records the previous paragraph properties in `w:pPrChange`.
+The supported tracked text shapes must not contain tabs, line breaks, soft hyphens,
+symbols, or other non-text run content, must not cross protected OOXML boundaries,
+must not be inside existing revision markup, and must have compatible direct
+run-property shape. `delete-block` tracked output is paragraph-only. `set-cell`
+tracked output is limited to simple single-paragraph cells without `force true`.
+`set-style` records the previous paragraph properties in `w:pPrChange`.
 
 Known preserve-only operations:
 

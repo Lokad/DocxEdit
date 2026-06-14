@@ -3475,6 +3475,12 @@ internal static class DocxPatchEngine
             }
         }
 
+        if (TryGetUnsupportedTrackedRunContent(paragraph, out string unsupportedContent))
+        {
+            unsupportedReason = $"paragraph contains unsupported run content '{unsupportedContent}'";
+            return false;
+        }
+
         if (HasMixedDirectTextRunProperties(paragraph))
         {
             unsupportedReason = "paragraph contains mixed direct run formatting";
@@ -3502,6 +3508,12 @@ internal static class DocxPatchEngine
             TextContainsTrackedUnsupportedCharacters(replacement))
         {
             unsupportedReason = "tracked paragraph text contains tabs or line breaks";
+            return false;
+        }
+
+        if (TryGetUnsupportedTrackedRunContent(paragraph, out string unsupportedContent))
+        {
+            unsupportedReason = $"paragraph contains unsupported run content '{unsupportedContent}'";
             return false;
         }
 
@@ -3575,6 +3587,29 @@ internal static class DocxPatchEngine
             _ =>
                 $"TrackChangesMode.{mode} cannot generate tracked output for operation '{operationName}' on target '{target}' because catalog support is '{support}' but this target shape is unsupported: {reason}."
         };
+    }
+
+    private static bool TryGetUnsupportedTrackedRunContent(XElement paragraph, out string unsupportedContent)
+    {
+        foreach (XElement run in paragraph.Elements(OoxmlNs.W + "r"))
+        {
+            foreach (XElement child in run.Elements())
+            {
+                if (child.Name == OoxmlNs.W + "rPr" ||
+                    child.Name == OoxmlNs.W + "t" ||
+                    child.Name == OoxmlNs.W + "tab" ||
+                    child.Name == OoxmlNs.W + "br")
+                {
+                    continue;
+                }
+
+                unsupportedContent = child.Name.LocalName;
+                return true;
+            }
+        }
+
+        unsupportedContent = string.Empty;
+        return false;
     }
 
     private static bool HasMixedDirectTextRunProperties(XElement paragraph)
