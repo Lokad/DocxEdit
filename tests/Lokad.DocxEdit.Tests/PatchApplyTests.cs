@@ -1757,6 +1757,55 @@ public static class PatchApplyTests
         Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
+    [Theory]
+    [InlineData("adjacent-insertion", "plain")]
+    [InlineData("overlapping-insertion", "Inserted")]
+    [InlineData("adjacent-deletion", "plain")]
+    [InlineData("overlapping-deletion", "Removed")]
+    public static void CheckTrackChangesRequireRejectsTextReplacementTouchingExistingRevisionParagraphs(string shape, string find)
+    {
+        string bodyXml = shape switch
+        {
+            "adjacent-insertion" or "overlapping-insertion" => """
+                    <w:p>
+                      <w:ins w:id="1" w:author="A" w:date="2026-06-01T00:00:00Z">
+                        <w:r><w:t>Inserted </w:t></w:r>
+                      </w:ins>
+                      <w:r><w:t>plain text</w:t></w:r>
+                    </w:p>
+                """,
+            _ => """
+                    <w:p>
+                      <w:del w:id="1" w:author="A" w:date="2026-06-01T00:00:00Z">
+                        <w:r><w:delText>Removed </w:delText></w:r>
+                      </w:del>
+                      <w:r><w:t>plain text</w:t></w:r>
+                    </w:p>
+                """
+        };
+        using MemoryStream input = CreateDocxWithBody(bodyXml);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find {find}
+            with edited
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains(shape.Contains("insertion", StringComparison.Ordinal) ? "tracked-insertion" : "tracked-deletion", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
     [Fact]
     public static void ApplyPreservesUnknownPartsAndUnrelatedMedia()
     {
