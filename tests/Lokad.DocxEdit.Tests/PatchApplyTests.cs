@@ -2357,6 +2357,54 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestSetHyperlinkAnchorRemovesUnusedRelationship()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Bookmark"/>
+                      <w:r><w:t>Anchor</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-target
+            target M.L0001
+            anchor Bookmark
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains("operation 'set-hyperlink-target'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        DocxHyperlinkInfo hyperlink = Assert.Single(new DocxEditor().Read(output).Hyperlinks);
+        Assert.Equal("Bookmark", hyperlink.Anchor);
+        Assert.Null(hyperlink.RelationshipId);
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.DoesNotContain("rLink", relationships, StringComparison.Ordinal);
+        Assert.DoesNotContain("https://example.test/old", relationships, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyRemoveHyperlinkPreservesRelationshipStillInUse()
     {
         using MemoryStream input = CreateDocxWithBodyAndRelationships(
@@ -2393,6 +2441,52 @@ public static class PatchApplyTests
         Assert.Equal("First Second", Assert.Single(read.Paragraphs).Text);
         Assert.Single(read.Hyperlinks);
         Assert.Equal("https://example.test/shared", read.Hyperlinks[0].Uri);
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.Contains("Id=\"rShared\"", relationships, StringComparison.Ordinal);
+        Assert.Contains("Target=\"https://example.test/shared\"", relationships, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestRemoveHyperlinkPreservesRelationshipStillInUse()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rShared">
+                        <w:r><w:t>First</w:t></w:r>
+                      </w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rShared">
+                        <w:r><w:t>Second</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/shared" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op remove-hyperlink
+            target M.L0001
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains("operation 'remove-hyperlink'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("First Second", Assert.Single(read.Paragraphs).Text);
+        Assert.Single(read.Hyperlinks);
         output.Position = 0;
         string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
         Assert.Contains("Id=\"rShared\"", relationships, StringComparison.Ordinal);
