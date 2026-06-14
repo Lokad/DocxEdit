@@ -886,7 +886,7 @@ public static class DocxHelp
                     ["target", "text"],
                     TrackClassTextRun,
                     "tracked-field-result",
-                    "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; complex fields still fail with E4313.",
+                    "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; direct mode also supports simple same-paragraph complex field result runs. Complex-field tracked output or unsafe topologies warn with W4002 or fail with E6002/E4313.",
                     ["expect-result"]),
                 PreserveOnly(
                     "refresh-field-result",

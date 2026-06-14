@@ -194,13 +194,16 @@ unsupported WordprocessingML shapes without private document details.
 - REF/PAGEREF/NOTEREF dependencies are surfaced. HYPERLINK field URI/anchor
   dependencies are surfaced.
 - Simple field code and cached result replacement are supported with guards.
+  Simple same-paragraph complex-field result replacement is supported when the
+  begin/separate/end result topology is validated.
 - Simple REF-style cached results can be refreshed from one unambiguous
   same-part, same-paragraph bookmark. Simple `QUOTE` cached results can be
   refreshed from literal field-code arguments.
 - General field recalculation, TOC rebuilding, PAGE pagination, formulas,
-  DOCPROPERTY, MERGEFIELD, IF, DATE/TIME, and complex-field code/result rewriting
-  remain Word-side or unsupported workflows with explicit `E4313` refresh
-  diagnostics. DocxEdit can mark fields dirty and request Word-side update.
+  DOCPROPERTY, MERGEFIELD, IF, DATE/TIME, complex-field code rewriting, and
+  unsafe complex-field result topologies remain Word-side or unsupported workflows
+  with explicit `E4313` refresh/edit diagnostics. DocxEdit can mark fields dirty
+  and request Word-side update.
 - Malformed field boundaries, duplicate separators, orphan instruction text,
   invalid field-char types, invalid dirty/lock flags, and invalid result
   containment are validated.

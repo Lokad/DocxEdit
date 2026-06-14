@@ -2127,12 +2127,24 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 fields: {target}.", operation, target)];
         }
 
-        if (fieldTarget.Element.Name != OoxmlNs.W + "fldSimple")
+        bool simpleField = fieldTarget.Element.Name == OoxmlNs.W + "fldSimple";
+        XElement? complexSeparateRun = null;
+        XElement[]? complexResultRuns = null;
+        if (!simpleField)
         {
-            return [Diagnostic(DocxSeverity.Error, "E4313", $"Cached-result replacement for {target} currently supports only simple w:fldSimple fields.", operation, target)];
+            if (!TryGetSimpleComplexFieldResultRuns(
+                fieldTarget.Element,
+                out complexSeparateRun,
+                out complexResultRuns,
+                out string? complexUnsupportedReason))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4313", $"Cached-result replacement for {target} is not safe: {complexUnsupportedReason}.", operation, target)];
+            }
         }
 
-        string current = ReadVisibleText(fieldTarget.Element);
+        string current = simpleField
+            ? ReadVisibleText(fieldTarget.Element)
+            : ReadVisibleText(new XElement(OoxmlNs.W + "p", complexResultRuns!));
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
@@ -2141,7 +2153,16 @@ internal static class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges)
         {
-            if (TryGetProtectedTextEditFeature(fieldTarget.Element, out string protectedFeature))
+            if (!simpleField)
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "tracked complex-field result replacement is not modeled", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (TryGetProtectedTextEditFeature(fieldTarget.Element, out string protectedFeature))
             {
                 if (!TrackUnsupportedShape(options, operation, target!, $"field result contains protected OOXML boundary '{protectedFeature}'", diagnostics))
                 {
@@ -2173,7 +2194,15 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
-        ReplaceSimpleFieldResult(fieldTarget.Element, text!);
+        if (simpleField)
+        {
+            ReplaceSimpleFieldResult(fieldTarget.Element, text!);
+        }
+        else
+        {
+            ReplaceComplexFieldResult(complexSeparateRun!, complexResultRuns!, text!);
+        }
+
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
         return diagnostics;
     }
@@ -2456,6 +2485,141 @@ internal static class DocxPatchEngine
         }
 
         field.Add(run);
+    }
+
+    private static bool TryGetSimpleComplexFieldResultRuns(
+        XElement beginFieldChar,
+        out XElement? separateRun,
+        out XElement[] resultRuns,
+        out string? unsupportedReason)
+    {
+        separateRun = null;
+        resultRuns = [];
+        unsupportedReason = null;
+        if (beginFieldChar.Name != OoxmlNs.W + "fldChar" ||
+            !string.Equals((string?)beginFieldChar.Attribute(OoxmlNs.W + "fldCharType"), "begin", StringComparison.Ordinal))
+        {
+            unsupportedReason = "target is not a complex field begin marker";
+            return false;
+        }
+
+        XElement? beginRun = beginFieldChar.Parent;
+        XElement? paragraph = beginRun?.Parent;
+        if (beginRun?.Name != OoxmlNs.W + "r" || paragraph?.Name != OoxmlNs.W + "p")
+        {
+            unsupportedReason = "complex field markers must be direct run children in one paragraph";
+            return false;
+        }
+
+        XElement[] siblings = paragraph.Elements().ToArray();
+        int beginIndex = Array.IndexOf(siblings, beginRun);
+        if (beginIndex < 0)
+        {
+            unsupportedReason = "complex field begin marker was not found in its paragraph";
+            return false;
+        }
+
+        var results = new List<XElement>();
+        bool foundSeparate = false;
+        for (int i = beginIndex + 1; i < siblings.Length; i++)
+        {
+            XElement sibling = siblings[i];
+            if (sibling.Name != OoxmlNs.W + "r")
+            {
+                unsupportedReason = foundSeparate
+                    ? $"complex field result contains non-run content '{sibling.Name.LocalName}'"
+                    : $"complex field instruction contains non-run content '{sibling.Name.LocalName}'";
+                return false;
+            }
+
+            XElement[] fieldChars = sibling.Descendants(OoxmlNs.W + "fldChar").ToArray();
+            if (!foundSeparate)
+            {
+                foreach (XElement fieldChar in fieldChars)
+                {
+                    string? type = (string?)fieldChar.Attribute(OoxmlNs.W + "fldCharType");
+                    if (string.Equals(type, "begin", StringComparison.Ordinal))
+                    {
+                        unsupportedReason = "complex field contains nested field topology before the result";
+                        return false;
+                    }
+
+                    if (string.Equals(type, "separate", StringComparison.Ordinal))
+                    {
+                        separateRun = sibling;
+                        foundSeparate = true;
+                        break;
+                    }
+
+                    if (string.Equals(type, "end", StringComparison.Ordinal))
+                    {
+                        unsupportedReason = "complex field has an end marker before its separate marker";
+                        return false;
+                    }
+                }
+
+                continue;
+            }
+
+            foreach (XElement fieldChar in fieldChars)
+            {
+                string? type = (string?)fieldChar.Attribute(OoxmlNs.W + "fldCharType");
+                if (string.Equals(type, "begin", StringComparison.Ordinal))
+                {
+                    unsupportedReason = "complex field result contains nested complex field markup";
+                    return false;
+                }
+
+                if (string.Equals(type, "separate", StringComparison.Ordinal))
+                {
+                    unsupportedReason = "complex field has duplicate separate markers";
+                    return false;
+                }
+
+                if (string.Equals(type, "end", StringComparison.Ordinal))
+                {
+                    resultRuns = results.ToArray();
+                    return true;
+                }
+            }
+
+            if (ContainsProtectedBookmarkReplacementNode([sibling], out string? protectedFeature))
+            {
+                unsupportedReason = $"complex field result contains protected OOXML boundary '{protectedFeature}'";
+                return false;
+            }
+
+            results.Add(sibling);
+        }
+
+        unsupportedReason = foundSeparate
+            ? "matching complex field end marker was not found in the same paragraph"
+            : "complex field separate marker was not found in the same paragraph";
+        return false;
+    }
+
+    private static void ReplaceComplexFieldResult(XElement separateRun, IReadOnlyList<XElement> resultRuns, string text)
+    {
+        XElement? firstRunProperties = resultRuns
+            .Elements(OoxmlNs.W + "rPr")
+            .FirstOrDefault();
+        foreach (XElement run in resultRuns)
+        {
+            run.Remove();
+        }
+
+        var replacementRun = new XElement(OoxmlNs.W + "r");
+        if (firstRunProperties is not null)
+        {
+            replacementRun.Add(new XElement(firstRunProperties));
+        }
+
+        foreach (XNode node in CreateTextNodes(text))
+        {
+            replacementRun.Add(node);
+        }
+
+        separateRun.AddAfterSelf(replacementRun);
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetHyperlinkTarget(

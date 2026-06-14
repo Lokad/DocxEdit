@@ -2046,10 +2046,11 @@ Rules:
   `w:fldSimple` or the complex field begin `w:fldChar`.
 * `set-field-code` updates `w:fldSimple/@w:instr`, supports an optional normalized
   `expect-code` guard, preserves the cached result, and marks that field dirty.
-* `set-field-result` replaces the cached result runs inside `w:fldSimple`, supports
-  an optional exact `expect-result` guard, preserves the field code and field
-  boundary, and does not trigger document-level field-update marking when it is the
-  only patch operation.
+* `set-field-result` replaces the cached result runs inside `w:fldSimple` and
+  simple same-paragraph complex fields whose begin/separate/end result topology is
+  validated. It supports an optional exact `expect-result` guard, preserves the
+  field code and field boundary, and does not trigger document-level field-update
+  marking when it is the only patch operation.
 * `refresh-field-result` updates simple `w:fldSimple` REF/PAGEREF/NOTEREF cached
   results from exactly one same-part bookmark whose range is a simple same-paragraph
   range without protected OOXML boundaries. It also refreshes simple `QUOTE`
@@ -2641,8 +2642,9 @@ inner paragraph containers, delete existing paragraph text in place, and insert 
 replacement in the first paragraph. Complex content controls remain direct under
 `suggest` with `W4002` or fail under `require` with `E6002`. `set-field-result`
 tracked output is limited to simple `w:fldSimple`
-cached result text and preserves the field instruction; complex fields still fail
-with `E4313`. `replace-bookmark-text` tracked output is limited to simple
+cached result text and preserves the field instruction; simple complex-field
+result replacements remain direct under `suggest` or fail under `require`, and
+unsafe complex topologies fail with `E4313`. `replace-bookmark-text` tracked output is limited to simple
 same-paragraph bookmark ranges with compatible run-only content; multi-paragraph
 and table-spanning bookmark replacements remain direct under `suggest` or fail
 under `require`.

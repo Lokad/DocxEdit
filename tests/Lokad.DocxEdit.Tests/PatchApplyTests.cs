@@ -621,7 +621,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void CheckSetFieldResultRejectsComplexFields()
+    public static void ApplySetFieldResultUpdatesSimpleComplexFieldResult()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -637,18 +637,64 @@ public static class PatchApplyTests
 
             op set-field-result
             target M.F0001
+            expect-result 1
             text 2
+            end
+            """);
+        using var output = new MemoryStream();
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
+        Assert.Equal("complex", field.Kind);
+        Assert.Equal("PAGE", field.FieldType);
+        Assert.Equal("2", field.CachedResultText);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:fldCharType=\"begin\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:fldCharType=\"separate\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:fldCharType=\"end\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:instrText> PAGE </w:instrText>", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:t>1</w:t>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetFieldResultRejectsNestedComplexFieldResultTopology()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> IF </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> DATE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>June 14</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0002
+            text Replacement
             end
             """);
 
         DocxCheckResult result = new DocxEditor().Check(input, patch);
 
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4313");
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4313", diagnostic.Code);
+        Assert.Contains("nested complex field", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public static void CheckTrackChangesSuggestSetFieldResultReportsComplexFieldBoundaryDiagnostic()
+    public static void CheckTrackChangesSuggestSetFieldResultFallsBackForComplexField()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -670,11 +716,39 @@ public static class PatchApplyTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
+        Assert.True(result.Success);
+        DocxDiagnostic warning = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Equal("M.F0001", warning.TargetId);
+        Assert.Contains("tracked complex-field result replacement is not modeled", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsComplexFieldResultReplacement()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            text 2
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
         Assert.False(result.Success);
-        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
-        DocxDiagnostic fieldDiagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E4313");
-        Assert.Equal("M.F0001", fieldDiagnostic.TargetId);
-        Assert.Contains("supports only simple w:fldSimple fields", fieldDiagnostic.Message, StringComparison.Ordinal);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Equal("M.F0001", diagnostic.TargetId);
+        Assert.Contains("tracked complex-field result replacement is not modeled", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]

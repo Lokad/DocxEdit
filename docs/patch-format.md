@@ -260,14 +260,14 @@ it fails with `E4314` when the reply has child replies.
 | `set-field-dirty` | `target`, `dirty` | | `target` can be a field ID or `all` |
 | `set-field-lock` | `target`, `locked` | | `target` can be a field ID or `all` |
 | `set-field-code` | `target`, `code` | `expect-code` | Simple `w:fldSimple` fields only |
-| `set-field-result` | `target`, `text` | `expect-result` | Simple `w:fldSimple` cached result only |
+| `set-field-result` | `target`, `text` | `expect-result` | Simple `w:fldSimple` cached result or validated simple same-paragraph complex result |
 | `refresh-field-result` | `target` | `expect-code`, `expect-result` | Limited refresh for simple REF/PAGEREF/NOTEREF bookmark fields and simple QUOTE literal fields |
 
-Complex field code/result edits fail with `E4313`. General field recalculation is
-Word's responsibility. Apply emits `W5103` when edits mark fields for Word-side
-refresh. Refresh diagnostics classify unsupported field types that require layout,
-document properties, formulas, mail merge data, date/time state, conditionals, or
-external state.
+Complex field code edits and unsafe complex-field result topologies fail with
+`E4313`. General field recalculation is Word's responsibility. Apply emits
+`W5103` when edits mark fields for Word-side refresh. Refresh diagnostics
+classify unsupported field types that require layout, document properties,
+formulas, mail merge data, date/time state, conditionals, or external state.
 
 ### Hyperlinks
 
@@ -406,7 +406,7 @@ delete-comment-reply | preserve-only | preserve-only | Threaded comment reply de
 set-field-dirty | preserve-only | preserve-only | Field dirty flags are field metadata and have no useful generated visible revision representation. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-field-lock | preserve-only | preserve-only | Field lock flags are field metadata and have no useful generated visible revision representation. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-field-code | preserve-only | preserve-only | Field codes are instruction metadata; generated revisions for field instructions are not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-set-field-result | text-run | tracked-field-result | Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; complex fields still fail with E4313.
+set-field-result | text-run | tracked-field-result | Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; direct mode also supports simple same-paragraph complex field result runs. Complex-field tracked output or unsafe topologies warn with W4002 or fail with E6002/E4313.
 refresh-field-result | preserve-only | preserve-only | Field refresh updates cached result text from modeled document state for REF/PAGEREF/NOTEREF bookmark fields and QUOTE literal fields; unsupported refresh types return categorized E4313 diagnostics. Generated revision markup for the refresh is not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-hyperlink-target | preserve-only | preserve-only | Hyperlink target updates modify relationship or anchor metadata, not visible text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-hyperlink-text | text-run | tracked-hyperlink-text | Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002.
