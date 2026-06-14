@@ -4369,14 +4369,107 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4311");
     }
 
+    [Fact]
+    public static void CheckTrackChangesRequireAllowsReplaceBookmarkTextSameParagraph()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text New Client
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "E6001" or "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceBookmarkText()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old </w:t></w:r>
+                      <w:r><w:t>Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text New Client
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["5", "6"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkEnd w:id=\"4\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old Client</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New Client</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Before New Client After", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Before Old Client After", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Before [-Old Client-][+New Client+] After", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs).Text);
+        output.Position = 0;
+        DocxChangesResult changes = new DocxEditor().Changes(output);
+        Assert.Contains(changes.Changes, change => change.Type == "deleted-run" && change.RevisionId == "5");
+        Assert.Contains(changes.Changes, change => change.Type == "inserted-run" && change.RevisionId == "6");
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsReplaceBookmarkTextMultiParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old first</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Old middle</w:t></w:r></w:p>
+                    <w:p>
+                      <w:r><w:t>Old last</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text New Client
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("same-paragraph bookmark ranges", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
     [Theory]
     [InlineData("add-bookmark", """
         target M.P0002
         name AddedBookmark
-        """)]
-    [InlineData("replace-bookmark-text", """
-        target M.B0001
-        text New Client
         """)]
     [InlineData("rename-bookmark", """
         target M.B0001
@@ -4411,10 +4504,6 @@ public static class PatchApplyTests
         target M.P0002
         name AddedBookmark
         """, "w:name=\"AddedBookmark\"", null)]
-    [InlineData("replace-bookmark-text", """
-        target M.B0001
-        text New Client
-        """, "New Client", "Old Client")]
     [InlineData("rename-bookmark", """
         target M.B0001
         name NewBookmark

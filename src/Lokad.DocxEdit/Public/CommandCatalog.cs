@@ -810,10 +810,12 @@ public static class DocxHelp
                     ["target", "name"],
                     "Bookmark creation adds anchor metadata; Word has no useful generated revision range for the bookmark markers.",
                     ["expect-text"]),
-                PreserveOnly(
+                Tracked(
                     "replace-bookmark-text",
                     ["target", "text"],
-                    "Bookmark text replacement must preserve range anchors; generated revision markup across bookmark boundaries is not modeled yet."),
+                    TrackClassTextRun,
+                    "tracked-bookmark-text",
+                    "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; multi-paragraph or protected ranges warn with W4002 or fail with E6002."),
                 PreserveOnly(
                     "rename-bookmark",
                     ["target", "name"],

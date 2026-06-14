@@ -124,7 +124,7 @@ internal static class DocxPatchEngine
                     "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
                     "add-repeating-section-item" or "delete-repeating-section-item" => ExecuteUnsupportedRepeatingSectionOperation(operation),
                     "add-bookmark" => ExecuteAddBookmark(package, operation, apply, cancellationToken),
-                    "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, apply, cancellationToken),
+                    "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
                     "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
                     "add-comment" => ExecuteAddComment(package, operation, options, apply, cancellationToken),
@@ -1168,7 +1168,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceBookmarkText(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -1225,12 +1227,58 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' replacement would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
-        if (!apply)
+        bool useTrackedChanges = IsTrackedMode(options);
+        TrackedBookmarkReplacement? trackedReplacement = null;
+        if (useTrackedChanges)
         {
-            return [];
+            if (!sameParagraph)
+            {
+                if (!TrackUnsupportedShape(
+                    options,
+                    operation,
+                    target!,
+                    "tracked replace-bookmark-text supports only simple same-paragraph bookmark ranges",
+                    diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (!TryBuildTrackedBookmarkReplacement(nodes, text!, out trackedReplacement, out string? trackedUnsupportedReason))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
         }
 
-        if (sameParagraph)
+        if (!apply)
+        {
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            foreach (XNode node in nodes)
+            {
+                node.Remove();
+            }
+
+            XNode[] trackedNodes = CreateTrackedBookmarkReplacementNodes(
+                package,
+                trackedReplacement!.DeletedText,
+                text!,
+                trackedReplacement.RunProperties,
+                options,
+                generatedRevisionIds,
+                cancellationToken);
+            bookmarkTarget.Start.AddAfterSelf(trackedNodes);
+        }
+        else if (sameParagraph)
         {
             foreach (XNode node in nodes)
             {
@@ -2770,6 +2818,49 @@ internal static class DocxPatchEngine
         return false;
     }
 
+    private static bool TryBuildTrackedBookmarkReplacement(
+        IReadOnlyList<XNode> nodes,
+        string replacement,
+        out TrackedBookmarkReplacement? trackedReplacement,
+        out string? unsupportedReason)
+    {
+        trackedReplacement = null;
+        unsupportedReason = null;
+
+        var clonedRuns = new List<XElement>();
+        foreach (XNode node in nodes)
+        {
+            if (node is XText text && string.IsNullOrWhiteSpace(text.Value))
+            {
+                continue;
+            }
+
+            if (node is not XElement element || element.Name != OoxmlNs.W + "r")
+            {
+                unsupportedReason = "bookmark range contains non-run content";
+                return false;
+            }
+
+            clonedRuns.Add(new XElement(element));
+        }
+
+        var rangeContainer = new XElement(OoxmlNs.W + "p", clonedRuns);
+        string current = ReadVisibleText(rangeContainer);
+        if (!TryValidateTrackedWholeParagraphReplacement(rangeContainer, current, replacement, style: null, out unsupportedReason))
+        {
+            return false;
+        }
+
+        XElement? firstRunProperties = rangeContainer
+            .Elements(OoxmlNs.W + "r")
+            .Elements(OoxmlNs.W + "rPr")
+            .FirstOrDefault();
+        trackedReplacement = new TrackedBookmarkReplacement(
+            current,
+            firstRunProperties is null ? null : new XElement(firstRunProperties));
+        return true;
+    }
+
     private static bool IsValidBookmarkName(string name)
     {
         return !string.IsNullOrWhiteSpace(name) && !name.Any(char.IsWhiteSpace);
@@ -4043,6 +4134,34 @@ internal static class DocxPatchEngine
                 generatedRevisionIds,
                 cancellationToken);
         }
+    }
+
+    private static XNode[] CreateTrackedBookmarkReplacementNodes(
+        OoxmlPackage package,
+        string deletedText,
+        string insertedText,
+        XElement? runProperties,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        int revisionCount = (deletedText.Length == 0 ? 0 : 1) + (insertedText.Length == 0 ? 0 : 1);
+        string[] revisionIds = AllocateRevisionIds(package, revisionCount, generatedRevisionIds, cancellationToken);
+        string author = GetRevisionAuthor(options);
+        string timestamp = GetRevisionTimestamp(options);
+        var nodes = new List<XNode>();
+        int revisionIndex = 0;
+        if (deletedText.Length != 0)
+        {
+            nodes.Add(CreateDeletedRun(deletedText, runProperties, revisionIds[revisionIndex++], author, timestamp));
+        }
+
+        if (insertedText.Length != 0)
+        {
+            nodes.Add(CreateInsertedRun(insertedText, runProperties, revisionIds[revisionIndex], author, timestamp));
+        }
+
+        return nodes.ToArray();
     }
 
     private static XElement CreateTrackedInsertedParagraph(
@@ -8529,6 +8648,8 @@ internal sealed record ContentControlTarget(string PartName, XDocument Document,
 internal sealed record ContentControlChoice(string DisplayText);
 
 internal sealed record BookmarkTarget(string PartName, XDocument Document, XElement Start, XElement? End);
+
+internal sealed record TrackedBookmarkReplacement(string DeletedText, XElement? RunProperties);
 
 internal sealed record CommentsPartTarget(string PartName, XDocument Document, XElement Root);
 

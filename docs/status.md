@@ -63,8 +63,9 @@ Implemented areas include:
   anchored wrap mode/distances, anchored positioning, and crop percentages;
 - tracked-change output for simple text replacement, whole-paragraph replacement,
   paragraph insertion/deletion, paragraph style changes, simple plain-text
-  content controls, simple field result text, simple hyperlink display text, and
-  simple table-cell text replacement with author, timestamp, and revision IDs;
+  content controls, simple same-paragraph bookmark text, simple field result text,
+  simple hyperlink display text, and simple table-cell text replacement with
+  author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog,
   including tracked and preserve-only operation classifications, with `W4001` and
   `E6001` diagnostics that report the catalog support value;
@@ -149,7 +150,8 @@ unsupported WordprocessingML shapes without private document details.
 - Complete paragraph-bounded bookmark ranges are modeled and can be renamed,
   deleted when unreferenced, and replaced when protected boundaries are absent.
 - Same-paragraph replacements support ranges spanning multiple direct run
-  siblings. Same-container multi-paragraph replacements are supported.
+  siblings. Same-container multi-paragraph replacements are supported. Tracked
+  output is available for simple same-paragraph replacements only.
 - Whole-paragraph bookmark creation is supported with `expect-text`, duplicate
   name checks, and protected-boundary checks.
 - Duplicate bookmark names are surfaced with candidate IDs so agents can switch

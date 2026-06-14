@@ -1862,6 +1862,10 @@ Rules:
   and same-container multi-paragraph ranges are supported. Newline-separated
   replacement text becomes multiple paragraphs. Markers are preserved, and unsupported
   ranges fail instead of flattening surrounding OOXML.
+  Under tracked output, simple same-paragraph bookmark ranges made only of compatible
+  runs emit `w:del`/`w:ins` between the preserved bookmark markers. Multi-paragraph or
+  otherwise complex bookmark ranges warn with `W4002` under `suggest` or fail with
+  `E6002` under `require`.
 * `rename-bookmark` rejects invalid or duplicate new names, changes `w:bookmarkStart`
   `w:name`, and rewrites same-story `w:hyperlink/@w:anchor` values that referenced
   the old name when that old name is unambiguous.
@@ -2518,6 +2522,7 @@ insert-after          inserted paragraph text as w:ins
 delete-block          simple paragraph targets as w:del text
 set-style             paragraph property revision with w:pPrChange
 set-content-control-text simple plain-text content controls as w:del/w:ins inside the content wrapper
+replace-bookmark-text simple same-paragraph bookmark ranges as w:del/w:ins between preserved markers
 set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside the field wrapper
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
@@ -2535,7 +2540,10 @@ controls and preserves `w:sdt` properties and `w:sdtContent`; rich-text content
 controls remain direct under `suggest` with `W4002` or fail under `require` with
 `E6002`. `set-field-result` tracked output is limited to simple `w:fldSimple`
 cached result text and preserves the field instruction; complex fields still fail
-with `E4313`. `set-hyperlink-text`
+with `E4313`. `replace-bookmark-text` tracked output is limited to simple
+same-paragraph bookmark ranges with compatible run-only content; multi-paragraph
+bookmark replacements remain direct under `suggest` or fail under `require`.
+`set-hyperlink-text`
 preserves the hyperlink wrapper and relationship or anchor while replacing simple
 display text with generated revisions. `set-style` records the previous paragraph
 properties in `w:pPrChange`.
@@ -2546,7 +2554,6 @@ Known preserve-only operations:
 set-content-control-checkbox
 set-content-control-choice
 set-content-control-date
-replace-bookmark-text
 rename-bookmark
 delete-bookmark
 add-comment
