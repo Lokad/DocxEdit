@@ -590,7 +590,11 @@ public static class PatchApplyTests
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("replacement contains tabs or line breaks", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -742,7 +746,12 @@ public static class PatchApplyTests
         });
 
         Assert.True(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target shape is unsupported: paragraph contains mixed direct run formatting", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("will apply operation 'replace-text' directly", diagnostic.Message, StringComparison.Ordinal);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.DoesNotContain("<w:del ", xml, StringComparison.Ordinal);

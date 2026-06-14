@@ -73,6 +73,9 @@ Track-change behavior is controlled at check/apply time:
 docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes require --author Agent
 ```
 
+Tracked-capable operations reject unsafe target shapes with diagnostics that name
+the operation, target ID, catalog support value, and unsupported-shape reason.
+
 Fresh agents are expected to rely on `docxedit help patch`, `docxedit help changes`, and `docxedit help dump` for the exact syntax. For product integrations, the same guidance is available from the NuGet library through `DocxHelp.Catalog`, and the CLI text output is reusable through `DocxTextRenderer`.
 
 ## Library Quick Start

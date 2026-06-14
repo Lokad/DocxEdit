@@ -528,7 +528,9 @@ markup; they apply directly under `Suggest` with `W4001` and fail under `Require
 with `E6001`. `unsupported` is reserved for known operations that intentionally
 fail with stable diagnostics, or for unknown/unclassified tracked-output behavior.
 Supported tracked operations may still reject an unsafe shape with `W4002` or
-`E6002`.
+`E6002`. Those diagnostics include the operation name, target ID, catalog support
+value, and exact unsupported-shape reason. `W4002` additionally states that
+`Suggest` is applying the edit directly.
 
 The library must also expose stable plain-text renderers for public result objects:
 

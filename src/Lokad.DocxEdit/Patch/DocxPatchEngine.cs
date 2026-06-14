@@ -486,14 +486,10 @@ internal static class DocxPatchEngine
         if (useTrackedChanges)
         {
             canUseTrackedChanges = TryValidateTrackedTextReplacement(paragraphTarget.Paragraph, current, matches, replacement!, out trackedUnsupportedReason);
-            if (!canUseTrackedChanges && options.TrackChanges == TrackChangesMode.Require)
+            if (!canUseTrackedChanges &&
+                !TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
             {
-                return [Diagnostic(DocxSeverity.Error, "E6002", $"Tracked-change replacement is not supported for {target}: {trackedUnsupportedReason}.", operation, target)];
-            }
-
-            if (!canUseTrackedChanges)
-            {
-                diagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4002", $"Tracked-change replacement is not supported for {target}: {trackedUnsupportedReason}; applying the edit directly.", operation, target));
+                return diagnostics;
             }
         }
 
@@ -3482,12 +3478,34 @@ internal static class DocxPatchEngine
     {
         if (options.TrackChanges == TrackChangesMode.Require)
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E6002", $"Tracked-change output is not supported for {operation.OperationName} on {target}: {reason}.", operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E6002", BuildUnsupportedTrackedShapeMessage(options.TrackChanges, operation, target, reason), operation, target));
             return false;
         }
 
-        diagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4002", $"Tracked-change output is not supported for {operation.OperationName} on {target}: {reason}; applying the edit directly.", operation, target));
+        diagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4002", BuildUnsupportedTrackedShapeMessage(options.TrackChanges, operation, target, reason), operation, target));
         return true;
+    }
+
+    private static string BuildUnsupportedTrackedShapeMessage(
+        TrackChangesMode mode,
+        DocxPatchOperation operation,
+        string target,
+        string reason)
+    {
+        string operationName = operation.OperationName;
+        string support = DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operationInfo)
+            ? operationInfo.TrackChangesSupport
+            : "unclassified";
+
+        return mode switch
+        {
+            TrackChangesMode.Require =>
+                $"TrackChangesMode.Require cannot apply operation '{operationName}' as tracked output for target '{target}' because catalog support is '{support}' but this target shape is unsupported: {reason}.",
+            TrackChangesMode.Suggest =>
+                $"TrackChangesMode.Suggest will apply operation '{operationName}' directly for target '{target}' because catalog support is '{support}' but this target shape is unsupported: {reason}. Existing tracked-change markup is preserved, but this edit will not create new revision markup.",
+            _ =>
+                $"TrackChangesMode.{mode} cannot generate tracked output for operation '{operationName}' on target '{target}' because catalog support is '{support}' but this target shape is unsupported: {reason}."
+        };
     }
 
     private static bool HasMixedDirectTextRunProperties(XElement paragraph)

@@ -367,7 +367,9 @@ the narrower operation shape, such as `tracked-simple` or `tracked-cell-simple`.
 Even supported tracked operations can fail for unsupported shapes, such as tabs,
 line breaks, protected OOXML boundaries, existing revision markup, or mixed direct
 run formatting. Those cases produce `W4002` in `suggest` mode or `E6002` in
-`require` mode.
+`require` mode. The diagnostic includes the operation name, target ID, catalog
+support value, and exact unsupported-shape reason; `W4002` also says the edit is
+being applied directly.
 
 ## Assets
 
