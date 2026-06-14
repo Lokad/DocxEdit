@@ -177,6 +177,43 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestWarnsWhenFieldsRequireWordSideRefresh()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE ">
+                        <w:r><w:t>June 12</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W5103" &&
+            diagnostic.Feature == "field" &&
+            diagnostic.Fallback == "word-refresh-required");
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("updateFields", ReadEntry(output, "word/settings.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyCanSkipMarkingFieldsDirty()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
