@@ -55,8 +55,9 @@ Implemented areas include:
   history flags, and aggregate diagnostics for invalid URI/anchor states;
 - hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,
   display text updates, insertion, and unlinking while preserving display runs;
-- check/apply operation reports with affected row/cell summaries for table edits
-  and generated revision IDs for apply operations that create tracked markup;
+- check/apply operation reports with affected row/cell summaries for table edits,
+  visual-grid/merge/nested-table metadata, and generated revision IDs for apply
+  operations that create tracked markup;
 - table property patch operations for table style, caption/description metadata,
   row repeating-header flags, and cell shading fills;
 - table-cell text replacement by visual-grid cell ID or merge-group ID while

@@ -396,6 +396,11 @@ public static class DocxTextRenderer
                 string rowsAfter = affected.RowCountAfter is null ? string.Empty : $" rows-after={affected.RowCountAfter}";
                 string columns = affected.ColumnCount is null ? string.Empty : $" columns={affected.ColumnCount}";
                 string cells = affected.CellCount is null ? string.Empty : $" cells={affected.CellCount}";
+                string visualColumnEnd = affected.VisualColumnEndIndex is null ? string.Empty : $" visual-column-end={affected.VisualColumnEndIndex}";
+                string gridBefore = affected.GridBefore is null ? string.Empty : $" grid-before={affected.GridBefore}";
+                string gridAfter = affected.GridAfter is null ? string.Empty : $" grid-after={affected.GridAfter}";
+                string mergeGroup = affected.MergeGroupId is null ? string.Empty : $" merge-group={affected.MergeGroupId}";
+                string nestedTablePath = affected.NestedTablePath is null ? string.Empty : $" nested-table-path={affected.NestedTablePath}";
                 builder.Append("  affected id=")
                     .Append(affected.Id)
                     .Append(" kind=")
@@ -405,6 +410,11 @@ public static class DocxTextRenderer
                     .Append(parent)
                     .Append(row)
                     .Append(column)
+                    .Append(visualColumnEnd)
+                    .Append(gridBefore)
+                    .Append(gridAfter)
+                    .Append(mergeGroup)
+                    .Append(nestedTablePath)
                     .Append(rowsBefore)
                     .Append(rowsAfter)
                     .Append(columns)

@@ -403,6 +403,11 @@ public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Acti
     public int? RowCountAfter { get; init; }
     public int? ColumnCount { get; init; }
     public int? CellCount { get; init; }
+    public int? VisualColumnEndIndex { get; init; }
+    public int? GridBefore { get; init; }
+    public int? GridAfter { get; init; }
+    public string? MergeGroupId { get; init; }
+    public string? NestedTablePath { get; init; }
 }
 ```
 
@@ -2794,13 +2799,16 @@ docxedit apply: OK
 operation index=1 name=replace-text target=M.P0004 success=True generated-revision-ids=1,2
 operation index=2 name=append-row target=M.T0001 success=True
   affected id=M.T0001.R03 kind=row action=append parent=M.T0001 row=3 rows-before=2 rows-after=3 columns=2 cells=2
-  affected id=M.T0001.R03.C01 kind=cell action=append parent=M.T0001.R03 row=3 column=1 rows-before=2 rows-after=3 columns=2
+  affected id=M.T0001.R03.C01 kind=cell action=append parent=M.T0001.R03 row=3 column=1 visual-column-end=1 rows-before=2 rows-after=3 columns=2
 ```
 
 Use `--report <path>` for the full JSON operation report. `GeneratedRevisionIds`
 is populated only for apply operations that actually create revision markup.
 Feed the same report to `changes --operation-report <path>` to annotate matching
 revision records with operation metadata.
+Affected table targets may also include visual-grid metadata (`visual-column-end`,
+`grid-before`, `grid-after`), merge-group IDs, and nested-table paths so agents can
+audit edits against complex table topology without inspecting raw OOXML.
 
 ### 13.2 `apply`
 

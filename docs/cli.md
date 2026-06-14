@@ -235,7 +235,9 @@ docxedit apply report.docx edits.docxpatch --output report.edited.docx
 ```
 
 Both commands report one operation line per patch operation. Table operations also
-report affected row/cell IDs. Use `--report path` for the full JSON report.
+report affected row/cell IDs with visual-grid metadata such as column spans,
+omitted-column offsets, merge groups, and nested-table paths when relevant. Use
+`--report path` for the full JSON report.
 Generated revision IDs from the report can be correlated with
 `changes --operation-report`.
 

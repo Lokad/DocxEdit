@@ -495,6 +495,9 @@ Overlap policy:
 When `apply` creates revision markup, operation summaries and report JSON include
 the generated revision IDs for that operation. Use those IDs with `changes` to
 verify the resulting markup without reading raw OOXML.
+Table operation reports include affected row/cell IDs plus visual-column ends,
+grid-before/grid-after offsets, merge-group IDs, and nested-table paths when the
+target shape has them.
 
 ## Assets
 

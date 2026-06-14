@@ -8843,6 +8843,80 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckInsertRowReportsVisualGridAffectedCells()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Indented</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-row-before
+            target M.T0001.R01
+            cell Inserted
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        DocxPatchAffectedTarget row = Assert.Single(report.AffectedTargets, target => target.Kind == "row");
+        Assert.Equal(1, row.GridBefore);
+        Assert.Equal(0, row.GridAfter);
+        DocxPatchAffectedTarget cell = Assert.Single(report.AffectedTargets, target => target.Kind == "cell");
+        Assert.Equal("M.T0001.R01.C02", cell.Id);
+        Assert.Equal(2, cell.ColumnIndex);
+        Assert.Equal(2, cell.VisualColumnEndIndex);
+    }
+
+    [Fact]
+    public static void CheckCellPropertyReportsMergeGroupAndNestedTablePath()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>Wide</w:t></w:r></w:p>
+                          <w:tbl>
+                            <w:tr><w:tc><w:p><w:r><w:t>Nested</w:t></w:r></w:p></w:tc></w:tr>
+                          </w:tbl>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell-shading
+            target M.T0001.MG0001
+            fill A1B2C3
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.T0001.MG0001", affected.Id);
+        Assert.Equal(1, affected.ColumnIndex);
+        Assert.Equal(2, affected.VisualColumnEndIndex);
+        Assert.Equal("M.T0001.MG0001", affected.MergeGroupId);
+        Assert.Equal("M.T0001.R01.C01.T0001", affected.NestedTablePath);
+    }
+
+    [Fact]
     public static void ApplyDeleteRowReportsAffectedRowAndCells()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -8897,6 +8971,19 @@ public static class PatchApplyTests
                         RowCountAfter = 2,
                         ColumnCount = 2,
                         CellCount = 2
+                    },
+                    new("M.T0001.R02.C01", "cell", "append")
+                    {
+                        ParentId = "M.T0001.R02",
+                        RowIndex = 2,
+                        ColumnIndex = 1,
+                        VisualColumnEndIndex = 2,
+                        GridBefore = 1,
+                        MergeGroupId = "M.T0001.MG0001",
+                        NestedTablePath = "M.T0001.R02.C01.T0001",
+                        RowCountBefore = 1,
+                        RowCountAfter = 2,
+                        ColumnCount = 2
                     }
                 ]
             }
@@ -8906,6 +8993,7 @@ public static class PatchApplyTests
 
         Assert.Contains("operation index=1 name=append-row target=M.T0001 success=True", text, StringComparison.Ordinal);
         Assert.Contains("affected id=M.T0001.R02 kind=row action=append parent=M.T0001 row=2 rows-before=1 rows-after=2 columns=2 cells=2", text, StringComparison.Ordinal);
+        Assert.Contains("affected id=M.T0001.R02.C01 kind=cell action=append parent=M.T0001.R02 row=2 column=1 visual-column-end=2 grid-before=1 merge-group=M.T0001.MG0001 nested-table-path=M.T0001.R02.C01.T0001 rows-before=1 rows-after=2 columns=2", text, StringComparison.Ordinal);
     }
 
     [Fact]

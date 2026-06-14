@@ -106,6 +106,11 @@ public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Acti
     public int? RowCountAfter { get; init; }
     public int? ColumnCount { get; init; }
     public int? CellCount { get; init; }
+    public int? VisualColumnEndIndex { get; init; }
+    public int? GridBefore { get; init; }
+    public int? GridAfter { get; init; }
+    public string? MergeGroupId { get; init; }
+    public string? NestedTablePath { get; init; }
 }
 
 public sealed record DocxStyleInfo(string StyleId, string Name, string Type, bool IsDefault)

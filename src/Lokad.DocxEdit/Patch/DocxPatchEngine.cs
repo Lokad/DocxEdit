@@ -295,7 +295,7 @@ internal static class DocxPatchEngine
         XElement[] cells = cellTarget.Row.Elements(OoxmlNs.W + "tc").ToArray();
         int rowIndex = Array.IndexOf(rows, cellTarget.Row) + 1;
         int columnIndex = cellTarget.VisualColumnIndex;
-        return CreateTableOperationSnapshot(target, cellTarget.Table, rowIndex, columnIndex, cells.Length);
+        return CreateTableOperationSnapshot(target, cellTarget.Table, rowIndex, columnIndex, cells.Length, cellTarget.Row);
     }
 
     private static TableOperationSnapshot? CaptureRowSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
@@ -309,15 +309,19 @@ internal static class DocxPatchEngine
         XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
         int rowIndex = Array.IndexOf(rows, rowTarget.Row) + 1;
         int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
-        return CreateTableOperationSnapshot(target, rowTarget.Table, rowIndex, columnIndex: null, cellCount);
+        return CreateTableOperationSnapshot(target, rowTarget.Table, rowIndex, columnIndex: null, cellCount, rowTarget.Row);
     }
 
     private static TableOperationSnapshot? CaptureTableSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
     {
         TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
-        return tableTarget is null
-            ? null
-            : CreateTableOperationSnapshot(target, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null);
+        if (tableTarget is null)
+        {
+            return null;
+        }
+
+        XElement? templateRow = tableTarget.Table.Elements(OoxmlNs.W + "tr").LastOrDefault();
+        return CreateTableOperationSnapshot(target, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null, templateRow);
     }
 
     private static TableOperationSnapshot CreateTableOperationSnapshot(
@@ -325,14 +329,145 @@ internal static class DocxPatchEngine
         XElement table,
         int? rowIndex,
         int? columnIndex,
-        int? cellCount)
+        int? cellCount,
+        XElement? row)
     {
         int rowCount = table.Elements(OoxmlNs.W + "tr").Count();
         int columnCount = TryGetConsistentVisualColumnCount(table, out int visualColumnCount)
             ? visualColumnCount
             : table.Elements(OoxmlNs.W + "tr").Select(ReadTableRowVisualColumnCount).DefaultIfEmpty(0).Max();
         string? tableId = ExtractTableId(target);
-        return new TableOperationSnapshot(target, tableId, rowIndex, columnIndex, rowCount, columnCount, cellCount);
+        int? gridBefore = row is null ? null : ReadTableRowGridOffset(row, "gridBefore");
+        int? gridAfter = row is null ? null : ReadTableRowGridOffset(row, "gridAfter");
+        IReadOnlyList<TableCellSnapshot> cells = tableId is null || row is null
+            ? []
+            : CreateTableCellSnapshots(tableId, table, row, rowIndex);
+        return new TableOperationSnapshot(target, tableId, rowIndex, columnIndex, rowCount, columnCount, cellCount, gridBefore, gridAfter, cells);
+    }
+
+    private static IReadOnlyList<TableCellSnapshot> CreateTableCellSnapshots(
+        string tableId,
+        XElement table,
+        XElement targetRow,
+        int? targetRowIndex)
+    {
+        var snapshots = new List<TableCellSnapshot>();
+        int mergeGroupIndex = 1;
+        int rowIndex = 0;
+        var activeVerticalMerges = new Dictionary<int, string>(capacity: 4);
+        foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
+        {
+            rowIndex++;
+            int gridBefore = ReadTableRowGridOffset(row, "gridBefore");
+            RemoveActiveMergeGroupIds(activeVerticalMerges, 1, gridBefore);
+            int columnIndex = 1 + gridBefore;
+            foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+            {
+                int columnSpan = ReadTableCellColumnSpan(cell);
+                string? verticalMerge = ReadTableCellVerticalMerge(cell);
+                string? mergeGroupId = null;
+                if (string.Equals(verticalMerge, "restart", StringComparison.Ordinal))
+                {
+                    mergeGroupId = AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
+                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
+                }
+                else if (verticalMerge is not null)
+                {
+                    mergeGroupId = FindActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan) ?? AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
+                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
+                }
+                else
+                {
+                    RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, columnSpan);
+                    if (columnSpan > 1)
+                    {
+                        mergeGroupId = AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
+                    }
+                }
+
+                if (ReferenceEquals(row, targetRow))
+                {
+                    string cellId = $"{tableId}.R{(targetRowIndex ?? rowIndex):00}.C{columnIndex:00}";
+                    snapshots.Add(new TableCellSnapshot(
+                        columnIndex,
+                        columnIndex + columnSpan - 1,
+                        mergeGroupId,
+                        CreateNestedTablePath(cellId, cell)));
+                }
+
+                columnIndex += columnSpan;
+            }
+
+            int gridAfter = ReadTableRowGridOffset(row, "gridAfter");
+            RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, gridAfter);
+        }
+
+        return snapshots;
+    }
+
+    private static IReadOnlyList<TableCellSnapshot> CreateFallbackCellSnapshots(string tableId, int? rowIndex, int cellCount)
+    {
+        var snapshots = new List<TableCellSnapshot>(capacity: Math.Max(cellCount, 0));
+        for (int column = 1; column <= cellCount; column++)
+        {
+            snapshots.Add(new TableCellSnapshot(column, column, MergeGroupId: null, NestedTablePath: null));
+        }
+
+        _ = tableId;
+        _ = rowIndex;
+        return snapshots;
+    }
+
+    private static string? FindActiveMergeGroupId(IReadOnlyDictionary<int, string> activeVerticalMerges, int columnIndex, int columnSpan)
+    {
+        string? mergeGroupId = null;
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            if (!activeVerticalMerges.TryGetValue(column, out string? current))
+            {
+                return null;
+            }
+
+            mergeGroupId ??= current;
+            if (!string.Equals(mergeGroupId, current, StringComparison.Ordinal))
+            {
+                return null;
+            }
+        }
+
+        return mergeGroupId;
+    }
+
+    private static void SetActiveMergeGroupId(Dictionary<int, string> activeVerticalMerges, int columnIndex, int columnSpan, string mergeGroupId)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            activeVerticalMerges[column] = mergeGroupId;
+        }
+    }
+
+    private static void RemoveActiveMergeGroupIds(Dictionary<int, string> activeVerticalMerges, int columnIndex, int columnSpan)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            activeVerticalMerges.Remove(column);
+        }
+    }
+
+    private static string AllocateTableMergeGroupId(string tableId, ref int mergeGroupIndex)
+    {
+        return $"{tableId}.MG{mergeGroupIndex++:0000}";
+    }
+
+    private static string? CreateNestedTablePath(string cellId, XElement cell)
+    {
+        int nestedTableCount = cell.Elements(OoxmlNs.W + "tbl").Count();
+        return nestedTableCount switch
+        {
+            0 => null,
+            1 => $"{cellId}.T0001",
+            _ => $"{cellId}.T0001..T{nestedTableCount:0000}"
+        };
     }
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildAffectedTargets(DocxPatchOperation operation, TableOperationSnapshot? before)
@@ -355,6 +490,10 @@ internal static class DocxPatchEngine
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildSetCellAffectedTargets(TableOperationSnapshot before)
     {
+        TableCellSnapshot? cell = before.Cells.FirstOrDefault(cell =>
+            before.ColumnIndex is not null &&
+            before.ColumnIndex.Value >= cell.ColumnIndex &&
+            before.ColumnIndex.Value <= cell.VisualColumnEndIndex);
         return
         [
             new(before.TargetId, "cell", "update")
@@ -362,6 +501,9 @@ internal static class DocxPatchEngine
                 ParentId = before.TableId,
                 RowIndex = before.RowIndex,
                 ColumnIndex = before.ColumnIndex,
+                VisualColumnEndIndex = cell?.VisualColumnEndIndex,
+                MergeGroupId = cell?.MergeGroupId,
+                NestedTablePath = cell?.NestedTablePath,
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore,
                 ColumnCount = before.ColumnCount
@@ -376,7 +518,10 @@ internal static class DocxPatchEngine
         string action)
     {
         string tableId = before.TableId ?? before.TargetId;
-        int cellCount = requestedCellCount == 0 ? before.ColumnCount : requestedCellCount;
+        IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
+            ? CreateFallbackCellSnapshots(tableId, before.RowIndex, requestedCellCount == 0 ? before.ColumnCount : requestedCellCount)
+            : before.Cells;
+        int cellCount = requestedCellCount == 0 ? cells.Count : requestedCellCount;
         string rowId = $"{tableId}.R{insertedRowIndex:00}";
         var affected = new List<DocxPatchAffectedTarget>
         {
@@ -387,16 +532,20 @@ internal static class DocxPatchEngine
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore + 1,
                 ColumnCount = before.ColumnCount,
-                CellCount = cellCount
+                CellCount = cellCount,
+                GridBefore = before.GridBefore,
+                GridAfter = before.GridAfter
             }
         };
-        for (int column = 1; column <= cellCount; column++)
+        foreach (TableCellSnapshot cell in cells.Take(cellCount))
         {
-            affected.Add(new DocxPatchAffectedTarget($"{rowId}.C{column:00}", "cell", action)
+            affected.Add(new DocxPatchAffectedTarget($"{rowId}.C{cell.ColumnIndex:00}", "cell", action)
             {
                 ParentId = rowId,
                 RowIndex = insertedRowIndex,
-                ColumnIndex = column,
+                ColumnIndex = cell.ColumnIndex,
+                VisualColumnEndIndex = cell.VisualColumnEndIndex,
+                NestedTablePath = cell.NestedTablePath is null ? null : $"{rowId}.C{cell.ColumnIndex:00}.T0001",
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore + 1,
                 ColumnCount = before.ColumnCount
@@ -410,7 +559,10 @@ internal static class DocxPatchEngine
     {
         string tableId = before.TableId ?? ExtractTableId(before.TargetId) ?? before.TargetId;
         int rowIndex = before.RowIndex ?? 1;
-        int cellCount = before.CellCount ?? before.ColumnCount;
+        IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
+            ? CreateFallbackCellSnapshots(tableId, rowIndex, before.CellCount ?? before.ColumnCount)
+            : before.Cells;
+        int cellCount = before.CellCount ?? cells.Count;
         var affected = new List<DocxPatchAffectedTarget>
         {
             new(before.TargetId, "row", "delete")
@@ -420,16 +572,21 @@ internal static class DocxPatchEngine
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore - 1,
                 ColumnCount = before.ColumnCount,
-                CellCount = cellCount
+                CellCount = cellCount,
+                GridBefore = before.GridBefore,
+                GridAfter = before.GridAfter
             }
         };
-        for (int column = 1; column <= cellCount; column++)
+        foreach (TableCellSnapshot cell in cells.Take(cellCount))
         {
-            affected.Add(new DocxPatchAffectedTarget($"{before.TargetId}.C{column:00}", "cell", "delete")
+            affected.Add(new DocxPatchAffectedTarget($"{before.TargetId}.C{cell.ColumnIndex:00}", "cell", "delete")
             {
                 ParentId = before.TargetId,
                 RowIndex = rowIndex,
-                ColumnIndex = column,
+                ColumnIndex = cell.ColumnIndex,
+                VisualColumnEndIndex = cell.VisualColumnEndIndex,
+                MergeGroupId = cell.MergeGroupId,
+                NestedTablePath = cell.NestedTablePath,
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore - 1,
                 ColumnCount = before.ColumnCount
@@ -442,7 +599,14 @@ internal static class DocxPatchEngine
     private static string? ExtractTableId(string target)
     {
         int rowMarker = target.IndexOf(".R", StringComparison.Ordinal);
-        return rowMarker < 0 ? target : target[..rowMarker];
+        int mergeGroupMarker = target.IndexOf(".MG", StringComparison.Ordinal);
+        int marker = rowMarker switch
+        {
+            >= 0 when mergeGroupMarker >= 0 => Math.Min(rowMarker, mergeGroupMarker),
+            >= 0 => rowMarker,
+            _ => mergeGroupMarker
+        };
+        return marker < 0 ? target : target[..marker];
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceText(
@@ -10930,7 +11094,16 @@ internal sealed record TableOperationSnapshot(
     int? ColumnIndex,
     int RowCountBefore,
     int ColumnCount,
-    int? CellCount);
+    int? CellCount,
+    int? GridBefore,
+    int? GridAfter,
+    IReadOnlyList<TableCellSnapshot> Cells);
+
+internal sealed record TableCellSnapshot(
+    int ColumnIndex,
+    int VisualColumnEndIndex,
+    string? MergeGroupId,
+    string? NestedTablePath);
 
 internal sealed record TableCellGridSlot(XElement Cell, int ColumnIndex, int ColumnSpan);
 

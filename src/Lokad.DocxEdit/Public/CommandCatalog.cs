@@ -680,7 +680,7 @@ public static class DocxHelp
                     Category = "patch",
                     Summary = "Validate a .docxpatch file without writing output",
                     Usage = "docxedit check input.docx edits.docxpatch [options]",
-                    Description = "Validate a patch against an input document without writing an output file. Use check before apply to verify selectors, guards, assets, and track-change constraints. Text output includes one operation line per patch operation and affected row/cell lines for table operations.",
+                    Description = "Validate a patch against an input document without writing an output file. Use check before apply to verify selectors, guards, assets, and track-change constraints. Text output includes one operation line per patch operation and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
                         new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
@@ -703,7 +703,7 @@ public static class DocxHelp
                     Category = "patch",
                     Summary = "Apply a .docxpatch file and write a new .docx",
                     Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [options]",
-                    Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation, generated revision IDs when tracked markup is created, and affected row/cell lines for table operations.",
+                    Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation, generated revision IDs when tracked markup is created, and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
                         new("--output path, -o path", "Output .docx path"),
