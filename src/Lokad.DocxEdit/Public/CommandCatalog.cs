@@ -780,7 +780,7 @@ public static class DocxHelp
                     ["target", "text"],
                     TrackClassTextRun,
                     "tracked-content-control-text",
-                    "Suggest/Require emit w:del/w:ins inside simple plain-text content controls while preserving the wrapper, bindings, and locks; rich-text or complex content controls warn with W4002 or fail with E6002.",
+                    "Suggest/Require emit w:del/w:ins inside simple plain-text and guarded paragraph-only rich-text content controls while preserving wrappers, bindings, locks, and paragraph containers; complex content controls warn with W4002 or fail with E6002.",
                     ["expect-text"]),
                 PreserveOnly(
                     "set-content-control-checkbox",

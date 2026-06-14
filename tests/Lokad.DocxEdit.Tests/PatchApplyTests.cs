@@ -3649,7 +3649,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void CheckTrackChangesRequireRejectsRichTextContentControlText()
+    public static void CheckTrackChangesRequireAllowsRichTextContentControlText()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -3676,12 +3676,8 @@ public static class PatchApplyTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
-        Assert.Contains("operation 'set-content-control-text'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("rich-text content-control tracked replacement is not modeled yet", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
     }
 
     [Fact]
@@ -3725,6 +3721,69 @@ public static class PatchApplyTests
         string xml = ReadDocumentXml(output);
         Assert.Contains("<w:richText", xml, StringComparison.Ordinal);
         Assert.Contains("w:tag w:val=\"summary\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestSetRichTextContentControlTextPreservesParagraphs()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:tag w:val="summary"/>
+                          <w:alias w:val="Summary"/>
+                          <w:richText/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:p>
+                            <w:pPr><w:pStyle w:val="BodyText"/></w:pPr>
+                            <w:r><w:t>One</w:t></w:r>
+                          </w:p>
+                          <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            expect-text OneTwo
+            text Replacement
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["1", "2", "3"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:sdt>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:id w:val=\"77\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tag w:val=\"summary\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:alias w:val=\"Summary\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:richText", xml, StringComparison.Ordinal);
+        Assert.Contains("w:val=\"BodyText\"", xml, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(xml, "<w:del "));
+        Assert.Equal(1, CountOccurrences(xml, "<w:ins "));
+        Assert.Contains("<w:delText>One</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Two</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Replacement</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Replacement", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("OneTwo", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("[-One-][+Replacement+][-Two-]", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs).Text);
     }
 
     [Fact]

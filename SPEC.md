@@ -2521,7 +2521,7 @@ insert-before         inserted paragraph text as w:ins
 insert-after          inserted paragraph text as w:ins
 delete-block          simple paragraph targets as w:del text
 set-style             paragraph property revision with w:pPrChange
-set-content-control-text simple plain-text content controls as w:del/w:ins inside the content wrapper
+set-content-control-text simple plain-text and guarded paragraph-only rich-text content controls as w:del/w:ins inside the content wrapper
 replace-bookmark-text simple same-paragraph bookmark ranges as w:del/w:ins between preserved markers
 set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside the field wrapper
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
@@ -2536,9 +2536,12 @@ tracked output is limited to text-only cell paragraphs without `force true`; for
 compatible multi-paragraph cells, deleted text remains in its original paragraphs
 and inserted replacement text is emitted in the first paragraph.
 `set-content-control-text` tracked output is limited to simple plain-text content
-controls and preserves `w:sdt` properties and `w:sdtContent`; rich-text content
-controls remain direct under `suggest` with `W4002` or fail under `require` with
-`E6002`. `set-field-result` tracked output is limited to simple `w:fldSimple`
+controls and guarded paragraph-only rich-text content controls. It preserves
+`w:sdt` properties and `w:sdtContent`; compatible rich-text replacements preserve
+inner paragraph containers, delete existing paragraph text in place, and insert the
+replacement in the first paragraph. Complex content controls remain direct under
+`suggest` with `W4002` or fail under `require` with `E6002`. `set-field-result`
+tracked output is limited to simple `w:fldSimple`
 cached result text and preserves the field instruction; complex fields still fail
 with `E4313`. `replace-bookmark-text` tracked output is limited to simple
 same-paragraph bookmark ranges with compatible run-only content; multi-paragraph

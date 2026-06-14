@@ -942,17 +942,21 @@ internal static class DocxPatchEngine
 
         bool useTrackedChanges = IsTrackedMode(options);
         XElement? trackedContainer = null;
+        XElement[]? trackedParagraphs = null;
         string trackedCurrent = current;
         if (useTrackedChanges)
         {
             if (!isPlainText)
             {
-                if (!TrackUnsupportedShape(options, operation, target!, "rich-text content-control tracked replacement is not modeled yet", diagnostics))
+                if (!TryGetTrackedRichTextContentControlParagraphs(content, text!, out trackedParagraphs, out string? trackedUnsupportedReason))
                 {
-                    return diagnostics;
-                }
+                    if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                    {
+                        return diagnostics;
+                    }
 
-                useTrackedChanges = false;
+                    useTrackedChanges = false;
+                }
             }
             else if (!TryGetTrackedContentControlTextContainer(content, text!, out trackedContainer, out trackedCurrent, out string? trackedUnsupportedReason))
             {
@@ -972,7 +976,15 @@ internal static class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, trackedContainer!, trackedCurrent, text!, options, generatedRevisionIds, cancellationToken);
+            if (trackedParagraphs is not null)
+            {
+                ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text!, options, generatedRevisionIds, cancellationToken);
+            }
+            else
+            {
+                ReplaceWholeParagraphTextWithTrackedChanges(package, trackedContainer!, trackedCurrent, text!, options, generatedRevisionIds, cancellationToken);
+            }
+
             SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
             return diagnostics;
         }
@@ -3836,6 +3848,60 @@ internal static class DocxPatchEngine
         if (!TryValidateTrackedWholeParagraphReplacement(trackedContainer, current, replacement, style: null, out unsupportedReason))
         {
             return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetTrackedRichTextContentControlParagraphs(
+        XElement content,
+        string replacement,
+        out XElement[] paragraphs,
+        out string? unsupportedReason)
+    {
+        paragraphs = content.Elements(OoxmlNs.W + "p").ToArray();
+        unsupportedReason = null;
+        if (paragraphs.Length == 0)
+        {
+            unsupportedReason = "rich-text content control has no paragraph for tracked text replacement";
+            return false;
+        }
+
+        if (content.Elements().Any(element => element.Name != OoxmlNs.W + "p"))
+        {
+            unsupportedReason = "rich-text content control contains non-paragraph content";
+            return false;
+        }
+
+        if (content.Descendants(OoxmlNs.W + "drawing").Any())
+        {
+            unsupportedReason = "rich-text content control contains drawing content";
+            return false;
+        }
+
+        if (content.Descendants(OoxmlNs.W + "fldSimple").Any() ||
+            content.Descendants(OoxmlNs.W + "fldChar").Any() ||
+            content.Descendants(OoxmlNs.W + "instrText").Any())
+        {
+            unsupportedReason = "rich-text content control contains field content";
+            return false;
+        }
+
+        for (int i = 0; i < paragraphs.Length; i++)
+        {
+            XElement paragraph = paragraphs[i];
+            if (TryGetProtectedTextEditFeature(paragraph, out string protectedFeature))
+            {
+                unsupportedReason = $"rich-text content-control paragraph contains protected OOXML boundary '{protectedFeature}'";
+                return false;
+            }
+
+            string current = ReadVisibleText(paragraph);
+            string insertedText = i == 0 ? replacement : string.Empty;
+            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, style: null, out unsupportedReason))
+            {
+                return false;
+            }
         }
 
         return true;
