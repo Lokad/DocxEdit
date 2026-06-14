@@ -2610,6 +2610,24 @@ inserted rows with `w:trPr/w:ins`; `delete-row` marks deleted rows with
 previous section properties in `w:sectPrChange` while preserving page size and
 header/footer references.
 
+Overlap policy:
+
+* Existing tracked-change, move, custom XML revision, comment, bookmark,
+  content-control, field, hyperlink, image, table, and section markup outside the
+  edit range is preserved.
+* Generated tracked edits may be adjacent to existing revision or comment markup,
+  but must not replace through it.
+* Existing `w:ins`, `w:del`, `w:moveFrom`, `w:moveTo`, move range markers, and
+  custom XML revision range markers are protected boundaries for generated text
+  edits. `TrackChangesMode.Suggest` falls back with `W4002`; `Require` fails
+  with `E6002`.
+* Generic paragraph/cell text edits do not cross comment ranges, bookmarks,
+  content controls, fields, or hyperlinks. Dedicated operations own those wrapper
+  surfaces when the shape is simple enough to preserve.
+* Generated property revisions are not nested or replaced. If a target already
+  owns the same tracked property revision shape, `Suggest` falls back and
+  `Require` fails.
+
 Known preserve-only operations:
 
 ```text

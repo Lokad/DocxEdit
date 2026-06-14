@@ -327,6 +327,7 @@ public static class DocxHelp
         builder.AppendLine("set-image-crop updates DrawingML a:srcRect crop percentages without replacing media bytes.");
         builder.AppendLine("Linked images and unsupported drawing shapes are reported as diagnostics and preserved.");
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
+        builder.AppendLine("Tracked edits preserve unrelated existing markup, allow adjacent revisions, and reject overlaps with tracked insert/delete, move, custom XML revision, comment, bookmark, content-control, field, or hyperlink boundaries.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash and preserve-size are not supported.");
         return builder.ToString();
     }

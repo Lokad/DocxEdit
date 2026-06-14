@@ -436,6 +436,24 @@ mode. The diagnostic includes the operation name, target ID, catalog support
 value, and exact unsupported-shape reason; `W4002` also says the edit is being
 applied directly.
 
+Overlap policy:
+
+- Unrelated existing tracked-change, move, custom XML revision, comment,
+  bookmark, content-control, field, hyperlink, image, table, and section markup
+  is preserved.
+- Generated tracked edits may be adjacent to existing revision or comment
+  markup, but they must not replace through it.
+- Existing `w:ins`, `w:del`, `w:moveFrom`, `w:moveTo`, move range markers, and
+  custom XML revision range markers are protected boundaries for generated text
+  edits. `suggest` falls back to a direct edit with `W4002`; `require` fails with
+  `E6002`.
+- Generic paragraph/cell text edits do not cross comment ranges, bookmarks,
+  content controls, fields, or hyperlinks. Use the dedicated comment, bookmark,
+  content-control, field-result, or hyperlink-text operation when the wrapper is
+  the intended edit surface.
+- Property revisions are not nested or replaced. If a target already owns the
+  same tracked property revision shape, `suggest` falls back and `require` fails.
+
 When `apply` creates revision markup, operation summaries and report JSON include
 the generated revision IDs for that operation. Use those IDs with `changes` to
 verify the resulting markup without reading raw OOXML.
