@@ -241,14 +241,17 @@ are rejected.
 | `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
 | `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
 | `delete-comment` | `target` | | Removes body, range/reference markers, and matching extension records |
-| `add-comment-reply` | `target`, `text` | `author`, `initials`, `date` | Recognized but fails with `E4314` |
-| `delete-comment-reply` | `target` | | Recognized but fails with `E4314` |
+| `add-comment-reply` | `target`, `text` | `author`, `initials`, `date` | Adds a modern threaded reply under a comment |
+| `delete-comment-reply` | `target` | | Removes a leaf threaded reply |
 
 Existing comment operations target `comment:<id>` from `changes` or a comment body
 ID such as `C001.C0001`. For `add-comment`, `anchor-text` selects one normalized
 text span inside the target paragraph; specify `occurrence` when that text is
 repeated. Selected ranges are intentionally limited to direct paragraph text runs
-and fail on protected markup boundaries. Threaded replies are not safely modeled yet.
+and fail on protected markup boundaries. `add-comment-reply` creates modern
+`commentsExtended.xml` and `commentsIds.xml` records. `delete-comment-reply`
+accepts `comment:<parent-id>.reply:<ordinal>` or an explicit reply comment target;
+it fails with `E4314` when the reply has child replies.
 
 ### Fields
 
@@ -396,8 +399,8 @@ set-comment-text | text-run | tracked-comment-text | Suggest/Require emit w:del/
 resolve-comment | preserve-only | preserve-only | Comment resolution changes review metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 reopen-comment | preserve-only | preserve-only | Comment reopening changes review metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 delete-comment | preserve-only | preserve-only | Comment deletion removes review markup, not a separate generated tracked edit. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-add-comment-reply | unsupported | unsupported | Threaded comment replies are not safely modeled yet; check/apply fails with E4314.
-delete-comment-reply | unsupported | unsupported | Threaded comment replies are not safely modeled yet; check/apply fails with E4314.
+add-comment-reply | preserve-only | preserve-only | Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+delete-comment-reply | preserve-only | preserve-only | Threaded comment reply deletion removes review metadata, not a separate generated tracked edit. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-field-dirty | preserve-only | preserve-only | Field dirty flags are field metadata and have no useful generated visible revision representation. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-field-lock | preserve-only | preserve-only | Field lock flags are field metadata and have no useful generated visible revision representation. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-field-code | preserve-only | preserve-only | Field codes are instruction metadata; generated revisions for field instructions are not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.

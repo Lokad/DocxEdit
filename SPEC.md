@@ -1972,10 +1972,16 @@ Rules:
 * `delete-comment` removes the comment body and matching `commentRangeStart`,
   `commentRangeEnd`, and `commentReference` markers from document stories, plus
   matching `commentsExtended.xml` records when present.
-* `add-comment-reply` and `delete-comment-reply` are recognized so callers receive
-  explicit `E4314` diagnostics. They fail until DocxEdit safely models
-  threaded-comment reply body edits and related thread metadata updates.
-* Full threaded comment workflows remain out of scope for v0.1.
+* `add-comment-reply` creates a simple threaded reply in `comments.xml`, ensures
+  parent and reply `w15:paraId` values, creates or updates `commentsExtended.xml`
+  with `w15:paraIdParent`, and creates `commentsIds.xml` durable ID metadata for
+  the new reply.
+* `delete-comment-reply` removes a leaf reply comment plus its matching
+  `commentsExtended.xml` and `commentsIds.xml` records. Targets can be an explicit
+  reply comment target such as `comment:4` or an ordinal selector such as
+  `comment:3.reply:1`. Replies with child replies fail with `E4314`.
+* Full threaded comment workflows beyond simple reply add/delete remain out of
+  scope for v0.1.
 
 ### 11.6c Field flag operations
 
@@ -2846,7 +2852,7 @@ E9104 complex field begin/end markers are unbalanced
 E9105 drawing references a missing relationship ID
 E9106 table or row is missing required row/cell structure
 E9107 duplicate drawing wp:docPr ID within one Word part
-E9108 commentsExtended metadata has missing, duplicate, or orphan paraId records
+E9108 commentsExtended metadata has missing, duplicate, orphan, or self-parented paraId records
 E9109 drawing wp:extent is missing or non-positive
 E9110 drawing a:srcRect crop values are malformed or collapse the visible area
 E9111 comment body, anchor, or reference IDs are missing, duplicated, or inconsistent

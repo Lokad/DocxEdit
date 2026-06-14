@@ -615,6 +615,9 @@ public static class ReadApiTests
                   <w:comment w:id="1" w:author="Reviewer">
                     <w:p w15:paraId="00AAA111"><w:r><w:t>Comment</w:t></w:r></w:p>
                   </w:comment>
+                  <w:comment w:id="2" w:author="Reviewer">
+                    <w:p w15:paraId="00CCC333"><w:r><w:t>Reply</w:t></w:r></w:p>
+                  </w:comment>
                 </w:comments>
             """,
             """
@@ -622,6 +625,7 @@ public static class ReadApiTests
                   <w15:commentEx w15:paraId="00AAA111" w15:done="0"/>
                   <w15:commentEx w15:paraId="00AAA111" w15:done="1"/>
                   <w15:commentEx w15:paraId="00BBB222" w15:done="0"/>
+                  <w15:commentEx w15:paraId="00CCC333" w15:paraIdParent="00MISSING" w15:done="0"/>
                   <w15:commentEx w15:done="0"/>
                 </w15:commentsEx>
             """);
@@ -638,6 +642,9 @@ public static class ReadApiTests
             diagnostic.Code == "E9108" &&
             diagnostic.Message.Contains("00BBB222", StringComparison.Ordinal) &&
             diagnostic.Message.Contains("no matching comment paragraph", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.Message.Contains("parent paraId '00MISSING'", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E9108" &&
             diagnostic.Message.Contains("missing w15:paraId", StringComparison.Ordinal));

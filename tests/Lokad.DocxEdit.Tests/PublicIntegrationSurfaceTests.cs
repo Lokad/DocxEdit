@@ -91,10 +91,10 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("tracked-section-orientation", setSectionOrientation.TrackChangesSupport);
         Assert.True(setSectionOrientation.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("add-comment-reply", out DocxPatchOperationInfo addCommentReply));
-        Assert.Equal("unsupported", addCommentReply.TrackChangesSupportClass);
-        Assert.Equal("unsupported", addCommentReply.TrackChangesSupport);
+        Assert.Equal("preserve-only", addCommentReply.TrackChangesSupportClass);
+        Assert.Equal("preserve-only", addCommentReply.TrackChangesSupport);
         Assert.False(addCommentReply.GeneratesTrackedChanges);
-        Assert.Contains("E4314", addCommentReply.TrackChangesNote, StringComparison.Ordinal);
+        Assert.Contains("review metadata", addCommentReply.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("add-repeating-section-item", out DocxPatchOperationInfo addRepeatingSectionItem));
         Assert.Equal("unsupported", addRepeatingSectionItem.TrackChangesSupportClass);
         Assert.Equal("unsupported", addRepeatingSectionItem.TrackChangesSupport);

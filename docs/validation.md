@@ -50,7 +50,7 @@ Current checks include:
 - section property values for columns and page orientation;
 - paired bookmark and comment range start/end IDs;
 - comment body, anchor, and reference ID consistency;
-- modern `commentsExtended.xml` paraId consistency;
+- modern `commentsExtended.xml` paraId and parent-paraId consistency;
 - modern `commentsIds.xml` paraId/durableId consistency;
 - complex field begin/separate/end balance, instruction-text containment,
   cached-result containment, and dirty/lock flag validity;

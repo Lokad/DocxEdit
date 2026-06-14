@@ -5570,7 +5570,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void CheckCommentReplyOperationsFailWithExplicitUnsupportedDiagnostic()
+    public static void ApplyAddCommentReplyCreatesThreadMetadata()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
             """
@@ -5582,28 +5582,134 @@ public static class PatchApplyTests
                     </w:p>
             """,
             """
-                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p><w:r><w:t>Comment body</w:t></w:r></w:p>
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00ABCDEF" w15:done="0"/>
+                </w15:commentsEx>
                 """);
+        using var output = new MemoryStream();
         using var patch = new StringReader("""
             docxpatch 1
 
             op add-comment-reply
             target comment:3
             text Reply
+            author Second Reviewer
+            initials SR
+            date 2026-06-08T09:30:00Z
             end
             """);
 
-        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
 
-        Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Code == "E4314" &&
-            diagnostic.TargetId == "comment:3" &&
-            diagnostic.Message.Contains("comment-thread metadata", StringComparison.Ordinal));
+        Assert.True(result.Success);
+        output.Position = 0;
+        IReadOnlyList<DocxCommentThreadSummary> comments = new DocxEditor()
+            .Changes(output, new DocxChangesOptions { IncludeCommentText = true })
+            .CommentSummary;
+        DocxCommentThreadSummary reply = Assert.Single(comments, comment => comment.CommentId == "4");
+        Assert.Equal("00ABCDEF", reply.ParentParaId);
+        Assert.Equal("00ABCDEF", reply.RootParaId);
+        Assert.Equal("Reply", reply.TextSnippet);
+        Assert.True(reply.IsReply);
+        Assert.Equal("00000001", reply.DurableId);
+
+        output.Position = 0;
+        string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("w:comment w:id=\"4\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w15:paraId=\"00000001\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:author=\"Second Reviewer\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:initials=\"SR\"", commentsXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string commentsExtendedXml = ReadEntry(output, "word/commentsExtended.xml");
+        Assert.Contains("w15:commentEx w15:paraId=\"00000001\" w15:paraIdParent=\"00ABCDEF\" w15:done=\"0\"", commentsExtendedXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string commentsIdsXml = ReadEntry(output, "word/commentsIds.xml");
+        Assert.Contains("w16cid:commentId w16cid:paraId=\"00000001\" w16cid:durableId=\"00000001\"", commentsIdsXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        Assert.True(new DocxEditor().Validate(output).Success);
+    }
+
+    [Fact]
+    public static void ApplyDeleteCommentReplyRemovesReplyMetadataOnly()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p w15:paraId="00PARENT"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="4" w:author="Second Reviewer">
+                    <w:p w15:paraId="00REPLY1"><w:r><w:t>Reply body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00PARENT" w15:done="0"/>
+                  <w15:commentEx w15:paraId="00REPLY1" w15:paraIdParent="00PARENT" w15:done="0"/>
+                </w15:commentsEx>
+                """,
+            """
+                <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+                  <w16cid:commentId w16cid:paraId="00REPLY1" w16cid:durableId="7F0A11BC"/>
+                </w16cid:commentsIds>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-comment-reply
+            target comment:3.reply:1
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        IReadOnlyList<DocxCommentThreadSummary> comments = new DocxEditor().Changes(output).CommentSummary;
+        Assert.Single(comments);
+        Assert.Equal("3", comments[0].CommentId);
+
+        output.Position = 0;
+        string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("w:comment w:id=\"3\"", commentsXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("w:comment w:id=\"4\"", commentsXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string commentsExtendedXml = ReadEntry(output, "word/commentsExtended.xml");
+        Assert.Contains("00PARENT", commentsExtendedXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("00REPLY1", commentsExtendedXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        string commentsIdsXml = ReadEntry(output, "word/commentsIds.xml");
+        Assert.DoesNotContain("00REPLY1", commentsIdsXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("7F0A11BC", commentsIdsXml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        Assert.True(new DocxEditor().Validate(output).Success);
     }
 
     [Fact]

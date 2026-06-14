@@ -30,8 +30,8 @@ Implemented areas include:
 - comment root/reply and resolution metadata from `commentsExtended.xml`, durable
   comment IDs from `commentsIds.xml`, plus
   `resolve-comment` and `reopen-comment` workflows that create or update modern extension records for
-  basic comments, and explicit `E4314` diagnostics for unsupported threaded reply
-  operations;
+  basic comments, simple threaded reply add/delete workflows, and explicit
+  `E4314` diagnostics when reply deletion would change child thread topology;
 - bookmark and content-control read/context metadata with selector guidance, including
   duplicate selector candidate IDs, placeholder/data-binding metadata, hierarchy IDs,
   safe-edit status, checkbox state, dropdown/combo item counts, repeating-section
@@ -103,7 +103,7 @@ Known limits include exotic/custom visual numbering expansion beyond determinist
 decimal, letter, roman, bullet, and nested `lvlText` labels/components, previous
 numbering-state reconstruction for paragraph property revisions flagged with
 `W1026`, arbitrary multi-paragraph or protected-boundary comment selections and
-full threaded comment models, advanced
+threaded comment workflows beyond simple reply add/delete, advanced
 bookmark/content-control editing beyond plain-text and guarded rich-text controls,
 checkbox toggles, dropdown/combo selections, date values, guarded paragraph
 bookmark creation, bookmark rename/delete, and guarded paragraph-bounded bookmark
@@ -130,14 +130,15 @@ unsupported WordprocessingML shapes without private document details.
   `context` without exposing body text by default.
 - `commentsExtended.xml` `w15:commentEx` records are modeled for para IDs,
   parent/root para IDs, reply classification, and resolved state.
-- `commentsIds.xml` durable IDs are modeled and validated. Full threaded-comment
-  reply body editing is not safely modeled; reply operations are recognized and
-  fail with `E4314`.
+- `commentsIds.xml` durable IDs are modeled and validated. Simple reply creation
+  and leaf reply deletion are supported; deeper threaded-comment workflows remain
+  guarded.
 - Comment anchors, references, body IDs, duplicate IDs, orphan anchors, and
   orphan extension records are validated.
 - Comment creation, body replacement, resolution toggles, reopening, and deletion
   are supported for basic comments in supported document stories. Creation can
-  target a whole paragraph or one direct text span inside a paragraph.
+  target a whole paragraph or one direct text span inside a paragraph. Simple
+  threaded replies can be added and leaf replies can be deleted.
 
 ### Content Controls
 

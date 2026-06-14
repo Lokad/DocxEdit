@@ -894,6 +894,25 @@ internal static class DocxPackageValidator
                 diagnostics.Add(Error("E9108", $"commentsExtended paraId '{paraId}' has no matching comment paragraph.", partName));
             }
         }
+
+        foreach ((string? paraId, string? parentParaId) in document
+            .Descendants(OoxmlNs.W15 + "commentEx")
+            .Select(element => (
+                ParaId: (string?)element.Attribute(OoxmlNs.W15 + "paraId"),
+                ParentParaId: (string?)element.Attribute(OoxmlNs.W15 + "paraIdParent")))
+            .Where(item => !string.IsNullOrWhiteSpace(item.ParentParaId)))
+        {
+            if (string.Equals(paraId, parentParaId, StringComparison.Ordinal))
+            {
+                diagnostics.Add(Error("E9108", $"commentsExtended paraId '{paraId}' cannot parent itself.", partName));
+                continue;
+            }
+
+            if (!commentParaIds.Contains(parentParaId!))
+            {
+                diagnostics.Add(Error("E9108", $"commentsExtended parent paraId '{parentParaId}' has no matching comment paragraph.", partName));
+            }
+        }
     }
 
     private static void ValidateCommentsIds(

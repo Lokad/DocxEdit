@@ -316,7 +316,7 @@ public static class DocxHelp
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
         builder.AppendLine("add-comment targets a modeled paragraph; optional anchor-text selects one direct text span inside it, and occurrence disambiguates repeated anchor text.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
-        builder.AppendLine("add-comment-reply and delete-comment-reply are recognized but fail with E4314 until threaded comment metadata is safely modeled.");
+        builder.AppendLine("add-comment-reply creates modern commentsExtended/commentsIds metadata; delete-comment-reply removes leaf replies and fails with E4314 when deletion would change child thread topology.");
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
         builder.AppendLine("append-column, insert-column-before, insert-column-after, and delete-column are recognized but fail with E4316 until table-column transforms are safely modeled.");
         builder.AppendLine("set-table-style, set-table-metadata, and set-row-header update table properties with explicit guards.");
@@ -858,15 +858,15 @@ public static class DocxHelp
                     "delete-comment",
                     ["target"],
                     "Comment deletion removes review markup, not a separate generated tracked edit."),
-                Unsupported(
+                PreserveOnly(
                     "add-comment-reply",
                     ["target", "text"],
-                    "Threaded comment replies are not safely modeled yet; check/apply fails with E4314.",
+                    "Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit.",
                     ["author", "initials", "date"]),
-                Unsupported(
+                PreserveOnly(
                     "delete-comment-reply",
                     ["target"],
-                    "Threaded comment replies are not safely modeled yet; check/apply fails with E4314."),
+                    "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit."),
                 PreserveOnly(
                     "set-field-dirty",
                     ["target or all", "dirty"],

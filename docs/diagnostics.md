@@ -47,8 +47,9 @@ Common code ranges:
   cannot safely host modern resolution metadata.
 - `E4313`: field code/result replacement was requested for a field shape that is not
   safely editable by the requested operation.
-- `E4314`: threaded comment reply operations are recognized but not supported because
-  DocxEdit does not safely modify threaded comment metadata yet.
+- `E4314`: a threaded comment reply operation would require unsafe thread metadata
+  changes, such as missing parent metadata, a non-reply target, or deleting a reply
+  that still has child replies.
 - `E4315`: repeating-section item operations are recognized but not supported because
   DocxEdit does not safely model repeating-section subtree insertion/deletion yet.
 - `E4316`: table column operations are recognized but not supported because DocxEdit
@@ -100,7 +101,8 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9105`: drawing references a missing relationship ID.
 - `E9106`: table or row is missing required row/cell structure.
 - `E9107`: duplicate drawing `wp:docPr` ID within one Word part.
-- `E9108`: `commentsExtended` metadata has missing, duplicate, or orphan paraId records.
+- `E9108`: `commentsExtended` metadata has missing, duplicate, orphan, or
+  self-parented paraId records.
 - `E9109`: DrawingML extents are missing or non-positive.
 - `E9110`: DrawingML crop percentages are malformed or leave no visible image area.
 - `E9111`: comment body, anchor, or reference IDs are missing, duplicated, or inconsistent.
