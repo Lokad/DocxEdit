@@ -146,6 +146,7 @@ internal static class DocxPatchEngine
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
                     "set-cell" => ExecuteSetCell(package, operation, options, apply, generatedRevisionIds, cancellationToken),
+                    "set-cell-shading" => ExecuteSetCellShading(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-table-style" => ExecuteSetTableStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-table-metadata" => ExecuteSetTableMetadata(package, operation, apply, cancellationToken),
                     "set-row-header" => ExecuteSetRowHeader(package, operation, options, apply, generatedRevisionIds, cancellationToken),
@@ -275,7 +276,7 @@ internal static class DocxPatchEngine
 
         return operation.OperationName switch
         {
-            "set-cell" => CaptureCellSnapshot(package, target, cancellationToken),
+            "set-cell" or "set-cell-shading" => CaptureCellSnapshot(package, target, cancellationToken),
             "append-row" => CaptureTableSnapshot(package, target, cancellationToken),
             "insert-row-before" or "insert-row-after" or "delete-row" => CaptureRowSnapshot(package, target, cancellationToken),
             _ => null
@@ -343,7 +344,7 @@ internal static class DocxPatchEngine
 
         return operation.OperationName switch
         {
-            "set-cell" => BuildSetCellAffectedTargets(before),
+            "set-cell" or "set-cell-shading" => BuildSetCellAffectedTargets(before),
             "append-row" => BuildInsertedRowAffectedTargets(before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
             "insert-row-before" => BuildInsertedRowAffectedTargets(before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
             "insert-row-after" => BuildInsertedRowAffectedTargets(before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
@@ -5578,6 +5579,35 @@ internal static class DocxPatchEngine
             oldRowProperties));
     }
 
+    private static void SetCellShadingWithTrackedChange(
+        OoxmlPackage package,
+        XElement cell,
+        string? fill,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        XElement oldCellProperties = cell.Element(OoxmlNs.W + "tcPr") is { } existing
+            ? new XElement(existing)
+            : new XElement(OoxmlNs.W + "tcPr");
+        oldCellProperties.Elements(OoxmlNs.W + "tcPrChange").Remove();
+        SetCellShading(cell, fill);
+        XElement cellProperties = cell.Element(OoxmlNs.W + "tcPr") ?? new XElement(OoxmlNs.W + "tcPr");
+        if (cellProperties.Parent is null)
+        {
+            cell.AddFirst(cellProperties);
+        }
+
+        cellProperties.Elements(OoxmlNs.W + "tcPrChange").Remove();
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
+        cellProperties.Add(new XElement(
+            OoxmlNs.W + "tcPrChange",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", GetRevisionAuthor(options)),
+            new XAttribute(OoxmlNs.W + "date", GetRevisionTimestamp(options)),
+            oldCellProperties));
+    }
+
     private static void MarkRowRevision(
         OoxmlPackage package,
         XElement row,
@@ -7091,6 +7121,86 @@ internal static class DocxPatchEngine
         }
 
         ReplaceCellText(cellTarget.Cell, text!);
+        SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
+        return diagnostics;
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ExecuteSetCellShading(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxEditOptions options,
+        bool apply,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DocxDiagnostic>();
+        string? target = ReadRequiredField(operation, "target", diagnostics);
+        string? fill = operation.Fields.GetValueOrDefault("fill");
+        string? expectedFill = operation.Fields.GetValueOrDefault("expect-fill");
+        bool clear = ReadBooleanField(operation, "clear", diagnostics) ?? false;
+        if (fill is null && !clear)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-cell-shading' requires either 'fill' or 'clear true'.", operation, target));
+        }
+
+        if (fill is not null && clear)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-cell-shading' cannot combine 'fill' with 'clear true'.", operation, target));
+        }
+
+        string? normalizedFill = null;
+        if (fill is not null && !TryNormalizeCellShadingFill(fill, allowNone: false, out normalizedFill))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", $"Field 'fill' must be a 6-digit hexadecimal color or 'auto', found '{fill}'.", operation, target));
+        }
+
+        string? normalizedExpectedFill = null;
+        if (expectedFill is not null && !TryNormalizeCellShadingFill(expectedFill, allowNone: true, out normalizedExpectedFill))
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", $"Field 'expect-fill' must be a 6-digit hexadecimal color, 'auto', or 'none', found '{expectedFill}'.", operation, target));
+        }
+
+        if (diagnostics.Count != 0)
+        {
+            return diagnostics;
+        }
+
+        CellTarget? cellTarget = ResolveCellTarget(package, target!, cancellationToken);
+        if (cellTarget is null && !IsSupportedCellTargetShape(target!))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell-shading target '{target}'. Expected a table cell ID such as M.T0001.R02.C03 or H001.T0001.R02.C03, or a merge group ID such as M.T0001.MG0001.", operation, target)];
+        }
+
+        if (cellTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (IsVerticalMergeContinuation(cellTarget.Cell))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Unsupported merged-cell target '{target}'. Target the vertical-merge root cell instead.", operation, target)];
+        }
+
+        string? currentFill = ReadCellShadingFill(cellTarget.Cell);
+        if (normalizedExpectedFill is not null && !CellShadingFillMatches(currentFill, normalizedExpectedFill))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected cell shading fill '{normalizedExpectedFill}', found '{currentFill ?? "none"}'.", operation, target)];
+        }
+
+        if (!apply)
+        {
+            return diagnostics;
+        }
+
+        if (IsTrackedMode(options))
+        {
+            SetCellShadingWithTrackedChange(package, cellTarget.Cell, clear ? null : normalizedFill, options, generatedRevisionIds, cancellationToken);
+        }
+        else
+        {
+            SetCellShading(cellTarget.Cell, clear ? null : normalizedFill);
+        }
+
         SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
         return diagnostics;
     }
@@ -10230,9 +10340,61 @@ internal static class DocxPatchEngine
             ?.Attribute(OoxmlNs.W + "val");
     }
 
+    private static string? ReadCellShadingFill(XElement cell)
+    {
+        string? fill = (string?)cell
+            .Element(OoxmlNs.W + "tcPr")
+            ?.Element(OoxmlNs.W + "shd")
+            ?.Attribute(OoxmlNs.W + "fill");
+        return fill is null
+            ? null
+            : NormalizeCellShadingFill(fill);
+    }
+
     private static bool TableMetadataEquals(string? current, string expected)
     {
         return string.Equals(current ?? string.Empty, expected, StringComparison.Ordinal);
+    }
+
+    private static bool CellShadingFillMatches(string? current, string expected)
+    {
+        return string.Equals(current ?? "none", expected, StringComparison.Ordinal);
+    }
+
+    private static bool TryNormalizeCellShadingFill(string value, bool allowNone, [NotNullWhen(true)] out string? normalized)
+    {
+        normalized = null;
+        if (allowNone && string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "none";
+            return true;
+        }
+
+        if (string.Equals(value, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "auto";
+            return true;
+        }
+
+        if (value.Length == 6 && value.All(IsAsciiHexDigit))
+        {
+            normalized = value.ToUpperInvariant();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeCellShadingFill(string value)
+    {
+        return value.Length == 6 && value.All(IsAsciiHexDigit)
+            ? value.ToUpperInvariant()
+            : value;
+    }
+
+    private static bool IsAsciiHexDigit(char value)
+    {
+        return value is >= '0' and <= '9' or >= 'A' and <= 'F' or >= 'a' and <= 'f';
     }
 
     private static void SetTableStyle(XElement table, string style)
@@ -10282,6 +10444,36 @@ internal static class DocxPatchEngine
         }
 
         property.SetAttributeValue(OoxmlNs.W + "val", value);
+    }
+
+    private static void SetCellShading(XElement cell, string? fill)
+    {
+        XElement? cellProperties = cell.Element(OoxmlNs.W + "tcPr");
+        XElement? shading = cellProperties?.Element(OoxmlNs.W + "shd");
+        if (fill is null)
+        {
+            shading?.Remove();
+            return;
+        }
+
+        if (cellProperties is null)
+        {
+            cellProperties = new XElement(OoxmlNs.W + "tcPr");
+            cell.AddFirst(cellProperties);
+        }
+
+        if (shading is null)
+        {
+            shading = new XElement(OoxmlNs.W + "shd");
+            cellProperties.Add(shading);
+        }
+
+        if (shading.Attribute(OoxmlNs.W + "val") is null)
+        {
+            shading.SetAttributeValue(OoxmlNs.W + "val", "clear");
+        }
+
+        shading.SetAttributeValue(OoxmlNs.W + "fill", fill);
     }
 
     private static bool ReadTableRowHeader(XElement row)

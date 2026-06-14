@@ -64,6 +64,7 @@ public static class DocxHelp
     private const string TrackClassParagraphProperty = "paragraph-property";
     private const string TrackClassTableProperty = "table-property";
     private const string TrackClassRowProperty = "row-property";
+    private const string TrackClassCellProperty = "cell-property";
     private const string TrackClassRowStructure = "row-structure";
     private const string TrackClassSectionProperty = "section-property";
     private const string TrackClassPreserveOnly = "preserve-only";
@@ -319,7 +320,7 @@ public static class DocxHelp
         builder.AppendLine("add-comment-reply creates modern commentsExtended/commentsIds metadata; delete-comment-reply removes leaf replies and fails with E4314 when deletion would change child thread topology.");
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
         builder.AppendLine("append-column, insert-column-before, insert-column-after, and delete-column are recognized but fail with E4316 until table-column transforms are safely modeled.");
-        builder.AppendLine("set-table-style, set-table-metadata, and set-row-header update table properties with explicit guards.");
+        builder.AppendLine("set-table-style, set-table-metadata, set-row-header, and set-cell-shading update table properties with explicit guards.");
         builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("set-image-size updates DrawingML extents without replacing media bytes.");
@@ -922,6 +923,13 @@ public static class DocxHelp
                     "tracked-cell-simple",
                     "Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.",
                     ["expect-text", "expect-row-count", "expect-column-count", "force"]),
+                Tracked(
+                    "set-cell-shading",
+                    ["target plus fill or clear true"],
+                    TrackClassCellProperty,
+                    "tracked-cell-shading",
+                    "Sets or clears w:tcPr/w:shd fill on a visual-grid cell ID or merge-group ID. Suggest/Require emit cell property revisions with w:tcPrChange while preserving previous cell properties; vertical-merge continuations fail with E4301.",
+                    ["expect-fill", "clear"]),
                 Tracked(
                     "set-table-style",
                     ["target", "style"],

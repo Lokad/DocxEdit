@@ -37,6 +37,7 @@ internal static class DocxPatchParser
         ["insert-hyperlink-after"] = new(["target", "text", "uri", "anchor", "tooltip", "target-frame", "history"], ["history"], []),
         ["remove-hyperlink"] = new(["target"], [], []),
         ["set-cell"] = new(["target", "expect-text", "expect-row-count", "expect-column-count", "text", "force"], ["force"], ["expect-row-count", "expect-column-count"]),
+        ["set-cell-shading"] = new(["target", "expect-fill", "fill", "clear"], ["clear"], []),
         ["set-table-style"] = new(["target", "expect-style", "style"], [], []),
         ["set-table-metadata"] = new(["target", "expect-caption", "expect-description", "caption", "description"], [], []),
         ["set-row-header"] = new(["target", "expect-header", "header"], ["expect-header", "header"], []),

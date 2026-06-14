@@ -50,6 +50,11 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("tracked-cell-simple", setCell.TrackChangesSupport);
         Assert.True(setCell.GeneratesTrackedChanges);
         Assert.Contains("E6002", setCell.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-cell-shading", out DocxPatchOperationInfo setCellShading));
+        Assert.Contains("expect-fill", setCellShading.OptionalFields);
+        Assert.Equal("cell-property", setCellShading.TrackChangesSupportClass);
+        Assert.Equal("tracked-cell-shading", setCellShading.TrackChangesSupport);
+        Assert.True(setCellShading.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("set-table-style", out DocxPatchOperationInfo setTableStyle));
         Assert.Contains("expect-style", setTableStyle.OptionalFields);
         Assert.Equal("table-property", setTableStyle.TrackChangesSupportClass);
@@ -135,6 +140,7 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("set-comment-text | text-run | tracked-comment-text", table, StringComparison.Ordinal);
         Assert.Contains("insert-hyperlink-after | text-run | tracked-hyperlink-insert", table, StringComparison.Ordinal);
         Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
+        Assert.Contains("set-cell-shading | cell-property | tracked-cell-shading", table, StringComparison.Ordinal);
         Assert.Contains("set-table-style | table-property | tracked-table-style", table, StringComparison.Ordinal);
         Assert.Contains("set-row-header | row-property | tracked-row-header", table, StringComparison.Ordinal);
         Assert.Contains("append-row | row-structure | tracked-row-insert", table, StringComparison.Ordinal);

@@ -58,7 +58,7 @@ Implemented areas include:
 - check/apply operation reports with affected row/cell summaries for table edits
   and generated revision IDs for apply operations that create tracked markup;
 - table property patch operations for table style, caption/description metadata,
-  and row repeating-header flags;
+  row repeating-header flags, and cell shading fills;
 - table-cell text replacement by visual-grid cell ID or merge-group ID while
   preserving cell properties and horizontal spans;
 - direct row insertion/deletion for consistent visual-grid tables by cloning row
@@ -75,7 +75,8 @@ Implemented areas include:
   content controls, guarded paragraph-only rich-text content controls, simple
   same-paragraph bookmark text, simple paragraph-only comment body text, simple
   field result text, simple hyperlink display text and insertion, and simple
-  table-cell text replacement, plus table style and row-header property revisions,
+  table-cell text replacement, plus table style, row-header, and cell-shading
+  property revisions,
   simple table row insertion/deletion structure revisions, and section
   column/orientation property revisions, with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog,

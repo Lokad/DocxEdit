@@ -168,6 +168,7 @@ current content or structure is known.
 | `expect-column-count` | Table and row edits | Target table must have the expected logical column count |
 | `expect-cell-count` | Row insert/delete | Target row must have the expected physical cell count |
 | `expect-contains` | `delete-row` | Row text must contain the exact guard value |
+| `expect-fill` | `set-cell-shading` | Current cell shading fill must match a hex color, `auto`, or `none` |
 | `expect-style` | `set-table-style` | Current table style must match |
 | `expect-caption` | `set-table-metadata` | Current table caption must match; missing and empty are equivalent |
 | `expect-description` | `set-table-metadata` | Current table description must match; missing and empty are equivalent |
@@ -287,6 +288,7 @@ are rejected. Internal links use bookmark `anchor` values.
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID |
+| `set-cell-shading` | `target` plus `fill` or `clear true` | `expect-fill` | Sets or clears `w:tcPr/w:shd` fill |
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
@@ -306,6 +308,11 @@ spanning cell, while vertical-merge continuation cells remain rejected. Table
 metadata exposes spans, omitted grid columns, merge-group IDs, vertical-merge
 roots, and nested-table flags so an agent can decide whether a table is safe to
 edit.
+
+`set-cell-shading` uses the same cell target forms as `set-cell`. Use `fill`
+with a 6-digit hexadecimal color or `auto`, or use `clear true` to remove the
+cell shading element. Under tracked changes it records the previous cell
+properties with `w:tcPrChange`.
 
 Direct row operations support consistent visual-grid tables by cloning the
 template row shape, including `gridBefore`, `gridAfter`, and `gridSpan`
@@ -420,6 +427,7 @@ set-hyperlink-text | text-run | tracked-hyperlink-text | Suggest/Require emit w:
 insert-hyperlink-after | text-run | tracked-hyperlink-insert | Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.
 remove-hyperlink | preserve-only | preserve-only | Hyperlink removal changes wrapper and relationship metadata while preserving display text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-cell | text-run | tracked-cell-simple | Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.
+set-cell-shading | cell-property | tracked-cell-shading | Sets or clears w:tcPr/w:shd fill on a visual-grid cell ID or merge-group ID. Suggest/Require emit cell property revisions with w:tcPrChange while preserving previous cell properties; vertical-merge continuations fail with E4301.
 set-table-style | table-property | tracked-table-style | Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.
 set-table-metadata | preserve-only | preserve-only | Table caption and description updates are table metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-row-header | row-property | tracked-row-header | Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.

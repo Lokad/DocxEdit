@@ -6928,6 +6928,59 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetCellShadingSetsAndClearsFill()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr>
+                            <w:gridSpan w:val="2"/>
+                            <w:shd w:val="clear" w:fill="FF0000"/>
+                          </w:tcPr>
+                          <w:p><w:r><w:t>Wide</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:shd w:val="clear" w:fill="00FF00"/></w:tcPr>
+                          <w:p><w:r><w:t>Clear me</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Plain</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell-shading
+            target M.T0001.MG0001
+            expect-fill ff0000
+            fill a1b2c3
+            end
+
+            op set-cell-shading
+            target M.T0001.R02.C01
+            expect-fill 00FF00
+            clear true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        Assert.Equal("M.T0001.MG0001", result.Operations[0].Target);
+        Assert.Single(result.Operations[0].AffectedTargets);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:shd w:val=\"clear\" w:fill=\"A1B2C3\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("w:fill=\"00FF00\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:gridSpan w:val=\"2\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplySetTableMetadataUpdatesAndClearsCaptionDescription()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -6986,6 +7039,12 @@ public static class PatchApplyTests
         using var patch = new StringReader("""
             docxpatch 1
 
+            op set-cell-shading
+            target M.T0001.R01.C01
+            expect-fill FFFFFF
+            fill A1B2C3
+            end
+
             op set-table-style
             target M.T0001
             expect-style OtherStyle
@@ -7008,6 +7067,7 @@ public static class PatchApplyTests
         DocxCheckResult result = new DocxEditor().Check(input, patch);
 
         Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01.C01");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
         Assert.Contains(result.Diagnostics, diagnostic =>
@@ -7043,7 +7103,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void CheckTrackChangesRequireAllowsTableAndRowPropertyRevisions()
+    public static void CheckTrackChangesRequireAllowsTableCellAndRowPropertyRevisions()
     {
         using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
         using var patch = new StringReader("""
@@ -7052,6 +7112,11 @@ public static class PatchApplyTests
             op set-table-style
             target M.T0001
             style TableGrid
+            end
+
+            op set-cell-shading
+            target M.T0001.R01.C01
+            fill A1B2C3
             end
 
             op set-row-header
@@ -7067,7 +7132,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void ApplyTrackChangesSuggestGeneratesTableAndRowPropertyRevisions()
+    public static void ApplyTrackChangesSuggestGeneratesTableCellAndRowPropertyRevisions()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:tbl>
@@ -7094,6 +7159,12 @@ public static class PatchApplyTests
             style TableGrid
             end
 
+            op set-cell-shading
+            target M.T0001.R01.C01
+            expect-fill none
+            fill A1B2C3
+            end
+
             op set-row-header
             target M.T0001.R01
             expect-header false
@@ -7107,16 +7178,20 @@ public static class PatchApplyTests
         Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
         Assert.Equal(["1"], result.Operations[0].GeneratedRevisionIds);
         Assert.Equal(["2"], result.Operations[1].GeneratedRevisionIds);
+        Assert.Equal(["3"], result.Operations[2].GeneratedRevisionIds);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("<w:tblStyle w:val=\"TableGrid\"", xml, StringComparison.Ordinal);
         Assert.Contains("<w:tblPrChange w:id=\"1\"", xml, StringComparison.Ordinal);
         Assert.Contains("<w:tblStyle w:val=\"OldStyle\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:shd w:val=\"clear\" w:fill=\"A1B2C3\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:tcPrChange w:id=\"2\"", xml, StringComparison.Ordinal);
         Assert.Contains("<w:tblHeader", xml, StringComparison.Ordinal);
-        Assert.Contains("<w:trPrChange w:id=\"2\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:trPrChange w:id=\"3\"", xml, StringComparison.Ordinal);
         output.Position = 0;
         DocxChangesResult changes = new DocxEditor().Changes(output);
         Assert.Contains(changes.Summary, summary => summary.Type == "table-properties-change" && summary.Count == 1);
+        Assert.Contains(changes.Summary, summary => summary.Type == "cell-properties-change" && summary.Count == 1);
         Assert.Contains(changes.Summary, summary => summary.Type == "row-properties-change" && summary.Count == 1);
     }
 

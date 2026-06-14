@@ -58,7 +58,8 @@ end
 
 Table-cell targets use visual grid coordinates from `read` or `context`.
 Horizontally merged cells can also be addressed through merge-group IDs such as
-`M.T0001.MG0001`.
+`M.T0001.MG0001`. Cell shading can be set or cleared through the same target
+forms with `set-cell-shading`.
 
 Image edits use document image IDs and external assets:
 

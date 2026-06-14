@@ -1626,6 +1626,7 @@ replace-text
 replace-paragraph
 delete-block
 set-cell
+set-cell-shading
 set-table-style
 set-table-metadata
 set-row-header
@@ -2144,7 +2145,30 @@ Rules:
 * If the cell contains multiple paragraphs, nested tables, images, or fields, fail unless `force true` is supplied.
 * `force true` still preserves `w:tcPr`.
 
-### 11.7a `set-table-style`
+### 11.7a `set-cell-shading`
+
+```text
+op set-cell-shading
+target M.T0001.R02.C03
+expect-fill none
+fill A1B2C3
+end
+```
+
+Rules:
+
+* Target must be a table cell ID such as `M.T0001.R02.C03` or a merge-group ID
+  such as `M.T0001.MG0001`.
+* `fill` sets `w:tcPr/w:shd/@w:fill` to a 6-digit hexadecimal color or `auto`.
+* `clear true` removes the cell shading element. `fill` and `clear true` are
+  mutually exclusive.
+* `expect-fill` is an optional guard against the current fill; accepted guard
+  values are a 6-digit hexadecimal color, `auto`, or `none`.
+* Vertical-merge continuation cells are rejected; target the root cell instead.
+* Preserve existing cell properties other than the updated shading element.
+* Under tracked output, record the previous cell properties in `w:tcPrChange`.
+
+### 11.7b `set-table-style`
 
 ```text
 op set-table-style
@@ -2162,7 +2186,7 @@ Rules:
 * Preserve table grid, rows, cells, and existing table properties.
 * Under tracked output, record the previous table properties in `w:tblPrChange`.
 
-### 11.7b `set-table-metadata`
+### 11.7c `set-table-metadata`
 
 ```text
 op set-table-metadata
@@ -2187,7 +2211,7 @@ Rules:
 * Empty heredoc values remove the corresponding metadata element.
 * Preserve table grid, rows, cells, style, and other existing table properties.
 
-### 11.7c `set-row-header`
+### 11.7d `set-row-header`
 
 ```text
 op set-row-header
@@ -2630,6 +2654,7 @@ set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
 insert-hyperlink-after simple inserted hyperlink display text as w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
+set-cell-shading      cell shading property changes as w:tcPrChange
 set-table-style      table style property changes as w:tblPrChange
 set-row-header       repeating-row header property changes as w:trPrChange
 append-row           simple rectangular row insertions as w:trPr/w:ins
@@ -2669,7 +2694,8 @@ display text with generated revisions. `insert-hyperlink-after` tracked output
 preserves relationship or anchor metadata and wraps the inserted display text in
 `w:ins`; display text with tabs or line breaks remains direct under `suggest` or
 fails under `require`. `set-style` records the previous paragraph properties in
-`w:pPrChange`. `set-table-style` records previous table properties in
+`w:pPrChange`. `set-cell-shading` records previous cell properties in
+`w:tcPrChange`, `set-table-style` records previous table properties in
 `w:tblPrChange`, and `set-row-header` records previous row properties in
 `w:trPrChange`. `append-row`, `insert-row-before`, and `insert-row-after` mark
 inserted rows with `w:trPr/w:ins`; `delete-row` marks deleted rows with
