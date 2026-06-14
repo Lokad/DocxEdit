@@ -2132,8 +2132,13 @@ end
 
 Rules:
 
-* Target must be a table cell.
+* Target must be a table cell ID such as `M.T0001.R02.C03` or a merge-group ID
+  such as `M.T0001.MG0001`.
 * `expect-text`, `expect-row-count`, and `expect-column-count` are supported guards.
+* Cell IDs use visual grid coordinates. A target column inside a horizontal
+  `w:gridSpan` resolves to the spanning cell.
+* Merge-group targets resolve to the root cell of the merge group.
+* Vertical-merge continuation cells are rejected; target the root cell instead.
 * Preserve `w:tcPr`.
 * Replace cell content with a single paragraph.
 * If the cell contains multiple paragraphs, nested tables, images, or fields, fail unless `force true` is supplied.
@@ -3291,9 +3296,10 @@ w:gridSpan
 w:vMerge
 ```
 
-v0.1 behavior:
+Current behavior:
 
-* `set-cell` works for a physical cell unless it is a vertical merge continuation.
+* `set-cell` works for visual-grid cell IDs and merge-group IDs unless the
+  resolved target is a vertical merge continuation.
 * Row insert/delete operations fail on tables with vertical merges.
 * Row insert/delete operations fail on non-rectangular tables unless `force true`.
 

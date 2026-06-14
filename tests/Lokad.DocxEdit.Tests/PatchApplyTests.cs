@@ -6698,6 +6698,115 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetCellUsesVisualColumnAfterGridBefore()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Old</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C02
+            expect-text Old
+            text New
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal(2, affected.ColumnIndex);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        DocxTableCellInfo cell = Assert.Single(table.Cells);
+        Assert.Equal("M.T0001.R01.C02", cell.Id);
+        Assert.Equal("New", cell.Text);
+    }
+
+    [Fact]
+    public static void ApplySetCellCanTargetHorizontalMergeGroup()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>Old merged</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.MG0001
+            expect-text Old merged
+            text New merged
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.T0001.MG0001", affected.Id);
+        Assert.Equal(1, affected.ColumnIndex);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        DocxTableCellInfo cell = Assert.Single(table.Cells);
+        Assert.Equal("M.T0001.MG0001", cell.MergeGroupId);
+        Assert.Equal(2, cell.VisualColumnEndIndex);
+        Assert.Equal("New merged", cell.Text);
+        output.Position = 0;
+        Assert.Contains("<w:gridSpan w:val=\"2\"", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplySetCellCanTargetVisualColumnInsideHorizontalSpan()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>Old merged</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C02
+            expect-text Old merged
+            text New merged
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal(2, affected.ColumnIndex);
+        output.Position = 0;
+        Assert.Equal("New merged", Assert.Single(Assert.Single(new DocxEditor().Read(output).Tables).Cells).Text);
+    }
+
+    [Fact]
     public static void CheckSetCellRejectsComplexCellWithoutForce()
     {
         using MemoryStream input = CreateDocxWithBody("""

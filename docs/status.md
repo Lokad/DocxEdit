@@ -59,6 +59,8 @@ Implemented areas include:
   and generated revision IDs for apply operations that create tracked markup;
 - table property patch operations for table style, caption/description metadata,
   and row repeating-header flags;
+- table-cell text replacement by visual-grid cell ID or merge-group ID while
+  preserving cell properties and horizontal spans;
 - explicit `E4316` diagnostics for unsupported table-column insertion and deletion
   attempts;
 - inline and anchored image metadata with layout kind, size, wrap mode, wrap distances,
@@ -114,7 +116,8 @@ advanced hyperlink edit workflows beyond target URI/anchor/text/tooltip/frame/hi
 relative/UNC/file hyperlink target support, advanced floating-image edit operations beyond
 size/wrap/position/crop metadata, linked images and VML/grouped/chart/SmartArt/OLE
 drawing shapes beyond diagnostics-only preservation, complex
-merged/nested table edit transformations beyond simple cell/row and metadata edits,
+merged/nested table edit transformations beyond visual cell/merge-root text,
+simple row, and metadata edits,
 table-column transforms beyond explicit unsupported diagnostics,
 full tracked-change edit coverage, and full
 ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.

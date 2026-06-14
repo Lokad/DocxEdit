@@ -286,7 +286,7 @@ are rejected. Internal links use bookmark `anchor` values.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell |
+| `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID |
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
@@ -300,9 +300,12 @@ are rejected. Internal links use bookmark `anchor` values.
 | `delete-column` | `target`, `column` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Recognized but fails with `E4316` |
 
 Table and cell IDs use visual grid coordinates from `read` or `context`, not raw
-OOXML cell ordinals. Table metadata exposes spans, omitted grid columns,
-merge-group IDs, vertical-merge roots, and nested-table flags so an agent can
-decide whether a table is safe to edit.
+OOXML cell ordinals. `set-cell` also accepts merge-group IDs such as
+`M.T0001.MG0001`; visual columns inside a horizontal span resolve to the
+spanning cell, while vertical-merge continuation cells remain rejected. Table
+metadata exposes spans, omitted grid columns, merge-group IDs, vertical-merge
+roots, and nested-table flags so an agent can decide whether a table is safe to
+edit.
 
 Row operations are limited to simple rectangular tables unless the operation
 explicitly supports `force true`. Use `force true` only when replacing or
@@ -412,7 +415,7 @@ set-hyperlink-target | preserve-only | preserve-only | Hyperlink target updates 
 set-hyperlink-text | text-run | tracked-hyperlink-text | Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002.
 insert-hyperlink-after | text-run | tracked-hyperlink-insert | Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.
 remove-hyperlink | preserve-only | preserve-only | Hyperlink removal changes wrapper and relationship metadata while preserving display text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-set-cell | text-run | tracked-cell-simple | Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph cells; force or complex cells warn with W4002 or fail with E6002.
+set-cell | text-run | tracked-cell-simple | Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.
 set-table-style | table-property | tracked-table-style | Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.
 set-table-metadata | preserve-only | preserve-only | Table caption and description updates are table metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-row-header | row-property | tracked-row-header | Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.

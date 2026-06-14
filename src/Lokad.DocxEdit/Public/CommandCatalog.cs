@@ -451,7 +451,7 @@ public static class DocxHelp
                         ]),
                         new("Tables",
                         [
-                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. Table metadata operations can set or clear caption/description values. Row operations reject visual-grid tables with gridSpan, gridBefore, gridAfter, or vertical merges unless a force mode is explicitly supported by that operation."
+                            "Read and context output surface table style, caption, description, grid/header/merged/nested flags, row grid-before/grid-after/header/cant-split metadata, cell logical/physical column positions, merge group IDs, visual column ends, and vertical-merge root cells. set-cell targets visual-grid cell IDs or merge-group IDs; visual columns inside a horizontal span resolve to the spanning cell while vertical-merge continuation cells are rejected. Table metadata operations can set or clear caption/description values. Row operations reject visual-grid tables with gridSpan, gridBefore, gridAfter, or vertical merges unless a force mode is explicitly supported by that operation."
                         ])
                     ],
                     Examples =
@@ -920,7 +920,7 @@ public static class DocxHelp
                     ["target", "text"],
                     TrackClassTextRun,
                     "tracked-cell-simple",
-                    "Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph cells; force or complex cells warn with W4002 or fail with E6002.",
+                    "Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.",
                     ["expect-text", "expect-row-count", "expect-column-count", "force"]),
                 Tracked(
                     "set-table-style",

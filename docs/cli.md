@@ -122,6 +122,7 @@ Common IDs:
 - `M.T0001`: table.
 - `M.T0001.R02`: table row.
 - `M.T0001.R02.C03`: table cell using visual grid coordinates.
+- `M.T0001.MG0001`: horizontal or vertical merge-group root cell.
 - `M.I0001`: image.
 - `M.S0001`: section.
 - `M.B0001`: bookmark.
@@ -213,7 +214,7 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Fields | `read`, `outline`, `context` | Field metadata includes parsed arguments/switches and refresh policy; DocxEdit can refresh REF-style bookmark fields and QUOTE literal fields, but Word remains responsible for general recalculation |
 | Hyperlinks | `read`, `outline`, `context`, `dump --runs` | External patch targets must be absolute `http`, `https`, or `mailto`; internal targets use bookmark anchors |
 | Images | `read`, `outline`, `media` | Editable image records are inline or anchored DrawingML images; linked images and complex drawing shapes are preserve-only diagnostics |
-| Tables | `read`, `context` | Cell IDs use visual grid coordinates; row operations are safest on simple rectangular tables |
+| Tables | `read`, `context` | Cell IDs use visual grid coordinates; `set-cell` can target merge-group IDs and horizontal spans, but rejects vertical-merge continuations; row operations are safest on simple rectangular tables |
 | Sections | `read`, `outline` | Section operations target main-document section IDs |
 
 For a full inventory of supported and unsupported shapes, see

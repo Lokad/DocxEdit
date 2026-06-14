@@ -292,7 +292,7 @@ internal static class DocxPatchEngine
         XElement[] rows = cellTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
         XElement[] cells = cellTarget.Row.Elements(OoxmlNs.W + "tc").ToArray();
         int rowIndex = Array.IndexOf(rows, cellTarget.Row) + 1;
-        int columnIndex = Array.IndexOf(cells, cellTarget.Cell) + 1;
+        int columnIndex = cellTarget.VisualColumnIndex;
         return CreateTableOperationSnapshot(target, cellTarget.Table, rowIndex, columnIndex, cells.Length);
     }
 
@@ -7016,7 +7016,7 @@ internal static class DocxPatchEngine
         CellTarget? cellTarget = ResolveCellTarget(package, target!, cancellationToken);
         if (cellTarget is null && !IsSupportedCellTargetShape(target!))
         {
-            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell target '{target}'. Expected a table cell ID such as M.T0001.R02.C03 or H001.T0001.R02.C03.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell target '{target}'. Expected a table cell ID such as M.T0001.R02.C03 or H001.T0001.R02.C03, or a merge group ID such as M.T0001.MG0001.", operation, target)];
         }
 
         if (cellTarget is null)
@@ -7792,6 +7792,44 @@ internal static class DocxPatchEngine
         return int.TryParse(target[3..7], out tableOrdinal) &&
             int.TryParse(target[9..11], out rowOrdinal) &&
             int.TryParse(target[13..15], out cellOrdinal);
+    }
+
+    private static bool TryParseMainMergeGroupTarget(string target, out int tableOrdinal, out int mergeGroupOrdinal)
+    {
+        tableOrdinal = 0;
+        mergeGroupOrdinal = 0;
+        if (target.Length != 14 ||
+            !target.StartsWith("M.T", StringComparison.Ordinal) ||
+            target[7..10] != ".MG")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[3..7], out tableOrdinal) &&
+            int.TryParse(target[10..14], out mergeGroupOrdinal);
+    }
+
+    private static bool TryParseStoryMergeGroupTarget(
+        string target,
+        char storyPrefix,
+        out int storyOrdinal,
+        out int tableOrdinal,
+        out int mergeGroupOrdinal)
+    {
+        storyOrdinal = 0;
+        tableOrdinal = 0;
+        mergeGroupOrdinal = 0;
+        if (target.Length != 17 ||
+            target[0] != storyPrefix ||
+            target[4..6] != ".T" ||
+            target[10..13] != ".MG")
+        {
+            return false;
+        }
+
+        return int.TryParse(target[1..4], out storyOrdinal) &&
+            int.TryParse(target[6..10], out tableOrdinal) &&
+            int.TryParse(target[13..17], out mergeGroupOrdinal);
     }
 
     private static bool TryParseMainRowTarget(string target, out int tableOrdinal, out int rowOrdinal)
@@ -8589,8 +8627,11 @@ internal static class DocxPatchEngine
     private static bool IsSupportedCellTargetShape(string target)
     {
         return TryParseMainCellTarget(target, out _, out _, out _) ||
+            TryParseMainMergeGroupTarget(target, out _, out _) ||
             TryParseStoryCellTarget(target, 'H', out _, out _, out _, out _) ||
-            TryParseStoryCellTarget(target, 'F', out _, out _, out _, out _);
+            TryParseStoryCellTarget(target, 'F', out _, out _, out _, out _) ||
+            TryParseStoryMergeGroupTarget(target, 'H', out _, out _, out _) ||
+            TryParseStoryMergeGroupTarget(target, 'F', out _, out _, out _);
     }
 
     private static TableTarget? ResolveTableTarget(
@@ -8656,28 +8697,180 @@ internal static class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         RowTarget? rowTarget;
+        int rowOrdinal;
         int cellOrdinal;
-        if (TryParseMainCellTarget(target, out int mainTableOrdinal, out int rowOrdinal, out cellOrdinal))
+        int visualColumnIndex;
+        if (TryParseMainCellTarget(target, out int mainTableOrdinal, out rowOrdinal, out cellOrdinal))
         {
             rowTarget = ResolveRowTarget(package, $"M.T{mainTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
+            visualColumnIndex = cellOrdinal;
         }
         else if (TryParseStoryCellTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal, out rowOrdinal, out cellOrdinal))
         {
             rowTarget = ResolveRowTarget(package, $"H{headerOrdinal:000}.T{headerTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
+            visualColumnIndex = cellOrdinal;
         }
         else if (TryParseStoryCellTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal, out rowOrdinal, out cellOrdinal))
         {
             rowTarget = ResolveRowTarget(package, $"F{footerOrdinal:000}.T{footerTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
+            visualColumnIndex = cellOrdinal;
+        }
+        else if (TryParseMainMergeGroupTarget(target, out int mergeMainTableOrdinal, out int mainMergeGroupOrdinal))
+        {
+            TableTarget? tableTarget = ResolveTableTarget(package, $"M.T{mergeMainTableOrdinal:0000}", cancellationToken);
+            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, mainMergeGroupOrdinal);
+        }
+        else if (TryParseStoryMergeGroupTarget(target, 'H', out int mergeHeaderOrdinal, out int mergeHeaderTableOrdinal, out int headerMergeGroupOrdinal))
+        {
+            TableTarget? tableTarget = ResolveTableTarget(package, $"H{mergeHeaderOrdinal:000}.T{mergeHeaderTableOrdinal:0000}", cancellationToken);
+            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, headerMergeGroupOrdinal);
+        }
+        else if (TryParseStoryMergeGroupTarget(target, 'F', out int mergeFooterOrdinal, out int mergeFooterTableOrdinal, out int footerMergeGroupOrdinal))
+        {
+            TableTarget? tableTarget = ResolveTableTarget(package, $"F{mergeFooterOrdinal:000}.T{mergeFooterTableOrdinal:0000}", cancellationToken);
+            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, footerMergeGroupOrdinal);
         }
         else
         {
             return null;
         }
 
-        XElement? cell = rowTarget?.Row.Elements(OoxmlNs.W + "tc").ElementAtOrDefault(cellOrdinal - 1);
+        XElement? cell = rowTarget is null ? null : FindCellByVisualColumn(rowTarget.Row, visualColumnIndex);
         return rowTarget is null || cell is null
             ? null
-            : new CellTarget(rowTarget.PartName, rowTarget.Document, rowTarget.Table, rowTarget.Row, cell);
+            : new CellTarget(rowTarget.PartName, rowTarget.Document, rowTarget.Table, rowTarget.Row, cell, visualColumnIndex);
+    }
+
+    private static XElement? FindCellByVisualColumn(XElement row, int visualColumnIndex)
+    {
+        if (visualColumnIndex < 1)
+        {
+            return null;
+        }
+
+        int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+        foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+        {
+            int columnSpan = ReadTableCellColumnSpan(cell);
+            if (visualColumnIndex >= columnIndex && visualColumnIndex < columnIndex + columnSpan)
+            {
+                return cell;
+            }
+
+            columnIndex += columnSpan;
+        }
+
+        return null;
+    }
+
+    private static CellTarget? ResolveMergeGroupCellTarget(TableTarget tableTarget, int mergeGroupOrdinal)
+    {
+        if (mergeGroupOrdinal < 1)
+        {
+            return null;
+        }
+
+        int mergeGroupIndex = 1;
+        var activeVerticalMerges = new Dictionary<int, MergeGroupRootState>();
+        foreach (XElement row in tableTarget.Table.Elements(OoxmlNs.W + "tr"))
+        {
+            int gridBefore = ReadTableRowGridOffset(row, "gridBefore");
+            RemoveActiveMergeGroups(activeVerticalMerges, 1, gridBefore);
+            int columnIndex = 1 + gridBefore;
+            foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+            {
+                int columnSpan = ReadTableCellColumnSpan(cell);
+                string? verticalMerge = ReadTableCellVerticalMerge(cell);
+                if (string.Equals(verticalMerge, "restart", StringComparison.Ordinal))
+                {
+                    int currentMergeGroup = mergeGroupIndex++;
+                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(row, cell, columnIndex));
+                    if (currentMergeGroup == mergeGroupOrdinal)
+                    {
+                        return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, cell, columnIndex);
+                    }
+                }
+                else if (verticalMerge is not null)
+                {
+                    MergeGroupRootState? root = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan);
+                    if (root is null)
+                    {
+                        int currentMergeGroup = mergeGroupIndex++;
+                        if (currentMergeGroup == mergeGroupOrdinal)
+                        {
+                            return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, cell, columnIndex);
+                        }
+
+                        SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(row, cell, columnIndex));
+                    }
+                }
+                else
+                {
+                    RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, columnSpan);
+                    if (columnSpan > 1)
+                    {
+                        int currentMergeGroup = mergeGroupIndex++;
+                        if (currentMergeGroup == mergeGroupOrdinal)
+                        {
+                            return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, cell, columnIndex);
+                        }
+                    }
+                }
+
+                columnIndex += columnSpan;
+            }
+
+            int gridAfter = ReadTableRowGridOffset(row, "gridAfter");
+            RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, gridAfter);
+        }
+
+        return null;
+    }
+
+    private static MergeGroupRootState? FindActiveMergeGroup(
+        IReadOnlyDictionary<int, MergeGroupRootState> activeVerticalMerges,
+        int columnIndex,
+        int columnSpan)
+    {
+        MergeGroupRootState? root = null;
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            if (!activeVerticalMerges.TryGetValue(column, out MergeGroupRootState? current))
+            {
+                return null;
+            }
+
+            root ??= current;
+            if (!ReferenceEquals(root.Cell, current.Cell))
+            {
+                return null;
+            }
+        }
+
+        return root;
+    }
+
+    private static void SetActiveMergeGroup(
+        Dictionary<int, MergeGroupRootState> activeVerticalMerges,
+        int columnIndex,
+        int columnSpan,
+        MergeGroupRootState root)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            activeVerticalMerges[column] = root;
+        }
+    }
+
+    private static void RemoveActiveMergeGroups(
+        Dictionary<int, MergeGroupRootState> activeVerticalMerges,
+        int columnIndex,
+        int columnSpan)
+    {
+        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
+        {
+            activeVerticalMerges.Remove(column);
+        }
     }
 
     private static TableTarget? ResolveRelatedStoryTableTarget(
@@ -10299,7 +10492,7 @@ internal sealed record TableTarget(string PartName, XDocument Document, XElement
 
 internal sealed record RowTarget(string PartName, XDocument Document, XElement Table, XElement Row);
 
-internal sealed record CellTarget(string PartName, XDocument Document, XElement Table, XElement Row, XElement Cell);
+internal sealed record CellTarget(string PartName, XDocument Document, XElement Table, XElement Row, XElement Cell, int VisualColumnIndex);
 
 internal sealed record TableOperationSnapshot(
     string TargetId,
@@ -10311,6 +10504,8 @@ internal sealed record TableOperationSnapshot(
     int? CellCount);
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
+
+internal sealed record MergeGroupRootState(XElement Row, XElement Cell, int VisualColumnIndex);
 
 internal readonly record struct TextRange(int Start, int Length);
 

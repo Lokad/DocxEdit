@@ -56,6 +56,10 @@ updated cell text
 end
 ```
 
+Table-cell targets use visual grid coordinates from `read` or `context`.
+Horizontally merged cells can also be addressed through merge-group IDs such as
+`M.T0001.MG0001`.
+
 Image edits use document image IDs and external assets:
 
 ```text
