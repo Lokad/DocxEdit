@@ -1126,6 +1126,85 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestInsertsParagraphsInHeadersAndFooters()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooter("Header one", "Footer one");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target H001.P0001
+            text Header two
+            end
+
+            op insert-before
+            target F001.P0001
+            text Footer zero
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Agent",
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(["1"], result.Operations[0].GeneratedRevisionIds);
+        Assert.Equal(["2"], result.Operations[1].GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0002" && paragraph.Text == "Header two");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Footer zero");
+        output.Position = 0;
+        Assert.Contains("<w:ins w:id=\"1\" w:author=\"Agent\"", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("<w:ins w:id=\"2\" w:author=\"Agent\"", ReadEntry(output, "word/footer1.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestCopiesListParagraphPropertiesForInsertedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr>
+                          <w:ilvl w:val="0"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>Item one</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            copy-paragraph-properties true
+            text Item two
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(2, CountOccurrences(xml, "<w:numPr>"));
+        Assert.Contains("<w:ins w:id=\"1\"", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal(new[] { "Item one", "Item two" }, new DocxEditor().Read(output).Paragraphs.Select(paragraph => paragraph.Text));
+    }
+
+    [Fact]
     public static void ApplyTrackedInsertionPreservesExistingTrackedChangesAndComments()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
