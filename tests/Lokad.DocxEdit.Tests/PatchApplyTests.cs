@@ -3075,6 +3075,109 @@ public static class PatchApplyTests
         Assert.Equal(0, output.Length);
     }
 
+    [Theory]
+    [InlineData("set-comment-text", "text Updated comment")]
+    [InlineData("resolve-comment", "")]
+    [InlineData("reopen-comment", "")]
+    [InlineData("delete-comment", "")]
+    public static void ApplyTrackChangesSuggestTreatsCommentMutationsAsPreserveOnly(string operationName, string extraFields)
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00ABCDEF" w15:done="1"/>
+                </w15:commentsEx>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader(BuildCommentPatch(operationName, extraFields));
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.DoesNotContain(
+            new DocxEditor().Changes(output).Changes,
+            change => change.Type is "insertion" or "deletion" or "paragraph-properties-change");
+
+        output.Position = 0;
+        switch (operationName)
+        {
+            case "set-comment-text":
+                Assert.Contains("Updated comment", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
+                break;
+            case "resolve-comment":
+                Assert.True(Assert.Single(new DocxEditor().Changes(output).CommentSummary).Resolved);
+                break;
+            case "reopen-comment":
+                Assert.False(Assert.Single(new DocxEditor().Changes(output).CommentSummary).Resolved);
+                break;
+            case "delete-comment":
+                Assert.Empty(new DocxEditor().Changes(output).Changes);
+                break;
+        }
+    }
+
+    [Theory]
+    [InlineData("set-comment-text", "text Updated comment")]
+    [InlineData("resolve-comment", "")]
+    [InlineData("reopen-comment", "")]
+    [InlineData("delete-comment", "")]
+    public static void ApplyTrackChangesRequireRejectsCommentMutationsAsPreserveOnly(string operationName, string extraFields)
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader(BuildCommentPatch(operationName, extraFields));
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.False(Assert.Single(result.Operations).Success);
+        Assert.Equal(0, output.Length);
+    }
+
     [Fact]
     public static void ApplyAddCommentAllocatesNextExistingCommentId()
     {
@@ -5535,6 +5638,21 @@ public static class PatchApplyTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static string BuildCommentPatch(string operationName, string extraFields)
+    {
+        string extra = string.IsNullOrWhiteSpace(extraFields)
+            ? string.Empty
+            : extraFields + Environment.NewLine;
+
+        return $"""
+            docxpatch 1
+
+            op {operationName}
+            target comment:3
+            {extra}end
+            """;
     }
 
     private static MemoryStream CreateDocxWithHeaderComment()
