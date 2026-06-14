@@ -1507,6 +1507,50 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestSetCellPreservesVerticalMergeRoot()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>Old root</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t></w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            expect-text Old root
+            text New root
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:vMerge w:val=\"restart\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old root</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New root</w:t>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyReplaceTextFailsWhenFindTextIsMissing()
     {
         using MemoryStream input = CreateDocx("Revenue increased by 8.4%.");
