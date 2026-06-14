@@ -3011,6 +3011,46 @@ public static class PatchApplyTests
         Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("<w:text/>", "<w:r><w:t>Old Client</w:t></w:r>", "text New Client")]
+    [InlineData("<w:richText/>", "<w:p><w:r><w:t>Old Client</w:t></w:r></w:p>", "expect-text Old Client\ntext New Client")]
+    public static void CheckTrackChangesRequireRejectsSetContentControlTextAsPreserveOnly(
+        string kindXml,
+        string contentXml,
+        string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody($"""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          {kindXml}
+                          <w:tag w:val="client-name"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          {contentXml}
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains("operation 'set-content-control-text'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
     [Fact]
     public static void ApplySetRichTextContentControlRequiresGuardAndPreservesWrapper()
     {
