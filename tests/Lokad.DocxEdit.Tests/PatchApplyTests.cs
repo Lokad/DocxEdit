@@ -4734,6 +4734,140 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
     }
 
+    [Theory]
+    [InlineData("replace-image", """
+        target M.I0001
+        asset chart.png
+        """)]
+    [InlineData("insert-image-after", """
+        target M.P0001
+        asset chart.png
+        """)]
+    [InlineData("set-image-alt", """
+        target M.I0001
+        alt Updated chart
+        """)]
+    [InlineData("set-image-metadata", """
+        target M.I0001
+        alt Updated chart
+        title Revenue chart
+        name Revenue picture
+        """)]
+    [InlineData("set-image-size", """
+        target M.I0001
+        width 2in
+        """)]
+    [InlineData("set-image-wrap", """
+        target M.I0001
+        mode top-bottom
+        """)]
+    [InlineData("set-image-position", """
+        target M.I0001
+        horizontal-relative page
+        horizontal-offset 1in
+        """)]
+    [InlineData("set-image-crop", """
+        target M.I0001
+        left-percent 10
+        """)]
+    [InlineData("delete-image", """
+        target M.I0001
+        """)]
+    public static void CheckTrackChangesRequireRejectsEveryImageOperationAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithAnchoredImage();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("replace-image", """
+        target M.I0001
+        asset chart.png
+        """)]
+    [InlineData("insert-image-after", """
+        target M.P0001
+        asset chart.png
+        """)]
+    [InlineData("set-image-alt", """
+        target M.I0001
+        alt Updated chart
+        """)]
+    [InlineData("set-image-metadata", """
+        target M.I0001
+        alt Updated chart
+        title Revenue chart
+        name Revenue picture
+        """)]
+    [InlineData("set-image-size", """
+        target M.I0001
+        width 2in
+        """)]
+    [InlineData("set-image-wrap", """
+        target M.I0001
+        mode top-bottom
+        """)]
+    [InlineData("set-image-position", """
+        target M.I0001
+        horizontal-relative page
+        horizontal-offset 1in
+        """)]
+    [InlineData("set-image-crop", """
+        target M.I0001
+        left-percent 10
+        """)]
+    [InlineData("delete-image", """
+        target M.I0001
+        """)]
+    public static void ApplyTrackChangesSuggestWarnsForEveryImageOperationAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithAnchoredImage();
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", "new-png", null, "chart.png");
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(
+            input,
+            patch,
+            output,
+            new DocxEditOptions
+            {
+                TrackChanges = TrackChangesMode.Suggest,
+                AssetProvider = assets,
+                MarkFieldsDirtyWhenEditing = false
+            });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        Assert.True(output.Length > 0);
+    }
+
     [Fact]
     public static void ApplyReplaceImageUsesAssetProviderForPng()
     {
