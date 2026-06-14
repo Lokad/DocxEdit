@@ -1350,7 +1350,10 @@ public static class PatchApplyTests
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4305");
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("protected OOXML boundary 'hyperlink'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
     [Fact]

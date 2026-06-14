@@ -494,6 +494,12 @@ internal static class DocxPatchEngine
 
         if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
         {
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
+                return diagnostics;
+            }
+
             return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
@@ -582,6 +588,12 @@ internal static class DocxPatchEngine
 
         if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
         {
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
+                return diagnostics;
+            }
+
             return [Diagnostic(DocxSeverity.Error, "E4305", $"Paragraph replacement for {target} would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
