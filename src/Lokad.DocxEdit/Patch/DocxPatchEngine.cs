@@ -3538,6 +3538,60 @@ internal static class DocxPatchEngine
         return true;
     }
 
+    private static bool TryGetTrackedSetCellParagraphs(
+        XElement cell,
+        string replacement,
+        out XElement[] paragraphs,
+        out string? unsupportedReason)
+    {
+        paragraphs = cell.Elements(OoxmlNs.W + "p").ToArray();
+        unsupportedReason = null;
+        if (paragraphs.Length == 0)
+        {
+            unsupportedReason = "cell has no paragraph for tracked text replacement";
+            return false;
+        }
+
+        if (cell.Elements().Any(element => element.Name != OoxmlNs.W + "tcPr" && element.Name != OoxmlNs.W + "p"))
+        {
+            unsupportedReason = "cell contains non-paragraph block content";
+            return false;
+        }
+
+        if (cell.Descendants(OoxmlNs.W + "drawing").Any())
+        {
+            unsupportedReason = "cell contains drawing content";
+            return false;
+        }
+
+        if (cell.Descendants(OoxmlNs.W + "fldSimple").Any() ||
+            cell.Descendants(OoxmlNs.W + "fldChar").Any() ||
+            cell.Descendants(OoxmlNs.W + "instrText").Any())
+        {
+            unsupportedReason = "cell contains field content";
+            return false;
+        }
+
+        for (int i = 0; i < paragraphs.Length; i++)
+        {
+            XElement paragraph = paragraphs[i];
+            if (TryGetProtectedTextEditFeature(paragraph, out string protectedFeature))
+            {
+                unsupportedReason = $"cell paragraph contains protected OOXML boundary '{protectedFeature}'";
+                return false;
+            }
+
+            string current = ReadVisibleText(paragraph);
+            string insertedText = i == 0 ? replacement : string.Empty;
+            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, style: null, out unsupportedReason))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool TextContainsTrackedUnsupportedCharacters(string text)
     {
         return text.Contains('\t') || text.Contains('\n');
@@ -3808,6 +3862,29 @@ internal static class DocxPatchEngine
 
         paragraph.RemoveNodes();
         paragraph.Add(nodes);
+    }
+
+    private static void ReplaceCellParagraphTextWithTrackedChanges(
+        OoxmlPackage package,
+        IReadOnlyList<XElement> paragraphs,
+        string insertedText,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        for (int i = 0; i < paragraphs.Count; i++)
+        {
+            XElement paragraph = paragraphs[i];
+            string current = ReadVisibleText(paragraph);
+            ReplaceWholeParagraphTextWithTrackedChanges(
+                package,
+                paragraph,
+                current,
+                i == 0 ? insertedText : string.Empty,
+                options,
+                generatedRevisionIds,
+                cancellationToken);
+        }
     }
 
     private static XElement CreateTrackedInsertedParagraph(
@@ -5254,13 +5331,8 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Unsupported merged-cell target '{target}'.", operation, target)];
         }
 
-        if (!force && !IsSimpleEditableCell(cellTarget.Cell))
-        {
-            return [Diagnostic(DocxSeverity.Error, "E4302", $"Cell '{target}' contains unsupported content. Use force true only when replacing all cell content is intended.", operation, target)];
-        }
-
         bool useTrackedChanges = IsTrackedMode(options);
-        XElement? paragraph = cellTarget.Cell.Elements(OoxmlNs.W + "p").FirstOrDefault();
+        XElement[] trackedParagraphs = [];
         if (useTrackedChanges)
         {
             if (force)
@@ -5272,25 +5344,7 @@ internal static class DocxPatchEngine
 
                 useTrackedChanges = false;
             }
-            else if (paragraph is null)
-            {
-                if (!TrackUnsupportedShape(options, operation, target!, "cell has no paragraph for tracked text replacement", diagnostics))
-                {
-                    return diagnostics;
-                }
-
-                useTrackedChanges = false;
-            }
-            else if (TryGetProtectedTextEditFeature(paragraph, out string protectedFeature))
-            {
-                if (!TrackUnsupportedShape(options, operation, target!, $"cell paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
-                {
-                    return diagnostics;
-                }
-
-                useTrackedChanges = false;
-            }
-            else if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, text!, style: null, out string? trackedUnsupportedReason))
+            else if (!TryGetTrackedSetCellParagraphs(cellTarget.Cell, text!, out trackedParagraphs, out string? trackedUnsupportedReason))
             {
                 if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
                 {
@@ -5301,6 +5355,11 @@ internal static class DocxPatchEngine
             }
         }
 
+        if (!useTrackedChanges && !force && !IsSimpleEditableCell(cellTarget.Cell))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4302", $"Cell '{target}' contains unsupported content. Use force true only when replacing all cell content is intended.", operation, target)];
+        }
+
         if (!apply)
         {
             return diagnostics;
@@ -5308,7 +5367,7 @@ internal static class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraph!, current, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text!, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
             return diagnostics;
         }

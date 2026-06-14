@@ -2517,15 +2517,17 @@ insert-before         inserted paragraph text as w:ins
 insert-after          inserted paragraph text as w:ins
 delete-block          simple paragraph targets as w:del text
 set-style             paragraph property revision with w:pPrChange
-set-cell              simple single-paragraph cells as w:del/w:ins text
+set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
 ```
 
 The supported tracked text shapes must not contain tabs, line breaks, soft hyphens,
 symbols, or other non-text run content, must not cross protected OOXML boundaries,
 must not be inside existing revision markup, and must have compatible direct
 run-property shape. `delete-block` tracked output is paragraph-only. `set-cell`
-tracked output is limited to simple single-paragraph cells without `force true`.
-`set-style` records the previous paragraph properties in `w:pPrChange`.
+tracked output is limited to text-only cell paragraphs without `force true`; for
+compatible multi-paragraph cells, deleted text remains in its original paragraphs
+and inserted replacement text is emitted in the first paragraph. `set-style`
+records the previous paragraph properties in `w:pPrChange`.
 
 Known preserve-only operations:
 

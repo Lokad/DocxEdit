@@ -896,7 +896,7 @@ public static class DocxHelp
                     ["target", "text"],
                     TrackClassTextRun,
                     "tracked-cell-simple",
-                    "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002.",
+                    "Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph cells; force or complex cells warn with W4002 or fail with E6002.",
                     ["expect-text", "expect-row-count", "expect-column-count", "force"]),
                 PreserveOnly(
                     "set-table-style",

@@ -2105,6 +2105,88 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireAllowsSetCellWithMultipleCompatibleParagraphs()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:p><w:r><w:t>One</w:t></w:r></w:p>
+                          <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            expect-text OneTwo
+            text Replacement
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestSetCellSupportsMultipleCompatibleParagraphs()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>
+                          <w:p>
+                            <w:pPr><w:pStyle w:val="TableBody"/></w:pPr>
+                            <w:r><w:t>One</w:t></w:r>
+                          </w:p>
+                          <w:p><w:r><w:t>Two</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            expect-text OneTwo
+            text Replacement
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Equal(["1", "2", "3"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(2, CountOccurrences(xml, "<w:del "));
+        Assert.Equal(1, CountOccurrences(xml, "<w:ins "));
+        Assert.Contains("<w:t>Replacement</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>One</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Two</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:val=\"TableBody\"", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Replacement", Assert.Single(new DocxEditor().Read(output).Tables).Cells[0].Text);
+        output.Position = 0;
+        Assert.Equal("OneTwo", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Tables).Cells[0].Text);
+        output.Position = 0;
+        Assert.Equal("[-One-][+Replacement+][-Two-]", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Tables).Cells[0].Text);
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestSetCellPreservesHorizontalMerge()
     {
         using MemoryStream input = CreateDocxWithBody("""
