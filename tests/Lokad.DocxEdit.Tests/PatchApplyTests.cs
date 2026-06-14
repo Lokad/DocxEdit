@@ -2040,6 +2040,52 @@ public static class PatchApplyTests
     }
 
     [Theory]
+    [InlineData("simple-field", """
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:fldSimple w:instr=" DATE ">
+                        <w:r><w:t>June 12</w:t></w:r>
+                      </w:fldSimple>
+                      <w:r><w:t> after</w:t></w:r>
+                    </w:p>
+        """)]
+    [InlineData("complex-field", """
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                      <w:r><w:t> after</w:t></w:r>
+                    </w:p>
+        """)]
+    public static void CheckTrackChangesRequireRejectsTextReplacementAdjacentToFieldBoundaries(string shape, string bodyXml)
+    {
+        _ = shape;
+        using MemoryStream input = CreateDocxWithBody(bodyXml);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Before
+            with After
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("protected OOXML boundary 'field'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
     [InlineData("adjacent-insertion", "plain")]
     [InlineData("overlapping-insertion", "Inserted")]
     [InlineData("adjacent-deletion", "plain")]
