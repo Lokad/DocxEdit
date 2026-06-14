@@ -2096,6 +2096,12 @@ public static class PatchApplyTests
         output.Position = 0;
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
         Assert.Equal("New", Assert.Single(table.Cells).Text);
+        output.Position = 0;
+        DocxTableInfo originalTable = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Tables);
+        Assert.Equal("Old", Assert.Single(originalTable.Cells).Text);
+        output.Position = 0;
+        DocxTableInfo markupTable = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Tables);
+        Assert.Equal("[-Old-][+New+]", Assert.Single(markupTable.Cells).Text);
     }
 
     [Fact]
