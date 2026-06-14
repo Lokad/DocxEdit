@@ -2941,6 +2941,94 @@ public static class PatchApplyTests
         Assert.Contains("locked by w:lock='sdtContentLocked'", diagnostic.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("set-content-control-checkbox", "<w:checkBox><w:checked w:val=\"0\"/><w:checkedState w:val=\"2612\"/><w:uncheckedState w:val=\"2610\"/></w:checkBox>", "Unchecked", "checked true")]
+    [InlineData("set-content-control-choice", "<w:dropDownList><w:listItem w:displayText=\"North\" w:value=\"north\"/><w:listItem w:displayText=\"South\" w:value=\"south\"/></w:dropDownList>", "North", "value south")]
+    [InlineData("set-content-control-date", "<w:date><w:dateFormat w:val=\"yyyy-MM-dd\"/><w:fullDate w:val=\"2026-06-12T00:00:00Z\"/></w:date>", "2026-06-12", "value 2026-07-01T00:00:00Z\ndisplay-text 2026-07-01")]
+    public static void CheckTrackChangesRequireRejectsContentControlStateUpdatesAsPreserveOnly(
+        string operationName,
+        string kindXml,
+        string contentText,
+        string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody($"""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          {kindXml}
+                          <w:tag w:val="state"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>{contentText}</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            target M.CC0001
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("set-content-control-checkbox", "<w:checkBox><w:checked w:val=\"0\"/><w:checkedState w:val=\"2612\"/><w:uncheckedState w:val=\"2610\"/></w:checkBox>", "Unchecked", "checked true")]
+    [InlineData("set-content-control-choice", "<w:dropDownList><w:listItem w:displayText=\"North\" w:value=\"north\"/><w:listItem w:displayText=\"South\" w:value=\"south\"/></w:dropDownList>", "North", "value south")]
+    [InlineData("set-content-control-date", "<w:date><w:dateFormat w:val=\"yyyy-MM-dd\"/><w:fullDate w:val=\"2026-06-12T00:00:00Z\"/></w:date>", "2026-06-12", "value 2026-07-01T00:00:00Z\ndisplay-text 2026-07-01")]
+    public static void ApplyTrackChangesSuggestWarnsForContentControlStateUpdatesAsPreserveOnly(
+        string operationName,
+        string kindXml,
+        string contentText,
+        string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody($"""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          {kindXml}
+                          <w:tag w:val="state"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>{contentText}</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            target M.CC0001
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:sdt>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tag w:val=\"state\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public static void ApplySetContentControlCheckboxUpdatesStateAndDisplay()
     {
