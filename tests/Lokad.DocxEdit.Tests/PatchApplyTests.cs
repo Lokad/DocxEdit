@@ -1517,6 +1517,39 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireRejectsDeletingSectionBoundaryParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:sectPr>
+                          <w:pgSz w:w="12240" w:h="15840"/>
+                        </w:sectPr>
+                      </w:pPr>
+                      <w:r><w:t>Section boundary</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Next section</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0001
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("operation 'delete-block'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("paragraph contains section properties", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesParagraphPropertyChangeForStyle()
     {
         using MemoryStream input = CreateDocxWithStyles("""

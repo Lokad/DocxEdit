@@ -749,6 +749,15 @@ internal static class DocxPatchEngine
 
                 useTrackedChanges = false;
             }
+            else if (ParagraphHasSectionProperties(blockTarget.Block))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, "paragraph contains section properties", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
             else if (TryGetProtectedTextEditFeature(blockTarget.Block, out string protectedFeature))
             {
                 if (!TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
@@ -784,6 +793,13 @@ internal static class DocxPatchEngine
         blockTarget.Block.Remove();
         SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
         return [];
+    }
+
+    private static bool ParagraphHasSectionProperties(XElement paragraph)
+    {
+        return paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "sectPr") is not null;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetStyle(
