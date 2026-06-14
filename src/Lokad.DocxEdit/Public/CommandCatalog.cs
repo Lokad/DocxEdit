@@ -541,7 +541,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "Show nearby structure around one target without broad text",
                     Usage = "docxedit context input.docx --id TARGET [options]",
-                    Description = "Summarize nearby modeled structure around one target without broad document text. By default, --max-text is 0, so paragraph and cell text fields are present but empty. Comment anchors are surfaced as comment IDs and comment body IDs, and comment body targets such as C001.C0001 or comment:3 return metadata only. Increase --max-text only when short snippets are needed.",
+                    Description = "Summarize nearby modeled structure around one target without broad document text. By default, --max-text is 0, so paragraph and cell text fields are present but empty. Comment anchors are surfaced as comment IDs, comment body IDs, para IDs, durable IDs, reply IDs, resolved IDs, and parent/root para IDs; comment body targets such as C001.C0001 or comment:3 return metadata only. Increase --max-text only when short snippets are needed.",
                     Options =
                     [
                         new("--id M.P0001", "Target ID from read, outline, find, or changes"),
@@ -556,7 +556,8 @@ public static class DocxHelp
                     PrivacyNotes =
                     [
                         "The default metadata-only context profile uses MaxText=0.",
-                        "Comment body targets do not print comment body text; use changes --include-comment-text only when a bounded snippet is explicitly needed."
+                        "Comment body targets do not print comment body text; use changes --include-comment-text only when a bounded snippet is explicitly needed.",
+                        "Threaded-comment metadata is exposed as IDs and topology fields, not as comment body text."
                     ],
                     Examples =
                     [

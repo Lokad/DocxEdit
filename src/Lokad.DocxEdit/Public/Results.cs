@@ -260,6 +260,12 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public IReadOnlyList<string> CommentIds { get; init; } = [];
     public IReadOnlyList<string> CommentBodyIds { get; init; } = [];
+    public IReadOnlyList<string> CommentParaIds { get; init; } = [];
+    public IReadOnlyList<string> CommentParentParaIds { get; init; } = [];
+    public IReadOnlyList<string> CommentRootParaIds { get; init; } = [];
+    public IReadOnlyList<string> CommentDurableIds { get; init; } = [];
+    public IReadOnlyList<string> CommentReplyIds { get; init; } = [];
+    public IReadOnlyList<string> CommentResolvedIds { get; init; } = [];
     public string? Caption { get; init; }
     public string? Description { get; init; }
     public int? RowCount { get; init; }

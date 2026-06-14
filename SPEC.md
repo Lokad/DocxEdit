@@ -1281,6 +1281,12 @@ public sealed record DocxContextItem
     public IReadOnlyList<string> HyperlinkTargets { get; init; } = [];
     public IReadOnlyList<string> CommentIds { get; init; } = [];
     public IReadOnlyList<string> CommentBodyIds { get; init; } = [];
+    public IReadOnlyList<string> CommentParaIds { get; init; } = [];
+    public IReadOnlyList<string> CommentParentParaIds { get; init; } = [];
+    public IReadOnlyList<string> CommentRootParaIds { get; init; } = [];
+    public IReadOnlyList<string> CommentDurableIds { get; init; } = [];
+    public IReadOnlyList<string> CommentReplyIds { get; init; } = [];
+    public IReadOnlyList<string> CommentResolvedIds { get; init; } = [];
     public string? Caption { get; init; }
     public string? Description { get; init; }
     public int? RowCount { get; init; }
@@ -1297,9 +1303,12 @@ public sealed record DocxContextItem
 ```
 
 Paragraph and cell context items include `CommentIds` and `CommentBodyIds` when
-comment anchors or references are attached to that target. Comment body targets such
-as `C001.C0001` and `comment:<id>` return a `Kind = "comment"` context item whose
-metadata links back to the anchor target and does not include comment body text.
+comment anchors or references are attached to that target. They also expose
+privacy-safe thread metadata through `CommentParaIds`, `CommentParentParaIds`,
+`CommentRootParaIds`, `CommentDurableIds`, `CommentReplyIds`, and
+`CommentResolvedIds`. Comment body targets such as `C001.C0001` and
+`comment:<id>` return a `Kind = "comment"` context item whose metadata links back
+to the anchor target and does not include comment body text.
 Table context items expose `Caption` and `Description` when `w:tblCaption` or
 `w:tblDescription` are present. Cell context items also expose visual-grid and merge metadata, including
 `VisualColumnEndIndex`, `MergeGroupId`, `VerticalMerge`, and
@@ -1464,7 +1473,7 @@ text. The default `MaxText` is `0`; callers must opt in to text snippets.
 
 ```text
 before M.P0003 paragraph story="main" text=""
-target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" fields="M.F0001" field-codes="REF ClientName \h" field-kinds="complex" field-types="REF" hyperlinks="M.L0001" hyperlink-targets="https://example.test/report" comments="3" comment-bodies="C001.C0001" text=""
+target M.P0004 paragraph story="main" bookmark-names="ClientName" content-controls="M.CC0001" content-control-tags="client_name" fields="M.F0001" field-codes="REF ClientName \h" field-kinds="complex" field-types="REF" hyperlinks="M.L0001" hyperlink-targets="https://example.test/report" comments="3,4" comment-bodies="C001.C0001,C001.C0002" comment-para-ids="00PARENT,00REPLY1" comment-parent-para-ids="00PARENT" comment-root-para-ids="00PARENT" comment-durable-ids="DURABLEP,DURABLER" comment-reply-ids="4" text=""
 after M.P0005 paragraph story="main" text=""
 ```
 

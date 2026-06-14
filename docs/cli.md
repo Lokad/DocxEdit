@@ -145,6 +145,9 @@ DocxEdit is designed so an agent can inspect document shape before exposing text
 - `changes` does not print revision text or comment body text by default.
 - `dump --id C001.C0001` and `dump --id comment:3` print comment body metadata,
   not comment body text.
+- Metadata-only `context` surfaces threaded-comment IDs, durable IDs,
+  parent/root para IDs, reply IDs, and resolved IDs without printing comment body
+  text.
 - Comment snippets require `changes --include-comment-text`; bound them with
   `--max-comment-text N`.
 
@@ -206,7 +209,7 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Lists and numbering | `read`, `outline`, `find` | Paragraphs may include resolved list labels, numbering format, level text, style-linked numbering, view-aware tracked paragraph counters, and diagnostics for unsupported custom formats or tracked numbering property revisions |
 | Bookmarks | `read`, `context` | Use bookmark IDs or unambiguous `bookmark:"Name"` selectors; duplicate names are diagnosed |
 | Content controls | `read`, `context` | Metadata includes kind, tag, alias, lock state, safe-edit status, checkbox/dropdown/date details, and duplicate selector candidates |
-| Comments | `changes`, `context`, `dump` | Comment operations target a paragraph, `comment:<id>`, or a comment body ID |
+| Comments | `changes`, `context`, `dump` | Comment operations target a paragraph, `comment:<id>`, or a comment body ID; context exposes thread topology as IDs without comment body text |
 | Fields | `read`, `outline`, `context` | DocxEdit can update simple field metadata/caches, but Word remains responsible for general recalculation |
 | Hyperlinks | `read`, `outline`, `context`, `dump --runs` | External patch targets must be absolute `http`, `https`, or `mailto`; internal targets use bookmark anchors |
 | Images | `read`, `outline`, `media` | Editable image records are inline or anchored DrawingML images; linked images and complex drawing shapes are preserve-only diagnostics |

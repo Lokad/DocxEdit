@@ -585,6 +585,12 @@ internal static class TextRenderers
             string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{Escape(string.Join(",", item.HyperlinkTargets))}\"";
             string commentIds = item.CommentIds.Count == 0 ? string.Empty : $" comments=\"{Escape(string.Join(",", item.CommentIds))}\"";
             string commentBodyIds = item.CommentBodyIds.Count == 0 ? string.Empty : $" comment-bodies=\"{Escape(string.Join(",", item.CommentBodyIds))}\"";
+            string commentParaIds = item.CommentParaIds.Count == 0 ? string.Empty : $" comment-para-ids=\"{Escape(string.Join(",", item.CommentParaIds))}\"";
+            string commentParentParaIds = item.CommentParentParaIds.Count == 0 ? string.Empty : $" comment-parent-para-ids=\"{Escape(string.Join(",", item.CommentParentParaIds))}\"";
+            string commentRootParaIds = item.CommentRootParaIds.Count == 0 ? string.Empty : $" comment-root-para-ids=\"{Escape(string.Join(",", item.CommentRootParaIds))}\"";
+            string commentDurableIds = item.CommentDurableIds.Count == 0 ? string.Empty : $" comment-durable-ids=\"{Escape(string.Join(",", item.CommentDurableIds))}\"";
+            string commentReplyIds = item.CommentReplyIds.Count == 0 ? string.Empty : $" comment-reply-ids=\"{Escape(string.Join(",", item.CommentReplyIds))}\"";
+            string commentResolvedIds = item.CommentResolvedIds.Count == 0 ? string.Empty : $" comment-resolved-ids=\"{Escape(string.Join(",", item.CommentResolvedIds))}\"";
             string caption = item.Caption is null ? string.Empty : $" caption=\"{Escape(item.Caption)}\"";
             string description = item.Description is null ? string.Empty : $" description=\"{Escape(item.Description)}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
@@ -622,6 +628,12 @@ internal static class TextRenderers
                 .Append(hyperlinkTargets)
                 .Append(commentIds)
                 .Append(commentBodyIds)
+                .Append(commentParaIds)
+                .Append(commentParentParaIds)
+                .Append(commentRootParaIds)
+                .Append(commentDurableIds)
+                .Append(commentReplyIds)
+                .Append(commentResolvedIds)
                 .Append(caption)
                 .Append(description)
                 .Append(rowCount)
@@ -839,6 +851,12 @@ internal static class TextRenderers
         var hyperlinkTargets = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var commentIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var commentBodyIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentParaIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentParentParaIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentRootParaIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentDurableIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentReplyIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var commentResolvedIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
             AddAnnotation(contentControlIds, control.TargetId, control.Id);
@@ -866,6 +884,11 @@ internal static class TextRenderers
                 !string.IsNullOrWhiteSpace(change.TargetId))
             .GroupBy(change => change.CommentId!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First().TargetId!, StringComparer.Ordinal);
+        IReadOnlyDictionary<string, DocxChangeInfo> commentByParaId = changes
+            .Where(change => string.Equals(change.Type, "comment", StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(change.CommentParaId))
+            .GroupBy(change => change.CommentParaId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         foreach (DocxChangeInfo change in changes)
         {
             if (string.IsNullOrWhiteSpace(change.CommentId))
@@ -874,10 +897,31 @@ internal static class TextRenderers
             }
 
             commentBodyById.TryGetValue(change.CommentId, out string? bodyId);
-            foreach (string? target in new[] { change.TargetId, change.CommentAnchorTargetId, change.CommentReferenceTargetId })
+            IEnumerable<string?> targets = new[] { change.TargetId, change.CommentAnchorTargetId, change.CommentReferenceTargetId };
+            if (change.CommentIsReply == true &&
+                !string.IsNullOrWhiteSpace(change.CommentParentParaId) &&
+                commentByParaId.TryGetValue(change.CommentParentParaId!, out DocxChangeInfo? parentComment))
+            {
+                targets = targets.Concat(new[] { parentComment.TargetId, parentComment.CommentAnchorTargetId, parentComment.CommentReferenceTargetId });
+            }
+
+            foreach (string? target in targets)
             {
                 AddAnnotation(commentIds, target, change.CommentId);
                 AddAnnotation(commentBodyIds, target, bodyId);
+                AddAnnotation(commentParaIds, target, change.CommentParaId);
+                AddAnnotation(commentParentParaIds, target, change.CommentParentParaId);
+                AddAnnotation(commentRootParaIds, target, change.CommentRootParaId);
+                AddAnnotation(commentDurableIds, target, change.CommentDurableId);
+                if (change.CommentIsReply == true)
+                {
+                    AddAnnotation(commentReplyIds, target, change.CommentId);
+                }
+
+                if (change.CommentResolved == true)
+                {
+                    AddAnnotation(commentResolvedIds, target, change.CommentId);
+                }
             }
         }
 
@@ -893,7 +937,13 @@ internal static class TextRenderers
             ToArrayDictionary(hyperlinkIds),
             ToArrayDictionary(hyperlinkTargets),
             ToArrayDictionary(commentIds),
-            ToArrayDictionary(commentBodyIds));
+            ToArrayDictionary(commentBodyIds),
+            ToArrayDictionary(commentParaIds),
+            ToArrayDictionary(commentParentParaIds),
+            ToArrayDictionary(commentRootParaIds),
+            ToArrayDictionary(commentDurableIds),
+            ToArrayDictionary(commentReplyIds),
+            ToArrayDictionary(commentResolvedIds));
     }
 
     private static DocxContextItem ApplyAnnotations(DocxContextItem item, TargetAnnotations annotations)
@@ -911,7 +961,13 @@ internal static class TextRenderers
             HyperlinkIds = LookupAnnotations(annotations.HyperlinkIdsByTarget, item.Id),
             HyperlinkTargets = LookupAnnotations(annotations.HyperlinkTargetsByTarget, item.Id),
             CommentIds = LookupAnnotations(annotations.CommentIdsByTarget, item.Id),
-            CommentBodyIds = LookupAnnotations(annotations.CommentBodyIdsByTarget, item.Id)
+            CommentBodyIds = LookupAnnotations(annotations.CommentBodyIdsByTarget, item.Id),
+            CommentParaIds = LookupAnnotations(annotations.CommentParaIdsByTarget, item.Id),
+            CommentParentParaIds = LookupAnnotations(annotations.CommentParentParaIdsByTarget, item.Id),
+            CommentRootParaIds = LookupAnnotations(annotations.CommentRootParaIdsByTarget, item.Id),
+            CommentDurableIds = LookupAnnotations(annotations.CommentDurableIdsByTarget, item.Id),
+            CommentReplyIds = LookupAnnotations(annotations.CommentReplyIdsByTarget, item.Id),
+            CommentResolvedIds = LookupAnnotations(annotations.CommentResolvedIdsByTarget, item.Id)
         };
     }
 
@@ -1097,5 +1153,11 @@ internal static class TextRenderers
         IReadOnlyDictionary<string, string[]> HyperlinkIdsByTarget,
         IReadOnlyDictionary<string, string[]> HyperlinkTargetsByTarget,
         IReadOnlyDictionary<string, string[]> CommentIdsByTarget,
-        IReadOnlyDictionary<string, string[]> CommentBodyIdsByTarget);
+        IReadOnlyDictionary<string, string[]> CommentBodyIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentParaIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentParentParaIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentRootParaIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentDurableIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentReplyIdsByTarget,
+        IReadOnlyDictionary<string, string[]> CommentResolvedIdsByTarget);
 }

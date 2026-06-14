@@ -3043,6 +3043,62 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ContextAnnotatesCommentThreadMetadataWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p w15:paraId="00PARENT"><w:r><w:t>Private parent text</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="4" w:author="Second Reviewer">
+                    <w:p w15:paraId="00REPLY1"><w:r><w:t>Private reply text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00PARENT" w15:done="1"/>
+                  <w15:commentEx w15:paraId="00REPLY1" w15:paraIdParent="00PARENT" w15:done="0"/>
+                </w15:commentsEx>
+                """,
+            """
+                <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+                  <w16cid:commentId w16cid:paraId="00PARENT" w16cid:durableId="DURABLEP"/>
+                  <w16cid:commentId w16cid:paraId="00REPLY1" w16cid:durableId="DURABLER"/>
+                </w16cid:commentsIds>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "3", "4" }, item.CommentIds);
+        Assert.Equal(new[] { "C001.C0001", "C001.C0002" }, item.CommentBodyIds);
+        Assert.Equal(new[] { "00PARENT", "00REPLY1" }, item.CommentParaIds);
+        Assert.Equal(new[] { "00PARENT" }, item.CommentParentParaIds);
+        Assert.Equal(new[] { "00PARENT" }, item.CommentRootParaIds);
+        Assert.Equal(new[] { "DURABLEP", "DURABLER" }, item.CommentDurableIds);
+        Assert.Equal(new[] { "4" }, item.CommentReplyIds);
+        Assert.Equal(new[] { "3" }, item.CommentResolvedIds);
+        Assert.Contains("comment-reply-ids=\"4\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("comment-durable-ids=\"DURABLEP,DURABLER\"", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private parent text", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private reply text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ContextCanTargetCommentBodyWithoutCommentText()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

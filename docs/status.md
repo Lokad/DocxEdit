@@ -25,8 +25,8 @@ Implemented areas include:
   paragraph, plus comment body editing and deletion
   through explicit patch operations keyed by paragraph IDs, `comment:<id>`, or
   comment body IDs;
-- comment anchor/context metadata and metadata-only comment body `dump`/`context`
-  targets;
+- comment anchor/context metadata, privacy-safe threaded-comment context
+  topology, and metadata-only comment body `dump`/`context` targets;
 - comment root/reply and resolution metadata from `commentsExtended.xml`, durable
   comment IDs from `commentsIds.xml`, plus
   `resolve-comment` and `reopen-comment` workflows that create or update modern extension records for
@@ -133,6 +133,9 @@ unsupported WordprocessingML shapes without private document details.
 - `commentsIds.xml` durable IDs are modeled and validated. Simple reply creation
   and leaf reply deletion are supported; deeper threaded-comment workflows remain
   guarded.
+- `context` annotates anchored comments and simple threaded replies with comment
+  IDs, body IDs, para IDs, durable IDs, reply IDs, resolved IDs, and parent/root
+  para IDs without exposing body text.
 - Comment anchors, references, body IDs, duplicate IDs, orphan anchors, and
   orphan extension records are validated.
 - Comment creation, body replacement, resolution toggles, reopening, and deletion
