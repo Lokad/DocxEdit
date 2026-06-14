@@ -628,7 +628,7 @@ internal static class DocxPatchEngine
         }
 
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteInsertBlock(
