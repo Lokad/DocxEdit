@@ -765,6 +765,8 @@ public static class PatchApplyTests
         Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
         output.Position = 0;
         Assert.Equal("Revenue increased.", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Revenue [-increased-][+rose+].", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs).Text);
 
         output.Position = 0;
         DocxChangesResult changes = new DocxEditor().Changes(output);
@@ -862,6 +864,120 @@ public static class PatchApplyTests
         Assert.Equal(2, CountOccurrences(xml, "<w:ins "));
         output.Position = 0;
         Assert.Equal("bar bar", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestHandlesPunctuationBoundariesAndRepeatedOccurrences()
+    {
+        using MemoryStream input = CreateDocx("alpha, alpha; alpha.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find alpha
+            with beta
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(3, CountOccurrences(xml, "<w:del "));
+        Assert.Equal(3, CountOccurrences(xml, "<w:delText>alpha</w:delText>"));
+        Assert.Equal(3, CountOccurrences(xml, "<w:ins "));
+        Assert.Equal(3, CountOccurrences(xml, "<w:t>beta</w:t>"));
+        output.Position = 0;
+        Assert.Equal("beta, beta; beta.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestReplacesHeaderAndFooterParagraphText()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooter("Header increased.", "Footer increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target H001.P0001
+            find increased
+            with rose
+            end
+
+            op replace-text
+            target F001.P0001
+            find increased
+            with fell
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Agent",
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(["1", "2"], result.Operations[0].GeneratedRevisionIds);
+        Assert.Equal(["3", "4"], result.Operations[1].GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "Header rose.");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Footer fell.");
+        output.Position = 0;
+        Assert.Contains("<w:delText>increased</w:delText>", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("<w:delText>increased</w:delText>", ReadEntry(output, "word/footer1.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestPreservesListParagraphProperties()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr>
+                          <w:ilvl w:val="0"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>Revenue increased.</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:numPr>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:numId w:val=\"9\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>increased</w:delText>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
 
     [Fact]
