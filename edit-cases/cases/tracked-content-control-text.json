@@ -1,0 +1,37 @@
+{
+  "id": "tracked-content-control-text",
+  "description": "Applies a tracked plain-text content control replacement.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr><w:text/><w:id w:val=\"99\"/><w:tag w:val=\"client-name\"/></w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Old Client</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target M.CC0001",
+    "text New Client",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New Client"
+    ],
+    "changeSummary": {
+      "deleted-run": 1,
+      "inserted-run": 1
+    }
+  }
+}

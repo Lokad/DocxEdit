@@ -1,0 +1,38 @@
+{
+  "id": "tracked-section-property",
+  "description": "Applies a tracked section property revision.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Section text</w:t></w:r></w:p>",
+      "    <w:sectPr>",
+      "      <w:pgSz w:w=\"12240\" w:h=\"15840\"/>",
+      "      <w:cols w:num=\"1\"/>",
+      "    </w:sectPr>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-section-orientation",
+    "target M.S0001",
+    "orientation landscape",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Section text"
+    ],
+    "sections": [
+      "1|landscape"
+    ],
+    "changeSummary": {
+      "section-properties-change": 1
+    }
+  }
+}

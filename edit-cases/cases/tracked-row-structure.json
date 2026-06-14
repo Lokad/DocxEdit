@@ -1,0 +1,34 @@
+{
+  "id": "tracked-row-structure",
+  "description": "Applies a tracked table row insertion revision.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op append-row",
+    "target M.T0001",
+    "cell South",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "North",
+      "South"
+    ],
+    "changeSummary": {
+      "row-inserted": 1
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "tracked-bookmark-text",
+  "description": "Applies a tracked same-paragraph bookmark text replacement.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"/>",
+      "      <w:r><w:t>Old Client</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"4\"/>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-bookmark-text",
+    "target M.B0001",
+    "text New Client",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New Client"
+    ],
+    "changeSummary": {
+      "deleted-run": 1,
+      "inserted-run": 1
+    }
+  }
+}

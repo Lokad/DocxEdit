@@ -80,10 +80,14 @@ Tracked public cases live under `edit-cases/cases/` as JSON manifests. A case de
 WordprocessingML body XML or a non-private fixture under `edit-cases/fixtures/`, a
 `.docxpatch` payload, and expected readback values. The harness generates synthetic
 `.docx` inputs at runtime when body XML is supplied, so most fixtures remain reviewable text.
+`edit-cases/families/tracked-change-matrix.json` lists the current public
+tracked-change coverage slice.
 
 Supported manifest extras include:
 
 - `input.headerXml` and `input.footerXml` for header/footer stories;
+- `input.stylesXml` for a synthetic `/word/styles.xml` part related from the
+  main document;
 - `input.fixture` for a checked-in non-private `.docx` under `edit-cases/fixtures/`;
 - `assets` values referenced from patches as `{{asset:name.png}}`;
 - `applyOptions.trackChanges`, `author`, and `timestampUtc`;

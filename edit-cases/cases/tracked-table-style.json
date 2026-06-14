@@ -1,0 +1,36 @@
+{
+  "id": "tracked-table-style",
+  "description": "Applies a tracked table style property revision.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"table\" w:styleId=\"TableGrid\"><w:name w:val=\"Table Grid\"/></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-table-style",
+    "target M.T0001",
+    "style TableGrid",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "North"
+    ],
+    "changeSummary": {
+      "table-properties-change": 1
+    }
+  }
+}

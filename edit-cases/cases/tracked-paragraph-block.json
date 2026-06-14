@@ -1,0 +1,34 @@
+{
+  "id": "tracked-paragraph-block",
+  "description": "Applies a tracked paragraph insertion and verifies inserted-run markup.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Before</w:t></w:r></w:p>",
+      "    <w:p><w:r><w:t>After</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text Inserted",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Before",
+      "Inserted",
+      "After"
+    ],
+    "changeSummary": {
+      "inserted-run": 1
+    }
+  }
+}

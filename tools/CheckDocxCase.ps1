@@ -106,7 +106,7 @@ function Add-ZipEntry([System.IO.Compression.ZipArchive] $Archive, [string] $Nam
     }
 }
 
-function New-DocxFromBody([string] $Path, [string] $BodyXml, [string] $HeaderXml, [string] $FooterXml) {
+function New-DocxFromBody([string] $Path, [string] $BodyXml, [string] $HeaderXml, [string] $FooterXml, [string] $StylesXml) {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     if (Test-Path -LiteralPath $Path) {
@@ -115,8 +115,10 @@ function New-DocxFromBody([string] $Path, [string] $BodyXml, [string] $HeaderXml
 
     $hasHeader = -not [string]::IsNullOrWhiteSpace($HeaderXml)
     $hasFooter = -not [string]::IsNullOrWhiteSpace($FooterXml)
+    $hasStyles = -not [string]::IsNullOrWhiteSpace($StylesXml)
     $headerOverride = if ($hasHeader) { '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' } else { '' }
     $footerOverride = if ($hasFooter) { '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' } else { '' }
+    $stylesOverride = if ($hasStyles) { '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' } else { '' }
     $relationships = @('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">')
     if ($hasHeader) {
         $relationships += '  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>'
@@ -124,6 +126,10 @@ function New-DocxFromBody([string] $Path, [string] $BodyXml, [string] $HeaderXml
 
     if ($hasFooter) {
         $relationships += '  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
+    }
+
+    if ($hasStyles) {
+        $relationships += '  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
     }
 
     $relationships += '</Relationships>'
@@ -138,6 +144,7 @@ function New-DocxFromBody([string] $Path, [string] $BodyXml, [string] $HeaderXml
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 $headerOverride
 $footerOverride
+$stylesOverride
 </Types>
 "@
         Add-ZipEntry $archive "_rels/.rels" @"
@@ -166,6 +173,14 @@ $HeaderXml
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
 $FooterXml
 </w:ftr>
+"@
+        }
+
+        if ($hasStyles) {
+            Add-ZipEntry $archive "word/styles.xml" @"
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+$StylesXml
+</w:styles>
 "@
         }
     }
@@ -197,6 +212,7 @@ $fixtureValue = Get-ObjectProperty $manifest.input "fixture"
 $bodyXml = Get-ManifestText $manifest.input.bodyXml
 $headerXml = Get-ManifestText (Get-ObjectProperty $manifest.input "headerXml")
 $footerXml = Get-ManifestText (Get-ObjectProperty $manifest.input "footerXml")
+$stylesXml = Get-ManifestText (Get-ObjectProperty $manifest.input "stylesXml")
 $patchText = Get-ManifestText $manifest.patch
 if ([string]::IsNullOrWhiteSpace($patchText)) {
     throw "Case '$caseId' must define patch."
@@ -231,7 +247,7 @@ if ($null -ne $fixtureValue) {
     Copy-Item -LiteralPath (Resolve-PublicFixturePath ([string] $fixtureValue)) -Destination $inputPath
 }
 else {
-    New-DocxFromBody $inputPath $bodyXml $headerXml $footerXml
+    New-DocxFromBody $inputPath $bodyXml $headerXml $footerXml $stylesXml
 }
 Set-Content -LiteralPath $patchPath -Value $patchText
 

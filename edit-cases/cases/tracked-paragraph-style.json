@@ -1,0 +1,35 @@
+{
+  "id": "tracked-paragraph-style",
+  "description": "Applies a tracked paragraph style property revision.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"paragraph\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/></w:style>",
+      "  <w:style w:type=\"paragraph\" w:styleId=\"Heading1\"><w:name w:val=\"Heading 1\"/></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Heading candidate</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-style",
+    "target M.P0001",
+    "style Heading1",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Heading candidate"
+    ],
+    "changeSummary": {
+      "paragraph-properties-change": 1
+    }
+  }
+}
