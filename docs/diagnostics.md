@@ -37,6 +37,10 @@ Common code ranges:
   message includes the operation name, target ID, catalog support value, and
   unsupported-shape reason. `Feature` is
   `track-changes-unsupported-target-shape` and `Fallback` is `require-failed`.
+- `E6003`: `TrackChangesMode.Suggest` or `TrackChangesMode.Require` error for
+  invalid generated revision metadata before operation execution. Empty revision
+  authors are rejected with `Feature = track-changes-revision-metadata` and
+  `Fallback = no-output-written`.
 - `E4310`: content-control edit requested a control kind, content container, or
   lock state that is not safely editable.
 - `E4312`: comment resolution state cannot be edited because the comment body shape

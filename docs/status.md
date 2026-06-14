@@ -74,6 +74,8 @@ Implemented areas include:
 - machine-readable track-change diagnostic metadata that separates missing revision
   representation from unsupported target shape and direct-edit fallback from
   require-mode failure;
+- generated revision metadata normalization, including trimmed non-empty authors,
+  invariant UTC timestamps, and early `E6003` rejection before output is written;
 - structural/package validation profiles through `validate`, including known part roots, paired
   ranges, complex field balance/result-containment/flag consistency,
   content-control metadata consistency, missing paragraph style-reference warnings,

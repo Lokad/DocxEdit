@@ -71,6 +71,12 @@ internal static class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
+        IReadOnlyList<DocxDiagnostic> trackChangeOptionDiagnostics = ValidateTrackChangeOptions(options);
+        if (trackChangeOptionDiagnostics.Count != 0)
+        {
+            return new PatchExecutionResult(false, trackChangeOptionDiagnostics, []);
+        }
+
         var reports = new List<DocxPatchOperationReport>();
         foreach (DocxPatchOperation operation in patch.Operations)
         {
@@ -3585,8 +3591,8 @@ internal static class DocxPatchEngine
             .Elements(OoxmlNs.W + "r")
             .Elements(OoxmlNs.W + "rPr")
             .FirstOrDefault();
-        string author = options.Author;
-        string timestamp = options.TimestampUtc.ToUniversalTime().ToString("O");
+        string author = GetRevisionAuthor(options);
+        string timestamp = GetRevisionTimestamp(options);
 
         var nodes = new List<XNode>();
         if (paragraphProperties is not null)
@@ -3633,8 +3639,8 @@ internal static class DocxPatchEngine
             .Elements(OoxmlNs.W + "r")
             .Elements(OoxmlNs.W + "rPr")
             .FirstOrDefault();
-        string author = options.Author;
-        string timestamp = options.TimestampUtc.ToUniversalTime().ToString("O");
+        string author = GetRevisionAuthor(options);
+        string timestamp = GetRevisionTimestamp(options);
 
         var nodes = new List<XNode>();
         if (paragraphProperties is not null)
@@ -3677,8 +3683,8 @@ internal static class DocxPatchEngine
         }
 
         string revisionId = AllocateRevisionIds(package, 1, cancellationToken)[0];
-        string author = options.Author;
-        string timestamp = options.TimestampUtc.ToUniversalTime().ToString("O");
+        string author = GetRevisionAuthor(options);
+        string timestamp = GetRevisionTimestamp(options);
         paragraph.Add(CreateInsertedRun(text, runProperties: null, revisionId, author, timestamp));
         return paragraph;
     }
@@ -3701,9 +3707,42 @@ internal static class DocxPatchEngine
         paragraphProperties.Add(new XElement(
             OoxmlNs.W + "pPrChange",
             new XAttribute(OoxmlNs.W + "id", revisionId),
-            new XAttribute(OoxmlNs.W + "author", options.Author),
-            new XAttribute(OoxmlNs.W + "date", options.TimestampUtc.ToUniversalTime().ToString("O")),
+            new XAttribute(OoxmlNs.W + "author", GetRevisionAuthor(options)),
+            new XAttribute(OoxmlNs.W + "date", GetRevisionTimestamp(options)),
             oldParagraphProperties));
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ValidateTrackChangeOptions(DocxEditOptions options)
+    {
+        if (!IsTrackedMode(options))
+        {
+            return [];
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Author))
+        {
+            return
+            [
+                new DocxDiagnostic(
+                    DocxSeverity.Error,
+                    "E6003",
+                    "TrackChangesMode.Suggest/Require requires a non-empty revision author; no document output was written.",
+                    Feature: "track-changes-revision-metadata",
+                    Fallback: "no-output-written")
+            ];
+        }
+
+        return [];
+    }
+
+    private static string GetRevisionAuthor(DocxEditOptions options)
+    {
+        return options.Author.Trim();
+    }
+
+    private static string GetRevisionTimestamp(DocxEditOptions options)
+    {
+        return options.TimestampUtc.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static void AddTextRun(List<XNode> nodes, string text, XElement? runProperties)

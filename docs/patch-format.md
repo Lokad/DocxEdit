@@ -344,6 +344,11 @@ Track-change behavior is selected by `check` or `apply`, not inside the patch:
 docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes require --author Agent
 ```
 
+Generated revisions use author `docxedit` when `--author` is omitted. The author
+must be non-empty after trimming. `--timestamp-utc` is normalized to UTC; when it
+is omitted, DocxEdit uses the current UTC timestamp from the apply/check
+invocation.
+
 Generated tracked output is intentionally narrow. The support matrix below is
 generated from `DocxHelp.RenderPatchTrackChangesSupportTable()` and is the same
 table printed by `docxedit help patch`.

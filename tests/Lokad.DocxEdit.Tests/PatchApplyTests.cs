@@ -573,6 +573,59 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireRejectsEmptyRevisionAuthor()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Require,
+            Author = " "
+        });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6003");
+        Assert.Equal("track-changes-revision-metadata", diagnostic.Feature);
+        Assert.Equal("no-output-written", diagnostic.Fallback);
+        Assert.Empty(result.Operations);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestRejectsEmptyRevisionAuthorBeforeWritingOutput()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = ""
+        });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E6003");
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
     public static void CheckTrackChangesRequireMatchesCatalogSupportForEveryPatchOperation()
     {
         foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
@@ -718,6 +771,36 @@ public static class PatchApplyTests
         Assert.Equal(timestamp, deletion.TimestampUtc);
         Assert.Equal("1", deletion.RevisionId);
         Assert.Equal("2", insertion.RevisionId);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestNormalizesRevisionAuthorAndTimestamp()
+    {
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = " Agent ",
+            TimestampUtc = DateTimeOffset.Parse("2026-06-08T14:00:00+02:00"),
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("w:author=\"Agent\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:date=\"2026-06-08T12:00:00.0000000+00:00\"", xml, StringComparison.Ordinal);
     }
 
     [Fact]

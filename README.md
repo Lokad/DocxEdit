@@ -78,6 +78,8 @@ the operation, target ID, catalog support value, and unsupported-shape reason.
 The complete support matrix is generated from
 `DocxHelp.RenderPatchTrackChangesSupportTable()` and appears in
 [`docs/patch-format.md`](docs/patch-format.md) and `docxedit help patch`.
+Generated revisions default to author `docxedit`; supplied authors are trimmed
+and must not be empty, and timestamps are normalized to UTC.
 
 Fresh agents are expected to rely on `docxedit help patch`, `docxedit help changes`, and `docxedit help dump` for the exact syntax. For product integrations, the same guidance is available from the NuGet library through `DocxHelp.Catalog`, and the CLI text output is reusable through `DocxTextRenderer`.
 

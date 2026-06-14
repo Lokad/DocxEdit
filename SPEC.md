@@ -539,7 +539,13 @@ machine-readable metadata: `W4001`/`E6001` use
 `Feature = "track-changes-no-revision-representation"`, `W4002`/`E6002` use
 `Feature = "track-changes-unsupported-target-shape"`, suggest fallbacks use
 `Fallback = "direct-edit-preserve-existing-revisions"`, and require failures use
-`Fallback = "require-failed"`.
+`Fallback = "require-failed"`. `Suggest` and `Require` must reject empty revision
+authors before operation execution with `E6003`, `Feature =
+"track-changes-revision-metadata"`, and `Fallback = "no-output-written"`.
+Generated revision authors are trimmed, and generated revision dates are rendered
+as invariant UTC ISO-8601 values. When no author is supplied, the CLI and public
+options default to `docxedit`; when no timestamp is supplied, the options default
+to the current UTC instant.
 
 The library must also expose stable plain-text renderers for public result objects:
 
