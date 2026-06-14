@@ -291,6 +291,9 @@ public static class DocxTextRenderer
             string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
             string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{EscapeText(change.TargetNote)}\"";
             string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
+            string operationIndex = change.OperationIndex is null ? string.Empty : $" operation-index={change.OperationIndex}";
+            string operationName = change.OperationName is null ? string.Empty : $" operation-name={EscapeText(change.OperationName)}";
+            string operationTarget = change.OperationTarget is null ? string.Empty : $" operation-target={change.OperationTarget}";
             string parentType = change.ParentType is null ? string.Empty : $" parent={EscapeText(change.ParentType)}";
             string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
             string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
@@ -328,6 +331,9 @@ public static class DocxTextRenderer
                 .Append(nearestTarget)
                 .Append(targetNote)
                 .Append(pairedChange)
+                .Append(operationIndex)
+                .Append(operationName)
+                .Append(operationTarget)
                 .Append(" text-length=")
                 .Append(change.TextLength)
                 .Append(" children=")

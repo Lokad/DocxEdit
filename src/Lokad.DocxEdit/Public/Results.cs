@@ -183,6 +183,9 @@ public sealed record DocxChangeInfo
     public string? NearestTargetId { get; init; }
     public string? TargetNote { get; init; }
     public string? PairedChangeId { get; init; }
+    public int? OperationIndex { get; init; }
+    public string? OperationName { get; init; }
+    public string? OperationTarget { get; init; }
 }
 
 public sealed record DocxChangeSummary(string Type, int Count);

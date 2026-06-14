@@ -446,6 +446,9 @@ internal static class TextRenderers
             string revisionId = change.RevisionId is null ? string.Empty : $" revision-id={Escape(change.RevisionId)}";
             string author = change.Author is null ? string.Empty : $" author=\"{Escape(change.Author)}\"";
             string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
+            string operationIndex = change.OperationIndex is null ? string.Empty : $" operation-index={change.OperationIndex}";
+            string operationName = change.OperationName is null ? string.Empty : $" operation-name={Escape(change.OperationName)}";
+            string operationTarget = change.OperationTarget is null ? string.Empty : $" operation-target={change.OperationTarget}";
             builder.Append("  ")
                 .Append(change.Id)
                 .Append(" type=")
@@ -454,6 +457,9 @@ internal static class TextRenderers
                 .Append(revisionId)
                 .Append(author)
                 .Append(timestamp)
+                .Append(operationIndex)
+                .Append(operationName)
+                .Append(operationTarget)
                 .Append(" child-elements=")
                 .Append(change.ChildElementCount)
                 .AppendLine();

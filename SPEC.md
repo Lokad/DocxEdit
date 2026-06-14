@@ -1418,7 +1418,9 @@ reported as diagnostics and preserved.
 
 Purpose: list tracked-change and comment markup. By default the command does not
 print private revision or comment text. `--include-comment-text` explicitly includes
-bounded comment body snippets.
+bounded comment body snippets. `--operation-report <path>` accepts a check/apply
+JSON report and annotates scanned revisions whose `revision-id` appears in the
+report's `GeneratedRevisionIds`.
 
 Plain output begins with summaries and ends with individual records:
 
@@ -1427,14 +1429,15 @@ inserted-run count=1
 summary group=story key="main" type=inserted-run count=1
 target-summary target=M.P0004 count=2 types="inserted-run:1,deleted-run:1"
 comment-summary comment-id=3 anchor-target=M.P0004 reference-target=M.P0004 count=4 types="comment:1,comment-range-start:1,comment-range-end:1,comment-reference:1"
-M.CH0001 inserted-run story="main" part=/word/document.xml parent=paragraph target=M.P0004 target-status=targeted target-source=ancestor text-length=8 children=1 revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00
+M.CH0001 inserted-run story="main" part=/word/document.xml parent=paragraph target=M.P0004 target-status=targeted target-source=ancestor operation-index=1 operation-name=replace-text operation-target=M.P0004 text-length=8 children=1 revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00
 ```
 
 With `--include-comment-text`, comment summaries and comment body records add
 `comment-text-length`, `comment-text`, and `comment-text-truncated` fields.
 
 JSON output includes `Summary`, `GroupSummary`, `TargetSummary`, `CommentSummary`,
-and `Changes`.
+and `Changes`. When `--operation-report` is supplied, matching `Changes` records
+include `OperationIndex`, `OperationName`, and `OperationTarget`.
 
 ### 9.8 `context`
 
@@ -2685,6 +2688,8 @@ operation index=2 name=append-row target=M.T0001 success=True
 
 Use `--report <path>` for the full JSON operation report. `GeneratedRevisionIds`
 is populated only for apply operations that actually create revision markup.
+Feed the same report to `changes --operation-report <path>` to annotate matching
+revision records with operation metadata.
 
 ### 13.2 `apply`
 
@@ -2944,6 +2949,7 @@ docxedit media input.docx --extract media
 docxedit validate input.docx
 docxedit validate input.docx --profile package
 docxedit changes input.docx
+docxedit changes output.docx --operation-report apply-report.json
 
 docxedit check input.docx edits.docxpatch
 docxedit apply input.docx edits.docxpatch --output output.docx
@@ -2973,12 +2979,13 @@ Options for read/probe commands:
 --view final|original|markup
 --radius <count>
 --max-text <chars>
+--operation-report <path>    # changes only
 --diagnostics <path>
 --strict
 --json
 ```
 
-`--diagnostics <path>` writes the full diagnostics array as JSON for any command. `--report <path>` remains the operation-level patch report for `check` and `apply`.
+`--diagnostics <path>` writes the full diagnostics array as JSON for any command. `--report <path>` remains the operation-level patch report for `check` and `apply`. `--operation-report <path>` on `changes` reads a check/apply report and annotates matching revision records.
 
 `--strict` must make an otherwise successful command return the strict-warning exit code when any warning or error diagnostic was emitted.
 
@@ -3627,8 +3634,9 @@ docxedit help patch
 
 `docxedit help changes` must describe `Summary`, `GroupSummary`, `TargetSummary`,
 `CommentSummary`, parent type, target status/source/reason fields, comment anchor
-fields, timestamp shape, range `paired-change-id`, and the explicit
-`--include-comment-text` / `--max-comment-text` privacy boundary.
+fields, timestamp shape, range `paired-change-id`, `--operation-report`
+operation annotations, and the explicit `--include-comment-text` /
+`--max-comment-text` privacy boundary.
 
 `docxedit help dump` must explain that `Runs[]` is structured JSON metadata and that
 dump run IDs are separate from `changes` change IDs.

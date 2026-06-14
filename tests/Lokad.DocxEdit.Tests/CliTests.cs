@@ -122,6 +122,7 @@ public static class CliTests
         Assert.Contains("comment-anchor-target", changes.Output, StringComparison.Ordinal);
         Assert.Contains("target-source", changes.Output, StringComparison.Ordinal);
         Assert.Contains("paired-change-id", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("--operation-report path", changes.Output, StringComparison.Ordinal);
         Assert.Contains("Some JSON consumers", changes.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("PowerShell", changes.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("ConvertFrom-Json", changes.Output, StringComparison.Ordinal);
@@ -385,6 +386,48 @@ public static class CliTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("operation index=1 name=replace-text target=M.P0001 success=True", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliChangesAnnotatesGeneratedRevisionsFromOperationReport()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string output = Path.Combine(temp.Path, "output.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        string report = Path.Combine(temp.Path, "apply-report.json");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, """
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+            """);
+
+        CliResult apply = RunCli(
+            "apply",
+            input,
+            patch,
+            "--output",
+            output,
+            "--track-changes",
+            "require",
+            "--author",
+            "Reviewer",
+            "--timestamp-utc",
+            "2026-01-01T00:00:00Z",
+            "--report",
+            report);
+        CliResult changes = RunCli("changes", output, "--operation-report", report);
+
+        Assert.Equal(0, apply.ExitCode);
+        Assert.Equal(0, changes.ExitCode);
+        Assert.Contains("operation-index=1", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("operation-name=replace-text", changes.Output, StringComparison.Ordinal);
+        Assert.Contains("operation-target=M.P0001", changes.Output, StringComparison.Ordinal);
     }
 
     [Fact]

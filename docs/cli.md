@@ -158,6 +158,17 @@ summaries, and individual markup records. Records include IDs, type, story, part
 normalized parent type, author/timestamp metadata, target IDs when known, text
 length, and child element counts.
 
+When a check/apply JSON report is available, pass it back to `changes` to link
+generated revision IDs to operation metadata:
+
+```text
+docxedit changes report.edited.docx --operation-report apply-report.json
+```
+
+Matching records include `operation-index`, `operation-name`, and
+`operation-target` in text output, and `OperationIndex`, `OperationName`, and
+`OperationTarget` in JSON.
+
 Target fields help interpret sparse OOXML markup:
 
 - `target-status`: whether the record is targeted, attached by a comment anchor,
@@ -214,6 +225,8 @@ docxedit apply report.docx edits.docxpatch --output report.edited.docx
 
 Both commands report one operation line per patch operation. Table operations also
 report affected row/cell IDs. Use `--report path` for the full JSON report.
+Generated revision IDs from the report can be correlated with
+`changes --operation-report`.
 
 Track-change modes:
 

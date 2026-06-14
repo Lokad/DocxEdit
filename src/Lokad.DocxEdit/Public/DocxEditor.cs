@@ -371,18 +371,64 @@ public sealed class DocxEditor
             };
         }
 
+        IReadOnlyList<DocxChangeInfo> annotatedChanges = AnnotateOperationReports(changes!, options.OperationReports);
+
         return new DocxChangesResult
         {
             Success = true,
             Diagnostics = diagnostics,
             PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
             MainDocumentPartName = package.MainDocumentPartName,
-            Changes = changes!,
-            Summary = DocxChangeScanner.Summarize(changes!),
-            GroupSummary = DocxChangeScanner.SummarizeGroups(changes!),
-            TargetSummary = DocxChangeScanner.SummarizeTargets(changes!),
-            CommentSummary = DocxChangeScanner.SummarizeComments(changes!)
+            Changes = annotatedChanges,
+            Summary = DocxChangeScanner.Summarize(annotatedChanges),
+            GroupSummary = DocxChangeScanner.SummarizeGroups(annotatedChanges),
+            TargetSummary = DocxChangeScanner.SummarizeTargets(annotatedChanges),
+            CommentSummary = DocxChangeScanner.SummarizeComments(annotatedChanges)
         };
+    }
+
+    private static IReadOnlyList<DocxChangeInfo> AnnotateOperationReports(
+        IReadOnlyList<DocxChangeInfo> changes,
+        IReadOnlyList<DocxPatchOperationReport> operationReports)
+    {
+        if (changes.Count == 0 || operationReports.Count == 0)
+        {
+            return changes;
+        }
+
+        var operationsByRevisionId = new Dictionary<string, DocxPatchOperationReport>(StringComparer.Ordinal);
+        foreach (DocxPatchOperationReport operation in operationReports.Where(operation => operation.Success))
+        {
+            foreach (string revisionId in operation.GeneratedRevisionIds)
+            {
+                if (!string.IsNullOrWhiteSpace(revisionId))
+                {
+                    operationsByRevisionId.TryAdd(revisionId, operation);
+                }
+            }
+        }
+
+        if (operationsByRevisionId.Count == 0)
+        {
+            return changes;
+        }
+
+        var annotated = new DocxChangeInfo[changes.Count];
+        for (int i = 0; i < changes.Count; i++)
+        {
+            DocxChangeInfo change = changes[i];
+            annotated[i] = change.RevisionId is not null &&
+                operationsByRevisionId.TryGetValue(change.RevisionId, out DocxPatchOperationReport? operation)
+                    ? change with
+                    {
+                        OperationIndex = operation.Index,
+                        OperationName = operation.OperationName,
+                        OperationTarget = operation.Target
+                    }
+                    : change;
+        }
+
+        return annotated;
     }
 
     public DocxPatch ParsePatch(

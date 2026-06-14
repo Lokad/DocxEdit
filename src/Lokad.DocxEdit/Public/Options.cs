@@ -85,6 +85,7 @@ public sealed class DocxChangesOptions
 {
     public bool IncludeCommentText { get; init; }
     public int MaxCommentText { get; init; } = 240;
+    public IReadOnlyList<DocxPatchOperationReport> OperationReports { get; init; } = [];
     public int MaxZipEntries { get; init; } = 10_000;
     public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
     public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;

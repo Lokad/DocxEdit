@@ -280,14 +280,15 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit changes input.docx [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit changes input.docx [--operation-report <path>] [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxChangesResult result = new DocxEditor().Changes(input, new DocxChangesOptions
         {
             IncludeCommentText = options.Flags.Contains("--include-comment-text"),
-            MaxCommentText = options.MaxCommentText ?? 240
+            MaxCommentText = options.MaxCommentText ?? 240,
+            OperationReports = ReadOperationReports(options.OperationReportPath)
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)
@@ -362,6 +363,18 @@ internal static class ProgramMain
 
         EnsureParentDirectory(path);
         File.WriteAllText(path, JsonSerializer.Serialize(diagnostics, JsonOptions));
+    }
+
+    private static IReadOnlyList<DocxPatchOperationReport> ReadOperationReports(string? path)
+    {
+        if (path is null)
+        {
+            return [];
+        }
+
+        using Stream input = File.OpenRead(path);
+        DocxApplyResult? report = JsonSerializer.Deserialize<DocxApplyResult>(input, JsonOptions);
+        return report?.Operations ?? [];
     }
 
     private static void WriteReport(string? path, object report)
@@ -487,6 +500,7 @@ internal static class ProgramMain
         bool Verbose,
         string? DiagnosticsPath,
         string? ReportPath,
+        string? OperationReportPath,
         string? OutputPath,
         string? Id,
         string? ExtractPath,
@@ -511,6 +525,7 @@ internal static class ProgramMain
             bool verbose = false;
             string? diagnosticsPath = null;
             string? reportPath = null;
+            string? operationReportPath = null;
             string? outputPath = null;
             string? id = null;
             string? extractPath = null;
@@ -556,6 +571,13 @@ internal static class ProgramMain
                         if (!TryReadValue(args, ref i, out reportPath))
                         {
                             return WithError(command, "Missing value for --report.");
+                        }
+
+                        break;
+                    case "--operation-report":
+                        if (!TryReadValue(args, ref i, out operationReportPath))
+                        {
+                            return WithError(command, "Missing value for --operation-report.");
                         }
 
                         break;
@@ -700,7 +722,7 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, outputPath, id, extractPath, maxText, maxCommentText, maxDiagnostics, radius, trackChanges, author, timestampUtc, textView, validationProfile, null);
+            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, operationReportPath, outputPath, id, extractPath, maxText, maxCommentText, maxDiagnostics, radius, trackChanges, author, timestampUtc, textView, validationProfile, null);
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -717,7 +739,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, DocxValidationProfile.Structural, message);
+            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, DocxValidationProfile.Structural, message);
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)

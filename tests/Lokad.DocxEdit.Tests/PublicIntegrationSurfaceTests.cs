@@ -242,7 +242,10 @@ public static class PublicIntegrationSurfaceTests
                     TargetSource = "ancestor",
                     TextLength = 14,
                     ChildElementCount = 1,
-                    Author = "Reviewer"
+                    Author = "Reviewer",
+                    OperationIndex = 1,
+                    OperationName = "replace-text",
+                    OperationTarget = "M.P0001"
                 }
             ]
         };
@@ -271,6 +274,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("inserted-run count=1", changeText, StringComparison.Ordinal);
         Assert.Contains("target-summary target=M.P0001 count=1", changeText, StringComparison.Ordinal);
         Assert.Contains("target-source=ancestor", changeText, StringComparison.Ordinal);
+        Assert.Contains("operation-index=1", changeText, StringComparison.Ordinal);
+        Assert.Contains("operation-name=replace-text", changeText, StringComparison.Ordinal);
+        Assert.Contains("operation-target=M.P0001", changeText, StringComparison.Ordinal);
         Assert.Contains("text-length=14", changeText, StringComparison.Ordinal);
         Assert.Contains("operation index=1 name=replace-text target=M.P0001 success=True", operationText, StringComparison.Ordinal);
         Assert.Contains("docxedit validate: FAILED", validateText, StringComparison.Ordinal);
