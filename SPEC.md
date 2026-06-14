@@ -534,7 +534,12 @@ with stable diagnostics, or for unknown/unclassified tracked-output behavior.
 Supported tracked operations may still reject an unsafe shape with `W4002` or
 `E6002`. Those diagnostics include the operation name, target ID, catalog support
 value, and exact unsupported-shape reason. `W4002` additionally states that
-`Suggest` is applying the edit directly.
+`Suggest` is applying the edit directly. Track-change diagnostics must also set
+machine-readable metadata: `W4001`/`E6001` use
+`Feature = "track-changes-no-revision-representation"`, `W4002`/`E6002` use
+`Feature = "track-changes-unsupported-target-shape"`, suggest fallbacks use
+`Fallback = "direct-edit-preserve-existing-revisions"`, and require failures use
+`Fallback = "require-failed"`.
 
 The library must also expose stable plain-text renderers for public result objects:
 

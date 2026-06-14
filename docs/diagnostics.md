@@ -20,17 +20,23 @@ Common code ranges:
 - `W91xx`: validation warning from `validate`.
 - `W4001`: `TrackChangesMode.Suggest` warning for an operation without tracked-change
   output; the message includes the shared catalog support value, and the edit is
-  applied directly.
+  applied directly. `Feature` is `track-changes-no-revision-representation` and
+  `Fallback` is `direct-edit-preserve-existing-revisions`.
 - `W4002`: `TrackChangesMode.Suggest` warning for a tracked-capable operation
   whose specific target shape cannot be represented as generated revision markup.
   The message includes the operation name, target ID, catalog support value, and
-  unsupported-shape reason; the edit is applied directly.
+  unsupported-shape reason; the edit is applied directly. `Feature` is
+  `track-changes-unsupported-target-shape` and `Fallback` is
+  `direct-edit-preserve-existing-revisions`.
 - `E6001`: `TrackChangesMode.Require` error for an operation without generated
   tracked-change output; the message includes the shared catalog support value.
+  `Feature` is `track-changes-no-revision-representation` and `Fallback` is
+  `require-failed`.
 - `E6002`: `TrackChangesMode.Require` error for a tracked-capable operation whose
   specific target shape cannot be represented as generated revision markup. The
   message includes the operation name, target ID, catalog support value, and
-  unsupported-shape reason.
+  unsupported-shape reason. `Feature` is
+  `track-changes-unsupported-target-shape` and `Fallback` is `require-failed`.
 - `E4310`: content-control edit requested a control kind, content container, or
   lock state that is not safely editable.
 - `E4312`: comment resolution state cannot be edited because the comment body shape

@@ -71,6 +71,9 @@ Implemented areas include:
   simply not modeled yet;
 - tracked-capable target-shape diagnostics through `W4002` and `E6002` that report
   the operation name, target ID, catalog support value, and unsupported-shape reason;
+- machine-readable track-change diagnostic metadata that separates missing revision
+  representation from unsupported target shape and direct-edit fallback from
+  require-mode failure;
 - structural/package validation profiles through `validate`, including known part roots, paired
   ranges, complex field balance/result-containment/flag consistency,
   content-control metadata consistency, missing paragraph style-reference warnings,

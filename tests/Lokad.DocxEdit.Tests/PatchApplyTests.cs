@@ -548,6 +548,8 @@ public static class PatchApplyTests
         Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("does not generate new revision markup", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("M.L0001", diagnostic.TargetId);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
     [Fact]
@@ -622,6 +624,8 @@ public static class PatchApplyTests
         Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("replacement contains tabs or line breaks", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
     [Fact]
@@ -779,6 +783,8 @@ public static class PatchApplyTests
         Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("target shape is unsupported: paragraph contains mixed direct run formatting", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("will apply operation 'replace-text' directly", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.DoesNotContain("<w:del ", xml, StringComparison.Ordinal);
@@ -819,6 +825,8 @@ public static class PatchApplyTests
         DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001" && diagnostic.Severity == DocxSeverity.Warning);
         Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("apply operation 'set-content-control-text' directly", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
         output.Position = 0;
         Assert.Equal("Customer", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }

@@ -80,13 +80,27 @@ internal static class DocxPatchEngine
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
             {
-                operationDiagnostics.Add(Diagnostic(DocxSeverity.Error, "E6001", BuildUnsupportedTrackedOperationMessage(options.TrackChanges, operation), operation, operation.Fields.GetValueOrDefault("target")));
+                operationDiagnostics.Add(Diagnostic(
+                    DocxSeverity.Error,
+                    "E6001",
+                    BuildUnsupportedTrackedOperationMessage(options.TrackChanges, operation),
+                    operation,
+                    operation.Fields.GetValueOrDefault("target"),
+                    "track-changes-no-revision-representation",
+                    "require-failed"));
             }
             else
             {
                 if (options.TrackChanges == TrackChangesMode.Suggest && !supportsTrackedChanges)
                 {
-                    operationDiagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4001", BuildUnsupportedTrackedOperationMessage(options.TrackChanges, operation), operation, operation.Fields.GetValueOrDefault("target")));
+                    operationDiagnostics.Add(Diagnostic(
+                        DocxSeverity.Warning,
+                        "W4001",
+                        BuildUnsupportedTrackedOperationMessage(options.TrackChanges, operation),
+                        operation,
+                        operation.Fields.GetValueOrDefault("target"),
+                        "track-changes-no-revision-representation",
+                        "direct-edit-preserve-existing-revisions"));
                 }
 
                 operationDiagnostics.AddRange(operation.OperationName switch
@@ -3478,11 +3492,25 @@ internal static class DocxPatchEngine
     {
         if (options.TrackChanges == TrackChangesMode.Require)
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E6002", BuildUnsupportedTrackedShapeMessage(options.TrackChanges, operation, target, reason), operation, target));
+            diagnostics.Add(Diagnostic(
+                DocxSeverity.Error,
+                "E6002",
+                BuildUnsupportedTrackedShapeMessage(options.TrackChanges, operation, target, reason),
+                operation,
+                target,
+                "track-changes-unsupported-target-shape",
+                "require-failed"));
             return false;
         }
 
-        diagnostics.Add(Diagnostic(DocxSeverity.Warning, "W4002", BuildUnsupportedTrackedShapeMessage(options.TrackChanges, operation, target, reason), operation, target));
+        diagnostics.Add(Diagnostic(
+            DocxSeverity.Warning,
+            "W4002",
+            BuildUnsupportedTrackedShapeMessage(options.TrackChanges, operation, target, reason),
+            operation,
+            target,
+            "track-changes-unsupported-target-shape",
+            "direct-edit-preserve-existing-revisions"));
         return true;
     }
 
@@ -8028,9 +8056,18 @@ internal static class DocxPatchEngine
         string code,
         string message,
         DocxPatchOperation operation,
-        string? targetId = null)
+        string? targetId = null,
+        string? feature = null,
+        string? fallback = null)
     {
-        return new DocxDiagnostic(severity, code, message, TargetId: targetId, OperationIndex: operation.Index);
+        return new DocxDiagnostic(
+            severity,
+            code,
+            message,
+            TargetId: targetId,
+            Feature: feature,
+            Fallback: fallback,
+            OperationIndex: operation.Index);
     }
 }
 
