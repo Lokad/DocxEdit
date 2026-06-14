@@ -810,7 +810,7 @@ internal static class DocxPatchEngine
 
         blockTarget.Block.Remove();
         SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static bool ParagraphHasSectionProperties(XElement paragraph)
