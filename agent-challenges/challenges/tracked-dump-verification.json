@@ -1,0 +1,29 @@
+{
+  "id": "tracked-dump-verification",
+  "title": "Verify A Tracked Edit With Changes And Dump Runs",
+  "tags": ["private", "track-changes", "dump", "runs", "verification"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Create an edited output document in the run directory using docxedit only.",
+    "Start with docxedit changes --json on the private input copy, then use read, context, find, or dump with low text limits to choose a small visible paragraph target that appears free of existing tracked-change, comment, field, hyperlink, drawing, or semantic-anchor boundaries.",
+    "Create a .docxpatch for a small replace-text edit with expect-text, or a small insert-after edit if replacement is not safe.",
+    "Run docxedit check before apply using --track-changes require, --author \"DocxEdit Challenge\", and --timestamp-utc \"2026-01-01T00:00:00Z\".",
+    "Apply to a separate output .docx under the run directory with the same track-change options.",
+    "Verify the output with docxedit changes --json and docxedit dump --runs --view markup --json on the edited target.",
+    "In the final response, report command classes, target IDs, diagnostic codes, change types, run markup types, and artifact filenames only; do not quote private document text."
+  ],
+  "successCriteria": [
+    "Uses changes --json before and after the edit.",
+    "Uses dump --runs --view markup on the edited output target.",
+    "Uses check before apply with --track-changes require.",
+    "Produces an output .docx if a safe target exists, or stops with the relevant diagnostics if require-mode tracking cannot be represented.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Could the agent discover a safe tracked-edit target without document-specific hints?",
+    "Did it understand that changes IDs and dump run IDs are different namespaces?",
+    "Did dump --runs expose enough inserted/deleted run metadata to verify the edit?",
+    "Did the agent avoid falling back to direct edits when require-mode tracking failed?",
+    "Were any docxedit commands confusing enough to cause retries or malformed patches?"
+  ]
+}
