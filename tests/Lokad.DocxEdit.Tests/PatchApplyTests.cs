@@ -500,6 +500,38 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesSuggestSetFieldResultReportsComplexFieldBoundaryDiagnostic()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            text 2
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.False(result.Success);
+        DocxDiagnostic trackDiagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains("operation 'set-field-result'", trackDiagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", trackDiagnostic.Message, StringComparison.Ordinal);
+        DocxDiagnostic fieldDiagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E4313");
+        Assert.Equal("M.F0001", fieldDiagnostic.TargetId);
+        Assert.Contains("supports only simple w:fldSimple fields", fieldDiagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CheckSetFieldCodeRejectsMismatchedGuard()
     {
         using MemoryStream input = CreateDocxWithBody("""
