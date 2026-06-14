@@ -210,7 +210,7 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Bookmarks | `read`, `context` | Use bookmark IDs or unambiguous `bookmark:"Name"` selectors; duplicate names are diagnosed; table-spanning replacements require one replacement line per visible text slot |
 | Content controls | `read`, `context` | Metadata includes kind, tag, alias, lock state, safe-edit status/reason, checkbox/dropdown/date details, hierarchy IDs, and duplicate selector candidates |
 | Comments | `changes`, `context`, `dump` | Comment operations target a paragraph, `comment:<id>`, or a comment body ID; context exposes thread topology as IDs without comment body text |
-| Fields | `read`, `outline`, `context` | DocxEdit can update simple field metadata/caches, but Word remains responsible for general recalculation |
+| Fields | `read`, `outline`, `context` | Field metadata includes parsed arguments/switches and refresh policy; DocxEdit can refresh REF-style bookmark fields and QUOTE literal fields, but Word remains responsible for general recalculation |
 | Hyperlinks | `read`, `outline`, `context`, `dump --runs` | External patch targets must be absolute `http`, `https`, or `mailto`; internal targets use bookmark anchors |
 | Images | `read`, `outline`, `media` | Editable image records are inline or anchored DrawingML images; linked images and complex drawing shapes are preserve-only diagnostics |
 | Tables | `read`, `context` | Cell IDs use visual grid coordinates; row operations are safest on simple rectangular tables |

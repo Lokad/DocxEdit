@@ -2596,8 +2596,13 @@ public static class ReadApiTests
         Assert.Equal("June 12, 2026", simple.CachedResultText);
         Assert.Equal(13, simple.ResultTextLength);
         Assert.Equal(0, simple.NestingDepth);
+        Assert.Empty(simple.Arguments);
+        Assert.Empty(simple.Switches);
         Assert.Empty(simple.BookmarkDependencies);
         Assert.Empty(simple.HyperlinkDependencies);
+        Assert.Equal("date-time", simple.RefreshPolicy);
+        Assert.False(simple.CanRefreshDeterministically);
+        Assert.Contains("date/time", simple.RefreshReason, StringComparison.Ordinal);
         Assert.Equal("locked", simple.SafeEditStatus);
         Assert.True(simple.IsDirty);
         Assert.True(simple.IsLocked);
@@ -2612,8 +2617,12 @@ public static class ReadApiTests
         Assert.Equal("Client result", complex.CachedResultText);
         Assert.Equal(13, complex.ResultTextLength);
         Assert.Equal(0, complex.NestingDepth);
+        Assert.Equal(new[] { "ClientName" }, complex.Arguments);
+        Assert.Equal(new[] { "\\H" }, complex.Switches);
         Assert.Equal(new[] { "ClientName" }, complex.BookmarkDependencies);
         Assert.Empty(complex.HyperlinkDependencies);
+        Assert.Equal("same-part-bookmark", complex.RefreshPolicy);
+        Assert.True(complex.CanRefreshDeterministically);
         Assert.Equal("flags-only", complex.SafeEditStatus);
         Assert.True(complex.IsDirty);
         Assert.Null(complex.IsLocked);
@@ -2623,6 +2632,9 @@ public static class ReadApiTests
         Assert.Contains("cached-result=\"June 12, 2026\"", result.Text, StringComparison.Ordinal);
         Assert.Contains("safe-edit=locked", result.Text, StringComparison.Ordinal);
         Assert.Contains(@"code=""REF ClientName \\h""", result.Text, StringComparison.Ordinal);
+        Assert.Contains("arguments=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("switches=\"\\\\H\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("refresh-policy=same-part-bookmark", result.Text, StringComparison.Ordinal);
         Assert.Contains("bookmark-dependencies=\"ClientName\"", result.Text, StringComparison.Ordinal);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1003" && diagnostic.Fallback == "modeled-metadata");
     }

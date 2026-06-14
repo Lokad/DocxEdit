@@ -384,11 +384,16 @@ public sealed record DocxFieldInfo
     public string Kind { get; init; } = "unknown";
     public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
+    public IReadOnlyList<string> Arguments { get; init; } = [];
+    public IReadOnlyList<string> Switches { get; init; } = [];
     public string CachedResultText { get; init; } = string.Empty;
     public int ResultTextLength { get; init; }
     public int NestingDepth { get; init; }
     public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];
     public IReadOnlyList<string> HyperlinkDependencies { get; init; } = [];
+    public string RefreshPolicy { get; init; } = "unsupported";
+    public string? RefreshReason { get; init; }
+    public bool CanRefreshDeterministically { get; init; }
     public string SafeEditStatus { get; init; } = "unknown";
     public bool? IsDirty { get; init; }
     public bool? IsLocked { get; init; }

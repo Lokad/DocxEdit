@@ -439,7 +439,7 @@ public static class DocxHelp
                         ]),
                         new("Fields",
                         [
-                            "Read and context output surface simple and complex field metadata, including parsed field type, normalized field code, cached result text/length, nesting depth, REF/PAGEREF/NOTEREF bookmark dependencies, HYPERLINK URI/anchor dependencies, safe-edit status, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, refresh simple REF/PAGEREF/NOTEREF cached results from unambiguous same-part bookmarks, and mark the document for field updates after other edits, but Word remains responsible for general field recalculation. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
+                            "Read and context output surface simple and complex field metadata, including parsed field type, normalized field code, parsed arguments/switches, refresh policy/reason, cached result text/length, nesting depth, REF/PAGEREF/NOTEREF bookmark dependencies, HYPERLINK URI/anchor dependencies, safe-edit status, dirty flags, and lock flags. Patch operations can set field dirty/lock flags on one existing field or on target all, update simple-field code/result caches, refresh simple REF/PAGEREF/NOTEREF cached results from unambiguous same-part bookmarks, refresh simple QUOTE literal fields, and mark the document for field updates after other edits, but Word remains responsible for general field recalculation. Unsupported refresh diagnostics classify layout, document-property, formula, mail-merge, date/time, conditional, and external-state fields. Apply emits W5103 when a document containing fields was marked for Word-side refresh."
                         ]),
                         new("Hyperlinks",
                         [
@@ -891,7 +891,7 @@ public static class DocxHelp
                 PreserveOnly(
                     "refresh-field-result",
                     ["target"],
-                    "Field refresh updates cached result text from modeled document state; generated revision markup for the refresh is not modeled yet.",
+                    "Field refresh updates cached result text from modeled document state for REF/PAGEREF/NOTEREF bookmark fields and QUOTE literal fields; unsupported refresh types return categorized E4313 diagnostics. Generated revision markup for the refresh is not modeled yet.",
                     ["expect-code", "expect-result"]),
                 PreserveOnly(
                     "set-hyperlink-target",

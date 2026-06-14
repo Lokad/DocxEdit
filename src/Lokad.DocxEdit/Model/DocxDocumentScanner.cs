@@ -755,11 +755,16 @@ internal static class DocxDocumentScanner
                     Kind = "simple",
                     FieldType = metadata.FieldType,
                     Code = code,
+                    Arguments = metadata.Arguments,
+                    Switches = metadata.Switches,
                     CachedResultText = cachedResultText,
                     ResultTextLength = cachedResultText.Length,
                     NestingDepth = stack.Count,
                     BookmarkDependencies = metadata.BookmarkDependencies,
                     HyperlinkDependencies = metadata.HyperlinkDependencies,
+                    RefreshPolicy = metadata.RefreshPolicy,
+                    RefreshReason = metadata.RefreshReason,
+                    CanRefreshDeterministically = metadata.CanRefreshDeterministically,
                     SafeEditStatus = DetermineFieldSafeEditStatus("simple", complete: true, isLocked),
                     IsDirty = ReadOnOffAttribute(element, "dirty"),
                     IsLocked = isLocked,
@@ -973,10 +978,12 @@ internal static class DocxDocumentScanner
         string[] tokens = TokenizeFieldCode(code);
         if (tokens.Length == 0)
         {
-            return new FieldCodeMetadata(null, [], []);
+            return new FieldCodeMetadata(null, [], [], [], [], "unsupported", "field code is empty", false);
         }
 
         string fieldType = NormalizeFieldType(tokens[0]);
+        string[] arguments = ReadFieldArguments(tokens);
+        string[] switches = ReadFieldSwitches(tokens);
         var bookmarkDependencies = new List<string>();
         var hyperlinkDependencies = new List<string>();
         if (fieldType is "REF" or "PAGEREF" or "NOTEREF")
@@ -988,10 +995,16 @@ internal static class DocxDocumentScanner
             ReadHyperlinkFieldDependencies(tokens, hyperlinkDependencies, bookmarkDependencies);
         }
 
+        FieldRefreshProfile refresh = ClassifyFieldRefresh(fieldType);
         return new FieldCodeMetadata(
             fieldType,
+            arguments,
+            switches,
             DistinctNonEmpty(bookmarkDependencies),
-            DistinctNonEmpty(hyperlinkDependencies));
+            DistinctNonEmpty(hyperlinkDependencies),
+            refresh.Policy,
+            refresh.Reason,
+            refresh.CanRefreshDeterministically);
     }
 
     private static string[] TokenizeFieldCode(string code)
@@ -1034,6 +1047,41 @@ internal static class DocxDocumentScanner
     private static string NormalizeFieldType(string token)
     {
         return token.StartsWith('=') ? "FORMULA" : token.ToUpperInvariant();
+    }
+
+    private static string[] ReadFieldArguments(string[] tokens)
+    {
+        return tokens
+            .Skip(1)
+            .Where(token => !token.StartsWith('\\'))
+            .ToArray();
+    }
+
+    private static string[] ReadFieldSwitches(string[] tokens)
+    {
+        return tokens
+            .Skip(1)
+            .Where(token => token.StartsWith('\\'))
+            .Select(token => token.ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static FieldRefreshProfile ClassifyFieldRefresh(string fieldType)
+    {
+        return fieldType switch
+        {
+            "REF" or "PAGEREF" or "NOTEREF" => new("same-part-bookmark", "refreshes from an unambiguous same-part bookmark", true),
+            "QUOTE" => new("literal", "refreshes from literal field-code arguments", true),
+            "TOC" or "PAGE" or "NUMPAGES" or "SECTIONPAGES" => new("word-layout", "requires Word layout or pagination state", false),
+            "DOCPROPERTY" or "DOCVARIABLE" or "AUTHOR" or "TITLE" or "SUBJECT" or "KEYWORDS" => new("document-property", "requires document property state", false),
+            "MERGEFIELD" or "MERGEREC" or "MERGESEQ" or "NEXT" or "NEXTIF" or "SKIPIF" => new("mail-merge-data", "requires mail merge data or mail merge state", false),
+            "FORMULA" => new("formula", "requires Word formula evaluation", false),
+            "IF" => new("conditional", "requires Word conditional field evaluation", false),
+            "DATE" or "TIME" or "CREATEDATE" or "SAVEDATE" or "PRINTDATE" => new("date-time", "requires Word date/time evaluation", false),
+            "HYPERLINK" or "INCLUDETEXT" or "INCLUDEPICTURE" or "LINK" => new("external", "requires hyperlink or external target state", false),
+            _ => new("unsupported", "field type is not modeled for deterministic refresh", false)
+        };
     }
 
     private static void AddFirstFieldOperand(string[] tokens, List<string> dependencies)
@@ -1628,8 +1676,15 @@ internal static class DocxDocumentScanner
 
     private sealed record FieldCodeMetadata(
         string? FieldType,
+        IReadOnlyList<string> Arguments,
+        IReadOnlyList<string> Switches,
         IReadOnlyList<string> BookmarkDependencies,
-        IReadOnlyList<string> HyperlinkDependencies);
+        IReadOnlyList<string> HyperlinkDependencies,
+        string RefreshPolicy,
+        string? RefreshReason,
+        bool CanRefreshDeterministically);
+
+    private sealed record FieldRefreshProfile(string Policy, string? Reason, bool CanRefreshDeterministically);
 
     private sealed class ComplexFieldBuilder(XElement startElement, string? targetId, int nestingDepth)
     {
@@ -1657,11 +1712,16 @@ internal static class DocxDocumentScanner
                 Kind = "complex",
                 FieldType = metadata.FieldType,
                 Code = code,
+                Arguments = metadata.Arguments,
+                Switches = metadata.Switches,
                 CachedResultText = resultText,
                 ResultTextLength = resultText.Length,
                 NestingDepth = NestingDepth,
                 BookmarkDependencies = metadata.BookmarkDependencies,
                 HyperlinkDependencies = metadata.HyperlinkDependencies,
+                RefreshPolicy = metadata.RefreshPolicy,
+                RefreshReason = metadata.RefreshReason,
+                CanRefreshDeterministically = metadata.CanRefreshDeterministically,
                 SafeEditStatus = DetermineFieldSafeEditStatus("complex", complete, IsLocked),
                 IsDirty = IsDirty,
                 IsLocked = IsLocked,

@@ -187,18 +187,20 @@ unsupported WordprocessingML shapes without private document details.
 - Simple `w:fldSimple` fields expose normalized code, parsed type, cached result
   text/length, dirty/lock flags, dependencies, and safe-edit status.
 - Complex begin/separate/end fields expose normalized code, parsed type, cached
-  result text/length, nesting depth, dependencies, dirty/lock flags,
-  completeness, and safe-edit status.
+  result text/length, parsed arguments/switches, refresh policy/reason, nesting
+  depth, dependencies, dirty/lock flags, completeness, and safe-edit status.
 - Nested complex fields are modeled; outer cached results include visible nested
   field results.
 - REF/PAGEREF/NOTEREF dependencies are surfaced. HYPERLINK field URI/anchor
   dependencies are surfaced.
 - Simple field code and cached result replacement are supported with guards.
 - Simple REF-style cached results can be refreshed from one unambiguous
-  same-part, same-paragraph bookmark.
-- General field recalculation, TOC rebuilding, formulas, DOCPROPERTY, MERGEFIELD,
-  and complex-field code/result rewriting remain Word-side or unsupported
-  workflows. DocxEdit can mark fields dirty and request Word-side update.
+  same-part, same-paragraph bookmark. Simple `QUOTE` cached results can be
+  refreshed from literal field-code arguments.
+- General field recalculation, TOC rebuilding, PAGE pagination, formulas,
+  DOCPROPERTY, MERGEFIELD, IF, DATE/TIME, and complex-field code/result rewriting
+  remain Word-side or unsupported workflows with explicit `E4313` refresh
+  diagnostics. DocxEdit can mark fields dirty and request Word-side update.
 - Malformed field boundaries, duplicate separators, orphan instruction text,
   invalid field-char types, invalid dirty/lock flags, and invalid result
   containment are validated.

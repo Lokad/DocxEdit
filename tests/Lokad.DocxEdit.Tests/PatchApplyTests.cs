@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security;
 using System.Text;
 using System.Xml.Linq;
 
@@ -512,6 +513,39 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyRefreshQuoteFieldResultFromLiteralArguments()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" QUOTE &quot;Acme Corp&quot; " w:dirty="true">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op refresh-field-result
+            target M.F0001
+            expect-result Old cached result
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
+        Assert.Equal("QUOTE", field.FieldType);
+        Assert.Equal(new[] { "Acme Corp" }, field.Arguments);
+        Assert.Equal("literal", field.RefreshPolicy);
+        Assert.True(field.CanRefreshDeterministically);
+        Assert.Equal("Acme Corp", field.CachedResultText);
+        Assert.Null(field.IsDirty);
+    }
+
+    [Fact]
     public static void CheckRefreshFieldResultRejectsAmbiguousBookmark()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -545,6 +579,45 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic =>
             diagnostic.Code == "E4313" &&
             diagnostic.Message.Contains("ambiguous", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("TOC \\o \"1-3\"", "TOC", "layout")]
+    [InlineData("PAGE", "PAGE", "pagination")]
+    [InlineData("DOCPROPERTY Title", "DOCPROPERTY", "document property")]
+    [InlineData("MERGEFIELD CustomerName", "MERGEFIELD", "mail merge")]
+    [InlineData("IF \"A\" = \"A\" \"Yes\" \"No\"", "IF", "conditional")]
+    [InlineData("= 1 + 1", "FORMULA", "formula")]
+    [InlineData("DATE", "DATE", "date/time")]
+    public static void CheckRefreshFieldResultRejectsNonGoalFieldTypesWithSpecificDiagnostics(
+        string fieldCode,
+        string expectedType,
+        string expectedReason)
+    {
+        using MemoryStream input = CreateDocxWithBody($"""
+                    <w:p>
+                      <w:fldSimple w:instr="{SecurityElement.Escape(fieldCode)}">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op refresh-field-result
+            target M.F0001
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4313", diagnostic.Code);
+        Assert.Equal("M.F0001", diagnostic.TargetId);
+        Assert.Contains($"field type '{expectedType}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedReason, diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("QUOTE", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -2221,9 +2221,22 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
         }
 
+        if (TryReadQuoteFieldText(currentCode, out string? quoteText))
+        {
+            if (!apply)
+            {
+                return [];
+            }
+
+            ReplaceSimpleFieldResult(fieldTarget.Element, quoteText!);
+            fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", null);
+            SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
+            return [];
+        }
+
         if (!TryReadRefFieldBookmarkName(currentCode, out string? bookmarkName))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} supports only REF, PAGEREF, and NOTEREF fields with one bookmark operand.", operation, target)];
+            return [UnsupportedFieldRefreshDiagnostic(operation, target!, currentCode)];
         }
 
         if (!TryReadSimpleBookmarkText(fieldTarget.Document, bookmarkName!, out string? bookmarkText, out string? unsupportedReason))
@@ -2258,7 +2271,7 @@ internal static class DocxPatchEngine
             return false;
         }
 
-        string fieldType = tokens[0].ToUpperInvariant();
+        string fieldType = NormalizeFieldTypeForPatch(tokens[0]);
         if (fieldType is not ("REF" or "PAGEREF" or "NOTEREF"))
         {
             return false;
@@ -2276,6 +2289,59 @@ internal static class DocxPatchEngine
         }
 
         return false;
+    }
+
+    private static bool TryReadQuoteFieldText(string code, out string? text)
+    {
+        text = null;
+        string[] tokens = TokenizeFieldCodeForPatch(code);
+        if (tokens.Length < 2 || NormalizeFieldTypeForPatch(tokens[0]) != "QUOTE")
+        {
+            return false;
+        }
+
+        string[] arguments = tokens
+            .Skip(1)
+            .TakeWhile(token => !token.StartsWith('\\'))
+            .ToArray();
+        if (arguments.Length == 0)
+        {
+            return false;
+        }
+
+        text = string.Join(" ", arguments);
+        return true;
+    }
+
+    private static DocxDiagnostic UnsupportedFieldRefreshDiagnostic(
+        DocxPatchOperation operation,
+        string target,
+        string code)
+    {
+        string[] tokens = TokenizeFieldCodeForPatch(code);
+        string fieldType = tokens.Length == 0 ? "unknown" : NormalizeFieldTypeForPatch(tokens[0]);
+        string reason = fieldType switch
+        {
+            "TOC" or "PAGE" or "NUMPAGES" or "SECTIONPAGES" => "requires Word layout or pagination state",
+            "DOCPROPERTY" or "DOCVARIABLE" or "AUTHOR" or "TITLE" or "SUBJECT" or "KEYWORDS" => "requires document property state",
+            "MERGEFIELD" or "MERGEREC" or "MERGESEQ" or "NEXT" or "NEXTIF" or "SKIPIF" => "requires mail merge data or mail merge state",
+            "FORMULA" => "requires Word formula evaluation",
+            "IF" => "requires Word conditional field evaluation",
+            "DATE" or "TIME" or "CREATEDATE" or "SAVEDATE" or "PRINTDATE" => "requires Word date/time evaluation",
+            "HYPERLINK" or "INCLUDETEXT" or "INCLUDEPICTURE" or "LINK" => "requires hyperlink or external target state",
+            _ => "is not modeled for deterministic refresh"
+        };
+        return Diagnostic(
+            DocxSeverity.Error,
+            "E4313",
+            $"Field refresh for {target} does not support field type '{fieldType}': {reason}. Supported deterministic refresh fields are REF, PAGEREF, NOTEREF, and QUOTE.",
+            operation,
+            target);
+    }
+
+    private static string NormalizeFieldTypeForPatch(string token)
+    {
+        return token.StartsWith('=') ? "FORMULA" : token.ToUpperInvariant();
     }
 
     private static string[] TokenizeFieldCodeForPatch(string code)

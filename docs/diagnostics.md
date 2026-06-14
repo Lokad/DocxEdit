@@ -45,8 +45,10 @@ Common code ranges:
   lock state that is not safely editable.
 - `E4312`: comment resolution state cannot be edited because the comment body shape
   cannot safely host modern resolution metadata.
-- `E4313`: field code/result replacement was requested for a field shape that is not
-  safely editable by the requested operation.
+- `E4313`: field code/result replacement or refresh was requested for a field shape
+  or field type that is not safely editable by the requested operation. Refresh
+  diagnostics distinguish layout/pagination, document-property, formula,
+  mail-merge, date/time, conditional, and external-state requirements.
 - `E4314`: a threaded comment reply operation would require unsafe thread metadata
   changes, such as missing parent metadata, a non-reply target, or deleting a reply
   that still has child replies.

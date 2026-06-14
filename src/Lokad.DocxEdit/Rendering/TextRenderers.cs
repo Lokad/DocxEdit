@@ -119,8 +119,11 @@ internal static class TextRenderers
         {
             string target = field.TargetId is null ? " target=unknown" : $" target={field.TargetId}";
             string fieldType = field.FieldType is null ? string.Empty : $" type={Escape(field.FieldType)}";
+            string arguments = field.Arguments.Count == 0 ? string.Empty : $" arguments=\"{Escape(string.Join(",", field.Arguments))}\"";
+            string switches = field.Switches.Count == 0 ? string.Empty : $" switches=\"{Escape(string.Join(",", field.Switches))}\"";
             string bookmarkDependencies = field.BookmarkDependencies.Count == 0 ? string.Empty : $" bookmark-dependencies=\"{Escape(string.Join(",", field.BookmarkDependencies))}\"";
             string hyperlinkDependencies = field.HyperlinkDependencies.Count == 0 ? string.Empty : $" hyperlink-dependencies=\"{Escape(string.Join(",", field.HyperlinkDependencies))}\"";
+            string refreshReason = field.RefreshReason is null ? string.Empty : $" refresh-reason=\"{Escape(field.RefreshReason)}\"";
             string safeEdit = $" safe-edit={Escape(field.SafeEditStatus)}";
             string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
             string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
@@ -141,8 +144,15 @@ internal static class TextRenderers
                 .Append(field.ResultTextLength)
                 .Append(" nesting-depth=")
                 .Append(field.NestingDepth)
+                .Append(arguments)
+                .Append(switches)
                 .Append(bookmarkDependencies)
                 .Append(hyperlinkDependencies)
+                .Append(" refresh-policy=")
+                .Append(Escape(field.RefreshPolicy))
+                .Append(" deterministic-refresh=")
+                .Append(field.CanRefreshDeterministically.ToString().ToLowerInvariant())
+                .Append(refreshReason)
                 .Append(safeEdit)
                 .Append(dirty)
                 .Append(locked)
@@ -303,7 +313,7 @@ internal static class TextRenderers
             string target = field.TargetId is null ? "unknown" : field.TargetId;
             string fieldType = field.FieldType is null ? string.Empty : $" type={Escape(field.FieldType)}";
             string safeEdit = $" safe-edit={Escape(field.SafeEditStatus)}";
-            lines.Add($"{field.Id} field kind={Escape(field.Kind)}{fieldType} target={target} code=\"{Escape(field.Code)}\" nesting-depth={field.NestingDepth}{safeEdit}");
+            lines.Add($"{field.Id} field kind={Escape(field.Kind)}{fieldType} target={target} code=\"{Escape(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={Escape(field.RefreshPolicy)} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)

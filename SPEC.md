@@ -1095,11 +1095,16 @@ public sealed record DocxFieldInfo
     public string Kind { get; init; } = "unknown";
     public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
+    public IReadOnlyList<string> Arguments { get; init; } = [];
+    public IReadOnlyList<string> Switches { get; init; } = [];
     public string CachedResultText { get; init; } = string.Empty;
     public int ResultTextLength { get; init; }
     public int NestingDepth { get; init; }
     public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];
     public IReadOnlyList<string> HyperlinkDependencies { get; init; } = [];
+    public string RefreshPolicy { get; init; } = "unsupported";
+    public string? RefreshReason { get; init; }
+    public bool CanRefreshDeterministically { get; init; }
     public string SafeEditStatus { get; init; } = "unknown";
     public bool? IsDirty { get; init; }
     public bool? IsLocked { get; init; }
@@ -1109,8 +1114,10 @@ public sealed record DocxFieldInfo
 
 Field IDs use the `F` namespace, for example `M.F0001`. They are metadata IDs, not
 general text edit targets. `CachedResultText` is the stored visible result currently
-in the document, not a recalculated value. `set-field-dirty` and `set-field-lock`
-explicitly accept field metadata IDs.
+in the document, not a recalculated value. `Arguments`, `Switches`, `RefreshPolicy`,
+`RefreshReason`, and `CanRefreshDeterministically` summarize parsed field-code
+behavior for agent planning. `set-field-dirty` and `set-field-lock` explicitly
+accept field metadata IDs.
 
 ### 8.10 Hyperlink model
 
@@ -2045,7 +2052,8 @@ Rules:
   only patch operation.
 * `refresh-field-result` updates simple `w:fldSimple` REF/PAGEREF/NOTEREF cached
   results from exactly one same-part bookmark whose range is a simple same-paragraph
-  range without protected OOXML boundaries. It supports optional normalized
+  range without protected OOXML boundaries. It also refreshes simple `QUOTE`
+  fields from literal field-code arguments. It supports optional normalized
   `expect-code` and exact `expect-result` guards and does not trigger
   document-level field-update marking when it is the only patch operation.
 * Complex-field code/result replacement is not supported yet and fails with `E4313`.
