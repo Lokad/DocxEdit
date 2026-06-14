@@ -952,6 +952,44 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestAllocatesRevisionIdsAcrossWordStories()
+    {
+        using MemoryStream input = CreateDocxWithRevisionIdsAcrossStories();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0002
+            find increased
+            with rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Agent",
+            TimestampUtc = DateTimeOffset.Parse("2026-06-08T12:00:00Z").ToUniversalTime(),
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string documentXml = ReadDocumentXml(output);
+        Assert.Contains("w:id=\"31\" w:author=\"Agent\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"32\" w:author=\"Agent\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"9\" w:author=\"Main\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"21\" w:author=\"Table\"", documentXml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("w:id=\"12\" w:author=\"Header\"", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("w:id=\"17\" w:author=\"Footer\"", ReadEntry(output, "word/footer1.xml"), StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("w:id=\"30\" w:author=\"Comment\"", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForDeletedParagraph()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -5204,6 +5242,96 @@ public static class PatchApplyTests
                 """ + footerContent + """
 
                 </w:ftr>
+                """);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithRevisionIdsAcrossStories()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+                  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <w:body>
+                    <w:p>
+                      <w:ins w:id="9" w:author="Main" w:date="2026-06-01T00:00:00Z">
+                        <w:r><w:t>Main revision</w:t></w:r>
+                      </w:ins>
+                    </w:p>
+                    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:p>
+                            <w:ins w:id="21" w:author="Table" w:date="2026-06-01T00:00:00Z">
+                              <w:r><w:t>Table revision</w:t></w:r>
+                            </w:ins>
+                          </w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:p><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rHeader"/><w:footerReference w:type="default" r:id="rFooter"/></w:sectPr></w:pPr></w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p>
+                    <w:del w:id="12" w:author="Header" w:date="2026-06-01T00:00:00Z">
+                      <w:r><w:delText>Header revision</w:delText></w:r>
+                    </w:del>
+                  </w:p>
+                </w:hdr>
+                """);
+            AddEntry(archive, "word/footer1.xml", """
+                <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p>
+                    <w:pPr>
+                      <w:pStyle w:val="Normal"/>
+                      <w:pPrChange w:id="17" w:author="Footer" w:date="2026-06-01T00:00:00Z">
+                        <w:pPr/>
+                      </w:pPrChange>
+                    </w:pPr>
+                    <w:r><w:t>Footer text</w:t></w:r>
+                  </w:p>
+                </w:ftr>
+                """);
+            AddEntry(archive, "word/comments.xml", """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Commenter">
+                    <w:p>
+                      <w:ins w:id="30" w:author="Comment" w:date="2026-06-01T00:00:00Z">
+                        <w:r><w:t>Comment revision</w:t></w:r>
+                      </w:ins>
+                    </w:p>
+                  </w:comment>
+                </w:comments>
                 """);
         }
 
