@@ -82,6 +82,8 @@ Generated revisions default to author `docxedit`; supplied authors are trimmed
 and must not be empty, and timestamps are normalized to UTC.
 When `apply` creates revision markup, operation reports include the generated
 revision IDs for verification with `changes`.
+Section column and orientation edits are tracked as section property revisions
+when the section does not already carry `w:sectPrChange` markup.
 
 Fresh agents are expected to rely on `docxedit help patch`, `docxedit help changes`, and `docxedit help dump` for the exact syntax. For product integrations, the same guidance is available from the NuGet library through `DocxHelp.Catalog`, and the CLI text output is reusable through `DocxTextRenderer`.
 

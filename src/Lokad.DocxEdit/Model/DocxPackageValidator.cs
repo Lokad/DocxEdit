@@ -189,6 +189,14 @@ internal static class DocxPackageValidator
                     diagnostics.Add(Error("E9121", "Cell property revision w:tcPrChange is missing child w:tcPr.", partName));
                 }
             }
+            else if (element.Name == OoxmlNs.W + "sectPrChange")
+            {
+                ValidateRevisionMetadata(element, "sectPrChange", partName, diagnostics);
+                if (element.Element(OoxmlNs.W + "sectPr") is null)
+                {
+                    diagnostics.Add(Error("E9121", "Section property revision w:sectPrChange is missing child w:sectPr.", partName));
+                }
+            }
             else if (element.Name == OoxmlNs.W + "delText" &&
                 !element.Ancestors(OoxmlNs.W + "del").Any())
             {

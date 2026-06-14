@@ -2455,6 +2455,12 @@ Rules:
 * Support equal-width columns only.
 * `count` must be between 1 and 4 in v0.1.
 * Update or create `w:sectPr/w:cols`.
+* In tracked output, record the previous section properties in
+  `w:sectPrChange` while preserving header/footer references and page-size
+  metadata.
+* If the section already contains `w:sectPrChange`, `Suggest` applies the edit
+  directly with `W4002` and `Require` fails with `E6002` so existing section
+  property revision markup is not replaced.
 * Do not attempt to move content between columns.
 
 ### 11.17 `set-section-orientation`
@@ -2472,6 +2478,13 @@ Rules:
 * Orientation must be `portrait` or `landscape`.
 * Update `w:pgSz/@w:orient`.
 * If changing orientation and page width/height are known, swap width and height when needed.
+* In tracked output, record the previous section properties in
+  `w:sectPrChange`; the current `w:pgSz` receives the new orientation and
+  swapped dimensions, while the prior size/orientation remains in the change
+  record.
+* If the section already contains `w:sectPrChange`, `Suggest` applies the edit
+  directly with `W4002` and `Require` fails with `E6002` so existing section
+  property revision markup is not replaced.
 
 ---
 
@@ -2536,6 +2549,8 @@ insert-hyperlink-after simple inserted hyperlink display text as w:ins inside th
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
 set-table-style      table style property changes as w:tblPrChange
 set-row-header       repeating-row header property changes as w:trPrChange
+set-section-columns  section column property changes as w:sectPrChange
+set-section-orientation section page orientation changes as w:sectPrChange
 ```
 
 The supported tracked text shapes must not contain tabs, line breaks, soft hyphens,
@@ -2567,7 +2582,9 @@ preserves relationship or anchor metadata and wraps the inserted display text in
 fails under `require`. `set-style` records the previous paragraph properties in
 `w:pPrChange`. `set-table-style` records previous table properties in
 `w:tblPrChange`, and `set-row-header` records previous row properties in
-`w:trPrChange`.
+`w:trPrChange`. `set-section-columns` and `set-section-orientation` record
+previous section properties in `w:sectPrChange` while preserving page size and
+header/footer references.
 
 Known preserve-only operations:
 
@@ -2601,8 +2618,6 @@ set-image-wrap
 set-image-position
 set-image-crop
 delete-image
-set-section-columns
-set-section-orientation
 ```
 
 In `Suggest`, these preserve-only operations apply directly and return `W4001`

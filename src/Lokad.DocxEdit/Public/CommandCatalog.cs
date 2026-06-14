@@ -64,6 +64,7 @@ public static class DocxHelp
     private const string TrackClassParagraphProperty = "paragraph-property";
     private const string TrackClassTableProperty = "table-property";
     private const string TrackClassRowProperty = "row-property";
+    private const string TrackClassSectionProperty = "section-property";
     private const string TrackClassPreserveOnly = "preserve-only";
     private const string TrackClassUnsupported = "unsupported";
 
@@ -1016,15 +1017,19 @@ public static class DocxHelp
                     ["target"],
                     "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
                     ["expect-content-type"]),
-                PreserveOnly(
+                Tracked(
                     "set-section-columns",
                     ["target", "count"],
-                    "Section column updates are section properties; generated w:sectPrChange output is not modeled yet.",
+                    TrackClassSectionProperty,
+                    "tracked-section-columns",
+                    "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous section properties and references; existing section property revisions fall back or fail instead of being replaced.",
                     ["expect-columns", "expect-orientation"]),
-                PreserveOnly(
+                Tracked(
                     "set-section-orientation",
                     ["target", "orientation"],
-                    "Section orientation updates are section properties; generated w:sectPrChange output is not modeled yet.",
+                    TrackClassSectionProperty,
+                    "tracked-section-orientation",
+                    "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous page size, section properties, and references; existing section property revisions fall back or fail instead of being replaced.",
                     ["expect-columns", "expect-orientation"])
             ]
         };

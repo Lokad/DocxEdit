@@ -74,6 +74,14 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("text-run", insertHyperlinkAfter.TrackChangesSupportClass);
         Assert.Equal("tracked-hyperlink-insert", insertHyperlinkAfter.TrackChangesSupport);
         Assert.True(insertHyperlinkAfter.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-section-columns", out DocxPatchOperationInfo setSectionColumns));
+        Assert.Equal("section-property", setSectionColumns.TrackChangesSupportClass);
+        Assert.Equal("tracked-section-columns", setSectionColumns.TrackChangesSupport);
+        Assert.True(setSectionColumns.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-section-orientation", out DocxPatchOperationInfo setSectionOrientation));
+        Assert.Equal("section-property", setSectionOrientation.TrackChangesSupportClass);
+        Assert.Equal("tracked-section-orientation", setSectionOrientation.TrackChangesSupport);
+        Assert.True(setSectionOrientation.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("add-comment-reply", out DocxPatchOperationInfo addCommentReply));
         Assert.Equal("unsupported", addCommentReply.TrackChangesSupportClass);
         Assert.Equal("unsupported", addCommentReply.TrackChangesSupport);
@@ -118,6 +126,8 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
         Assert.Contains("set-table-style | table-property | tracked-table-style", table, StringComparison.Ordinal);
         Assert.Contains("set-row-header | row-property | tracked-row-header", table, StringComparison.Ordinal);
+        Assert.Contains("set-section-columns | section-property | tracked-section-columns", table, StringComparison.Ordinal);
+        Assert.Contains("set-section-orientation | section-property | tracked-section-orientation", table, StringComparison.Ordinal);
         Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
 
         string repoRoot = FindRepoRoot();

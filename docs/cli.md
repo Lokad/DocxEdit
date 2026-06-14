@@ -229,7 +229,10 @@ replacement including compatible multi-paragraph text-only cells. Simple
 paragraph-only comment body replacement can also emit tracked revisions in
 `comments.xml`, and simple inserted hyperlink display text can be wrapped in
 tracked insertion markup. Table style and row-header updates emit property
-revision markup.
+revision markup. Section column and orientation updates emit section property
+revision markup unless the section already contains `w:sectPrChange`; in that
+case `suggest` falls back to a direct edit with `W4002`, and `require` fails
+with `E6002`.
 Unsupported tracked shapes produce `W4001`, `W4002`, `E6001`, or `E6002`
 depending on the selected mode.
 

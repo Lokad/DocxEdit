@@ -160,8 +160,8 @@ internal static class DocxPatchEngine
                     "set-image-position" => ExecuteSetImagePosition(package, operation, apply, cancellationToken),
                     "set-image-crop" => ExecuteSetImageCrop(package, operation, apply, cancellationToken),
                     "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
-                    "set-section-columns" => ExecuteSetSectionColumns(package, operation, apply, cancellationToken),
-                    "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, apply, cancellationToken),
+                    "set-section-columns" => ExecuteSetSectionColumns(package, operation, options, apply, generatedRevisionIds, cancellationToken),
+                    "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
                 });
             }
@@ -4433,6 +4433,27 @@ internal static class DocxPatchEngine
             oldRowProperties));
     }
 
+    private static void SetSectionPropertiesWithTrackedChange(
+        OoxmlPackage package,
+        XElement sectionProperties,
+        Action<XElement> update,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        XElement oldSectionProperties = new(sectionProperties);
+        oldSectionProperties.Elements(OoxmlNs.W + "sectPrChange").Remove();
+        update(sectionProperties);
+        sectionProperties.Elements(OoxmlNs.W + "sectPrChange").Remove();
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
+        sectionProperties.Add(new XElement(
+            OoxmlNs.W + "sectPrChange",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", GetRevisionAuthor(options)),
+            new XAttribute(OoxmlNs.W + "date", GetRevisionTimestamp(options)),
+            oldSectionProperties));
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ValidateTrackChangeOptions(DocxEditOptions options)
     {
         if (!IsTrackedMode(options))
@@ -5674,7 +5695,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetSectionColumns(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -5701,27 +5724,47 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && sectionTarget.SectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any())
+        {
+            if (!TrackUnsupportedShape(options, operation, target!, "section already contains tracked section property revision markup", diagnostics))
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
         }
 
-        XElement? columns = sectionTarget.SectionProperties.Element(OoxmlNs.W + "cols");
-        if (columns is null)
+        if (useTrackedChanges)
         {
-            columns = new XElement(OoxmlNs.W + "cols");
-            sectionTarget.SectionProperties.Add(columns);
+            SetSectionPropertiesWithTrackedChange(
+                package,
+                sectionTarget.SectionProperties,
+                properties => SetSectionColumns(properties, count),
+                options,
+                generatedRevisionIds,
+                cancellationToken);
+        }
+        else
+        {
+            SetSectionColumns(sectionTarget.SectionProperties, count);
         }
 
-        columns.SetAttributeValue(OoxmlNs.W + "num", count.ToString());
         SaveMainDocument(package, sectionTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetSectionOrientation(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -5748,29 +5791,39 @@ internal static class DocxPatchEngine
             return diagnostics;
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && sectionTarget.SectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any())
+        {
+            if (!TrackUnsupportedShape(options, operation, target!, "section already contains tracked section property revision markup", diagnostics))
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
         }
 
-        XElement? pageSize = sectionTarget.SectionProperties.Element(OoxmlNs.W + "pgSz");
-        if (pageSize is null)
+        if (useTrackedChanges)
         {
-            pageSize = new XElement(OoxmlNs.W + "pgSz");
-            sectionTarget.SectionProperties.AddFirst(pageSize);
+            SetSectionPropertiesWithTrackedChange(
+                package,
+                sectionTarget.SectionProperties,
+                properties => SetSectionOrientation(properties, orientation!),
+                options,
+                generatedRevisionIds,
+                cancellationToken);
         }
-
-        string? currentOrientation = (string?)pageSize.Attribute(OoxmlNs.W + "orient") ?? "portrait";
-        if (!string.Equals(currentOrientation, orientation, StringComparison.Ordinal) &&
-            pageSize.Attribute(OoxmlNs.W + "w") is XAttribute width &&
-            pageSize.Attribute(OoxmlNs.W + "h") is XAttribute height)
+        else
         {
-            (width.Value, height.Value) = (height.Value, width.Value);
+            SetSectionOrientation(sectionTarget.SectionProperties, orientation!);
         }
 
-        pageSize.SetAttributeValue(OoxmlNs.W + "orient", orientation);
         SaveMainDocument(package, sectionTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCell(
@@ -7070,9 +7123,19 @@ internal static class DocxPatchEngine
 
         XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
         int currentOrdinal = 0;
-        foreach (XElement element in body.Descendants(OoxmlNs.W + "sectPr"))
+        foreach (XElement block in body.Elements())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            XElement? element = block.Name == OoxmlNs.W + "p"
+                ? block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr")
+                : block.Name == OoxmlNs.W + "sectPr"
+                    ? block
+                    : null;
+            if (element is null)
+            {
+                continue;
+            }
+
             currentOrdinal++;
             if (currentOrdinal == sectionOrdinal)
             {
@@ -8545,6 +8608,38 @@ internal static class DocxPatchEngine
         }
 
         tableHeader.SetAttributeValue(OoxmlNs.W + "val", null);
+    }
+
+    private static void SetSectionColumns(XElement sectionProperties, int count)
+    {
+        XElement? columns = sectionProperties.Element(OoxmlNs.W + "cols");
+        if (columns is null)
+        {
+            columns = new XElement(OoxmlNs.W + "cols");
+            sectionProperties.Add(columns);
+        }
+
+        columns.SetAttributeValue(OoxmlNs.W + "num", count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static void SetSectionOrientation(XElement sectionProperties, string orientation)
+    {
+        XElement? pageSize = sectionProperties.Element(OoxmlNs.W + "pgSz");
+        if (pageSize is null)
+        {
+            pageSize = new XElement(OoxmlNs.W + "pgSz");
+            sectionProperties.AddFirst(pageSize);
+        }
+
+        string? currentOrientation = (string?)pageSize.Attribute(OoxmlNs.W + "orient") ?? "portrait";
+        if (!string.Equals(currentOrientation, orientation, StringComparison.Ordinal) &&
+            pageSize.Attribute(OoxmlNs.W + "w") is XAttribute width &&
+            pageSize.Attribute(OoxmlNs.W + "h") is XAttribute height)
+        {
+            (width.Value, height.Value) = (height.Value, width.Value);
+        }
+
+        pageSize.SetAttributeValue(OoxmlNs.W + "orient", orientation);
     }
 
     private static bool IsVerticalMergeContinuation(XElement cell)

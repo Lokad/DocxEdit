@@ -1137,6 +1137,9 @@ public static class PatchApplyTests
                         <w:pPrChange w:id="4" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
                       </w:pPr>
                     </w:p>
+                    <w:sectPr>
+                      <w:sectPrChange w:id="8" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
+                    </w:sectPr>
                     <w:tbl>
                       <w:tblPr>
                         <w:tblPrChange w:id="5" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
@@ -1165,6 +1168,7 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:tblPrChange", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:trPrChange", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:tcPrChange", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:sectPrChange", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -5623,7 +5627,7 @@ public static class PatchApplyTests
         target M.S0001
         orientation landscape
         """)]
-    public static void CheckTrackChangesRequireRejectsSectionOperationsAsPreserveOnly(string operationName, string operationFields)
+    public static void CheckTrackChangesRequireAllowsSectionPropertyRevisions(string operationName, string operationFields)
     {
         using MemoryStream input = CreateDocxWithReferencedSection();
         using var patch = new StringReader($"""
@@ -5636,12 +5640,8 @@ public static class PatchApplyTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
-        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "E6001" or "E6002");
     }
 
     [Theory]
@@ -5653,7 +5653,7 @@ public static class PatchApplyTests
         target M.S0001
         orientation landscape
         """, "w:orient=\"landscape\"", "w:w=\"15840\"", "w:h=\"12240\"")]
-    public static void ApplyTrackChangesSuggestWarnsForSectionOperationsAsPreserveOnly(
+    public static void ApplyTrackChangesSuggestGeneratesSectionPropertyRevisions(
         string operationName,
         string operationFields,
         string expectedXml,
@@ -5673,12 +5673,8 @@ public static class PatchApplyTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.True(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
-        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
-        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["1"], Assert.Single(result.Operations).GeneratedRevisionIds);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains(expectedXml, xml, StringComparison.Ordinal);
@@ -5686,8 +5682,74 @@ public static class PatchApplyTests
         Assert.Contains(expectedHeight, xml, StringComparison.Ordinal);
         Assert.Contains("<w:headerReference w:type=\"default\" r:id=\"rHeader\"", xml, StringComparison.Ordinal);
         Assert.Contains("<w:footerReference w:type=\"default\" r:id=\"rFooter\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:sectPrChange w:id=\"1\"", xml, StringComparison.Ordinal);
         Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
         Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains(new DocxEditor().Changes(output).Summary, summary => summary.Type == "section-properties-change" && summary.Count == 1);
+    }
+
+    [Theory]
+    [InlineData("set-section-columns", """
+        target M.S0001
+        count 2
+        """)]
+    [InlineData("set-section-orientation", """
+        target M.S0001
+        orientation landscape
+        """)]
+    public static void CheckTrackChangesRequireRejectsExistingSectionPropertyRevisions(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithExistingSectionPropertyRevision();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("section already contains tracked section property revision markup", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("set-section-columns", """
+        target M.S0001
+        count 2
+        """, "w:num=\"2\"")]
+    [InlineData("set-section-orientation", """
+        target M.S0001
+        orientation landscape
+        """, "w:orient=\"landscape\"")]
+    public static void ApplyTrackChangesSuggestPreservesExistingSectionPropertyRevisionsByDirectFallback(
+        string operationName,
+        string operationFields,
+        string expectedXml)
+    {
+        using MemoryStream input = CreateDocxWithExistingSectionPropertyRevision();
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains(expectedXml, xml, StringComparison.Ordinal);
+        Assert.Contains("<w:sectPrChange w:id=\"7\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:sectPrChange w:id=\"1\"", xml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -8439,6 +8501,23 @@ public static class PatchApplyTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static MemoryStream CreateDocxWithExistingSectionPropertyRevision()
+    {
+        return CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                      <w:sectPrChange w:id="7" w:author="Reviewer" w:date="2026-06-08T12:00:00Z">
+                        <w:sectPr>
+                          <w:pgSz w:w="12240" w:h="15840"/>
+                          <w:cols w:num="2"/>
+                        </w:sectPr>
+                      </w:sectPrChange>
+                    </w:sectPr>
+            """);
     }
 
     private static MemoryStream CreateDocxWithHeaderFooterContent(string headerContent, string footerContent)
