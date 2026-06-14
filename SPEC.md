@@ -332,9 +332,9 @@ public sealed class DocxEditOptions
 
 Read-only option classes share the same package-limit and `LeaveInputOpen` defaults,
 including `DocxValidateOptions`.
-`DocxReadOptions`, `DocxFindOptions`, `DocxDumpOptions`, and `DocxContextOptions`
-also accept `DocxTextView` (`Final`, `Original`, or `Markup`) where visible text is
-rendered. `DocxContextOptions.MaxText` defaults to `0`; callers opt in when context
+`DocxReadOptions`, `DocxOutlineOptions`, `DocxFindOptions`, `DocxDumpOptions`, and
+`DocxContextOptions` also accept `DocxTextView` (`Final`, `Original`, or `Markup`)
+where visible text is rendered. `DocxContextOptions.MaxText` defaults to `0`; callers opt in when context
 items should include text snippets. `DocxChangesOptions` defaults to private-text-free
 change/comment metadata and requires explicit opt-in for comment body snippets:
 
@@ -848,6 +848,16 @@ without exposing document text. Supported label formats include decimal, zero-pa
 decimal, upper/lower letters, upper/lower roman numerals, bullets, and nested
 `lvlText` tokens whose referenced counters are known.
 
+List labels are computed from the numbered paragraphs visible in the selected
+`DocxTextView`. Block-level `w:ins` and `w:moveTo` paragraphs participate in
+final and markup counters but not original counters. Block-level `w:del` and
+`w:moveFrom` paragraphs participate in original and markup counters but not final
+counters. Run-level revision text inside an existing numbered paragraph changes
+the paragraph text view but does not change numbering participation. Paragraph
+property revisions that store previous `w:numPr` state are preserved and reported
+with `W1026`; original-view reconstruction of those previous numbering
+properties is not modeled.
+
 ### 8.4 Run model
 
 ```csharp
@@ -1341,6 +1351,10 @@ story="main" paragraphs=1510
 
 Purpose: show only sections, headings, tables, images, bookmarks, content controls,
 headers, and footers.
+
+`outline` uses `DocxOutlineOptions.TextView`. In `markup` view, heading text and
+list labels include block-level inserted/deleted headings according to the same
+numbering visibility policy as `read`, `find`, `dump`, and `context`.
 
 ```text
 M.P0001 heading level=1 list numId=1 level=0 label="1." text="Executive Summary"
@@ -2871,6 +2885,7 @@ W1022 OLE object detected
 W1023 unsupported internal part hyperlink detected
 W1024 picture bullet numbering detected
 W1025 unsupported numbering format detected
+W1026 tracked numbering property revision detected
 ```
 
 These warnings do not mean the library may corrupt the document. They mean the feature is preserved, ignored, approximated, or made read-only according to the operation semantics.
@@ -2958,6 +2973,7 @@ docxedit help apply
 docxedit read input.docx
 docxedit read input.docx --summary
 docxedit outline input.docx
+docxedit outline input.docx --view markup
 docxedit find input.docx "some text"
 docxedit dump input.docx --id M.P0004 --runs
 docxedit context input.docx --id M.P0004
@@ -3622,6 +3638,7 @@ Help:
 Examples:
   docxedit read report.docx [--view final|original|markup]
   docxedit read report.docx --summary
+  docxedit outline report.docx --view markup
   docxedit dump report.docx --id M.P0004 --runs
   docxedit context report.docx --id M.P0004
   docxedit media report.docx --extract media

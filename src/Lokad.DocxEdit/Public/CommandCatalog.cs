@@ -430,7 +430,7 @@ public static class DocxHelp
                     [
                         new("List and style metadata",
                         [
-                            "Paragraph records may include StyleId, StyleName, and resolved List metadata. List metadata reports concrete numbering ID, zero-based level, abstract numbering ID, format, level text, paragraph style link, source=style or source=style-inherited when numbering comes from style inheritance, visible labels, and structured label components for deterministic decimal, letter, roman, bullet, and nested lvlText patterns. Picture bullets and unsupported custom numbering formats are preserved and reported through diagnostics."
+                            "Paragraph records may include StyleId, StyleName, and resolved List metadata. List metadata reports concrete numbering ID, zero-based level, abstract numbering ID, format, level text, paragraph style link, source=style or source=style-inherited when numbering comes from style inheritance, visible labels, and structured label components for deterministic decimal, letter, roman, bullet, and nested lvlText patterns. List counters follow the selected text view for block-level inserted/deleted numbered paragraphs. Picture bullets, unsupported custom numbering formats, and tracked numbering property revisions are preserved and reported through diagnostics."
                         ]),
                         new("Bookmarks and content controls",
                         [
@@ -464,11 +464,12 @@ public static class DocxHelp
                     Name = "outline",
                     Category = "read",
                     Summary = "Show headings, tables, images, sections, headers, footers",
-                    Usage = "docxedit outline input.docx [--json] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit outline input.docx [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]",
                     Description = "Show headings, tables, images, sections, headers, and footers.",
                     Options =
                     [
                         new("--headers-footers", "Include header/footer stories"),
+                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
                         new("--json", "Print the result object as JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),
                         new("--strict", "Return 3 when warnings are present")
@@ -477,7 +478,7 @@ public static class DocxHelp
                     [
                         new("Numbered headings",
                         [
-                            "Heading lines include compact resolved list metadata when the heading paragraph has numbering."
+                            "Heading lines include compact resolved list metadata when the heading paragraph has numbering. The selected text view controls whether block-level inserted or deleted headings participate in the outline and list-label counters."
                         ])
                     ]
                 },
@@ -732,6 +733,7 @@ public static class DocxHelp
             [
                 "docxedit read report.docx [--view final|original|markup]",
                 "docxedit read report.docx --summary",
+                "docxedit outline report.docx --view markup",
                 "docxedit dump report.docx --id M.P0004 --runs",
                 "docxedit context report.docx --id M.P0004",
                 "docxedit media report.docx --extract media",

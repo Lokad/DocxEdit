@@ -1263,6 +1263,255 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadNumberingLabelsFollowBlockRevisionTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>First</w:t></w:r>
+                    </w:p>
+                    <w:ins w:id="1" w:author="Alice">
+                      <w:p>
+                        <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:p>
+                    </w:ins>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Second</w:t></w:r>
+                    </w:p>
+                    <w:del w:id="2" w:author="Bob">
+                      <w:p>
+                        <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:delText>Deleted</w:delText></w:r>
+                      </w:p>
+                    </w:del>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Third</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["First", "Inserted", "Second", "Third"], finalView.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3.", "4."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["First", "Second", "Deleted", "Third"], originalView.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3.", "4."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["First", "[+Inserted+]", "Second", "[-Deleted-]", "Third"], markupView.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3.", "4.", "5."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+
+        stream.Position = 0;
+        DocxFindResult finalFind = editor.Find(stream, "Deleted");
+        Assert.Empty(finalFind.Matches);
+
+        stream.Position = 0;
+        DocxFindResult originalFind = editor.Find(stream, "Deleted", new DocxFindOptions { TextView = DocxTextView.Original });
+        Assert.Contains("M.P0003 list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"3.\" label-components=\"0:3:decimal:3\" start=1 text=\"Deleted\"", originalFind.Matches);
+
+        stream.Position = 0;
+        DocxContextResult originalContext = editor.Context(stream, "M.P0003", new DocxContextOptions { TextView = DocxTextView.Original, Radius = 0, MaxText = 20 });
+        DocxContextItem contextTarget = Assert.Single(originalContext.Items);
+        Assert.Equal("Deleted", contextTarget.Text);
+        Assert.Equal("3.", contextTarget.List?.LabelText);
+
+        stream.Position = 0;
+        DocxOutlineResult finalOutline = editor.Outline(stream);
+        Assert.DoesNotContain(finalOutline.Lines, line => line.Contains("Deleted", StringComparison.Ordinal));
+        Assert.Contains(finalOutline.Lines, line => line.Contains("M.P0002 heading level=1", StringComparison.Ordinal) && line.Contains("label=\"2.\"", StringComparison.Ordinal) && line.Contains("Inserted", StringComparison.Ordinal));
+
+        stream.Position = 0;
+        DocxOutlineResult markupOutline = editor.Outline(stream, new DocxOutlineOptions { TextView = DocxTextView.Markup });
+        Assert.Contains(markupOutline.Lines, line => line.Contains("M.P0004 heading level=1", StringComparison.Ordinal) && line.Contains("label=\"4.\"", StringComparison.Ordinal) && line.Contains("[-Deleted-]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ReadNumberingLabelsFollowMultiLevelBlockRevisionTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top one</w:t></w:r>
+                    </w:p>
+                    <w:ins w:id="1" w:author="Alice">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:t>Inserted child</w:t></w:r>
+                      </w:p>
+                    </w:ins>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Normal child</w:t></w:r>
+                    </w:p>
+                    <w:del w:id="2" w:author="Bob">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:delText>Deleted child</w:delText></w:r>
+                      </w:p>
+                    </w:del>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top two</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                    <w:lvl w:ilvl="1">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1.%2."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["1.", "1.1.", "1.2.", "2."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "1.1.", "1.2.", "2."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "1.1.", "1.2.", "1.3.", "2."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal("Inserted child", finalView.Paragraphs[1].Text);
+        Assert.Equal("Deleted child", originalView.Paragraphs[2].Text);
+        Assert.Equal("[-Deleted child-]", markupView.Paragraphs[3].Text);
+    }
+
+    [Fact]
+    public static void ReadNumberingStartOverridesFollowBlockRevisionTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default one</w:t></w:r>
+                    </w:p>
+                    <w:ins w:id="1" w:author="Alice">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                        <w:r><w:t>Inserted override</w:t></w:r>
+                      </w:p>
+                    </w:ins>
+                    <w:del w:id="2" w:author="Bob">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                        <w:r><w:delText>Deleted override</w:delText></w:r>
+                      </w:p>
+                    </w:del>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default two</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                  <w:num w:numId="10">
+                    <w:abstractNumId w:val="7"/>
+                    <w:lvlOverride w:ilvl="0">
+                      <w:startOverride w:val="7"/>
+                    </w:lvlOverride>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["1.", "7.", "2."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "7.", "2."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "7.", "8.", "2."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(7, finalView.Paragraphs[1].List?.StartValue);
+        Assert.Equal(7, originalView.Paragraphs[1].List?.StartValue);
+        Assert.Equal(7, markupView.Paragraphs[1].List?.StartValue);
+    }
+
+    [Fact]
+    public static void ReadWarnsWhenNumberingPropertyRevisionAffectsOriginalViewLabels()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr>
+                        <w:pPrChange w:id="3" w:author="Alice">
+                          <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                        </w:pPrChange>
+                      </w:pPr>
+                      <w:r><w:t>Changed numbering</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                  <w:num w:numId="10"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+
+        DocxReadResult result = new DocxEditor().Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W1026" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "tracked-numbering-property-revision");
+    }
+
+    [Fact]
     public static void ReadUsesNumberingStartOverridePerNumberingInstance()
     {
         using MemoryStream stream = CreateDocxWithStylesAndNumbering(

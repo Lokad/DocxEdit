@@ -68,7 +68,8 @@ Common read-model warning features include `tracked-changes`, `hyperlink`, `fiel
 Fallback values describe the behavior used by the reader, such as `selected-text-view`, `plain-text`,
 `changes-metadata`, `preserve-only`, `omit-from-editable-images`, `invalid-uri`,
 `missing-anchor`, `duplicate-anchor`, `unsupported-internal-part-link`, or
-`basic-section-model`, `unsupported-picture-bullet`, or `unsupported-numbering-format`.
+`basic-section-model`, `unsupported-picture-bullet`, `unsupported-numbering-format`,
+or `tracked-numbering-property-revision`.
 
 Unsupported drawing warnings distinguish editable image records from preserve-only
 OOXML shapes. Linked images (`W1019`) are not fetched or listed as editable images.
@@ -79,8 +80,11 @@ Hyperlink warnings distinguish broken relationships (`W1015`), invalid external 
 targets (`W1016`), missing or duplicate anchors (`W1017`/`W1018`), and preserved but
 unsupported internal part links (`W1023`).
 
-Numbering warnings distinguish preserved picture bullets (`W1024`) and `numFmt`
-values that DocxEdit cannot expand into deterministic labels (`W1025`).
+Numbering warnings distinguish preserved picture bullets (`W1024`), `numFmt`
+values that DocxEdit cannot expand into deterministic labels (`W1025`), and
+tracked paragraph property revisions that carry previous `w:numPr` state
+(`W1026`). For `W1026`, final-view labels use current numbering properties, while
+original-view reconstruction of the previous numbering properties is not modeled.
 
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.
 

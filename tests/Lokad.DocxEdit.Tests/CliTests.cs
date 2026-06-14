@@ -460,6 +460,25 @@ public static class CliTests
         Assert.DoesNotContain("Inserted", result.Output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CliOutlineSupportsMarkupTrackedChangeView()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "numbered-headings.docx");
+        CreateDocxWithTrackedNumberedHeadings(input);
+
+        CliResult final = RunCli("outline", input);
+        CliResult markup = RunCli("outline", input, "--view", "markup");
+
+        Assert.Equal(0, final.ExitCode);
+        Assert.Contains("Inserted heading", final.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deleted heading", final.Output, StringComparison.Ordinal);
+        Assert.Equal(0, markup.ExitCode);
+        Assert.Contains("[+Inserted heading+]", markup.Output, StringComparison.Ordinal);
+        Assert.Contains("[-Deleted heading-]", markup.Output, StringComparison.Ordinal);
+        Assert.Contains("label=\"3.\"", markup.Output, StringComparison.Ordinal);
+    }
+
     private static CliResult RunCli(params string[] args)
     {
         string repoRoot = FindRepoRoot();
@@ -600,6 +619,64 @@ public static class CliTests
                 </w:p>
               </w:body>
             </w:document>
+            """);
+    }
+
+    private static void CreateDocxWithTrackedNumberedHeadings(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p>
+                  <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                  <w:r><w:t>Kept heading</w:t></w:r>
+                </w:p>
+                <w:ins w:id="1" w:author="Alice">
+                  <w:p>
+                    <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                    <w:r><w:t>Inserted heading</w:t></w:r>
+                  </w:p>
+                </w:ins>
+                <w:del w:id="2" w:author="Bob">
+                  <w:p>
+                    <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                    <w:r><w:delText>Deleted heading</w:delText></w:r>
+                  </w:p>
+                </w:del>
+              </w:body>
+            </w:document>
+            """);
+        AddEntry(archive, "word/numbering.xml", """
+            <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:abstractNum w:abstractNumId="7">
+                <w:lvl w:ilvl="0">
+                  <w:start w:val="1"/>
+                  <w:numFmt w:val="decimal"/>
+                  <w:lvlText w:val="%1."/>
+                </w:lvl>
+              </w:abstractNum>
+              <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+            </w:numbering>
             """);
     }
 

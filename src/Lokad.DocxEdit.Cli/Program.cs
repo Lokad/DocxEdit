@@ -97,13 +97,14 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit outline input.docx [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage("Usage: docxedit outline input.docx [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]");
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
         DocxOutlineResult result = new DocxEditor().Outline(input, new DocxOutlineOptions
         {
-            IncludeHeadersFooters = options.Flags.Contains("--headers-footers")
+            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+            TextView = options.TextView
         });
         WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (options.Json)

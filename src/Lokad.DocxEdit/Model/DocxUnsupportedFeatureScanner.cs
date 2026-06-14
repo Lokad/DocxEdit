@@ -129,6 +129,7 @@ internal static class DocxUnsupportedFeatureScanner
         AddWarningIfAny(diagnostics, "W1005", "bookmark", "modeled-metadata", CountAny(document, [OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are surfaced as metadata and preserved; bookmark range editing is limited.");
         AddWarningIfAny(diagnostics, "W1006", "content-control", "modeled-metadata", Count(document, OoxmlNs.W + "sdt"), partName, story, "Content controls are surfaced as metadata and preserved; content-control editing is limited.");
         AddWarningIfAny(diagnostics, "W1007", "floating-image", "modeled-metadata", Count(document, OoxmlNs.Wp + "anchor"), partName, story, "Floating images are surfaced as image metadata and preserved; full layout editing is limited.");
+        AddWarningIfAny(diagnostics, "W1026", "numbering", "tracked-numbering-property-revision", CountNumberingPropertyRevisions(document), partName, story, "Tracked paragraph property revisions include previous numbering state; final-view labels use current numbering, but original-view label reconstruction for previous numbering is not modeled.");
         AddWarningIfAny(diagnostics, "W1009", "chart", "preserve-only", CountWhere(document, element => element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)), partName, story, "Charts are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1010", "smart-art", "preserve-only", CountWhere(document, element => element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)), partName, story, "SmartArt and diagram content are preserved but are not modeled.");
         AddWarningIfAny(diagnostics, "W1011", "equation", "preserve-only", CountWhere(document, element => element.Name.NamespaceName == "http://schemas.openxmlformats.org/officeDocument/2006/math"), partName, story, "Equations are preserved but are not modeled.");
@@ -226,6 +227,15 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "numFmt")
             .Select(element => (string?)element.Attribute(OoxmlNs.W + "val"))
             .Count(format => !string.IsNullOrWhiteSpace(format) && !SupportedNumberingFormats.Contains(format!));
+    }
+
+    private static int CountNumberingPropertyRevisions(XDocument document)
+    {
+        return document
+            .Descendants(OoxmlNs.W + "pPrChange")
+            .Count(change => change
+                .Element(OoxmlNs.W + "pPr")
+                ?.Element(OoxmlNs.W + "numPr") is not null);
     }
 
     private static int CountBrokenHyperlinks(XDocument document, IReadOnlyList<OoxmlRelationship> relationships)

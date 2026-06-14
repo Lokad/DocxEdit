@@ -98,7 +98,7 @@ internal static class DocxDocumentScanner
         int sectionIndex = sections.Count(section => section.Id.StartsWith($"{idPrefix}.S", StringComparison.Ordinal)) + 1;
         var targets = new Dictionary<XElement, string>();
         var numberingLabeler = new DocxNumberingLabeler(numbering);
-        foreach (XElement block in body.Elements())
+        foreach (XElement block in EnumerateStoryBlocks(body, textView))
         {
             cancellationToken.ThrowIfCancellationRequested();
             XElement? sectionProperties = null;
@@ -132,6 +132,53 @@ internal static class DocxDocumentScanner
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
         fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
         hyperlinks.AddRange(ReadHyperlinks(document, partName, story, idPrefix, textView, targets, relationships));
+    }
+
+    private static IEnumerable<XElement> EnumerateStoryBlocks(XElement body, DocxTextView textView)
+    {
+        foreach (XElement block in body.Elements())
+        {
+            if (IsStoryBlock(block))
+            {
+                yield return block;
+                continue;
+            }
+
+            if (!IsRevisionBlockContainer(block) || !ShouldIncludeRevisionBlock(block, textView))
+            {
+                continue;
+            }
+
+            foreach (XElement revisionBlock in block.Elements().Where(IsStoryBlock))
+            {
+                yield return revisionBlock;
+            }
+        }
+    }
+
+    private static bool IsStoryBlock(XElement element)
+    {
+        return element.Name == OoxmlNs.W + "p" ||
+            element.Name == OoxmlNs.W + "tbl" ||
+            element.Name == OoxmlNs.W + "sectPr";
+    }
+
+    private static bool IsRevisionBlockContainer(XElement element)
+    {
+        return element.Name.Namespace == OoxmlNs.W &&
+            element.Name.LocalName is "ins" or "del" or "moveFrom" or "moveTo" &&
+            element.Elements().Any(IsStoryBlock);
+    }
+
+    private static bool ShouldIncludeRevisionBlock(XElement element, DocxTextView textView)
+    {
+        return textView switch
+        {
+            DocxTextView.Final => element.Name.LocalName is not ("del" or "moveFrom"),
+            DocxTextView.Original => element.Name.LocalName is not ("ins" or "moveTo"),
+            DocxTextView.Markup => true,
+            _ => element.Name.LocalName is not ("del" or "moveFrom")
+        };
     }
 
     private static DocxParagraphInfo ReadParagraph(

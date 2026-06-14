@@ -68,7 +68,7 @@ public sealed class DocxEditor
             return new DocxOutlineResult { Success = false, Diagnostics = diagnostics };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken: cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxOutlineResult
             {

@@ -15,6 +15,7 @@ public sealed class DocxReadOptions
 public sealed class DocxOutlineOptions
 {
     public bool IncludeHeadersFooters { get; init; }
+    public DocxTextView TextView { get; init; } = DocxTextView.Final;
     public int MaxZipEntries { get; init; } = 10_000;
     public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
     public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;

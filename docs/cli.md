@@ -87,7 +87,7 @@ agent or human needs compact context.
 | `--json` | Most commands | Emit the structured result object as JSON |
 | `--diagnostics path` | Most commands | Write diagnostics JSON to a separate file |
 | `--strict` | Most commands | Return exit code `3` when warnings are present |
-| `--view final/original/markup` | Text reads | Select how tracked inserted/deleted text is rendered |
+| `--view final/original/markup` | Text reads and outline | Select how tracked inserted/deleted content is rendered |
 | `--max-text N` | Text reads | Limit rendered text per field |
 | `--headers-footers` | Read commands | Include modeled header and footer stories |
 | `--all-stories` | `read` | Include every modeled story |
@@ -102,6 +102,13 @@ Text views:
 - `original`: shows text before tracked insertions/deletions.
 - `markup`: includes inserted and deleted text with lightweight markers such as
   `[+inserted+]` and `[-deleted-]`.
+
+For numbered paragraphs, list counters are computed from the paragraphs visible
+in the selected view. Block-level inserted numbered paragraphs participate in
+`final` and `markup` counters; block-level deleted numbered paragraphs
+participate in `original` and `markup` counters. If paragraph property revisions
+carry previous `w:numPr` numbering state, DocxEdit emits `W1026` because
+original-view reconstruction of the previous numbering properties is not modeled.
 
 ## Target IDs
 
@@ -196,7 +203,7 @@ cell, and section targets without printing raw OOXML or broad document text.
 
 | Feature | Inspect with | Editing notes |
 | --- | --- | --- |
-| Lists and numbering | `read`, `outline`, `find` | Paragraphs may include resolved list labels, numbering format, level text, style-linked numbering, and diagnostics for unsupported custom formats |
+| Lists and numbering | `read`, `outline`, `find` | Paragraphs may include resolved list labels, numbering format, level text, style-linked numbering, view-aware tracked paragraph counters, and diagnostics for unsupported custom formats or tracked numbering property revisions |
 | Bookmarks | `read`, `context` | Use bookmark IDs or unambiguous `bookmark:"Name"` selectors; duplicate names are diagnosed |
 | Content controls | `read`, `context` | Metadata includes kind, tag, alias, lock state, safe-edit status, checkbox/dropdown/date details, and duplicate selector candidates |
 | Comments | `changes`, `context`, `dump` | Comment operations target a paragraph, `comment:<id>`, or a comment body ID |
