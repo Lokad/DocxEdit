@@ -493,12 +493,15 @@ public static class DocxHelp
     public static string RenderOverview();
     public static bool TryRenderTopic(string topic, out string text);
     public static string RenderTopic(string topic);
+    public static string RenderPatchTrackChangesSupportTable();
 }
 ```
 
 `DocxCommandCatalog` must include structured commands, options, examples, output
 fields, privacy notes, and patch operation specs. The CLI must render its overview
-and command-specific help from this catalog.
+and command-specific help from this catalog. `docxedit help patch` and the
+published patch documentation must use `RenderPatchTrackChangesSupportTable()` for
+the track-change support matrix.
 
 ```csharp
 public sealed record DocxPatchOperationInfo

@@ -75,6 +75,9 @@ docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-c
 
 Tracked-capable operations reject unsafe target shapes with diagnostics that name
 the operation, target ID, catalog support value, and unsupported-shape reason.
+The complete support matrix is generated from
+`DocxHelp.RenderPatchTrackChangesSupportTable()` and appears in
+[`docs/patch-format.md`](docs/patch-format.md) and `docxedit help patch`.
 
 Fresh agents are expected to rely on `docxedit help patch`, `docxedit help changes`, and `docxedit help dump` for the exact syntax. For product integrations, the same guidance is available from the NuGet library through `DocxHelp.Catalog`, and the CLI text output is reusable through `DocxTextRenderer`.
 

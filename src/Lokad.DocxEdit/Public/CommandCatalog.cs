@@ -190,6 +190,27 @@ public static class DocxHelp
         throw new ArgumentException($"Unknown help topic '{topic}'.", nameof(topic));
     }
 
+    public static string RenderPatchTrackChangesSupportTable()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("operation | support class | support value | behavior");
+        builder.AppendLine("--- | --- | --- | ---");
+        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations)
+        {
+            builder
+                .Append(EscapeMarkdownTableCell(operation.Name))
+                .Append(" | ")
+                .Append(EscapeMarkdownTableCell(operation.TrackChangesSupportClass))
+                .Append(" | ")
+                .Append(EscapeMarkdownTableCell(operation.TrackChangesSupport))
+                .Append(" | ")
+                .Append(EscapeMarkdownTableCell(operation.TrackChangesNote))
+                .AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
     private static DocxPatchOperationInfo PreserveOnly(
         string name,
         IReadOnlyList<string> requiredFields,
@@ -284,16 +305,7 @@ public static class DocxHelp
 
         builder.AppendLine();
         builder.AppendLine("Track-change support:");
-        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations)
-        {
-            builder.Append("  ")
-                .Append(operation.Name.PadRight(24))
-                .Append(operation.TrackChangesSupportClass)
-                .Append(" (")
-                .Append(operation.TrackChangesSupport)
-                .Append(") - ")
-                .AppendLine(operation.TrackChangesNote);
-        }
+        builder.Append(RenderPatchTrackChangesSupportTable());
 
         builder.AppendLine();
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
@@ -312,6 +324,14 @@ public static class DocxHelp
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash and preserve-size are not supported.");
         return builder.ToString();
+    }
+
+    private static string EscapeMarkdownTableCell(string value)
+    {
+        return value
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("|", "\\|", StringComparison.Ordinal);
     }
 
     private static void AppendFields(StringBuilder builder, IReadOnlyList<DocxOutputFieldInfo> fields)

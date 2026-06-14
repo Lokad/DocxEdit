@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Lokad.DocxEdit.Tests;
 
 public static class PublicIntegrationSurfaceTests
@@ -80,8 +82,27 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("preserve-only", addBookmark.TrackChangesSupportClass);
         Assert.Equal("preserve-only", addBookmark.TrackChangesSupport);
         Assert.True(DocxHelp.TryRenderTopic("patch", out string patchHelp));
-        Assert.Contains("text-run (tracked-simple)", patchHelp, StringComparison.Ordinal);
+        Assert.Contains("replace-text | text-run | tracked-simple", patchHelp, StringComparison.Ordinal);
         Assert.Contains("preserve-only", patchHelp, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void PatchTrackChangeSupportTableStaysInSyncWithHelpAndDocs()
+    {
+        string table = DocxHelp.RenderPatchTrackChangesSupportTable();
+
+        Assert.StartsWith("operation | support class | support value | behavior", table, StringComparison.Ordinal);
+        Assert.Contains("replace-text | text-run | tracked-simple", table, StringComparison.Ordinal);
+        Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
+        Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
+
+        string repoRoot = FindRepoRoot();
+        string patchFormat = File.ReadAllText(Path.Combine(repoRoot, "docs", "patch-format.md"));
+        Assert.Contains(NormalizeLineEndings(table).TrimEnd(), NormalizeLineEndings(patchFormat), StringComparison.Ordinal);
+
+        string readme = File.ReadAllText(Path.Combine(repoRoot, "README.md"));
+        Assert.Contains("DocxHelp.RenderPatchTrackChangesSupportTable()", readme, StringComparison.Ordinal);
+        Assert.Contains("docs/patch-format.md", readme, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -211,5 +232,26 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal(0, DocxPrivacyPresets.ContextMetadataOnly.MaxText);
         Assert.Equal(1, DocxPrivacyPresets.ContextMetadataOnly.Radius);
         Assert.True(DocxPrivacyPresets.ChangesMarkupOnly.LeaveInputOpen);
+    }
+
+    private static string FindRepoRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Lokad.DocxEdit.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
+    }
+
+    private static string NormalizeLineEndings(string value)
+    {
+        return value.Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 }

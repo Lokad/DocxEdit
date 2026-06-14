@@ -85,7 +85,8 @@ public static class CliTests
         Assert.Contains("Unsupported fields are rejected", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("Track-change support:", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("replace-text", patchHelp.Output, StringComparison.Ordinal);
-        Assert.Contains("text-run (tracked-simple)", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("operation | support class | support value | behavior", patchHelp.Output, StringComparison.Ordinal);
+        Assert.Contains("replace-text | text-run | tracked-simple", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("tracked-simple", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("set-cell", patchHelp.Output, StringComparison.Ordinal);
         Assert.Contains("preserve-only", patchHelp.Output, StringComparison.Ordinal);

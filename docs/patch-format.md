@@ -344,14 +344,69 @@ Track-change behavior is selected by `check` or `apply`, not inside the patch:
 docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes require --author Agent
 ```
 
-Generated tracked output is intentionally narrow:
+Generated tracked output is intentionally narrow. The support matrix below is
+generated from `DocxHelp.RenderPatchTrackChangesSupportTable()` and is the same
+table printed by `docxedit help patch`.
 
-- `replace-text`: simple text-only replacements.
-- `replace-paragraph`: simple whole-paragraph text replacements.
-- `insert-before` / `insert-after`: simple paragraph insertions.
-- `delete-block`: simple paragraph deletions.
-- `set-style`: paragraph property revisions.
-- `set-cell`: simple single-paragraph cell replacement.
+<!-- BEGIN GENERATED TRACK-CHANGES SUPPORT TABLE -->
+operation | support class | support value | behavior
+--- | --- | --- | ---
+replace-text | text-run | tracked-simple | Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.
+replace-paragraph | paragraph-block | tracked-paragraph | Suggest/Require emit whole-paragraph w:del/w:ins for simple text-only replacements; style-combined or complex shapes warn with W4002 or fail with E6002.
+insert-before | paragraph-block | tracked-paragraph-insert | Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.
+insert-after | paragraph-block | tracked-paragraph-insert | Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.
+delete-block | paragraph-block | tracked-paragraph-delete | Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.
+set-style | paragraph-property | tracked-style | Suggest/Require emit paragraph property revisions with w:pPrChange.
+set-content-control-text | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-content-control-checkbox | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-content-control-choice | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-content-control-date | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+add-repeating-section-item | unsupported | unsupported | Repeating-section item insertion is not safely modeled yet; check/apply fails with E4315.
+delete-repeating-section-item | unsupported | unsupported | Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.
+add-bookmark | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+replace-bookmark-text | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+rename-bookmark | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+delete-bookmark | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+add-comment | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-comment-text | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+resolve-comment | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+reopen-comment | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+delete-comment | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+add-comment-reply | unsupported | unsupported | Threaded comment replies are not safely modeled yet; check/apply fails with E4314.
+delete-comment-reply | unsupported | unsupported | Threaded comment replies are not safely modeled yet; check/apply fails with E4314.
+set-field-dirty | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-field-lock | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-field-code | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-field-result | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+refresh-field-result | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-hyperlink-target | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-hyperlink-text | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+insert-hyperlink-after | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+remove-hyperlink | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-cell | text-run | tracked-cell-simple | Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002.
+set-table-style | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-table-metadata | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-row-header | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+append-row | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+insert-row-before | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+insert-row-after | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+delete-row | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+append-column | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
+insert-column-before | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
+insert-column-after | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
+delete-column | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
+replace-image | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+insert-image-after | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-image-alt | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-image-metadata | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-image-size | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-image-wrap | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-image-position | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-image-crop | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+delete-image | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-section-columns | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+set-section-orientation | preserve-only | preserve-only | Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+<!-- END GENERATED TRACK-CHANGES SUPPORT TABLE -->
 
 Other known operations are classified as `preserve-only`: they preserve existing
 tracked-change markup but do not create new revision markup. In `suggest` mode
