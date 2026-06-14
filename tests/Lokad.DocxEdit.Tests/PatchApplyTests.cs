@@ -653,6 +653,33 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesSuggestMatchesCatalogSupportForEveryPatchOperation()
+    {
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            using MemoryStream input = CreateDocx("Anchor paragraph.");
+            using var patch = new StringReader($"""
+                docxpatch 1
+
+                op {operation.Name}
+                target M.P0001
+                end
+                """);
+
+            DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+            bool hasUnsupportedOperationWarning = result.Diagnostics.Any(diagnostic => diagnostic.Code == "W4001");
+            Assert.Equal(!operation.GeneratesTrackedChanges, hasUnsupportedOperationWarning);
+            if (hasUnsupportedOperationWarning)
+            {
+                DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+                Assert.Contains($"operation '{operation.Name}'", diagnostic.Message, StringComparison.Ordinal);
+                Assert.Contains($"catalog support is '{operation.TrackChangesSupport}'", diagnostic.Message, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
     public static void CheckTrackChangesRequireRejectsComplexReplaceTextMarkup()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
