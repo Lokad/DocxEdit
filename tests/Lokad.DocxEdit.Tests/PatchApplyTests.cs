@@ -774,6 +774,34 @@ public static class PatchApplyTests
         Assert.Equal(timestamp, deletion.TimestampUtc);
         Assert.Equal("1", deletion.RevisionId);
         Assert.Equal("2", insertion.RevisionId);
+        output.Position = 0;
+        Assert.True(new DocxEditor().Validate(output).Success);
+    }
+
+    [Fact]
+    public static void ValidateReportsMalformedRevisionMarkup()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:ins w:author="">
+                        <w:r><w:t>Bad insertion</w:t></w:r>
+                      </w:ins>
+                      <w:r><w:delText>Orphan delete text</w:delText></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr>
+                        <w:pPrChange w:id="4" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
+                      </w:pPr>
+                    </w:p>
+            """);
+
+        DocxValidateResult result = new DocxEditor().Validate(input);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:id", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:author", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:delText", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:pPrChange", StringComparison.Ordinal));
     }
 
     [Fact]

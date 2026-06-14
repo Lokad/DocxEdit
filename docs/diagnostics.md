@@ -111,6 +111,8 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
   to a missing relationship ID, or use the wrong relationship type.
 - `E9120`: section properties are malformed, such as invalid column counts or page
   orientation values.
+- `E9121`: tracked revision markup is malformed, such as missing revision metadata,
+  orphan `w:delText`, or malformed paragraph property revisions.
 - `E9199`: validation diagnostics were capped and omitted diagnostics include errors.
 - `W9109`: duplicate bookmark names or duplicate content-control tag/alias values make
   semantic selectors ambiguous; the message lists candidate IDs.

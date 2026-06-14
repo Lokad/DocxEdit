@@ -3105,6 +3105,13 @@ When a document contains fields and edits are applied:
 W5103 document contains fields; output may require Word to update fields.
 ```
 
+### 17.5 Revision markup validation
+
+Structural validation and post-edit touched-part validation must reject malformed
+tracked revision markup with `E9121` for missing or invalid `w:id`, `w:author`,
+or `w:date` on generated-revision containers, orphan `w:delText`, and malformed
+paragraph property revisions such as `w:pPrChange` without child `w:pPr`.
+
 ---
 
 ## 18. Table implementation details

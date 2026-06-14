@@ -124,6 +124,7 @@ internal static class DocxPackageValidator
 
         ValidateFieldBalance(document, partName, diagnostics);
         ValidateFieldFlags(document, partName, diagnostics);
+        ValidateRevisionMarkup(document, partName, diagnostics);
         ValidateContentControls(document, partName, diagnostics);
         ValidateParagraphStyleReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateNumberingReferences(package, partName, document, diagnostics, cancellationToken);
@@ -143,6 +144,58 @@ internal static class DocxPackageValidator
         }
 
         ValidateTables(document, partName, diagnostics);
+    }
+
+    internal static void ValidateRevisionMarkup(
+        XDocument document,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        foreach (XElement element in document.Descendants())
+        {
+            if (element.Name == OoxmlNs.W + "ins" || element.Name == OoxmlNs.W + "del")
+            {
+                ValidateRevisionMetadata(element, element.Name.LocalName, partName, diagnostics);
+            }
+            else if (element.Name == OoxmlNs.W + "pPrChange")
+            {
+                ValidateRevisionMetadata(element, "pPrChange", partName, diagnostics);
+                if (element.Element(OoxmlNs.W + "pPr") is null)
+                {
+                    diagnostics.Add(Error("E9121", "Paragraph property revision w:pPrChange is missing child w:pPr.", partName));
+                }
+            }
+            else if (element.Name == OoxmlNs.W + "delText" &&
+                !element.Ancestors(OoxmlNs.W + "del").Any())
+            {
+                diagnostics.Add(Error("E9121", "Deleted text w:delText appears outside w:del revision markup.", partName));
+            }
+        }
+    }
+
+    private static void ValidateRevisionMetadata(
+        XElement element,
+        string label,
+        string partName,
+        List<DocxDiagnostic> diagnostics)
+    {
+        string? id = (string?)element.Attribute(OoxmlNs.W + "id");
+        if (!int.TryParse(id, out int parsedId) || parsedId < 0)
+        {
+            diagnostics.Add(Error("E9121", $"{label} revision has missing or invalid non-negative w:id.", partName));
+        }
+
+        string? author = (string?)element.Attribute(OoxmlNs.W + "author");
+        if (string.IsNullOrWhiteSpace(author))
+        {
+            diagnostics.Add(Error("E9121", $"{label} revision has missing or empty w:author.", partName));
+        }
+
+        string? date = (string?)element.Attribute(OoxmlNs.W + "date");
+        if (!DateTimeOffset.TryParse(date, null, System.Globalization.DateTimeStyles.RoundtripKind, out _))
+        {
+            diagnostics.Add(Error("E9121", $"{label} revision has missing or invalid w:date.", partName));
+        }
     }
 
     private static void ValidatePairedIds(

@@ -8008,18 +8008,28 @@ internal static class DocxPatchEngine
                 diagnostics.Add(PostEditValidationDiagnostic(part.Name, "Main document part is missing w:body."));
             }
 
+            DocxPackageValidator.ValidateRevisionMarkup(document, part.Name, diagnostics);
             return;
         }
 
         if (string.Equals(part.ContentType, "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml", StringComparison.OrdinalIgnoreCase))
         {
             RequireRoot(part, root, OoxmlNs.W + "hdr", diagnostics);
+            DocxPackageValidator.ValidateRevisionMarkup(document, part.Name, diagnostics);
             return;
         }
 
         if (string.Equals(part.ContentType, "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml", StringComparison.OrdinalIgnoreCase))
         {
             RequireRoot(part, root, OoxmlNs.W + "ftr", diagnostics);
+            DocxPackageValidator.ValidateRevisionMarkup(document, part.Name, diagnostics);
+            return;
+        }
+
+        if (string.Equals(part.ContentType, CommentsContentType, StringComparison.OrdinalIgnoreCase))
+        {
+            RequireRoot(part, root, OoxmlNs.W + "comments", diagnostics);
+            DocxPackageValidator.ValidateRevisionMarkup(document, part.Name, diagnostics);
             return;
         }
 

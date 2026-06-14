@@ -84,6 +84,7 @@ Implemented areas include:
   settings metadata consistency, comment body/anchor consistency, comment extension consistency, drawing relationships,
   header/footer section-reference consistency,
   section property consistency,
+  tracked revision metadata and basic revision nesting,
   image relationship target/content-type checks, drawing property ID uniqueness,
   drawing extent/crop geometry, duplicate semantic selector warnings, basic table
   shape, table visual-grid consistency, and capped validation diagnostics;

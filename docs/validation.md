@@ -13,7 +13,8 @@ The public API normalizes expected package, ZIP, XML, and relationship failures 
 - `[Content_Types].xml` root;
 - relationship part root and internal targets;
 - main document root and `w:body`;
-- touched header and footer roots.
+- touched header, footer, and comments roots;
+- touched WordprocessingML revision metadata and obvious revision nesting issues.
 - touched PNG/JPEG media parts are non-empty.
 
 This is structural validation, not full OOXML schema validation.
@@ -54,6 +55,8 @@ Current checks include:
   cached-result containment, and dirty/lock flag validity;
 - content-control metadata validity for `w:id`, `w:lock`, and checkbox
   `w:checked` values;
+- tracked revision metadata and obvious revision nesting issues for `w:ins`,
+  `w:del`, `w:delText`, and `w:pPrChange`;
 - DrawingML `a:blip` relationship references, image relationship target parts, and
   image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;
