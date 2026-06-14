@@ -1549,6 +1549,58 @@ public static class PatchApplyTests
         Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
+    [Theory]
+    [InlineData("field", """
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE ">
+                        <w:r><w:t>June 2026</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+        """)]
+    [InlineData("bookmark", """
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+        """)]
+    [InlineData("comment", """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+        """)]
+    [InlineData("hyperlink", """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link text</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+        """)]
+    public static void CheckTrackChangesRequireRejectsDeletingProtectedParagraphContent(string protectedFeature, string bodyXml)
+    {
+        using MemoryStream input = CreateDocxWithBody(bodyXml);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0001
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("operation 'delete-block'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains($"protected OOXML boundary '{protectedFeature}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
     [Fact]
     public static void ApplyTrackChangesSuggestGeneratesParagraphPropertyChangeForStyle()
     {
