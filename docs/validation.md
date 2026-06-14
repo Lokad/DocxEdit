@@ -81,7 +81,8 @@ WordprocessingML body XML or a non-private fixture under `edit-cases/fixtures/`,
 `.docxpatch` payload, and expected readback values. The harness generates synthetic
 `.docx` inputs at runtime when body XML is supplied, so most fixtures remain reviewable text.
 `edit-cases/families/tracked-change-matrix.json` lists the current public
-tracked-change coverage slice.
+tracked-change coverage slice and the `TrackChangesMode` variants the aggregate
+validator runs for each case.
 
 Supported manifest extras include:
 

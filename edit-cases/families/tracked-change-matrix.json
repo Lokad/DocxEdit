@@ -1,6 +1,12 @@
 {
   "id": "tracked-change-matrix",
   "description": "Public synthetic edit-case matrix for supported generated tracked-change families.",
+  "trackChangesModes": [
+    "off",
+    "preserve",
+    "suggest",
+    "require"
+  ],
   "cases": [
     "tracked-replace",
     "tracked-paragraph-block",

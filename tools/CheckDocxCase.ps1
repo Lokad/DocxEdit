@@ -1,6 +1,13 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string] $Case
+    [string] $Case,
+
+    [ValidateSet("off", "preserve", "suggest", "require")]
+    [string] $TrackChangesOverride,
+
+    [string] $VariantId,
+
+    [switch] $ExpectNoChangeSummary
 )
 
 $ErrorActionPreference = "Stop"
@@ -208,6 +215,10 @@ if ([string]::IsNullOrWhiteSpace($caseId) -or $caseId -notmatch '^[A-Za-z0-9][A-
     throw "Case manifest must define a filename-safe id."
 }
 
+if (-not [string]::IsNullOrWhiteSpace($VariantId) -and $VariantId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
+    throw "Variant id must be filename-safe."
+}
+
 $fixtureValue = Get-ObjectProperty $manifest.input "fixture"
 $bodyXml = Get-ManifestText $manifest.input.bodyXml
 $headerXml = Get-ManifestText (Get-ObjectProperty $manifest.input "headerXml")
@@ -223,7 +234,8 @@ if ($null -eq $fixtureValue -and [string]::IsNullOrWhiteSpace($bodyXml)) {
 }
 
 $runId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ")
-$artifactDir = Join-Path $ArtifactRoot (Join-Path $caseId $runId)
+$artifactCaseId = if ([string]::IsNullOrWhiteSpace($VariantId)) { $caseId } else { "$caseId-$VariantId" }
+$artifactDir = Join-Path $ArtifactRoot (Join-Path $artifactCaseId $runId)
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 
 $inputPath = Join-Path $artifactDir "input.docx"
@@ -274,11 +286,6 @@ $applyArgs = @(
     $applyReportPath)
 $applyOptions = Get-ObjectProperty $manifest "applyOptions"
 if ($null -ne $applyOptions) {
-    $trackChanges = Get-ObjectProperty $applyOptions "trackChanges"
-    if ($null -ne $trackChanges) {
-        $applyArgs += @("--track-changes", [string] $trackChanges)
-    }
-
     $author = Get-ObjectProperty $applyOptions "author"
     if ($null -ne $author) {
         $applyArgs += @("--author", [string] $author)
@@ -288,6 +295,17 @@ if ($null -ne $applyOptions) {
     if ($null -ne $timestampUtc) {
         $applyArgs += @("--timestamp-utc", [string] $timestampUtc)
     }
+}
+
+$trackChanges = if ($PSBoundParameters.ContainsKey("TrackChangesOverride")) {
+    $TrackChangesOverride
+} elseif ($null -ne $applyOptions) {
+    Get-ObjectProperty $applyOptions "trackChanges"
+} else {
+    $null
+}
+if ($null -ne $trackChanges) {
+    $applyArgs += @("--track-changes", [string] $trackChanges)
 }
 
 $apply = Invoke-ProcessCapture "dotnet" $applyArgs
@@ -367,7 +385,33 @@ if ($null -ne $manifest.expect.allStoryParagraphs) {
     Assert-StringArrayEquals $expectedAllStoryParagraphs $actualAllStoryParagraphs "All-story paragraphs"
 }
 
-if ($null -ne $manifest.expect.changeSummary) {
+if ($ExpectNoChangeSummary) {
+    $changes = Invoke-ProcessCapture "dotnet" @(
+        "run",
+        "--no-build",
+        "--project",
+        $CliProject,
+        "--",
+        "changes",
+        $outputPath,
+        "--json")
+    if ($changes.ExitCode -ne 0) {
+        Set-Content -LiteralPath (Join-Path $artifactDir "changes.stdout.log") -Value $changes.StdOut
+        Set-Content -LiteralPath (Join-Path $artifactDir "changes.stderr.log") -Value $changes.StdErr
+        throw "Case '$caseId' changes readback failed."
+    }
+
+    $changesJson = $changes.StdOut | ConvertFrom-Json
+    $actualChangeCount = 0
+    foreach ($summaryItem in @($changesJson.Summary)) {
+        $actualChangeCount += [int] $summaryItem.Count
+    }
+
+    if ($actualChangeCount -ne 0) {
+        throw "Change summary mismatch. Expected no changes, found $actualChangeCount."
+    }
+}
+elseif ($null -ne $manifest.expect.changeSummary) {
     $changes = Invoke-ProcessCapture "dotnet" @(
         "run",
         "--no-build",
