@@ -155,8 +155,8 @@ docxedit changes report.docx --json
 
 `changes` reports summary counts, group summaries, target summaries, comment
 summaries, and individual markup records. Records include IDs, type, story, part,
-author/timestamp metadata, target IDs when known, text length, and child element
-counts.
+normalized parent type, author/timestamp metadata, target IDs when known, text
+length, and child element counts.
 
 Target fields help interpret sparse OOXML markup:
 

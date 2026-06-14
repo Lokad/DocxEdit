@@ -71,6 +71,7 @@ internal static class DocxChangeScanner
                     Type = ChangeTypes[element.Name.LocalName],
                     Story = story,
                     PartName = part.Name,
+                    ParentType = ReadParentType(element),
                     TargetId = target.TargetId,
                     Author = ReadRevisionAuthor(element),
                     TimestampUtc = ReadRevisionTimestamp(element),
@@ -858,6 +859,39 @@ internal static class DocxChangeScanner
         return IsCommentElement(element)
             ? null
             : (string?)element.Attribute(OoxmlNs.W + "author");
+    }
+
+    private static string? ReadParentType(XElement element)
+    {
+        XElement? parent = element.Parent;
+        if (parent is null)
+        {
+            return null;
+        }
+
+        if (parent.Name.Namespace != OoxmlNs.W)
+        {
+            return parent.Name.LocalName;
+        }
+
+        return parent.Name.LocalName switch
+        {
+            "body" => "body",
+            "comments" => "comments",
+            "comment" => "comment",
+            "p" => "paragraph",
+            "pPr" => "paragraph-properties",
+            "r" => "run",
+            "rPr" => "run-properties",
+            "tbl" => "table",
+            "tblPr" => "table-properties",
+            "tr" => "row",
+            "trPr" => "row-properties",
+            "tc" => "cell",
+            "tcPr" => "cell-properties",
+            "sectPr" => "section-properties",
+            _ => parent.Name.LocalName
+        };
     }
 
     private static DateTimeOffset? ReadRevisionTimestamp(XElement element)

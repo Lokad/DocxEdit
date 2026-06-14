@@ -154,6 +154,7 @@ public sealed record DocxChangeInfo
     public string Type { get; init; } = string.Empty;
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
+    public string? ParentType { get; init; }
     public string? TargetId { get; init; }
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }

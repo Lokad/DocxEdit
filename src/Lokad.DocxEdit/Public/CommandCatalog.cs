@@ -617,7 +617,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "List tracked-change and comment markup; comment text is opt-in",
                     Usage = "docxedit changes input.docx [options]",
-                    Description = "List tracked-change and comment markup. By default this does not print revision text or comment body text. Records include change IDs, type, story, part, target, revision/comment metadata, text length, child element count, and comment anchor targets when known. Use --include-comment-text only when short comment body snippets are needed.",
+                    Description = "List tracked-change and comment markup. By default this does not print revision text or comment body text. Records include change IDs, type, story, part, normalized parent type, target, revision/comment metadata, text length, child element count, and comment anchor targets when known. Use --include-comment-text only when short comment body snippets are needed.",
                     Options =
                     [
                         new("--include-comment-text", "Include explicit comment body snippets in comment summaries and comment body records"),
@@ -648,7 +648,7 @@ public static class DocxHelp
                         ]),
                         new("Text output",
                         [
-                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. Modern Word comment metadata appears as para-id, parent-para-id, root-para-id, is-reply, resolved, comment-para-id, comment-parent-para-id, comment-root-para-id, comment-is-reply, and comment-resolved when commentsExtended data is present. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
+                            "Text output includes type counts, group summaries, target summaries, comment summaries, and individual records. Individual records include parent=<kind> when the immediate WordprocessingML parent can be normalized. Modern Word comment metadata appears as para-id, parent-para-id, root-para-id, is-reply, resolved, comment-para-id, comment-parent-para-id, comment-root-para-id, comment-is-reply, and comment-resolved when commentsExtended data is present. With --include-comment-text, comment-summary and comment body records add comment-text-length, comment-text, and comment-text-truncated when applicable."
                         ]),
                         new("Timestamp notes",
                         [

@@ -1627,6 +1627,7 @@ public static class ReadApiTests
         Assert.Equal("M.CH0001", insertion.Id);
         Assert.Equal("main", insertion.Story);
         Assert.Equal("/word/document.xml", insertion.PartName);
+        Assert.Equal("paragraph", insertion.ParentType);
         Assert.Equal("M.P0001", insertion.TargetId);
         Assert.Equal("targeted", insertion.TargetStatus);
         Assert.Equal("ancestor", insertion.TargetSource);
@@ -1637,6 +1638,7 @@ public static class ReadApiTests
         Assert.Equal(DateTimeOffset.Parse("2026-06-01T12:00:00Z").ToUniversalTime(), insertion.TimestampUtc);
 
         DocxChangeInfo cellChange = Assert.Single(result.Changes, change => change.Type == "cell-properties-change");
+        Assert.Equal("cell-properties", cellChange.ParentType);
         Assert.Equal("M.T0001.R01.C01", cellChange.TargetId);
 
         DocxChangeInfo customRangeStart = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start");
@@ -2670,6 +2672,7 @@ public static class ReadApiTests
             Type = "inserted-run",
             Story = "main",
             PartName = "/word/document.xml",
+            ParentType = "paragraph",
             TextLength = 8,
             ChildElementCount = 1
         };
@@ -2677,6 +2680,7 @@ public static class ReadApiTests
         string serialized = JsonSerializer.Serialize(change);
         Assert.Contains("\"Id\":\"M.CH0001\"", serialized, StringComparison.Ordinal);
         Assert.Contains("\"Type\":\"inserted-run\"", serialized, StringComparison.Ordinal);
+        Assert.Contains("\"ParentType\":\"paragraph\"", serialized, StringComparison.Ordinal);
         Assert.Contains("\"TextLength\":8", serialized, StringComparison.Ordinal);
     }
 

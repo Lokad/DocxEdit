@@ -1164,6 +1164,7 @@ public sealed record DocxChangeInfo
     public string Type { get; init; } = string.Empty;
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
+    public string? ParentType { get; init; }
     public string? TargetId { get; init; }
     public string? Author { get; init; }
     public DateTimeOffset? TimestampUtc { get; init; }
@@ -1225,7 +1226,10 @@ public sealed record DocxCommentThreadSummary
 }
 ```
 
-`TargetStatus` is `targeted`, `comment-anchor`, or `targetless`. `TargetSource`
+`ParentType` is a normalized immediate WordprocessingML parent kind such as
+`paragraph`, `run-properties`, `paragraph-properties`, `cell-properties`,
+`section-properties`, `comment`, or `body`. `TargetStatus` is `targeted`,
+`comment-anchor`, or `targetless`. `TargetSource`
 distinguishes exact ancestor matches from adjacent range-boundary heuristics. For
 targetless records, `TargetReason`, `NearestTargetId`, and `TargetNote` provide
 context without claiming exact ownership. Range starts/ends that share a revision or
@@ -1417,7 +1421,7 @@ inserted-run count=1
 summary group=story key="main" type=inserted-run count=1
 target-summary target=M.P0004 count=2 types="inserted-run:1,deleted-run:1"
 comment-summary comment-id=3 anchor-target=M.P0004 reference-target=M.P0004 count=4 types="comment:1,comment-range-start:1,comment-range-end:1,comment-reference:1"
-M.CH0001 inserted-run story="main" part=/word/document.xml target=M.P0004 target-status=targeted target-source=ancestor text-length=8 children=1 revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00
+M.CH0001 inserted-run story="main" part=/word/document.xml parent=paragraph target=M.P0004 target-status=targeted target-source=ancestor text-length=8 children=1 revision-id=9 author="Reviewer" timestamp-utc=2026-06-01T12:00:00.0000000+00:00
 ```
 
 With `--include-comment-text`, comment summaries and comment body records add
@@ -3556,8 +3560,8 @@ docxedit help patch
 * warning that `preserve-size` is unsupported
 
 `docxedit help changes` must describe `Summary`, `GroupSummary`, `TargetSummary`,
-`CommentSummary`, target status/source/reason fields, comment anchor fields,
-timestamp shape, range `paired-change-id`, and the explicit
+`CommentSummary`, parent type, target status/source/reason fields, comment anchor
+fields, timestamp shape, range `paired-change-id`, and the explicit
 `--include-comment-text` / `--max-comment-text` privacy boundary.
 
 `docxedit help dump` must explain that `Runs[]` is structured JSON metadata and that

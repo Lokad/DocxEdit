@@ -291,6 +291,7 @@ public static class DocxTextRenderer
             string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
             string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{EscapeText(change.TargetNote)}\"";
             string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
+            string parentType = change.ParentType is null ? string.Empty : $" parent={EscapeText(change.ParentType)}";
             string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
             string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
             string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
@@ -317,6 +318,7 @@ public static class DocxTextRenderer
                 .Append(EscapeText(change.Story))
                 .Append("\" part=")
                 .Append(change.PartName)
+                .Append(parentType)
                 .Append(' ')
                 .Append(target)
                 .Append(" target-status=")
