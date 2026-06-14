@@ -1927,7 +1927,11 @@ Rules:
 * Comment targets use `comment:<id>` from `changes` output or comment body IDs such
   as `C001.C0001`.
 * `set-comment-text` replaces the body with one paragraph and preserves comment
-  metadata such as author, initials, timestamp, and OOXML comment ID.
+  metadata such as author, initials, timestamp, and OOXML comment ID. Under
+  tracked output, simple paragraph-only comment bodies emit `w:del`/`w:ins` in
+  `comments.xml` while preserving existing comment and paragraph metadata;
+  complex comment bodies warn with `W4002` under `suggest` or fail with `E6002`
+  under `require`.
 * `resolve-comment` and `reopen-comment` toggle the matching `commentsExtended.xml`
   `w15:done` flag. When a basic comment lacks modern metadata, DocxEdit adds a
   `w15:paraId`, creates `/word/commentsExtended.xml` and the main-document
@@ -2523,6 +2527,7 @@ delete-block          simple paragraph targets as w:del text
 set-style             paragraph property revision with w:pPrChange
 set-content-control-text simple plain-text and guarded paragraph-only rich-text content controls as w:del/w:ins inside the content wrapper
 replace-bookmark-text simple same-paragraph bookmark ranges as w:del/w:ins between preserved markers
+set-comment-text    simple paragraph-only comment bodies as w:del/w:ins inside comments.xml
 set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside the field wrapper
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
@@ -2546,6 +2551,9 @@ cached result text and preserves the field instruction; complex fields still fai
 with `E4313`. `replace-bookmark-text` tracked output is limited to simple
 same-paragraph bookmark ranges with compatible run-only content; multi-paragraph
 bookmark replacements remain direct under `suggest` or fail under `require`.
+`set-comment-text` tracked output is limited to simple paragraph-only comment
+bodies; it preserves comment metadata, deletes existing paragraph text in place,
+and inserts the replacement in the first paragraph.
 `set-hyperlink-text`
 preserves the hyperlink wrapper and relationship or anchor while replacing simple
 display text with generated revisions. `set-style` records the previous paragraph
@@ -2560,7 +2568,6 @@ set-content-control-date
 rename-bookmark
 delete-bookmark
 add-comment
-set-comment-text
 resolve-comment
 reopen-comment
 delete-comment

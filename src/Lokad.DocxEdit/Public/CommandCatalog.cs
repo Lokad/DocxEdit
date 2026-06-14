@@ -829,10 +829,12 @@ public static class DocxHelp
                     ["target", "text"],
                     "Comments are already review markup, so adding a comment does not create an additional tracked edit.",
                     ["expect-text", "author", "initials", "date"]),
-                PreserveOnly(
+                Tracked(
                     "set-comment-text",
                     ["target", "text"],
-                    "Comment body edits modify review markup; generated tracked revisions inside comments are not modeled yet."),
+                    TrackClassTextRun,
+                    "tracked-comment-text",
+                    "Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002."),
                 PreserveOnly(
                     "resolve-comment",
                     ["target"],

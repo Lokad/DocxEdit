@@ -90,6 +90,10 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("text-run", replaceBookmarkText.TrackChangesSupportClass);
         Assert.Equal("tracked-bookmark-text", replaceBookmarkText.TrackChangesSupport);
         Assert.True(replaceBookmarkText.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-comment-text", out DocxPatchOperationInfo setCommentText));
+        Assert.Equal("text-run", setCommentText.TrackChangesSupportClass);
+        Assert.Equal("tracked-comment-text", setCommentText.TrackChangesSupport);
+        Assert.True(setCommentText.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryRenderTopic("patch", out string patchHelp));
         Assert.Contains("replace-text | text-run | tracked-simple", patchHelp, StringComparison.Ordinal);
         Assert.Contains("preserve-only", patchHelp, StringComparison.Ordinal);
@@ -103,6 +107,7 @@ public static class PublicIntegrationSurfaceTests
         Assert.StartsWith("operation | support class | support value | behavior", table, StringComparison.Ordinal);
         Assert.Contains("replace-text | text-run | tracked-simple", table, StringComparison.Ordinal);
         Assert.Contains("replace-bookmark-text | text-run | tracked-bookmark-text", table, StringComparison.Ordinal);
+        Assert.Contains("set-comment-text | text-run | tracked-comment-text", table, StringComparison.Ordinal);
         Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
         Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
 

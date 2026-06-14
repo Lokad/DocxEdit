@@ -4710,8 +4710,82 @@ public static class PatchApplyTests
         Assert.Equal(0, output.Length);
     }
 
+    [Fact]
+    public static void CheckTrackChangesRequireAllowsSetCommentText()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-comment-text
+            target comment:3
+            text Updated comment
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "E6001" or "E6002");
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsProtectedSetCommentText()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE ">
+                        <w:r><w:t>Old comment</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-comment-text
+            target comment:3
+            text Updated comment
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("comment body contains field content", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
     [Theory]
-    [InlineData("set-comment-text", "text Updated comment")]
     [InlineData("resolve-comment", "")]
     [InlineData("reopen-comment", "")]
     [InlineData("delete-comment", "")]
@@ -4760,9 +4834,6 @@ public static class PatchApplyTests
         output.Position = 0;
         switch (operationName)
         {
-            case "set-comment-text":
-                Assert.Contains("Updated comment", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
-                break;
             case "resolve-comment":
                 Assert.True(Assert.Single(new DocxEditor().Changes(output).CommentSummary).Resolved);
                 break;
@@ -4776,7 +4847,6 @@ public static class PatchApplyTests
     }
 
     [Theory]
-    [InlineData("set-comment-text", "text Updated comment")]
     [InlineData("resolve-comment", "")]
     [InlineData("reopen-comment", "")]
     [InlineData("delete-comment", "")]
@@ -4814,7 +4884,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void ApplyTrackChangesSuggestPreserveOnlyOperationKeepsUnrelatedRevisionMarkup()
+    public static void ApplyTrackChangesSuggestSetCommentTextKeepsDocumentMarkupAndTracksCommentBody()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
             """
@@ -4850,13 +4920,16 @@ public static class PatchApplyTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.True(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["10", "11"], Assert.Single(result.Operations).GeneratedRevisionIds);
         output.Position = 0;
         Assert.Equal(documentXmlBefore, ReadDocumentXml(output));
         output.Position = 0;
         string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("<w:delText>Old comment</w:delText>", commentsXml, StringComparison.Ordinal);
         Assert.Contains("Updated comment", commentsXml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Old comment", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"10\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w:id=\"11\"", commentsXml, StringComparison.Ordinal);
     }
 
     [Fact]

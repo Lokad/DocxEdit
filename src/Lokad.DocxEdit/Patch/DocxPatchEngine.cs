@@ -128,7 +128,7 @@ internal static class DocxPatchEngine
                     "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
                     "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
                     "add-comment" => ExecuteAddComment(package, operation, options, apply, cancellationToken),
-                    "set-comment-text" => ExecuteSetCommentText(package, operation, apply, cancellationToken),
+                    "set-comment-text" => ExecuteSetCommentText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
                     "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
                     "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
@@ -1584,7 +1584,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCommentText(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -1606,14 +1608,35 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
         }
 
-        if (!apply)
+        bool useTrackedChanges = IsTrackedMode(options);
+        XElement[]? trackedParagraphs = null;
+        if (useTrackedChanges &&
+            !TryGetTrackedCommentParagraphs(commentTarget.Comment, text!, out trackedParagraphs, out string? trackedUnsupportedReason))
         {
-            return [];
+            if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
         }
 
-        ReplaceCommentText(commentTarget.Comment, text!);
+        if (!apply)
+        {
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs!, text!, options, generatedRevisionIds, cancellationToken);
+        }
+        else
+        {
+            ReplaceCommentText(commentTarget.Comment, text!);
+        }
+
         SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCommentResolved(
@@ -3893,6 +3916,60 @@ internal static class DocxPatchEngine
             if (TryGetProtectedTextEditFeature(paragraph, out string protectedFeature))
             {
                 unsupportedReason = $"rich-text content-control paragraph contains protected OOXML boundary '{protectedFeature}'";
+                return false;
+            }
+
+            string current = ReadVisibleText(paragraph);
+            string insertedText = i == 0 ? replacement : string.Empty;
+            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, style: null, out unsupportedReason))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetTrackedCommentParagraphs(
+        XElement comment,
+        string replacement,
+        out XElement[] paragraphs,
+        out string? unsupportedReason)
+    {
+        paragraphs = comment.Elements(OoxmlNs.W + "p").ToArray();
+        unsupportedReason = null;
+        if (paragraphs.Length == 0)
+        {
+            unsupportedReason = "comment body has no paragraph for tracked text replacement";
+            return false;
+        }
+
+        if (comment.Elements().Any(element => element.Name != OoxmlNs.W + "p"))
+        {
+            unsupportedReason = "comment body contains non-paragraph content";
+            return false;
+        }
+
+        if (comment.Descendants(OoxmlNs.W + "drawing").Any())
+        {
+            unsupportedReason = "comment body contains drawing content";
+            return false;
+        }
+
+        if (comment.Descendants(OoxmlNs.W + "fldSimple").Any() ||
+            comment.Descendants(OoxmlNs.W + "fldChar").Any() ||
+            comment.Descendants(OoxmlNs.W + "instrText").Any())
+        {
+            unsupportedReason = "comment body contains field content";
+            return false;
+        }
+
+        for (int i = 0; i < paragraphs.Length; i++)
+        {
+            XElement paragraph = paragraphs[i];
+            if (TryGetProtectedTextEditFeature(paragraph, out string protectedFeature))
+            {
+                unsupportedReason = $"comment body paragraph contains protected OOXML boundary '{protectedFeature}'";
                 return false;
             }
 

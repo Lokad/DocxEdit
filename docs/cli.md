@@ -225,7 +225,9 @@ replacement, whole-paragraph replacement, inserted/deleted paragraph text,
 paragraph style changes, simple plain-text content controls, simple hyperlink
 display text, simple field result text, simple same-paragraph bookmark text,
 guarded paragraph-only rich-text content controls, and simple table-cell
-replacement including compatible multi-paragraph text-only cells.
+replacement including compatible multi-paragraph text-only cells. Simple
+paragraph-only comment body replacement can also emit tracked revisions in
+`comments.xml`.
 Unsupported tracked shapes produce `W4001`, `W4002`, `E6001`, or `E6002`
 depending on the selected mode.
 
