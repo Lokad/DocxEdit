@@ -892,10 +892,12 @@ public static class DocxHelp
                     TrackClassTextRun,
                     "tracked-hyperlink-text",
                     "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002."),
-                PreserveOnly(
+                Tracked(
                     "insert-hyperlink-after",
                     ["target", "text plus uri or anchor"],
-                    "Hyperlink insertion creates visible text plus relationship metadata; generated revision markup for the combined shape is not modeled yet.",
+                    TrackClassTextRun,
+                    "tracked-hyperlink-insert",
+                    "Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.",
                     ["tooltip", "target-frame", "history"]),
                 PreserveOnly(
                     "remove-hyperlink",

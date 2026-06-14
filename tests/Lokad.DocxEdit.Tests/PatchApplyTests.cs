@@ -3384,6 +3384,108 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireAllowsInsertHyperlinkAfter()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-hyperlink-after
+            target M.P0001
+            text Docs
+            uri https://docs.example/
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "E6001" or "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForInsertHyperlinkAfter()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-hyperlink-after
+            target M.P0001
+            text Docs
+            uri https://docs.example/
+            tooltip Documentation
+            target-frame _blank
+            history true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["1"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(["Anchor", "Docs"], read.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        DocxHyperlinkInfo hyperlink = Assert.Single(read.Hyperlinks);
+        Assert.Equal(4, hyperlink.DisplayTextLength);
+        Assert.Equal("https://docs.example/", hyperlink.Uri);
+        Assert.Equal("Documentation", hyperlink.Tooltip);
+        Assert.Equal("_blank", hyperlink.TargetFrame);
+        Assert.Equal(true, hyperlink.History);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:hyperlink", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Docs</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tooltip=\"Documentation\"", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.Contains("Target=\"https://docs.example/\"", relationships, StringComparison.Ordinal);
+        Assert.Contains("TargetMode=\"External\"", relationships, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal(["Anchor", ""], new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        output.Position = 0;
+        Assert.Equal(["Anchor", "[+Docs+]"], new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsInsertHyperlinkAfterWithLineBreak()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-hyperlink-after
+            target M.P0001
+            text <<<
+            Docs
+            More
+            >>>
+            uri https://docs.example/
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("inserted hyperlink text contains tabs or line breaks", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CheckTextSelectorRejectsAmbiguousMatches()
     {
         using MemoryStream input = CreateDocxWithBody("""

@@ -2530,6 +2530,7 @@ replace-bookmark-text simple same-paragraph bookmark ranges as w:del/w:ins betwe
 set-comment-text    simple paragraph-only comment bodies as w:del/w:ins inside comments.xml
 set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside the field wrapper
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
+insert-hyperlink-after simple inserted hyperlink display text as w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
 ```
 
@@ -2556,8 +2557,11 @@ bodies; it preserves comment metadata, deletes existing paragraph text in place,
 and inserts the replacement in the first paragraph.
 `set-hyperlink-text`
 preserves the hyperlink wrapper and relationship or anchor while replacing simple
-display text with generated revisions. `set-style` records the previous paragraph
-properties in `w:pPrChange`.
+display text with generated revisions. `insert-hyperlink-after` tracked output
+preserves relationship or anchor metadata and wraps the inserted display text in
+`w:ins`; display text with tabs or line breaks remains direct under `suggest` or
+fails under `require`. `set-style` records the previous paragraph properties in
+`w:pPrChange`.
 
 Known preserve-only operations:
 
@@ -2576,7 +2580,6 @@ set-field-lock
 set-field-code
 refresh-field-result
 set-hyperlink-target
-insert-hyperlink-after
 remove-hyperlink
 set-table-style
 set-table-metadata

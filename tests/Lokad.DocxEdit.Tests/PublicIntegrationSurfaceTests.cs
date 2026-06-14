@@ -68,6 +68,10 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupport);
         Assert.Contains("does not create new revision markup", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
         Assert.Contains("E6001", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-hyperlink-after", out DocxPatchOperationInfo insertHyperlinkAfter));
+        Assert.Equal("text-run", insertHyperlinkAfter.TrackChangesSupportClass);
+        Assert.Equal("tracked-hyperlink-insert", insertHyperlinkAfter.TrackChangesSupport);
+        Assert.True(insertHyperlinkAfter.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("add-comment-reply", out DocxPatchOperationInfo addCommentReply));
         Assert.Equal("unsupported", addCommentReply.TrackChangesSupportClass);
         Assert.Equal("unsupported", addCommentReply.TrackChangesSupport);
@@ -108,6 +112,7 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("replace-text | text-run | tracked-simple", table, StringComparison.Ordinal);
         Assert.Contains("replace-bookmark-text | text-run | tracked-bookmark-text", table, StringComparison.Ordinal);
         Assert.Contains("set-comment-text | text-run | tracked-comment-text", table, StringComparison.Ordinal);
+        Assert.Contains("insert-hyperlink-after | text-run | tracked-hyperlink-insert", table, StringComparison.Ordinal);
         Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
         Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
 

@@ -227,7 +227,8 @@ display text, simple field result text, simple same-paragraph bookmark text,
 guarded paragraph-only rich-text content controls, and simple table-cell
 replacement including compatible multi-paragraph text-only cells. Simple
 paragraph-only comment body replacement can also emit tracked revisions in
-`comments.xml`.
+`comments.xml`, and simple inserted hyperlink display text can be wrapped in
+tracked insertion markup.
 Unsupported tracked shapes produce `W4001`, `W4002`, `E6001`, or `E6002`
 depending on the selected mode.
 

@@ -140,7 +140,7 @@ internal static class DocxPatchEngine
                     "refresh-field-result" => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
+                    "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
                     "set-cell" => ExecuteSetCell(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-table-style" => ExecuteSetTableStyle(package, operation, apply, cancellationToken),
@@ -2280,7 +2280,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteInsertHyperlinkAfter(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -2309,9 +2311,20 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text!))
+        {
+            if (!TrackUnsupportedShape(options, operation, target!, "inserted hyperlink text contains tabs or line breaks", diagnostics))
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
         }
 
         string? relationshipId = null;
@@ -2322,15 +2335,23 @@ internal static class DocxPatchEngine
         }
 
         XElement paragraph = CreateHyperlinkParagraph(
-            text!,
+            useTrackedChanges ? string.Empty : text!,
             relationshipId,
             anchor,
             operation.Fields.GetValueOrDefault("tooltip"),
             operation.Fields.GetValueOrDefault("target-frame"),
             history);
+        if (useTrackedChanges)
+        {
+            XElement hyperlink = paragraph.Element(OoxmlNs.W + "hyperlink")
+                ?? throw new InvalidDataException("Hyperlink paragraph did not contain a hyperlink element.");
+            hyperlink.RemoveNodes();
+            ReplaceWholeParagraphTextWithTrackedChanges(package, hyperlink, string.Empty, text!, options, generatedRevisionIds, cancellationToken);
+        }
+
         blockTarget.Block.AddAfterSelf(paragraph);
         SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteRemoveHyperlink(
