@@ -1137,6 +1137,22 @@ public static class PatchApplyTests
                         <w:pPrChange w:id="4" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
                       </w:pPr>
                     </w:p>
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblPrChange w:id="5" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
+                      </w:tblPr>
+                      <w:tr>
+                        <w:trPr>
+                          <w:trPrChange w:id="6" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
+                        </w:trPr>
+                        <w:tc>
+                          <w:tcPr>
+                            <w:tcPrChange w:id="7" w:author="Reviewer" w:date="2026-06-08T12:00:00Z"/>
+                          </w:tcPr>
+                          <w:p><w:r><w:t>Cell</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
             """);
 
         DocxValidateResult result = new DocxEditor().Validate(input);
@@ -1146,6 +1162,9 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:author", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:delText", StringComparison.Ordinal));
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:pPrChange", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:tblPrChange", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:trPrChange", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9121" && diagnostic.Message.Contains("w:tcPrChange", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -6178,17 +6197,9 @@ public static class PatchApplyTests
     }
 
     [Theory]
-    [InlineData("set-table-style", """
-        target M.T0001
-        style TableGrid
-        """)]
     [InlineData("set-table-metadata", """
         target M.T0001
         caption Updated caption
-        """)]
-    [InlineData("set-row-header", """
-        target M.T0001.R01
-        header true
         """)]
     public static void CheckTrackChangesRequireRejectsTablePropertyOperationsAsPreserveOnly(string operationName, string operationFields)
     {
@@ -6211,19 +6222,89 @@ public static class PatchApplyTests
         Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
+    [Fact]
+    public static void CheckTrackChangesRequireAllowsTableAndRowPropertyRevisions()
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-style
+            target M.T0001
+            style TableGrid
+            end
+
+            op set-row-header
+            target M.T0001.R01
+            header true
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "E6001" or "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesTableAndRowPropertyRevisions()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblStyle w:val="OldStyle"/>
+                      </w:tblPr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-style
+            target M.T0001
+            expect-style OldStyle
+            style TableGrid
+            end
+
+            op set-row-header
+            target M.T0001.R01
+            expect-header false
+            header true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["1"], result.Operations[0].GeneratedRevisionIds);
+        Assert.Equal(["2"], result.Operations[1].GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:tblStyle w:val=\"TableGrid\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:tblPrChange w:id=\"1\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:tblStyle w:val=\"OldStyle\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:tblHeader", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:trPrChange w:id=\"2\"", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        DocxChangesResult changes = new DocxEditor().Changes(output);
+        Assert.Contains(changes.Summary, summary => summary.Type == "table-properties-change" && summary.Count == 1);
+        Assert.Contains(changes.Summary, summary => summary.Type == "row-properties-change" && summary.Count == 1);
+    }
+
     [Theory]
-    [InlineData("set-table-style", """
-        target M.T0001
-        style TableGrid
-        """, "<w:tblStyle w:val=\"TableGrid\"")]
     [InlineData("set-table-metadata", """
         target M.T0001
         caption Updated caption
         """, "<w:tblCaption w:val=\"Updated caption\"")]
-    [InlineData("set-row-header", """
-        target M.T0001.R01
-        header true
-        """, "<w:tblHeader")]
     public static void ApplyTrackChangesSuggestWarnsForTablePropertyOperationsAsPreserveOnly(
         string operationName,
         string operationFields,

@@ -143,9 +143,9 @@ internal static class DocxPatchEngine
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
                     "set-cell" => ExecuteSetCell(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-table-style" => ExecuteSetTableStyle(package, operation, apply, cancellationToken),
+                    "set-table-style" => ExecuteSetTableStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-table-metadata" => ExecuteSetTableMetadata(package, operation, apply, cancellationToken),
-                    "set-row-header" => ExecuteSetRowHeader(package, operation, apply, cancellationToken),
+                    "set-row-header" => ExecuteSetRowHeader(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
                     "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
                     "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
@@ -4379,6 +4379,60 @@ internal static class DocxPatchEngine
             oldParagraphProperties));
     }
 
+    private static void SetTableStyleWithTrackedChange(
+        OoxmlPackage package,
+        XElement table,
+        string styleId,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        XElement oldTableProperties = table.Element(OoxmlNs.W + "tblPr") is { } existing
+            ? new XElement(existing)
+            : new XElement(OoxmlNs.W + "tblPr");
+        oldTableProperties.Elements(OoxmlNs.W + "tblPrChange").Remove();
+        SetTableStyle(table, styleId);
+        XElement tableProperties = table.Element(OoxmlNs.W + "tblPr")
+            ?? throw new InvalidDataException("Table style update did not create table properties.");
+        tableProperties.Elements(OoxmlNs.W + "tblPrChange").Remove();
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
+        tableProperties.Add(new XElement(
+            OoxmlNs.W + "tblPrChange",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", GetRevisionAuthor(options)),
+            new XAttribute(OoxmlNs.W + "date", GetRevisionTimestamp(options)),
+            oldTableProperties));
+    }
+
+    private static void SetTableRowHeaderWithTrackedChange(
+        OoxmlPackage package,
+        XElement row,
+        bool header,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        XElement oldRowProperties = row.Element(OoxmlNs.W + "trPr") is { } existing
+            ? new XElement(existing)
+            : new XElement(OoxmlNs.W + "trPr");
+        oldRowProperties.Elements(OoxmlNs.W + "trPrChange").Remove();
+        SetTableRowHeader(row, header);
+        XElement rowProperties = row.Element(OoxmlNs.W + "trPr") ?? new XElement(OoxmlNs.W + "trPr");
+        if (rowProperties.Parent is null)
+        {
+            row.AddFirst(rowProperties);
+        }
+
+        rowProperties.Elements(OoxmlNs.W + "trPrChange").Remove();
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
+        rowProperties.Add(new XElement(
+            OoxmlNs.W + "trPrChange",
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", GetRevisionAuthor(options)),
+            new XAttribute(OoxmlNs.W + "date", GetRevisionTimestamp(options)),
+            oldRowProperties));
+    }
+
     private static IReadOnlyList<DocxDiagnostic> ValidateTrackChangeOptions(DocxEditOptions options)
     {
         if (!IsTrackedMode(options))
@@ -5821,7 +5875,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetTableStyle(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -5855,7 +5911,15 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        SetTableStyle(tableTarget.Table, style!);
+        if (IsTrackedMode(options))
+        {
+            SetTableStyleWithTrackedChange(package, tableTarget.Table, style!, options, generatedRevisionIds, cancellationToken);
+        }
+        else
+        {
+            SetTableStyle(tableTarget.Table, style!);
+        }
+
         SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);
         return [];
     }
@@ -5919,7 +5983,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetRowHeader(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -5954,7 +6020,15 @@ internal static class DocxPatchEngine
             return [];
         }
 
-        SetTableRowHeader(rowTarget.Row, header!.Value);
+        if (IsTrackedMode(options))
+        {
+            SetTableRowHeaderWithTrackedChange(package, rowTarget.Row, header!.Value, options, generatedRevisionIds, cancellationToken);
+        }
+        else
+        {
+            SetTableRowHeader(rowTarget.Row, header!.Value);
+        }
+
         SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
         return [];
     }

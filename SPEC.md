@@ -2093,6 +2093,7 @@ Rules:
 * `expect-style` is an optional guard against the current `w:tblStyle` value.
 * Create `w:tblPr` and `w:tblStyle` when missing.
 * Preserve table grid, rows, cells, and existing table properties.
+* Under tracked output, record the previous table properties in `w:tblPrChange`.
 
 ### 11.7b `set-table-metadata`
 
@@ -2136,6 +2137,7 @@ Rules:
 * Setting `header true` creates `w:trPr/w:tblHeader` when missing.
 * Setting `header false` removes `w:tblHeader` while preserving other row
   properties.
+* Under tracked output, record the previous row properties in `w:trPrChange`.
 
 ### 11.8 `append-row`
 
@@ -2532,6 +2534,8 @@ set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
 insert-hyperlink-after simple inserted hyperlink display text as w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
+set-table-style      table style property changes as w:tblPrChange
+set-row-header       repeating-row header property changes as w:trPrChange
 ```
 
 The supported tracked text shapes must not contain tabs, line breaks, soft hyphens,
@@ -2561,7 +2565,9 @@ display text with generated revisions. `insert-hyperlink-after` tracked output
 preserves relationship or anchor metadata and wraps the inserted display text in
 `w:ins`; display text with tabs or line breaks remains direct under `suggest` or
 fails under `require`. `set-style` records the previous paragraph properties in
-`w:pPrChange`.
+`w:pPrChange`. `set-table-style` records previous table properties in
+`w:tblPrChange`, and `set-row-header` records previous row properties in
+`w:trPrChange`.
 
 Known preserve-only operations:
 
@@ -2581,9 +2587,7 @@ set-field-code
 refresh-field-result
 set-hyperlink-target
 remove-hyperlink
-set-table-style
 set-table-metadata
-set-row-header
 append-row
 insert-row-before
 insert-row-after

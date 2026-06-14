@@ -165,6 +165,30 @@ internal static class DocxPackageValidator
                     diagnostics.Add(Error("E9121", "Paragraph property revision w:pPrChange is missing child w:pPr.", partName));
                 }
             }
+            else if (element.Name == OoxmlNs.W + "tblPrChange")
+            {
+                ValidateRevisionMetadata(element, "tblPrChange", partName, diagnostics);
+                if (element.Element(OoxmlNs.W + "tblPr") is null)
+                {
+                    diagnostics.Add(Error("E9121", "Table property revision w:tblPrChange is missing child w:tblPr.", partName));
+                }
+            }
+            else if (element.Name == OoxmlNs.W + "trPrChange")
+            {
+                ValidateRevisionMetadata(element, "trPrChange", partName, diagnostics);
+                if (element.Element(OoxmlNs.W + "trPr") is null)
+                {
+                    diagnostics.Add(Error("E9121", "Row property revision w:trPrChange is missing child w:trPr.", partName));
+                }
+            }
+            else if (element.Name == OoxmlNs.W + "tcPrChange")
+            {
+                ValidateRevisionMetadata(element, "tcPrChange", partName, diagnostics);
+                if (element.Element(OoxmlNs.W + "tcPr") is null)
+                {
+                    diagnostics.Add(Error("E9121", "Cell property revision w:tcPrChange is missing child w:tcPr.", partName));
+                }
+            }
             else if (element.Name == OoxmlNs.W + "delText" &&
                 !element.Ancestors(OoxmlNs.W + "del").Any())
             {

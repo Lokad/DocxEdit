@@ -52,8 +52,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("E6002", setCell.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("set-table-style", out DocxPatchOperationInfo setTableStyle));
         Assert.Contains("expect-style", setTableStyle.OptionalFields);
-        Assert.Equal("preserve-only", setTableStyle.TrackChangesSupportClass);
-        Assert.Equal("preserve-only", setTableStyle.TrackChangesSupport);
+        Assert.Equal("table-property", setTableStyle.TrackChangesSupportClass);
+        Assert.Equal("tracked-table-style", setTableStyle.TrackChangesSupport);
+        Assert.True(setTableStyle.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("set-table-metadata", out DocxPatchOperationInfo setTableMetadata));
         Assert.Contains("expect-caption", setTableMetadata.OptionalFields);
         Assert.Contains("expect-description", setTableMetadata.OptionalFields);
@@ -61,8 +62,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("preserve-only", setTableMetadata.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("set-row-header", out DocxPatchOperationInfo setRowHeader));
         Assert.Contains("expect-header", setRowHeader.OptionalFields);
-        Assert.Equal("preserve-only", setRowHeader.TrackChangesSupportClass);
-        Assert.Equal("preserve-only", setRowHeader.TrackChangesSupport);
+        Assert.Equal("row-property", setRowHeader.TrackChangesSupportClass);
+        Assert.Equal("tracked-row-header", setRowHeader.TrackChangesSupport);
+        Assert.True(setRowHeader.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo removeHyperlink));
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupportClass);
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupport);
@@ -114,6 +116,8 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("set-comment-text | text-run | tracked-comment-text", table, StringComparison.Ordinal);
         Assert.Contains("insert-hyperlink-after | text-run | tracked-hyperlink-insert", table, StringComparison.Ordinal);
         Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
+        Assert.Contains("set-table-style | table-property | tracked-table-style", table, StringComparison.Ordinal);
+        Assert.Contains("set-row-header | row-property | tracked-row-header", table, StringComparison.Ordinal);
         Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
 
         string repoRoot = FindRepoRoot();

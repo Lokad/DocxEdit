@@ -62,6 +62,8 @@ public static class DocxHelp
     private const string TrackClassTextRun = "text-run";
     private const string TrackClassParagraphBlock = "paragraph-block";
     private const string TrackClassParagraphProperty = "paragraph-property";
+    private const string TrackClassTableProperty = "table-property";
+    private const string TrackClassRowProperty = "row-property";
     private const string TrackClassPreserveOnly = "preserve-only";
     private const string TrackClassUnsupported = "unsupported";
 
@@ -910,20 +912,24 @@ public static class DocxHelp
                     "tracked-cell-simple",
                     "Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph cells; force or complex cells warn with W4002 or fail with E6002.",
                     ["expect-text", "expect-row-count", "expect-column-count", "force"]),
-                PreserveOnly(
+                Tracked(
                     "set-table-style",
                     ["target", "style"],
-                    "Table style updates are table properties; generated w:tblPrChange output is not modeled yet.",
+                    TrackClassTableProperty,
+                    "tracked-table-style",
+                    "Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.",
                     ["expect-style"]),
                 PreserveOnly(
                     "set-table-metadata",
                     ["target plus caption or description"],
                     "Table caption and description updates are table metadata, not visible document text.",
                     ["expect-caption", "expect-description"]),
-                PreserveOnly(
+                Tracked(
                     "set-row-header",
                     ["target", "header"],
-                    "Repeating-row header updates are row properties; generated w:trPrChange output is not modeled yet.",
+                    TrackClassRowProperty,
+                    "tracked-row-header",
+                    "Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.",
                     ["expect-header"]),
                 PreserveOnly(
                     "append-row",

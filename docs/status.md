@@ -66,7 +66,8 @@ Implemented areas include:
   content controls, guarded paragraph-only rich-text content controls, simple
   same-paragraph bookmark text, simple paragraph-only comment body text, simple
   field result text, simple hyperlink display text and insertion, and simple
-  table-cell text replacement with author, timestamp, and revision IDs;
+  table-cell text replacement, plus table style and row-header property revisions,
+  with author, timestamp, and revision IDs;
 - operation-level track-change capability metadata in the shared help catalog,
   including tracked and preserve-only operation classifications, with `W4001` and
   `E6001` diagnostics that report the catalog support value;
