@@ -1673,7 +1673,8 @@ Rules:
 * Target must be a paragraph or table.
 * Insert a new paragraph before the target.
 * `copy-paragraph-properties true` requires a paragraph target and copies the target
-  paragraph `w:pPr`, including style and numbering properties.
+  paragraph `w:pPr`, including style and numbering properties, but excludes copied
+  `w:pPrChange` and `w:sectPr`.
 * `style`, when supplied, overrides the copied or default paragraph style.
 
 ### 11.4 `insert-after`
@@ -1693,7 +1694,8 @@ Rules:
 * Target must be a paragraph or table.
 * Insert a new paragraph after the target.
 * `copy-paragraph-properties true` requires a paragraph target and copies the target
-  paragraph `w:pPr`, including style and numbering properties.
+  paragraph `w:pPr`, including style and numbering properties, but excludes copied
+  `w:pPrChange` and `w:sectPr`.
 * `style`, when supplied, overrides the copied or default paragraph style.
 * If target is a paragraph with section properties, do not insert after the section break incorrectly; insert before the section break if necessary and warn.
 

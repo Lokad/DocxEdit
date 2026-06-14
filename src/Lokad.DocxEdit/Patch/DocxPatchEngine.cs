@@ -688,7 +688,7 @@ internal static class DocxPatchEngine
         }
 
         XElement? paragraphProperties = copyParagraphProperties
-            ? blockTarget.Block.Element(OoxmlNs.W + "pPr")
+            ? CloneParagraphPropertiesForInsertion(blockTarget.Block.Element(OoxmlNs.W + "pPr"))
             : null;
         XElement paragraph = useTrackedChanges
             ? CreateTrackedInsertedParagraph(package, text!, style, paragraphProperties, options, generatedRevisionIds, cancellationToken)
@@ -704,6 +704,19 @@ internal static class DocxPatchEngine
 
         SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
         return [];
+    }
+
+    private static XElement? CloneParagraphPropertiesForInsertion(XElement? paragraphProperties)
+    {
+        if (paragraphProperties is null)
+        {
+            return null;
+        }
+
+        var clone = new XElement(paragraphProperties);
+        clone.Elements(OoxmlNs.W + "pPrChange").Remove();
+        clone.Elements(OoxmlNs.W + "sectPr").Remove();
+        return clone.HasElements || clone.HasAttributes ? clone : null;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteBlock(

@@ -188,7 +188,8 @@ The tables below group the same operations by editing area.
 
 For list-like insertions, use `copy-paragraph-properties true` with a paragraph
 target. The new paragraph copies the target paragraph properties, including list
-numbering. An explicit `style` overrides only the copied paragraph style.
+numbering, while dropping copied `w:pPrChange` and `w:sectPr`. An explicit
+`style` overrides only the copied paragraph style.
 
 ### Content Controls
 

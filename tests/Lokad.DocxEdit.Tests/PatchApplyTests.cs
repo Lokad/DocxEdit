@@ -1528,6 +1528,52 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestSanitizesCopiedParagraphPropertiesForInsertedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:pStyle w:val="BodyText"/>
+                        <w:numPr>
+                          <w:ilvl w:val="0"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                        <w:pPrChange w:id="4" w:author="Reviewer" w:date="2026-06-08T12:00:00Z">
+                          <w:pPr><w:pStyle w:val="OldStyle"/></w:pPr>
+                        </w:pPrChange>
+                        <w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr>
+                      </w:pPr>
+                      <w:r><w:t>Item one</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            copy-paragraph-properties true
+            text Item two
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(2, CountOccurrences(xml, "w:pStyle w:val=\"BodyText\""));
+        Assert.Equal(2, CountOccurrences(xml, "<w:numPr>"));
+        Assert.Equal(1, CountOccurrences(xml, "<w:pPrChange "));
+        Assert.Equal(1, CountOccurrences(xml, "<w:sectPr>"));
+        Assert.Contains("<w:ins w:id=\"5\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestInsertsListContinuationWithCopiedNumberingProperties()
     {
         using MemoryStream input = CreateDocxWithNumbering(
