@@ -1291,6 +1291,107 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestInsertsListContinuationWithCopiedNumberingProperties()
+    {
+        using MemoryStream input = CreateDocxWithNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Item one</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Item three</w:t></w:r>
+                    </w:p>
+            """,
+            SimpleDecimalNumberingXml());
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            copy-paragraph-properties true
+            text Item two
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(["1"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(["Item one", "Item two", "Item three"], read.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3."], read.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(3, CountOccurrences(xml, "<w:numPr>"));
+        Assert.Contains("<w:ins w:id=\"1\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestInsertsListContinuationWithRestartOverride()
+    {
+        using MemoryStream input = CreateDocxWithNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default item</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                      <w:r><w:t>Restart item</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                  <w:num w:numId="10">
+                    <w:abstractNumId w:val="7"/>
+                    <w:lvlOverride w:ilvl="0"><w:startOverride w:val="7"/></w:lvlOverride>
+                  </w:num>
+                </w:numbering>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0002
+            copy-paragraph-properties true
+            text Restart continuation
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(["Default item", "Restart item", "Restart continuation"], read.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "7.", "8."], read.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["9", "10", "10"], read.Paragraphs.Select(paragraph => paragraph.List?.NumberingId ?? string.Empty).ToArray());
+        output.Position = 0;
+        Assert.Contains("<w:ins w:id=\"1\"", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyTrackedInsertionPreservesExistingTrackedChangesAndComments()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
@@ -5692,6 +5793,62 @@ public static class PatchApplyTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static MemoryStream CreateDocxWithNumbering(string bodyXml, string numberingXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+                </Relationships>
+                """);
+            string documentXml = """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """;
+            AddEntry(archive, "word/document.xml", documentXml);
+            AddEntry(archive, "word/numbering.xml", numberingXml);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static string SimpleDecimalNumberingXml()
+    {
+        return """
+            <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:abstractNum w:abstractNumId="7">
+                <w:lvl w:ilvl="0">
+                  <w:start w:val="1"/>
+                  <w:numFmt w:val="decimal"/>
+                  <w:lvlText w:val="%1."/>
+                </w:lvl>
+              </w:abstractNum>
+              <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+            </w:numbering>
+            """;
     }
 
     private static MemoryStream CreateDocxWithBodyAndRelationships(string bodyXml, string relationshipsXml)
