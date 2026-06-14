@@ -274,3 +274,6 @@ docxedit help patch
 
 `docxedit help patch` is generated from the shared library command catalog. It is
 the most compact source for exact operation fields and track-change support.
+
+For `apply --track-changes suggest|require`, operation summaries and report JSON
+include `GeneratedRevisionIds` when an operation actually creates revision markup.

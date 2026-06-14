@@ -691,7 +691,7 @@ public static class DocxHelp
                     Category = "patch",
                     Summary = "Apply a .docxpatch file and write a new .docx",
                     Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [options]",
-                    Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation and affected row/cell lines for table operations.",
+                    Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation, generated revision IDs when tracked markup is created, and affected row/cell lines for table operations.",
                     Options =
                     [
                         new("--output path, -o path", "Output .docx path"),

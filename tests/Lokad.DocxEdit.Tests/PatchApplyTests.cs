@@ -748,6 +748,9 @@ public static class PatchApplyTests
 
         Assert.True(result.Success);
         Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        DocxPatchOperationReport operation = Assert.Single(result.Operations);
+        Assert.Equal(["1", "2"], operation.GeneratedRevisionIds);
+        Assert.Contains("generated-revision-ids=1,2", DocxTextRenderer.RenderOperationSummary(result.Operations), StringComparison.Ordinal);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("<w:del", xml, StringComparison.Ordinal);

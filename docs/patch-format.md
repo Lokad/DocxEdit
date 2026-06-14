@@ -431,6 +431,10 @@ run formatting. Those cases produce `W4002` in `suggest` mode or `E6002` in
 support value, and exact unsupported-shape reason; `W4002` also says the edit is
 being applied directly.
 
+When `apply` creates revision markup, operation summaries and report JSON include
+the generated revision IDs for that operation. Use those IDs with `changes` to
+verify the resulting markup without reading raw OOXML.
+
 ## Assets
 
 Image operations read `asset` from the local filesystem. Relative paths are

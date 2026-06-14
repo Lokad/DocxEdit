@@ -94,6 +94,7 @@ public sealed record DocxPatchOperationReport(
     IReadOnlyList<DocxDiagnostic> Diagnostics)
 {
     public IReadOnlyList<DocxPatchAffectedTarget> AffectedTargets { get; init; } = [];
+    public IReadOnlyList<string> GeneratedRevisionIds { get; init; } = [];
 }
 
 public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Action)

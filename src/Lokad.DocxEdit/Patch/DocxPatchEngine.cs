@@ -82,6 +82,7 @@ internal static class DocxPatchEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
             var operationDiagnostics = new List<DocxDiagnostic>();
+            var generatedRevisionIds = new List<string>();
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
@@ -111,12 +112,12 @@ internal static class DocxPatchEngine
 
                 operationDiagnostics.AddRange(operation.OperationName switch
                 {
-                    "replace-text" => ExecuteReplaceText(package, operation, options, apply, cancellationToken),
-                    "replace-paragraph" => ExecuteReplaceParagraph(package, operation, options, apply, cancellationToken),
-                    "insert-before" => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, cancellationToken),
-                    "insert-after" => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, cancellationToken),
-                    "delete-block" => ExecuteDeleteBlock(package, operation, options, apply, cancellationToken),
-                    "set-style" => ExecuteSetStyle(package, operation, options, apply, cancellationToken),
+                    "replace-text" => ExecuteReplaceText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
+                    "replace-paragraph" => ExecuteReplaceParagraph(package, operation, options, apply, generatedRevisionIds, cancellationToken),
+                    "insert-before" => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, generatedRevisionIds, cancellationToken),
+                    "insert-after" => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, generatedRevisionIds, cancellationToken),
+                    "delete-block" => ExecuteDeleteBlock(package, operation, options, apply, generatedRevisionIds, cancellationToken),
+                    "set-style" => ExecuteSetStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-content-control-text" => ExecuteSetContentControlText(package, operation, apply, cancellationToken),
                     "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
                     "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
@@ -141,7 +142,7 @@ internal static class DocxPatchEngine
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, apply, cancellationToken),
                     "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, apply, cancellationToken),
                     "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
-                    "set-cell" => ExecuteSetCell(package, operation, options, apply, cancellationToken),
+                    "set-cell" => ExecuteSetCell(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-table-style" => ExecuteSetTableStyle(package, operation, apply, cancellationToken),
                     "set-table-metadata" => ExecuteSetTableMetadata(package, operation, apply, cancellationToken),
                     "set-row-header" => ExecuteSetRowHeader(package, operation, apply, cancellationToken),
@@ -173,7 +174,8 @@ internal static class DocxPatchEngine
                 operationSuccess,
                 operationDiagnostics)
             {
-                AffectedTargets = operationSuccess ? BuildAffectedTargets(operation, tableBefore) : []
+                AffectedTargets = operationSuccess ? BuildAffectedTargets(operation, tableBefore) : [],
+                GeneratedRevisionIds = operationSuccess ? generatedRevisionIds.ToArray() : []
             });
         }
 
@@ -444,6 +446,7 @@ internal static class DocxPatchEngine
         DocxPatchOperation operation,
         DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -520,7 +523,7 @@ internal static class DocxPatchEngine
 
         if (useTrackedChanges && canUseTrackedChanges)
         {
-            ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement!, options, cancellationToken);
+            ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement!, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
             return [];
         }
@@ -547,6 +550,7 @@ internal static class DocxPatchEngine
         DocxPatchOperation operation,
         DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -600,7 +604,7 @@ internal static class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text!, options, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text!, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
             return diagnostics;
         }
@@ -621,6 +625,7 @@ internal static class DocxPatchEngine
         DocxEditOptions options,
         bool insertAfter,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -669,7 +674,7 @@ internal static class DocxPatchEngine
             ? blockTarget.Block.Element(OoxmlNs.W + "pPr")
             : null;
         XElement paragraph = useTrackedChanges
-            ? CreateTrackedInsertedParagraph(package, text!, style, paragraphProperties, options, cancellationToken)
+            ? CreateTrackedInsertedParagraph(package, text!, style, paragraphProperties, options, generatedRevisionIds, cancellationToken)
             : CreateSimpleParagraph(text!, style, paragraphProperties);
         if (insertAfter)
         {
@@ -689,6 +694,7 @@ internal static class DocxPatchEngine
         DocxPatchOperation operation,
         DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -758,7 +764,7 @@ internal static class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, blockTarget.Block, current, string.Empty, options, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, blockTarget.Block, current, string.Empty, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
             return diagnostics;
         }
@@ -773,6 +779,7 @@ internal static class DocxPatchEngine
         DocxPatchOperation operation,
         DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -806,7 +813,7 @@ internal static class DocxPatchEngine
 
         if (IsTrackedMode(options))
         {
-            SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, styleId!, options, cancellationToken);
+            SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, styleId!, options, generatedRevisionIds, cancellationToken);
         }
         else
         {
@@ -3583,9 +3590,10 @@ internal static class DocxPatchEngine
         IReadOnlyList<TextRange> matches,
         string replacement,
         DocxEditOptions options,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
-        string[] revisionIds = AllocateRevisionIds(package, matches.Count * 2, cancellationToken);
+        string[] revisionIds = AllocateRevisionIds(package, matches.Count * 2, generatedRevisionIds, cancellationToken);
         XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
         XElement? firstRunProperties = paragraph
             .Elements(OoxmlNs.W + "r")
@@ -3630,10 +3638,11 @@ internal static class DocxPatchEngine
         string deletedText,
         string insertedText,
         DocxEditOptions options,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         int revisionCount = (deletedText.Length == 0 ? 0 : 1) + (insertedText.Length == 0 ? 0 : 1);
-        string[] revisionIds = AllocateRevisionIds(package, revisionCount, cancellationToken);
+        string[] revisionIds = AllocateRevisionIds(package, revisionCount, generatedRevisionIds, cancellationToken);
         XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
         XElement? firstRunProperties = paragraph
             .Elements(OoxmlNs.W + "r")
@@ -3669,6 +3678,7 @@ internal static class DocxPatchEngine
         string? style,
         XElement? paragraphProperties,
         DocxEditOptions options,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var paragraph = new XElement(OoxmlNs.W + "p");
@@ -3682,7 +3692,7 @@ internal static class DocxPatchEngine
             SetParagraphStyle(paragraph, style);
         }
 
-        string revisionId = AllocateRevisionIds(package, 1, cancellationToken)[0];
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
         string author = GetRevisionAuthor(options);
         string timestamp = GetRevisionTimestamp(options);
         paragraph.Add(CreateInsertedRun(text, runProperties: null, revisionId, author, timestamp));
@@ -3694,6 +3704,7 @@ internal static class DocxPatchEngine
         XElement paragraph,
         string styleId,
         DocxEditOptions options,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         XElement oldParagraphProperties = paragraph.Element(OoxmlNs.W + "pPr") is { } existing
@@ -3703,7 +3714,7 @@ internal static class DocxPatchEngine
         XElement paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr")
             ?? throw new InvalidDataException("Paragraph style update did not create paragraph properties.");
         paragraphProperties.Elements(OoxmlNs.W + "pPrChange").Remove();
-        string revisionId = AllocateRevisionIds(package, 1, cancellationToken)[0];
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
         paragraphProperties.Add(new XElement(
             OoxmlNs.W + "pPrChange",
             new XAttribute(OoxmlNs.W + "id", revisionId),
@@ -5057,6 +5068,7 @@ internal static class DocxPatchEngine
         DocxPatchOperation operation,
         DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -5158,7 +5170,7 @@ internal static class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraph!, current, text!, options, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraph!, current, text!, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
             return diagnostics;
         }
@@ -7551,6 +7563,17 @@ internal static class DocxPatchEngine
         }
 
         return textElement;
+    }
+
+    private static string[] AllocateRevisionIds(
+        OoxmlPackage package,
+        int count,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        string[] ids = AllocateRevisionIds(package, count, cancellationToken);
+        generatedRevisionIds.AddRange(ids);
+        return ids;
     }
 
     private static string[] AllocateRevisionIds(

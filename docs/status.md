@@ -51,7 +51,8 @@ Implemented areas include:
   history flags, and aggregate diagnostics for invalid URI/anchor states;
 - hyperlink patch operations for target URI/anchor updates, tooltip/frame/history updates,
   display text updates, insertion, and unlinking while preserving display runs;
-- check/apply operation reports with affected row/cell summaries for table edits;
+- check/apply operation reports with affected row/cell summaries for table edits
+  and generated revision IDs for apply operations that create tracked markup;
 - table property patch operations for table style, caption/description metadata,
   and row repeating-header flags;
 - explicit `E4316` diagnostics for unsupported table-column insertion and deletion

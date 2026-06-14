@@ -362,6 +362,9 @@ public static class DocxTextRenderer
         foreach (DocxPatchOperationReport operation in operations)
         {
             string target = operation.Target is null ? "target=unknown" : $"target={operation.Target}";
+            string revisionIds = operation.GeneratedRevisionIds.Count == 0
+                ? string.Empty
+                : $" generated-revision-ids={EscapeText(string.Join(",", operation.GeneratedRevisionIds))}";
             builder.Append("operation index=")
                 .Append(operation.Index)
                 .Append(" name=")
@@ -370,6 +373,7 @@ public static class DocxTextRenderer
                 .Append(target)
                 .Append(" success=")
                 .Append(operation.Success)
+                .Append(revisionIds)
                 .AppendLine();
             foreach (DocxPatchAffectedTarget affected in operation.AffectedTargets)
             {
