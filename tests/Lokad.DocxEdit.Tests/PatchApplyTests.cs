@@ -4310,8 +4310,12 @@ public static class PatchApplyTests
         Assert.Equal("2026-07-01", Assert.Single(read.Paragraphs).Text);
     }
 
-    [Fact]
-    public static void CheckRepeatingSectionItemOperationsFailWithExplicitUnsupportedDiagnostic()
+    [Theory]
+    [InlineData("add-repeating-section-item", "index 1\ntext Added")]
+    [InlineData("delete-repeating-section-item", "index 1")]
+    public static void CheckRepeatingSectionItemOperationsFailWithExplicitUnsupportedDiagnostic(
+        string operationName,
+        string operationFields)
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -4328,13 +4332,12 @@ public static class PatchApplyTests
                       </w:sdt>
                     </w:p>
             """);
-        using var patch = new StringReader("""
+        using var patch = new StringReader($"""
             docxpatch 1
 
-            op add-repeating-section-item
+            op {operationName}
             target M.CC0001
-            index 1
-            text Added
+            {operationFields}
             end
             """);
 

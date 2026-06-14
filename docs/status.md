@@ -157,7 +157,9 @@ unsupported WordprocessingML shapes without private document details.
   surfaced as metadata with safe-edit reasons. Picture-control edit attempts fail
   with image/media guidance; group-control edit attempts fail with guidance to
   target editable child controls. Repeating-section item edit operations are
-  recognized and fail with `E4315`.
+  recognized and fail with `E4315`; this remains intentional until subtree
+  cloning/deletion can preserve content-control IDs, bindings, and section
+  boundaries.
 - Tags, aliases, placeholders, data bindings, lock values, list items, checkbox
   symbols, date metadata, parent/child relationships, duplicate semantic
   selectors, safe-edit status, and safe-edit reason are surfaced.
