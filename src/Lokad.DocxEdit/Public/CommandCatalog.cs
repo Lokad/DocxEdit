@@ -214,6 +214,7 @@ public static class DocxHelp
     private static DocxPatchOperationInfo PreserveOnly(
         string name,
         IReadOnlyList<string> requiredFields,
+        string rationale,
         IReadOnlyList<string>? optionalFields = null)
     {
         return new DocxPatchOperationInfo
@@ -223,7 +224,7 @@ public static class DocxHelp
             OptionalFields = optionalFields ?? [],
             TrackChangesSupportClass = TrackClassPreserveOnly,
             TrackChangesSupport = "preserve-only",
-            TrackChangesNote = PreserveOnlyTrackChangesNote
+            TrackChangesNote = $"{rationale} {PreserveOnlyTrackChangesNote}"
         };
     }
 
@@ -774,10 +775,24 @@ public static class DocxHelp
                     TrackClassParagraphProperty,
                     "tracked-style",
                     "Suggest/Require emit paragraph property revisions with w:pPrChange."),
-                PreserveOnly("set-content-control-text", ["target", "text"], ["expect-text"]),
-                PreserveOnly("set-content-control-checkbox", ["target", "checked"]),
-                PreserveOnly("set-content-control-choice", ["target plus value or display-text"]),
-                PreserveOnly("set-content-control-date", ["target", "value"], ["display-text"]),
+                PreserveOnly(
+                    "set-content-control-text",
+                    ["target", "text"],
+                    "Content-control text replacement must preserve the wrapper, bindings, and locks; generated revision markup inside the wrapper is not modeled yet.",
+                    ["expect-text"]),
+                PreserveOnly(
+                    "set-content-control-checkbox",
+                    ["target", "checked"],
+                    "Checkbox content controls update state metadata, not a simple Word revision range."),
+                PreserveOnly(
+                    "set-content-control-choice",
+                    ["target plus value or display-text"],
+                    "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet."),
+                PreserveOnly(
+                    "set-content-control-date",
+                    ["target", "value"],
+                    "Date content controls update date metadata and display text together; generated revision markup is not modeled yet.",
+                    ["display-text"]),
                 Unsupported(
                     "add-repeating-section-item",
                     ["target"],
@@ -788,15 +803,44 @@ public static class DocxHelp
                     ["target"],
                     "Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.",
                     ["index"]),
-                PreserveOnly("add-bookmark", ["target", "name"], ["expect-text"]),
-                PreserveOnly("replace-bookmark-text", ["target", "text"]),
-                PreserveOnly("rename-bookmark", ["target", "name"]),
-                PreserveOnly("delete-bookmark", ["target"]),
-                PreserveOnly("add-comment", ["target", "text"], ["expect-text", "author", "initials", "date"]),
-                PreserveOnly("set-comment-text", ["target", "text"]),
-                PreserveOnly("resolve-comment", ["target"]),
-                PreserveOnly("reopen-comment", ["target"]),
-                PreserveOnly("delete-comment", ["target"]),
+                PreserveOnly(
+                    "add-bookmark",
+                    ["target", "name"],
+                    "Bookmark creation adds anchor metadata; Word has no useful generated revision range for the bookmark markers.",
+                    ["expect-text"]),
+                PreserveOnly(
+                    "replace-bookmark-text",
+                    ["target", "text"],
+                    "Bookmark text replacement must preserve range anchors; generated revision markup across bookmark boundaries is not modeled yet."),
+                PreserveOnly(
+                    "rename-bookmark",
+                    ["target", "name"],
+                    "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update."),
+                PreserveOnly(
+                    "delete-bookmark",
+                    ["target"],
+                    "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal."),
+                PreserveOnly(
+                    "add-comment",
+                    ["target", "text"],
+                    "Comments are already review markup, so adding a comment does not create an additional tracked edit.",
+                    ["expect-text", "author", "initials", "date"]),
+                PreserveOnly(
+                    "set-comment-text",
+                    ["target", "text"],
+                    "Comment body edits modify review markup; generated tracked revisions inside comments are not modeled yet."),
+                PreserveOnly(
+                    "resolve-comment",
+                    ["target"],
+                    "Comment resolution changes review metadata, not visible document text."),
+                PreserveOnly(
+                    "reopen-comment",
+                    ["target"],
+                    "Comment reopening changes review metadata, not visible document text."),
+                PreserveOnly(
+                    "delete-comment",
+                    ["target"],
+                    "Comment deletion removes review markup, not a separate generated tracked edit."),
                 Unsupported(
                     "add-comment-reply",
                     ["target", "text"],
@@ -806,15 +850,47 @@ public static class DocxHelp
                     "delete-comment-reply",
                     ["target"],
                     "Threaded comment replies are not safely modeled yet; check/apply fails with E4314."),
-                PreserveOnly("set-field-dirty", ["target or all", "dirty"]),
-                PreserveOnly("set-field-lock", ["target or all", "locked"]),
-                PreserveOnly("set-field-code", ["target", "code"], ["expect-code"]),
-                PreserveOnly("set-field-result", ["target", "text"], ["expect-result"]),
-                PreserveOnly("refresh-field-result", ["target"], ["expect-code", "expect-result"]),
-                PreserveOnly("set-hyperlink-target", ["target plus uri or anchor"], ["tooltip", "target-frame", "history"]),
-                PreserveOnly("set-hyperlink-text", ["target", "text"]),
-                PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip", "target-frame", "history"]),
-                PreserveOnly("remove-hyperlink", ["target"]),
+                PreserveOnly(
+                    "set-field-dirty",
+                    ["target or all", "dirty"],
+                    "Field dirty flags are field metadata and have no useful generated visible revision representation."),
+                PreserveOnly(
+                    "set-field-lock",
+                    ["target or all", "locked"],
+                    "Field lock flags are field metadata and have no useful generated visible revision representation."),
+                PreserveOnly(
+                    "set-field-code",
+                    ["target", "code"],
+                    "Field codes are instruction metadata; generated revisions for field instructions are not modeled yet.",
+                    ["expect-code"]),
+                PreserveOnly(
+                    "set-field-result",
+                    ["target", "text"],
+                    "Field result replacement must preserve field topology; generated revision markup for field results is not modeled yet.",
+                    ["expect-result"]),
+                PreserveOnly(
+                    "refresh-field-result",
+                    ["target"],
+                    "Field refresh updates cached result text from modeled document state; generated revision markup for the refresh is not modeled yet.",
+                    ["expect-code", "expect-result"]),
+                PreserveOnly(
+                    "set-hyperlink-target",
+                    ["target plus uri or anchor"],
+                    "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
+                    ["tooltip", "target-frame", "history"]),
+                PreserveOnly(
+                    "set-hyperlink-text",
+                    ["target", "text"],
+                    "Hyperlink display text replacement must preserve the hyperlink wrapper and relationship; generated revision markup is not modeled yet."),
+                PreserveOnly(
+                    "insert-hyperlink-after",
+                    ["target", "text plus uri or anchor"],
+                    "Hyperlink insertion creates visible text plus relationship metadata; generated revision markup for the combined shape is not modeled yet.",
+                    ["tooltip", "target-frame", "history"]),
+                PreserveOnly(
+                    "remove-hyperlink",
+                    ["target"],
+                    "Hyperlink removal changes wrapper and relationship metadata while preserving display text."),
                 Tracked(
                     "set-cell",
                     ["target", "text"],
@@ -822,13 +898,41 @@ public static class DocxHelp
                     "tracked-cell-simple",
                     "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002.",
                     ["expect-text", "expect-row-count", "expect-column-count", "force"]),
-                PreserveOnly("set-table-style", ["target", "style"], ["expect-style"]),
-                PreserveOnly("set-table-metadata", ["target plus caption or description"], ["expect-caption", "expect-description"]),
-                PreserveOnly("set-row-header", ["target", "header"], ["expect-header"]),
-                PreserveOnly("append-row", ["target plus repeated cell"], ["expect-row-count", "expect-column-count"]),
-                PreserveOnly("insert-row-before", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                PreserveOnly("insert-row-after", ["target plus repeated cell"], ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                PreserveOnly("delete-row", ["target"], ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
+                PreserveOnly(
+                    "set-table-style",
+                    ["target", "style"],
+                    "Table style updates are table properties; generated w:tblPrChange output is not modeled yet.",
+                    ["expect-style"]),
+                PreserveOnly(
+                    "set-table-metadata",
+                    ["target plus caption or description"],
+                    "Table caption and description updates are table metadata, not visible document text.",
+                    ["expect-caption", "expect-description"]),
+                PreserveOnly(
+                    "set-row-header",
+                    ["target", "header"],
+                    "Repeating-row header updates are row properties; generated w:trPrChange output is not modeled yet.",
+                    ["expect-header"]),
+                PreserveOnly(
+                    "append-row",
+                    ["target plus repeated cell"],
+                    "Table row insertion revisions are not modeled yet.",
+                    ["expect-row-count", "expect-column-count"]),
+                PreserveOnly(
+                    "insert-row-before",
+                    ["target plus repeated cell"],
+                    "Table row insertion revisions are not modeled yet.",
+                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                PreserveOnly(
+                    "insert-row-after",
+                    ["target plus repeated cell"],
+                    "Table row insertion revisions are not modeled yet.",
+                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                PreserveOnly(
+                    "delete-row",
+                    ["target"],
+                    "Table row deletion revisions are not modeled yet.",
+                    ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
                 Unsupported(
                     "append-column",
                     ["target plus repeated cell"],
@@ -849,17 +953,61 @@ public static class DocxHelp
                     ["target", "column"],
                     "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
-                PreserveOnly("replace-image", ["target", "asset"], ["expect-content-type", "alt"]),
-                PreserveOnly("insert-image-after", ["target", "asset"], ["expect-content-type", "width", "height", "alt"]),
-                PreserveOnly("set-image-alt", ["target", "alt"], ["expect-content-type"]),
-                PreserveOnly("set-image-metadata", ["target plus alt, title, or name"], ["expect-content-type"]),
-                PreserveOnly("set-image-size", ["target plus width or height"], ["expect-content-type"]),
-                PreserveOnly("set-image-wrap", ["target plus mode or distance"], ["expect-content-type"]),
-                PreserveOnly("set-image-position", ["target plus relative, offset, or align"], ["expect-content-type"]),
-                PreserveOnly("set-image-crop", ["target plus one crop percentage"], ["expect-content-type"]),
-                PreserveOnly("delete-image", ["target"], ["expect-content-type"]),
-                PreserveOnly("set-section-columns", ["target", "count"], ["expect-columns", "expect-orientation"]),
-                PreserveOnly("set-section-orientation", ["target", "orientation"], ["expect-columns", "expect-orientation"])
+                PreserveOnly(
+                    "replace-image",
+                    ["target", "asset"],
+                    "Image replacement updates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
+                    ["expect-content-type", "alt"]),
+                PreserveOnly(
+                    "insert-image-after",
+                    ["target", "asset"],
+                    "Image insertion creates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
+                    ["expect-content-type", "width", "height", "alt"]),
+                PreserveOnly(
+                    "set-image-alt",
+                    ["target", "alt"],
+                    "Image alt-text updates DrawingML metadata, not visible document text.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "set-image-metadata",
+                    ["target plus alt, title, or name"],
+                    "Image title/name/alt updates DrawingML metadata, not visible document text.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "set-image-size",
+                    ["target plus width or height"],
+                    "Image size updates DrawingML layout metadata, not visible document text.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "set-image-wrap",
+                    ["target plus mode or distance"],
+                    "Image wrapping updates DrawingML layout metadata, not visible document text.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "set-image-position",
+                    ["target plus relative, offset, or align"],
+                    "Image position updates DrawingML layout metadata, not visible document text.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "set-image-crop",
+                    ["target plus one crop percentage"],
+                    "Image crop updates DrawingML layout metadata, not visible document text.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "delete-image",
+                    ["target"],
+                    "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
+                    ["expect-content-type"]),
+                PreserveOnly(
+                    "set-section-columns",
+                    ["target", "count"],
+                    "Section column updates are section properties; generated w:sectPrChange output is not modeled yet.",
+                    ["expect-columns", "expect-orientation"]),
+                PreserveOnly(
+                    "set-section-orientation",
+                    ["target", "orientation"],
+                    "Section orientation updates are section properties; generated w:sectPrChange output is not modeled yet.",
+                    ["expect-columns", "expect-orientation"])
             ]
         };
     }

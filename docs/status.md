@@ -66,6 +66,9 @@ Implemented areas include:
 - operation-level track-change capability metadata in the shared help catalog,
   including tracked and preserve-only operation classifications, with `W4001` and
   `E6001` diagnostics that report the catalog support value;
+- operation-specific preserve-only rationales in the shared help catalog so agents
+  can distinguish metadata/review-markup operations from tracked shapes that are
+  simply not modeled yet;
 - tracked-capable target-shape diagnostics through `W4002` and `E6002` that report
   the operation name, target ID, catalog support value, and unsupported-shape reason;
 - structural/package validation profiles through `validate`, including known part roots, paired

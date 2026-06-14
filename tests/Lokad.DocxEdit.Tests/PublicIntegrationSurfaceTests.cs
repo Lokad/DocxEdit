@@ -128,6 +128,14 @@ public static class PublicIntegrationSurfaceTests
             Assert.Equal(
                 operation.TrackChangesSupportClass is not "preserve-only" and not "unsupported",
                 operation.GeneratesTrackedChanges);
+            if (operation.TrackChangesSupportClass == "preserve-only")
+            {
+                Assert.False(
+                    operation.TrackChangesNote.StartsWith("Existing tracked-change markup is preserved", StringComparison.Ordinal),
+                    operation.Name);
+                Assert.Contains("Existing tracked-change markup is preserved", operation.TrackChangesNote, StringComparison.Ordinal);
+                Assert.Contains("Require fails with E6001", operation.TrackChangesNote, StringComparison.Ordinal);
+            }
         }
     }
 

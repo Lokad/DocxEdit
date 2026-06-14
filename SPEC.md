@@ -526,10 +526,11 @@ markup. `TrackChangesSupport` remains the more specific operation-level support
 value, such as `tracked-simple`, `tracked-paragraph`,
 `tracked-paragraph-insert`, `tracked-paragraph-delete`, `tracked-style`,
 `tracked-cell-simple`, `preserve-only`, or `unsupported`. `preserve-only`
-operations preserve existing tracked-change markup but do not create new revision
-markup; they apply directly under `Suggest` with `W4001` and fail under `Require`
-with `E6001`. `unsupported` is reserved for known operations that intentionally
-fail with stable diagnostics, or for unknown/unclassified tracked-output behavior.
+operation notes must begin with an operation-specific rationale, then state that
+existing tracked-change markup is preserved but no new revision markup is created;
+they apply directly under `Suggest` with `W4001` and fail under `Require` with
+`E6001`. `unsupported` is reserved for known operations that intentionally fail
+with stable diagnostics, or for unknown/unclassified tracked-output behavior.
 Supported tracked operations may still reject an unsafe shape with `W4002` or
 `E6002`. Those diagnostics include the operation name, target ID, catalog support
 value, and exact unsupported-shape reason. `W4002` additionally states that
