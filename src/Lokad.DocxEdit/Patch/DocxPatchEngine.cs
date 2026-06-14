@@ -136,7 +136,7 @@ internal static class DocxPatchEngine
                     "set-field-dirty" => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken),
                     "set-field-lock" => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken),
                     "set-field-code" => ExecuteSetFieldCode(package, operation, apply, cancellationToken),
-                    "set-field-result" => ExecuteSetFieldResult(package, operation, apply, cancellationToken),
+                    "set-field-result" => ExecuteSetFieldResult(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "refresh-field-result" => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken),
                     "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
                     "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
@@ -1772,7 +1772,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetFieldResult(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -1806,14 +1808,44 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges)
+        {
+            if (TryGetProtectedTextEditFeature(fieldTarget.Element, out string protectedFeature))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, $"field result contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+            else if (!TryValidateTrackedWholeParagraphReplacement(fieldTarget.Element, current, text!, style: null, out string? trackedUnsupportedReason))
+            {
+                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                {
+                    return diagnostics;
+                }
+
+                useTrackedChanges = false;
+            }
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            ReplaceWholeParagraphTextWithTrackedChanges(package, fieldTarget.Element, current, text!, options, generatedRevisionIds, cancellationToken);
+            SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
+            return diagnostics;
         }
 
         ReplaceSimpleFieldResult(fieldTarget.Element, text!);
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteRefreshFieldResult(

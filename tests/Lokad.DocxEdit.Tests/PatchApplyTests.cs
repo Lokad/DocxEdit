@@ -396,6 +396,81 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTrackChangesRequireAllowsSetSimpleFieldResult()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" REF ClientName \h ">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            expect-result Old cached result
+            text New cached result
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForSetSimpleFieldResult()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" REF ClientName \h ">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            expect-result Old cached result
+            text New cached result
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
+        Assert.Equal(["1", "2"], Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:fldSimple w:instr=\" REF ClientName \\h \">", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old cached result</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New cached result</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("New cached result", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("Old cached result", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal("[-Old cached result-][+New cached result+]", Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Paragraphs).Text);
+        output.Position = 0;
+        DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
+        Assert.Equal("REF ClientName \\h", field.Code);
+        Assert.Equal("New cached result", field.CachedResultText);
+        output.Position = 0;
+        Assert.False(EntryExists(output, "word/settings.xml"));
+    }
+
+    [Fact]
     public static void ApplyRefreshSimpleRefFieldResultFromBookmark()
     {
         using MemoryStream input = CreateDocxWithBody("""
@@ -523,9 +598,7 @@ public static class PatchApplyTests
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.False(result.Success);
-        DocxDiagnostic trackDiagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
-        Assert.Contains("operation 'set-field-result'", trackDiagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", trackDiagnostic.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
         DocxDiagnostic fieldDiagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E4313");
         Assert.Equal("M.F0001", fieldDiagnostic.TargetId);
         Assert.Contains("supports only simple w:fldSimple fields", fieldDiagnostic.Message, StringComparison.Ordinal);
@@ -561,7 +634,6 @@ public static class PatchApplyTests
     [InlineData("set-field-dirty", "target M.F0001\ndirty true")]
     [InlineData("set-field-lock", "target M.F0001\nlocked true")]
     [InlineData("set-field-code", "target M.F0001\ncode REF OtherBookmark \\h")]
-    [InlineData("set-field-result", "target M.F0001\ntext New cached result")]
     [InlineData("refresh-field-result", "target M.F0001")]
     public static void CheckTrackChangesRequireRejectsFieldOperationsAsPreserveOnly(string operationName, string operationFields)
     {
@@ -588,7 +660,6 @@ public static class PatchApplyTests
     [InlineData("set-field-dirty", "target M.F0001\ndirty true")]
     [InlineData("set-field-lock", "target M.F0001\nlocked true")]
     [InlineData("set-field-code", "target M.F0001\ncode REF OtherBookmark \\h")]
-    [InlineData("set-field-result", "target M.F0001\ntext New cached result")]
     [InlineData("refresh-field-result", "target M.F0001")]
     public static void ApplyTrackChangesSuggestWarnsForFieldOperationsAsPreserveOnly(string operationName, string operationFields)
     {

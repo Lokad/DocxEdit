@@ -865,10 +865,12 @@ public static class DocxHelp
                     ["target", "code"],
                     "Field codes are instruction metadata; generated revisions for field instructions are not modeled yet.",
                     ["expect-code"]),
-                PreserveOnly(
+                Tracked(
                     "set-field-result",
                     ["target", "text"],
-                    "Field result replacement must preserve field topology; generated revision markup for field results is not modeled yet.",
+                    TrackClassTextRun,
+                    "tracked-field-result",
+                    "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; complex fields still fail with E4313.",
                     ["expect-result"]),
                 PreserveOnly(
                     "refresh-field-result",

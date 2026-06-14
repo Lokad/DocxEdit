@@ -2518,6 +2518,7 @@ insert-after          inserted paragraph text as w:ins
 delete-block          simple paragraph targets as w:del text
 set-style             paragraph property revision with w:pPrChange
 set-content-control-text simple plain-text content controls as w:del/w:ins inside the content wrapper
+set-field-result     simple w:fldSimple cached result text as w:del/w:ins inside the field wrapper
 set-hyperlink-text    simple hyperlink display text as w:del/w:ins inside the hyperlink wrapper
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
 ```
@@ -2532,7 +2533,9 @@ and inserted replacement text is emitted in the first paragraph.
 `set-content-control-text` tracked output is limited to simple plain-text content
 controls and preserves `w:sdt` properties and `w:sdtContent`; rich-text content
 controls remain direct under `suggest` with `W4002` or fail under `require` with
-`E6002`. `set-hyperlink-text`
+`E6002`. `set-field-result` tracked output is limited to simple `w:fldSimple`
+cached result text and preserves the field instruction; complex fields still fail
+with `E4313`. `set-hyperlink-text`
 preserves the hyperlink wrapper and relationship or anchor while replacing simple
 display text with generated revisions. `set-style` records the previous paragraph
 properties in `w:pPrChange`.
@@ -2554,7 +2557,6 @@ delete-comment
 set-field-dirty
 set-field-lock
 set-field-code
-set-field-result
 refresh-field-result
 set-hyperlink-target
 insert-hyperlink-after

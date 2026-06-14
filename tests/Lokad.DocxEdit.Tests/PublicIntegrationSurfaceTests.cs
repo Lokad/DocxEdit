@@ -35,6 +35,11 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("text-run", setContentControlText.TrackChangesSupportClass);
         Assert.Equal("tracked-content-control-text", setContentControlText.TrackChangesSupport);
         Assert.True(setContentControlText.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-field-result", out DocxPatchOperationInfo setFieldResult));
+        Assert.Contains("expect-result", setFieldResult.OptionalFields);
+        Assert.Equal("text-run", setFieldResult.TrackChangesSupportClass);
+        Assert.Equal("tracked-field-result", setFieldResult.TrackChangesSupport);
+        Assert.True(setFieldResult.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("refresh-field-result", out DocxPatchOperationInfo refreshFieldResult));
         Assert.Contains("expect-code", refreshFieldResult.OptionalFields);
         Assert.Contains("expect-result", refreshFieldResult.OptionalFields);
