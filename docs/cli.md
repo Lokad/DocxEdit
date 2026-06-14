@@ -207,7 +207,7 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Feature | Inspect with | Editing notes |
 | --- | --- | --- |
 | Lists and numbering | `read`, `outline`, `find` | Paragraphs may include resolved list labels, numbering format, level text, style-linked numbering, view-aware tracked paragraph counters, and diagnostics for unsupported custom formats or tracked numbering property revisions |
-| Bookmarks | `read`, `context` | Use bookmark IDs or unambiguous `bookmark:"Name"` selectors; duplicate names are diagnosed |
+| Bookmarks | `read`, `context` | Use bookmark IDs or unambiguous `bookmark:"Name"` selectors; duplicate names are diagnosed; table-spanning replacements require one replacement line per visible text slot |
 | Content controls | `read`, `context` | Metadata includes kind, tag, alias, lock state, safe-edit status/reason, checkbox/dropdown/date details, hierarchy IDs, and duplicate selector candidates |
 | Comments | `changes`, `context`, `dump` | Comment operations target a paragraph, `comment:<id>`, or a comment body ID; context exposes thread topology as IDs without comment body text |
 | Fields | `read`, `outline`, `context` | DocxEdit can update simple field metadata/caches, but Word remains responsible for general recalculation |

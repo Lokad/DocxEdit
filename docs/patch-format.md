@@ -225,7 +225,7 @@ Controls with a lock value other than unlocked are rejected.
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `add-bookmark` | `target`, `name` | `expect-text` | Creates a guarded paragraph bookmark |
-| `replace-bookmark-text` | `target`, `text` | | Replaces a complete paragraph-bounded bookmark range |
+| `replace-bookmark-text` | `target`, `text` | | Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot |
 | `rename-bookmark` | `target`, `name` | | Renames markers and same-story internal hyperlink anchors when unambiguous |
 | `delete-bookmark` | `target` | | Removes complete unreferenced bookmark markers, preserving content |
 
@@ -391,7 +391,7 @@ set-content-control-date | preserve-only | preserve-only | Date content controls
 add-repeating-section-item | unsupported | unsupported | Repeating-section item insertion is not safely modeled yet; check/apply fails with E4315.
 delete-repeating-section-item | unsupported | unsupported | Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.
 add-bookmark | preserve-only | preserve-only | Bookmark creation adds anchor metadata; Word has no useful generated revision range for the bookmark markers. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-replace-bookmark-text | text-run | tracked-bookmark-text | Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; multi-paragraph or protected ranges warn with W4002 or fail with E6002.
+replace-bookmark-text | text-run | tracked-bookmark-text | Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002.
 rename-bookmark | preserve-only | preserve-only | Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 delete-bookmark | preserve-only | preserve-only | Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 add-comment | preserve-only | preserve-only | Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.

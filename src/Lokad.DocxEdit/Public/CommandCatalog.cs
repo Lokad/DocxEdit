@@ -435,7 +435,7 @@ public static class DocxHelp
                         ]),
                         new("Bookmarks and content controls",
                         [
-                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, placeholder/data-binding details, hierarchy IDs, safe-edit status/reason, checkbox state, dropdown/combo item counts, repeating-section metadata, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, guarded rich-text content controls, checkbox state, dropdown/combo selections, date values, create guarded paragraph bookmarks, update bookmark names, remove unreferenced bookmark markers, and replace guarded paragraph-bounded bookmark ranges, including multi-run and multi-paragraph ranges, while preserving wrappers/markers; content-control edits reject controls whose w:lock value is present and not unlocked, reject picture controls with image/media guidance, and reject group controls with guidance to target editable child controls."
+                            "Read and context output surface bookmark names/ranges and content-control metadata, including duplicate selector candidate IDs, placeholder/data-binding details, hierarchy IDs, safe-edit status/reason, checkbox state, dropdown/combo item counts, repeating-section metadata, and date settings/value. Bookmark and content-control selectors can be used for safe paragraph targeting; use explicit IDs when selector diagnostics report multiple candidate targets. Patch operations can update plain-text content-control IDs, guarded rich-text content controls, checkbox state, dropdown/combo selections, date values, create guarded paragraph bookmarks, update bookmark names, remove unreferenced bookmark markers, and replace guarded paragraph-bounded bookmark ranges, including multi-run, multi-paragraph, and simple table-spanning text-slot ranges, while preserving wrappers/markers/table structure; content-control edits reject controls whose w:lock value is present and not unlocked, reject picture controls with image/media guidance, and reject group controls with guidance to target editable child controls."
                         ]),
                         new("Fields",
                         [
@@ -827,7 +827,7 @@ public static class DocxHelp
                     ["target", "text"],
                     TrackClassTextRun,
                     "tracked-bookmark-text",
-                    "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; multi-paragraph or protected ranges warn with W4002 or fail with E6002."),
+                    "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002."),
                 PreserveOnly(
                     "rename-bookmark",
                     ["target", "name"],

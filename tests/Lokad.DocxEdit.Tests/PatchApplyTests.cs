@@ -4022,6 +4022,44 @@ public static class PatchApplyTests
         Assert.True(childResult.Success);
     }
 
+    [Fact]
+    public static void CheckSetRichTextContentControlRejectsNestedContentControlBoundary()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr><w:richText/></w:sdtPr>
+                        <w:sdtContent>
+                          <w:p>
+                            <w:r><w:t>Outer </w:t></w:r>
+                            <w:sdt>
+                              <w:sdtPr><w:text/></w:sdtPr>
+                              <w:sdtContent><w:r><w:t>Inner</w:t></w:r></w:sdtContent>
+                            </w:sdt>
+                          </w:p>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            expect-text Outer Inner
+            text Replacement
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4310", diagnostic.Code);
+        Assert.Equal("M.CC0001", diagnostic.TargetId);
+        Assert.Contains("protected OOXML boundary 'content-control'", diagnostic.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("set-content-control-text", "<w:text/>", "text New Client")]
     [InlineData("set-content-control-text", "<w:richText/>", "expect-text Old Client\ntext New Client")]
@@ -4527,6 +4565,139 @@ public static class PatchApplyTests
         Assert.DoesNotContain("Old first", xml, StringComparison.Ordinal);
         Assert.DoesNotContain("Old middle", xml, StringComparison.Ordinal);
         Assert.DoesNotContain("Old last", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReplaceBookmarkTextHandlesTableSpanningRangeWhenStructureIsPreserved()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old start</w:t></w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Old A</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Old B</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:p>
+                      <w:r><w:t>Old end</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text <<<
+            New start
+            New A
+            New B
+            New end
+            >>>
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(["Before New start", "New end After"], read.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        DocxTableInfo table = Assert.Single(read.Tables);
+        Assert.Equal(["New A", "New B"], table.Cells.Select(cell => cell.Text).ToArray());
+        DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
+        Assert.Equal("M.P0001", bookmark.StartTargetId);
+        Assert.Equal("M.P0002", bookmark.EndTargetId);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:tbl>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:bookmarkEnd w:id=\"4\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old start", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old A", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old B", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old end", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckReplaceBookmarkTextRejectsTableSpanningLineCountMismatch()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old start</w:t></w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Old A</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Old B</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:p>
+                      <w:r><w:t>Old end</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text One line
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4311", diagnostic.Code);
+        Assert.Contains("requires 4 replacement lines", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckReplaceBookmarkTextRejectsTableSpanningProtectedBoundary()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old start</w:t></w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:hyperlink w:anchor="Target"><w:r><w:t>Old link</w:t></w:r></w:hyperlink></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:p>
+                      <w:r><w:t>Old end</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            text <<<
+            New start
+            New link
+            New end
+            >>>
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4311", diagnostic.Code);
+        Assert.Contains("protected OOXML boundary 'hyperlink'", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]

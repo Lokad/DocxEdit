@@ -1900,9 +1900,11 @@ Rules:
   drawings, or existing revision markup.
 * `replace-bookmark-text` supports complete paragraph-bounded bookmark ranges whose
   contents do not cross protected OOXML boundaries. Same-paragraph multi-run ranges
-  and same-container multi-paragraph ranges are supported. Newline-separated
-  replacement text becomes multiple paragraphs. Markers are preserved, and unsupported
-  ranges fail instead of flattening surrounding OOXML.
+  and same-container multi-paragraph ranges are supported. Simple table-spanning
+  ranges are supported only when all table cell paragraphs can be edited as visible
+  text slots; newline-separated replacement text must provide one line per slot so
+  paragraph, table, row, and cell structure is preserved. Markers are preserved, and
+  unsupported ranges fail instead of flattening surrounding OOXML.
   Under tracked output, simple same-paragraph bookmark ranges made only of compatible
   runs emit `w:del`/`w:ins` between the preserved bookmark markers. Multi-paragraph or
   otherwise complex bookmark ranges warn with `W4002` under `suggest` or fail with
@@ -2634,7 +2636,8 @@ tracked output is limited to simple `w:fldSimple`
 cached result text and preserves the field instruction; complex fields still fail
 with `E4313`. `replace-bookmark-text` tracked output is limited to simple
 same-paragraph bookmark ranges with compatible run-only content; multi-paragraph
-bookmark replacements remain direct under `suggest` or fail under `require`.
+and table-spanning bookmark replacements remain direct under `suggest` or fail
+under `require`.
 `set-comment-text` tracked output is limited to simple paragraph-only comment
 bodies; it preserves comment metadata, deletes existing paragraph text in place,
 and inserts the replacement in the first paragraph.
