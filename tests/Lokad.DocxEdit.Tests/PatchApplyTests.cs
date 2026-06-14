@@ -2996,6 +2996,59 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestTreatsCommentCreationAsPreserveOnly()
+    {
+        using MemoryStream input = CreateDocx("Anchor paragraph.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text Review note
+            author Reviewer
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.Contains("w:comment w:id=\"0\"", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyTrackChangesRequireRejectsCommentCreationAsPreserveOnly()
+    {
+        using MemoryStream input = CreateDocx("Anchor paragraph.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text Review note
+            author Reviewer
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.False(Assert.Single(result.Operations).Success);
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
     public static void ApplyAddCommentAllocatesNextExistingCommentId()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
