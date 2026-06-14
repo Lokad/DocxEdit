@@ -45,6 +45,17 @@ public static class OfficeGateTests
                 with output
                 end
 
+                op insert-after
+                target M.P0001
+                text Office inserted tracked paragraph
+                end
+
+                op append-row
+                target M.T0001
+                cell East
+                cell West
+                end
+
                 op insert-image-after
                 target M.P0001
                 asset chart.png
@@ -71,13 +82,17 @@ public static class OfficeGateTests
             DocxReadResult read = new DocxEditor().Read(saved);
             Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
             Assert.Contains(read.Paragraphs, paragraph => paragraph.Text == "Office smoke output");
+            Assert.Contains(read.Paragraphs, paragraph => paragraph.Text == "Office inserted tracked paragraph");
+            Assert.Contains(read.Tables.SelectMany(table => table.Cells), cell => cell.Text == "East");
+            Assert.Contains(read.Tables.SelectMany(table => table.Cells), cell => cell.Text == "West");
             Assert.Single(read.Images);
 
             using FileStream savedChanges = File.OpenRead(outputPath);
             DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
             Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
             Assert.Contains(changes.Summary, summary => summary.Type == "deleted-run" && summary.Count == 1);
-            Assert.Contains(changes.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
+            Assert.Contains(changes.Summary, summary => summary.Type == "inserted-run" && summary.Count >= 2);
+            Assert.Contains(changes.Summary, summary => summary.Type == "row-inserted" && summary.Count == 1);
         }
         finally
         {
@@ -178,6 +193,12 @@ public static class OfficeGateTests
             <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
               <w:body>
                 <w:p><w:r><w:t>{{text}}</w:t></w:r></w:p>
+                <w:tbl>
+                  <w:tr>
+                    <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                    <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                  </w:tr>
+                </w:tbl>
               </w:body>
             </w:document>
             """);

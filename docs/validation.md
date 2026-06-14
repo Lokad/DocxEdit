@@ -119,7 +119,9 @@ Artifacts are written under ignored `artifacts/edit-cases/`.
 
 Optional Microsoft Word automation tests are gated by `DOCXEDIT_ENABLE_OFFICE_TESTS=1`.
 On Windows with Word installed, the Office test project creates a synthetic `.docx`, applies
-a patch, opens and saves the generated output through Word COM automation, then re-reads it.
+a patch with generated tracked text, paragraph insertion, row insertion, and a
+preserve-only image insertion, opens and saves the generated output through Word
+COM automation, then re-reads it.
 
 ## Private Cases
 

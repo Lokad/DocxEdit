@@ -3501,11 +3501,15 @@ Use late-bound COM via `Type.GetTypeFromProgID("Word.Application")` and `dynamic
 
 Office tests should:
 
-1. Open generated `.docx` files in Word.
-2. Save them to a temp output path.
-3. Close Word cleanly.
-4. Fail if Word cannot open/save the document.
-5. Optionally export to PDF for visual inspection in local developer workflows.
+1. Apply representative generated tracked outputs, including text, paragraph,
+   and row revisions, to minimal local `.docx` files.
+2. Open generated `.docx` files in Word.
+3. Save them to a temp output path.
+4. Close Word cleanly.
+5. Re-read with DocxEdit and fail if representative tracked markup did not
+   survive.
+6. Fail if Word cannot open/save the document.
+7. Optionally export to PDF for visual inspection in local developer workflows.
 
 Run Office automation tests in STA threads. Always close documents and quit Word in `finally`.
 
