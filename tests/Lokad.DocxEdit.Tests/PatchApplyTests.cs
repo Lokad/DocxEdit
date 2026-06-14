@@ -5015,6 +5015,84 @@ public static class PatchApplyTests
             diagnostic.Message.Contains("caption", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("set-table-style", """
+        target M.T0001
+        style TableGrid
+        """)]
+    [InlineData("set-table-metadata", """
+        target M.T0001
+        caption Updated caption
+        """)]
+    [InlineData("set-row-header", """
+        target M.T0001.R01
+        header true
+        """)]
+    public static void CheckTrackChangesRequireRejectsTablePropertyOperationsAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("set-table-style", """
+        target M.T0001
+        style TableGrid
+        """, "<w:tblStyle w:val=\"TableGrid\"")]
+    [InlineData("set-table-metadata", """
+        target M.T0001
+        caption Updated caption
+        """, "<w:tblCaption w:val=\"Updated caption\"")]
+    [InlineData("set-row-header", """
+        target M.T0001.R01
+        header true
+        """, "<w:tblHeader")]
+    public static void ApplyTrackChangesSuggestWarnsForTablePropertyOperationsAsPreserveOnly(
+        string operationName,
+        string operationFields,
+        string expectedXml)
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains(expectedXml, xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public static void CheckAppendRowRejectsCellCountMismatch()
     {
