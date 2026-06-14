@@ -2764,6 +2764,70 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestSetContentControlTextPreservesSdtProperties()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:id w:val="99"/>
+                          <w:tag w:val="client-name"/>
+                          <w:alias w:val="Client Name"/>
+                          <w:lock w:val="unlocked"/>
+                          <w:placeholder><w:docPart w:val="DefaultPlaceholder"/></w:placeholder>
+                          <w:dataBinding w:xpath="/root/client" w:storeItemID="{11111111-1111-1111-1111-111111111111}" w:prefixMappings="xmlns:ns='urn:test'"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Old Client</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text New Client
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains("operation 'set-content-control-text'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("New Client", Assert.Single(read.Paragraphs).Text);
+        DocxContentControlInfo control = Assert.Single(read.ContentControls);
+        Assert.Equal("99", control.OoxmlId);
+        Assert.Equal("client-name", control.Tag);
+        Assert.Equal("Client Name", control.Alias);
+        Assert.Equal("unlocked", control.Lock);
+        Assert.Equal("DefaultPlaceholder", control.PlaceholderDocPart);
+        Assert.Equal("/root/client", control.DataBindingXPath);
+        Assert.Equal("{11111111-1111-1111-1111-111111111111}", control.DataBindingStoreItemId);
+        Assert.Equal("xmlns:ns='urn:test'", control.DataBindingPrefixMappings);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:sdt>", xml, StringComparison.Ordinal);
+        Assert.Contains("w:id w:val=\"99\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:tag w:val=\"client-name\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:alias w:val=\"Client Name\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:lock w:val=\"unlocked\"", xml, StringComparison.Ordinal);
+        Assert.Contains("w:dataBinding w:xpath=\"/root/client\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplySetRichTextContentControlRequiresGuardAndPreservesWrapper()
     {
         using MemoryStream input = CreateDocxWithBody("""
