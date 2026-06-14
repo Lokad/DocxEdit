@@ -525,6 +525,75 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201");
     }
 
+    [Theory]
+    [InlineData("set-field-dirty", "target M.F0001\ndirty true")]
+    [InlineData("set-field-lock", "target M.F0001\nlocked true")]
+    [InlineData("set-field-code", "target M.F0001\ncode REF OtherBookmark \\h")]
+    [InlineData("set-field-result", "target M.F0001\ntext New cached result")]
+    [InlineData("refresh-field-result", "target M.F0001")]
+    public static void CheckTrackChangesRequireRejectsFieldOperationsAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithRefField();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("set-field-dirty", "target M.F0001\ndirty true")]
+    [InlineData("set-field-lock", "target M.F0001\nlocked true")]
+    [InlineData("set-field-code", "target M.F0001\ncode REF OtherBookmark \\h")]
+    [InlineData("set-field-result", "target M.F0001\ntext New cached result")]
+    [InlineData("refresh-field-result", "target M.F0001")]
+    public static void ApplyTrackChangesSuggestWarnsForFieldOperationsAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithRefField();
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(
+            input,
+            patch,
+            output,
+            new DocxEditOptions
+            {
+                TrackChanges = TrackChangesMode.Suggest,
+                MarkFieldsDirtyWhenEditing = false
+            });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:fldSimple", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public static void ReadWorksWithNonSeekableInputStream()
     {
@@ -6300,6 +6369,22 @@ public static class PatchApplyTests
     private static MemoryStream CreateDocx(string paragraphText)
     {
         return CreateDocxWithRuns(paragraphText);
+    }
+
+    private static MemoryStream CreateDocxWithRefField()
+    {
+        return CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Acme Corp</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:fldSimple w:instr=" REF ClientName \h " w:dirty="false" w:fldLock="0">
+                        <w:r><w:t>Old cached result</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+            """);
     }
 
     private static MemoryStream CreateDocxWithRuns(params string[] runTexts)
