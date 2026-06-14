@@ -208,6 +208,40 @@ function Assert-StringArrayEquals([string[]] $Expected, [string[]] $Actual, [str
     }
 }
 
+function Assert-ExpectedDiagnosticCodes([object[]] $Diagnostics, [object] $ExpectedCodes) {
+    if ($null -eq $ExpectedCodes) {
+        return
+    }
+
+    $actualCodes = @($Diagnostics | ForEach-Object { [string] $_.Code })
+    foreach ($code in @($ExpectedCodes | ForEach-Object { [string] $_ })) {
+        if ($actualCodes -notcontains $code) {
+            throw "Expected diagnostic code '$code' was not found. Actual codes: $($actualCodes -join ', ')."
+        }
+    }
+}
+
+function Assert-ExpectedDiagnosticMessages([object[]] $Diagnostics, [object] $ExpectedMessages) {
+    if ($null -eq $ExpectedMessages) {
+        return
+    }
+
+    $actualMessages = @($Diagnostics | ForEach-Object { [string] $_.Message })
+    foreach ($expectedMessage in @($ExpectedMessages | ForEach-Object { [string] $_ })) {
+        $matched = $false
+        foreach ($actualMessage in $actualMessages) {
+            if ($actualMessage.IndexOf($expectedMessage, [System.StringComparison]::Ordinal) -ge 0) {
+                $matched = $true
+                break
+            }
+        }
+
+        if (-not $matched) {
+            throw "Expected diagnostic message containing '$expectedMessage' was not found."
+        }
+    }
+}
+
 $casePath = Resolve-CasePath $Case
 $manifest = Get-Content -LiteralPath $casePath -Raw | ConvertFrom-Json
 $caseId = [string] $manifest.id
@@ -309,10 +343,23 @@ if ($null -ne $trackChanges) {
 }
 
 $apply = Invoke-ProcessCapture "dotnet" $applyArgs
+$expectedApplySuccessValue = Get-ObjectProperty $manifest.expect "applySuccess"
+$expectedApplySuccess = if ($null -eq $expectedApplySuccessValue) { $true } else { [bool] $expectedApplySuccessValue }
 if ($apply.ExitCode -ne 0) {
     Set-Content -LiteralPath (Join-Path $artifactDir "apply.stdout.log") -Value $apply.StdOut
     Set-Content -LiteralPath (Join-Path $artifactDir "apply.stderr.log") -Value $apply.StdErr
+}
+
+if ($expectedApplySuccess -and $apply.ExitCode -ne 0) {
     throw "Case '$caseId' apply failed."
+}
+
+if (-not $expectedApplySuccess -and $apply.ExitCode -eq 0) {
+    throw "Case '$caseId' apply succeeded but failure was expected."
+}
+
+if ([string]::IsNullOrWhiteSpace($apply.StdOut)) {
+    throw "Case '$caseId' apply did not emit JSON output."
 }
 
 $applyJson = $apply.StdOut | ConvertFrom-Json
@@ -320,6 +367,23 @@ $expectedDiagnosticCount = if ($null -ne $manifest.expect.diagnosticCount) { [in
 $actualDiagnosticCount = @($applyJson.Diagnostics).Count
 if ($actualDiagnosticCount -ne $expectedDiagnosticCount) {
     throw "Case '$caseId' diagnostic count mismatch. Expected $expectedDiagnosticCount, found $actualDiagnosticCount."
+}
+
+Assert-ExpectedDiagnosticCodes @($applyJson.Diagnostics) (Get-ObjectProperty $manifest.expect "diagnosticCodes")
+Assert-ExpectedDiagnosticMessages @($applyJson.Diagnostics) (Get-ObjectProperty $manifest.expect "diagnosticMessagesContain")
+
+if (-not $expectedApplySuccess) {
+    $summary = [pscustomobject]@{
+        CaseId = $caseId
+        Success = $true
+        ExpectedApplyFailure = $true
+        ApplyDiagnostics = $actualDiagnosticCount
+    }
+    $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath
+
+    Write-Host "case '$caseId': OK"
+    Write-Host "artifact: $summaryPath"
+    exit 0
 }
 
 $read = Invoke-ProcessCapture "dotnet" @(

@@ -94,6 +94,8 @@ Supported manifest extras include:
 - `applyOptions.trackChanges`, `author`, and `timestampUtc`;
 - expectations for `paragraphs`, `allStoryParagraphs`, `tableCells`, `sections`,
   `images`, and `changeSummary`.
+- negative expectations through `expect.applySuccess: false`,
+  `diagnosticCodes`, and `diagnosticMessagesContain`.
 
 The CLI resolves image operation assets from local file paths. Relative paths are
 resolved from the current working directory; public manifests use harness-generated

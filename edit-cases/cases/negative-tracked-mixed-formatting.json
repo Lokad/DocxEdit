@@ -1,0 +1,36 @@
+{
+  "id": "negative-tracked-mixed-formatting",
+  "description": "Rejects tracked text replacement through incompatible direct run formatting.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:rPr><w:b/></w:rPr><w:t>Revenue </w:t></w:r>",
+      "      <w:r><w:rPr><w:i/></w:rPr><w:t>increased</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find increased",
+    "with rose",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "mixed direct run formatting"
+    ]
+  }
+}

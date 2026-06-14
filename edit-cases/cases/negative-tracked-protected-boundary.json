@@ -1,0 +1,35 @@
+{
+  "id": "negative-tracked-protected-boundary",
+  "description": "Rejects tracked paragraph deletion through a protected field boundary.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" DATE \">",
+      "        <w:r><w:t>June 2026</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "protected OOXML boundary 'field'"
+    ]
+  }
+}

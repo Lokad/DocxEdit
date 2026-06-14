@@ -1,0 +1,48 @@
+{
+  "id": "negative-tracked-vertical-merge",
+  "description": "Rejects row structure edits on vertically merged tables.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:tcPr><w:vMerge w:val=\"restart\"/></w:tcPr>",
+      "          <w:p><w:r><w:t>North</w:t></w:r></w:p>",
+      "        </w:tc>",
+      "        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:tcPr><w:vMerge/></w:tcPr>",
+      "          <w:p><w:r><w:t>South</w:t></w:r></w:p>",
+      "        </w:tc>",
+      "        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op append-row",
+    "target M.T0001",
+    "cell East",
+    "cell Margin",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4301"
+    ],
+    "diagnosticMessagesContain": [
+      "vertical merges"
+    ]
+  }
+}
