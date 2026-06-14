@@ -6081,6 +6081,93 @@ public static class PatchApplyTests
     }
 
     [Theory]
+    [InlineData("append-row", """
+        target M.T0001
+        cell East
+        cell Margin
+        """)]
+    [InlineData("insert-row-before", """
+        target M.T0001.R02
+        cell East
+        cell Margin
+        """)]
+    [InlineData("insert-row-after", """
+        target M.T0001.R01
+        cell East
+        cell Margin
+        """)]
+    [InlineData("delete-row", """
+        target M.T0001.R02
+        """)]
+    public static void CheckTrackChangesRequireRejectsRowOperationsAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("append-row", """
+        target M.T0001
+        cell East
+        cell Margin
+        """, 3)]
+    [InlineData("insert-row-before", """
+        target M.T0001.R02
+        cell East
+        cell Margin
+        """, 3)]
+    [InlineData("insert-row-after", """
+        target M.T0001.R01
+        cell East
+        cell Margin
+        """, 3)]
+    [InlineData("delete-row", """
+        target M.T0001.R02
+        """, 1)]
+    public static void ApplyTrackChangesSuggestWarnsForRowOperationsAsPreserveOnly(string operationName, string operationFields, int expectedRows)
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Empty(report.GeneratedRevisionIds);
+        Assert.NotEmpty(report.AffectedTargets);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal(expectedRows, table.RowCount);
+    }
+
+    [Theory]
     [InlineData("append-row", "M.T0001")]
     [InlineData("insert-row-before", "M.T0001.R02")]
     [InlineData("delete-row", "M.T0001.R02")]
@@ -6416,6 +6503,22 @@ public static class PatchApplyTests
                         <w:r><w:t>Old cached result</w:t></w:r>
                       </w:fldSimple>
                     </w:p>
+            """);
+    }
+
+    private static MemoryStream CreateDocxWithSimpleTwoByTwoTable()
+    {
+        return CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
             """);
     }
 
