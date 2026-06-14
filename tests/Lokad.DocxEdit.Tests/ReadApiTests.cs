@@ -888,6 +888,68 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void DumpExposesTargetLevelPropertyRevisionSummaries()
+    {
+        const string bodyXml = """
+                    <w:p>
+                      <w:pPr>
+                        <w:pPrChange w:id="1" w:author="Reviewer" w:date="2026-06-01T00:00:00Z">
+                          <w:pPr/>
+                        </w:pPrChange>
+                      </w:pPr>
+                      <w:r><w:t>Private paragraph text</w:t></w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblPrChange w:id="2" w:author="Reviewer" w:date="2026-06-02T00:00:00Z">
+                          <w:tblPr/>
+                        </w:tblPrChange>
+                      </w:tblPr>
+                      <w:tr>
+                        <w:trPr>
+                          <w:trPrChange w:id="3" w:author="Reviewer" w:date="2026-06-03T00:00:00Z">
+                            <w:trPr/>
+                          </w:trPrChange>
+                        </w:trPr>
+                        <w:tc><w:p><w:r><w:t>Private cell text</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:sectPr>
+                      <w:sectPrChange w:id="4" w:author="Reviewer" w:date="2026-06-04T00:00:00Z">
+                        <w:sectPr/>
+                      </w:sectPrChange>
+                    </w:sectPr>
+            """;
+        var editor = new DocxEditor();
+        using MemoryStream paragraphStream = CreateDocxWithBody(bodyXml);
+        using MemoryStream tableStream = CreateDocxWithBody(bodyXml);
+        using MemoryStream rowStream = CreateDocxWithBody(bodyXml);
+        using MemoryStream sectionStream = CreateDocxWithBody(bodyXml);
+
+        DocxDumpResult paragraph = editor.Dump(paragraphStream, "M.P0001", new DocxDumpOptions { IncludeRuns = true });
+        DocxDumpResult table = editor.Dump(tableStream, "M.T0001");
+        DocxDumpResult row = editor.Dump(rowStream, "M.T0001.R01");
+        DocxDumpResult section = editor.Dump(sectionStream, "M.S0001");
+
+        Assert.True(paragraph.Success);
+        Assert.Contains("type=paragraph-properties-change", paragraph.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=1", paragraph.Text, StringComparison.Ordinal);
+        Assert.True(table.Success);
+        Assert.Contains("type=table-properties-change", table.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=2", table.Text, StringComparison.Ordinal);
+        Assert.True(row.Success);
+        Assert.Contains("changes:", row.Text, StringComparison.Ordinal);
+        Assert.Contains("type=row-properties-change", row.Text, StringComparison.Ordinal);
+        Assert.Contains("parent=row-properties", row.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=3", row.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private", row.Text, StringComparison.Ordinal);
+        Assert.True(section.Success);
+        Assert.Contains("type=section-properties-change", section.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=4", section.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private", section.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ContextSummarizesNearbyStructureWithoutTextByDefault()
     {
         using MemoryStream stream = CreateDocx();

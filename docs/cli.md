@@ -176,6 +176,10 @@ docxedit dump report.docx --id M.P0004 --runs --view markup
 Run lines expose markup such as inserted/deleted runs, revision IDs, authors,
 timestamps, comment IDs, comment ranges, and hyperlink annotations. In JSON output,
 the same data is in `Runs`.
+When the target owns tracked markup records, `dump` appends a privacy-safe
+`changes:` block with change IDs, types, parent type, revision metadata, and
+child element counts. This exposes property revisions on paragraph, table, row,
+cell, and section targets without printing raw OOXML or broad document text.
 
 ## Feature Discovery
 

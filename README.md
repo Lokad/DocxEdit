@@ -82,6 +82,8 @@ Generated revisions default to author `docxedit`; supplied authors are trimmed
 and must not be empty, and timestamps are normalized to UTC.
 When `apply` creates revision markup, operation reports include the generated
 revision IDs for verification with `changes`.
+`dump` also shows target-scoped change metadata for tracked records, which lets
+agents verify property revisions without reading raw OOXML.
 Simple rectangular row insertion/deletion edits are tracked as row structure
 revisions; forced or complex table row shapes fall back or fail with explicit
 diagnostics.

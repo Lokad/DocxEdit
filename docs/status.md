@@ -18,6 +18,8 @@ Implemented areas include:
 - patch operations for paragraph text, blocks, styles, simple main/header/footer tables,
   inline images and image metadata, and basic sections;
 - no-content tracked-change and comment markup viewing through `changes`;
+- target-scoped `dump` change summaries for tracked markup records, including
+  property revisions, without raw OOXML or revision text;
 - opt-in bounded comment body snippets through `changes`;
 - comment creation on modeled paragraphs, plus comment body editing and deletion
   through explicit patch operations keyed by paragraph IDs, `comment:<id>`, or

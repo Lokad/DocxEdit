@@ -1380,6 +1380,11 @@ runs:
 `dump --runs --json` also exposes the runs as structured `Runs[]` objects. Run IDs
 are renderer IDs and are not the same namespace as change IDs from `changes`.
 Hyperlink runs expose `HyperlinkRelationshipId` and `HyperlinkAnchor` when present.
+When the target owns tracked markup records, `dump` appends a `changes:` block
+with change IDs, types, parent type, revision metadata, and child element counts.
+This target-level output is privacy-safe for property revisions such as
+`w:pPrChange`, `w:tblPrChange`, `w:trPrChange`, `w:tcPrChange`, and
+`w:sectPrChange` because it does not print raw OOXML or revision text.
 Comment body targets such as `C001.C0001` and `comment:<id>` dump metadata only:
 comment ID, comments story/part, anchor/reference target, reviewer metadata, and text
 length. They do not print comment body text.

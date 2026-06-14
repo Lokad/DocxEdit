@@ -378,13 +378,17 @@ internal static class TextRenderers
                     .AppendLine("\"");
             }
 
+            AppendTargetChanges(builder, changes, targetId);
             return builder.ToString();
         }
 
         DocxTableInfo? table = model.Tables.FirstOrDefault(table => string.Equals(table.Id, targetId, StringComparison.Ordinal));
         if (table is not null)
         {
-            return string.Join(Environment.NewLine, table.Cells.Select(cell => $"{cell.Id}: {Truncate(cell.Text, maxText)}"));
+            var builder = new StringBuilder();
+            builder.AppendJoin(Environment.NewLine, table.Cells.Select(cell => $"{cell.Id}: {Truncate(cell.Text, maxText)}"));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
         }
 
         DocxTableCellInfo? cell = model.Tables
@@ -392,11 +396,70 @@ internal static class TextRenderers
             .FirstOrDefault(cell => string.Equals(cell.Id, targetId, StringComparison.Ordinal));
         if (cell is not null)
         {
-            return Truncate(cell.Text, maxText);
+            var builder = new StringBuilder();
+            builder.Append(Truncate(cell.Text, maxText));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
         }
 
         DocxChangeInfo? comment = FindCommentChange(changes, targetId);
-        return comment is null ? null : RenderCommentDump(comment);
+        if (comment is not null)
+        {
+            return RenderCommentDump(comment);
+        }
+
+        return RenderTargetChanges(changes, targetId);
+    }
+
+    private static void AppendTargetChanges(StringBuilder builder, IReadOnlyList<DocxChangeInfo> changes, string targetId)
+    {
+        string? renderedChanges = RenderTargetChanges(changes, targetId);
+        if (renderedChanges is null)
+        {
+            return;
+        }
+
+        if (builder.Length != 0 && !builder.ToString().EndsWith(Environment.NewLine, StringComparison.Ordinal))
+        {
+            builder.AppendLine();
+        }
+
+        builder.Append(renderedChanges);
+    }
+
+    private static string? RenderTargetChanges(IReadOnlyList<DocxChangeInfo> changes, string targetId)
+    {
+        DocxChangeInfo[] targetChanges = changes
+            .Where(change => string.Equals(change.TargetId, targetId, StringComparison.Ordinal))
+            .OrderBy(change => change.Id, StringComparer.Ordinal)
+            .ToArray();
+        if (targetChanges.Length == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine("changes:");
+        foreach (DocxChangeInfo change in targetChanges)
+        {
+            string parent = change.ParentType is null ? string.Empty : $" parent={Escape(change.ParentType)}";
+            string revisionId = change.RevisionId is null ? string.Empty : $" revision-id={Escape(change.RevisionId)}";
+            string author = change.Author is null ? string.Empty : $" author=\"{Escape(change.Author)}\"";
+            string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
+            builder.Append("  ")
+                .Append(change.Id)
+                .Append(" type=")
+                .Append(Escape(change.Type))
+                .Append(parent)
+                .Append(revisionId)
+                .Append(author)
+                .Append(timestamp)
+                .Append(" child-elements=")
+                .Append(change.ChildElementCount)
+                .AppendLine();
+        }
+
+        return builder.ToString();
     }
 
     public static IReadOnlyList<DocxDumpRunInfo> DumpRuns(DocxDocumentModel model, string targetId, int maxText)
