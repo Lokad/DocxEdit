@@ -2490,6 +2490,48 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void ReadContentControlsExposeSafeEditReasonsForUnsupportedKinds()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:picture/>
+                          <w:alias w:val="Logo"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Image placeholder</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:group/>
+                          <w:tag w:val="review-group"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:sdt>
+                            <w:sdtPr><w:text/></w:sdtPr>
+                            <w:sdtContent><w:r><w:t>Editable child</w:t></w:r></w:sdtContent>
+                          </w:sdt>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+
+        DocxReadResult result = new DocxEditor().Read(stream);
+
+        DocxContentControlInfo picture = result.ContentControls.Single(control => control.Kind == "picture");
+        Assert.Equal("unsupported-picture", picture.SafeEditStatus);
+        Assert.Contains("picture controls", picture.SafeEditReason, StringComparison.Ordinal);
+        DocxContentControlInfo group = result.ContentControls.Single(control => control.Kind == "group");
+        Assert.Equal("unsupported-group", group.SafeEditStatus);
+        Assert.Contains("target an editable child content control", group.SafeEditReason, StringComparison.Ordinal);
+        Assert.Equal(new[] { "M.CC0003" }, group.ChildContentControlIds);
+        Assert.Contains("safe-edit-reason=\"picture controls preserve a picture container", result.Text, StringComparison.Ordinal);
+        Assert.Contains("safe-edit-reason=\"group controls protect a container", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ContextAnnotatesTargetsWithBookmarkAndContentControlMetadata()
     {
         using MemoryStream stream = CreateDocxWithBody("""

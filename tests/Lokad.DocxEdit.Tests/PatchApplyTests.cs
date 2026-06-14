@@ -3942,6 +3942,86 @@ public static class PatchApplyTests
         Assert.Contains("requires expect-text", diagnostic.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CheckSetContentControlTextRejectsPictureControlWithImageGuidance()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr><w:picture/></w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Image placeholder</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text Replacement
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E4310", diagnostic.Code);
+        Assert.Equal("M.CC0001", diagnostic.TargetId);
+        Assert.Contains("kind 'picture'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("read/media", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("image operations", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetContentControlTextRejectsGroupControlWithChildGuidance()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr><w:group/></w:sdtPr>
+                        <w:sdtContent>
+                          <w:sdt>
+                            <w:sdtPr><w:text/></w:sdtPr>
+                            <w:sdtContent><w:r><w:t>Editable child</w:t></w:r></w:sdtContent>
+                          </w:sdt>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var groupPatch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text Replacement
+            end
+            """);
+
+        DocxCheckResult groupResult = new DocxEditor().Check(input, groupPatch);
+
+        Assert.False(groupResult.Success);
+        DocxDiagnostic diagnostic = Assert.Single(groupResult.Diagnostics);
+        Assert.Equal("E4310", diagnostic.Code);
+        Assert.Equal("M.CC0001", diagnostic.TargetId);
+        Assert.Contains("kind 'group'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("target an editable child content control", diagnostic.Message, StringComparison.Ordinal);
+
+        input.Position = 0;
+        using var childPatch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0002
+            text Replacement
+            end
+            """);
+
+        DocxCheckResult childResult = new DocxEditor().Check(input, childPatch);
+
+        Assert.True(childResult.Success);
+    }
+
     [Theory]
     [InlineData("set-content-control-text", "<w:text/>", "text New Client")]
     [InlineData("set-content-control-text", "<w:richText/>", "expect-text Old Client\ntext New Client")]

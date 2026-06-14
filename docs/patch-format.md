@@ -210,7 +210,7 @@ numbering, while dropping copied `w:pPrChange` and `w:sectPr`. An explicit
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `set-content-control-text` | `target`, `text` | `expect-text` | Plain-text controls are supported; guarded simple rich-text controls are supported when safe |
+| `set-content-control-text` | `target`, `text` | `expect-text` | Plain-text controls are supported; guarded simple rich-text controls are supported when safe; picture/group controls fail with kind-specific guidance |
 | `set-content-control-checkbox` | `target`, `checked` | | Updates checkbox state and displayed symbol |
 | `set-content-control-choice` | `target` plus `value` or `display-text` | | Selects a dropdown/combo item |
 | `set-content-control-date` | `target`, `value` | `display-text` | Updates date value and visible text |
@@ -500,7 +500,9 @@ Common diagnostics:
 - `E20xx`: patch syntax error.
 - `E32xx`: guard failure.
 - `E42xx`: missing or invalid operation field.
-- `E43xx`: unsafe edit shape or unsupported protected boundary.
+- `E43xx`: unsafe edit shape, unsupported protected boundary, or unsupported
+  target kind. Content-control kind mismatches include actual kind and next-step
+  guidance for picture, group, checkbox, choice, date, and repeating controls.
 - `E52xx`: image asset or DrawingML issue.
 - `E60xx`: track-change mode issue.
 - `E62xx`: section edit issue.

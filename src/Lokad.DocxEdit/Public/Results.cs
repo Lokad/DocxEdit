@@ -356,6 +356,7 @@ public sealed record DocxContentControlInfo
     public string? ParentContentControlId { get; init; }
     public IReadOnlyList<string> ChildContentControlIds { get; init; } = [];
     public string SafeEditStatus { get; init; } = "unknown";
+    public string? SafeEditReason { get; init; }
     public bool IsTagDuplicate { get; init; }
     public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
     public bool IsAliasDuplicate { get; init; }

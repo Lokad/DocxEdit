@@ -154,11 +154,13 @@ unsupported WordprocessingML shapes without private document details.
   text.
 - Checkbox controls support checked-state updates and displayed symbol updates.
 - Picture, group, repeating-section, and repeating-section-item controls are
-  surfaced as metadata and safe-edit diagnostics. Repeating-section item edit
-  operations are recognized and fail with `E4315`.
+  surfaced as metadata with safe-edit reasons. Picture-control edit attempts fail
+  with image/media guidance; group-control edit attempts fail with guidance to
+  target editable child controls. Repeating-section item edit operations are
+  recognized and fail with `E4315`.
 - Tags, aliases, placeholders, data bindings, lock values, list items, checkbox
   symbols, date metadata, parent/child relationships, duplicate semantic
-  selectors, and safe-edit status are surfaced.
+  selectors, safe-edit status, and safe-edit reason are surfaced.
 
 ### Bookmarks
 

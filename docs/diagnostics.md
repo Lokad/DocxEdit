@@ -80,6 +80,11 @@ OOXML shapes. Linked images (`W1019`) are not fetched or listed as editable imag
 VML (`W1020`), grouped drawings (`W1021`), OLE objects (`W1022`), charts, SmartArt,
 equations, and generic shapes are preserved but not modeled.
 
+Content-control edit diagnostics use `E4310` when the target control kind does
+not match the requested operation. The message reports the actual kind and gives
+generic next-step guidance, such as inspecting media/image targets for picture
+controls or targeting an editable child content control for group controls.
+
 Hyperlink warnings distinguish broken relationships (`W1015`), invalid external URI
 targets (`W1016`), missing or duplicate anchors (`W1017`/`W1018`), and preserved but
 unsupported internal part links (`W1023`).

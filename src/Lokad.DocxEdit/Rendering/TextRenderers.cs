@@ -65,6 +65,7 @@ internal static class TextRenderers
             string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
             string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{Escape(string.Join(",", control.ChildContentControlIds))}\"";
             string safeEdit = $" safe-edit={Escape(control.SafeEditStatus)}";
+            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{Escape(control.SafeEditReason)}\"";
             string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
             string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string locked = control.Lock is null ? string.Empty : $" lock={Escape(control.Lock)}";
@@ -97,6 +98,7 @@ internal static class TextRenderers
                 .Append(parentControl)
                 .Append(childControls)
                 .Append(safeEdit)
+                .Append(safeEditReason)
                 .Append(tagDuplicate)
                 .Append(aliasDuplicate)
                 .Append(locked)
@@ -288,11 +290,12 @@ internal static class TextRenderers
             string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
             string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{Escape(string.Join(",", control.ChildContentControlIds))}\"";
             string safeEdit = $" safe-edit={Escape(control.SafeEditStatus)}";
+            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{Escape(control.SafeEditReason)}\"";
             string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
             string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
             string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
+            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
         }
 
         foreach (DocxFieldInfo field in model.Fields)

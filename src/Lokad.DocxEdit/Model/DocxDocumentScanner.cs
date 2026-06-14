@@ -640,6 +640,7 @@ internal static class DocxDocumentScanner
                     ? content.Elements(OoxmlNs.W + "sdt").Count(child => child.Element(OoxmlNs.W + "sdtPr")?.Element(OoxmlNs.W + "repeatingSectionItem") is not null)
                     : null,
                 SafeEditStatus = ReadContentControlSafeEditStatus(kind, lockValue),
+                SafeEditReason = ReadContentControlSafeEditReason(kind, lockValue),
                 Lock = lockValue,
                 Checked = ReadContentControlChecked(properties),
                 CheckedSymbol = ReadContentControlStateSymbol(properties, "checkedState"),
@@ -1202,6 +1203,24 @@ internal static class DocxDocumentScanner
             "repeating-section" => "unsupported-repeating-section",
             "repeating-section-item" => "unsupported-repeating-section",
             _ => "unsupported-rich-text"
+        };
+    }
+
+    private static string? ReadContentControlSafeEditReason(string kind, string? lockValue)
+    {
+        if (!string.IsNullOrWhiteSpace(lockValue) &&
+            !string.Equals(lockValue, "unlocked", StringComparison.Ordinal))
+        {
+            return $"locked by w:lock='{lockValue}'";
+        }
+
+        return kind switch
+        {
+            "picture" => "picture controls preserve a picture container; inspect media/image targets for image edits",
+            "group" => "group controls protect a container; target an editable child content control",
+            "repeating-section" => "repeating-section item edits require subtree cloning and are not modeled",
+            "repeating-section-item" => "repeating-section item edits require subtree cloning and are not modeled",
+            _ => null
         };
     }
 

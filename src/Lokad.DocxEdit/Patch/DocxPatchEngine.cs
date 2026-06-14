@@ -900,6 +900,13 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        bool isPlainText = IsPlainTextContentControl(controlTarget.ContentControl);
+        bool isRichText = IsRichTextContentControl(controlTarget.ContentControl);
+        if (!isPlainText && !isRichText)
+        {
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a plain-text or rich-text content control")];
+        }
+
         DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
         if (lockDiagnostic is not null)
         {
@@ -918,14 +925,8 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected content-control text does not match current text.", operation, target)];
         }
 
-        bool isPlainText = IsPlainTextContentControl(controlTarget.ContentControl);
         if (!isPlainText)
         {
-            if (!IsRichTextContentControl(controlTarget.ContentControl))
-            {
-                return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a plain-text or rich-text content control.", operation, target)];
-            }
-
             if (expected is null)
             {
                 return [Diagnostic(DocxSeverity.Error, "E4205", $"Rich-text content control '{target}' requires expect-text before replacement.", operation, target)];
@@ -1027,7 +1028,7 @@ internal static class DocxPatchEngine
             ?.Element(OoxmlNs.W + "checkBox");
         if (checkBox is null)
         {
-            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a checkbox content control.", operation, target)];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a checkbox content control")];
         }
 
         DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
@@ -1090,7 +1091,7 @@ internal static class DocxPatchEngine
             .FirstOrDefault(element => element.Name == OoxmlNs.W + "dropDownList" || element.Name == OoxmlNs.W + "comboBox");
         if (list is null)
         {
-            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a dropdown or combo box content control.", operation, target)];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a dropdown or combo box content control")];
         }
 
         DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
@@ -1153,7 +1154,7 @@ internal static class DocxPatchEngine
             ?.Element(OoxmlNs.W + "date");
         if (date is null)
         {
-            return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' is not a date content control.", operation, target)];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a date content control")];
         }
 
         DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
@@ -2842,6 +2843,58 @@ internal static class DocxPatchEngine
             "group" or
             "repeatingSection" or
             "repeatingSectionItem");
+    }
+
+    private static string ReadContentControlKind(XElement contentControl)
+    {
+        XElement? properties = contentControl.Element(OoxmlNs.W + "sdtPr");
+        if (properties is null)
+        {
+            return "rich-text";
+        }
+
+        string? kind = properties.Elements()
+            .Select(element => element.Name.LocalName)
+            .FirstOrDefault(name => name is "text" or "richText" or "checkBox" or "dropDownList" or "comboBox" or "date" or "picture" or "group" or "repeatingSection" or "repeatingSectionItem");
+        return kind switch
+        {
+            "text" => "plain-text",
+            "richText" => "rich-text",
+            "checkBox" => "checkbox",
+            "dropDownList" => "dropdown-list",
+            "comboBox" => "combo-box",
+            "date" => "date",
+            "picture" => "picture",
+            "group" => "group",
+            "repeatingSection" => "repeating-section",
+            "repeatingSectionItem" => "repeating-section-item",
+            _ => "rich-text"
+        };
+    }
+
+    private static DocxDiagnostic UnsupportedContentControlKindDiagnostic(
+        XElement contentControl,
+        DocxPatchOperation operation,
+        string target,
+        string expected)
+    {
+        string kind = ReadContentControlKind(contentControl);
+        string guidance = kind switch
+        {
+            "picture" => "Picture content controls preserve a picture container; use read/media to inspect the contained image and target image operations when applicable.",
+            "group" => "Group content controls protect a container; target an editable child content control instead.",
+            "repeating-section" or "repeating-section-item" => "Repeating-section subtree edits require cloning or deleting structured document tag subtrees, which DocxEdit currently rejects with E4315.",
+            "checkbox" => "Use set-content-control-checkbox for checkbox state edits.",
+            "dropdown-list" or "combo-box" => "Use set-content-control-choice for dropdown or combo-box selections.",
+            "date" => "Use set-content-control-date for date values.",
+            _ => "Choose an operation that matches the content-control kind."
+        };
+        return Diagnostic(
+            DocxSeverity.Error,
+            "E4310",
+            $"Content control '{target}' is kind '{kind}', not {expected}. {guidance}",
+            operation,
+            target);
     }
 
     private static DocxDiagnostic? ValidateContentControlUnlocked(

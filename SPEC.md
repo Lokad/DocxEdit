@@ -1041,6 +1041,7 @@ public sealed record DocxContentControlInfo
     public string? ParentContentControlId { get; init; }
     public IReadOnlyList<string> ChildContentControlIds { get; init; } = [];
     public string SafeEditStatus { get; init; } = "unknown";
+    public string? SafeEditReason { get; init; }
     public bool IsTagDuplicate { get; init; }
     public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
     public bool IsAliasDuplicate { get; init; }
@@ -1068,7 +1069,9 @@ Content controls expose placeholder doc-part IDs, placeholder-display state, cus
 XML data-binding attributes, repeating-section titles/item counts, direct
 parent/child content-control IDs, and a conservative `SafeEditStatus` such as
 `plain-text`, `rich-text`, `choice`, `date`, `locked`, `unsupported-picture`,
-`unsupported-group`, or `unsupported-repeating-section`.
+`unsupported-group`, or `unsupported-repeating-section`. `SafeEditReason`
+explains non-editable statuses such as picture containers, group containers,
+repeating-section subtree edits, and lock values without exposing control text.
 
 Duplicate bookmark names, duplicate content-control tags, and duplicate
 content-control aliases must be surfaced with boolean duplicate flags and candidate
@@ -1865,6 +1868,8 @@ Rules:
   `H001.CC0001`, or `F001.CC0001`.
 * `set-content-control-text` supports plain-text controls (`w:sdtPr/w:text`) and
   preserves the `w:sdt` wrapper and properties.
+  Picture controls fail with `E4310` and image/media guidance. Group controls
+  fail with `E4310` and guidance to target an editable child control.
 * `set-content-control-text` also supports rich-text controls (`w:sdtPr/w:richText`
   or no specific kind) when `expect-text` matches the current visible text, the
   content container contains only paragraphs, and the replacement does not cross
