@@ -24,47 +24,90 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("find", replaceText.RequiredFields);
         Assert.Contains("with", replaceText.RequiredFields);
         Assert.Contains("preserve-runs", replaceText.OptionalFields);
+        Assert.Equal("text-run", replaceText.TrackChangesSupportClass);
         Assert.Equal("tracked-simple", replaceText.TrackChangesSupport);
+        Assert.True(replaceText.GeneratesTrackedChanges);
         Assert.Contains("E6002", replaceText.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("set-content-control-text", out DocxPatchOperationInfo setContentControlText));
         Assert.Contains("expect-text", setContentControlText.OptionalFields);
+        Assert.Equal("preserve-only", setContentControlText.TrackChangesSupportClass);
         Assert.Equal("preserve-only", setContentControlText.TrackChangesSupport);
+        Assert.False(setContentControlText.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("refresh-field-result", out DocxPatchOperationInfo refreshFieldResult));
         Assert.Contains("expect-code", refreshFieldResult.OptionalFields);
         Assert.Contains("expect-result", refreshFieldResult.OptionalFields);
+        Assert.Equal("preserve-only", refreshFieldResult.TrackChangesSupportClass);
         Assert.Equal("preserve-only", refreshFieldResult.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("set-cell", out DocxPatchOperationInfo setCell));
+        Assert.Equal("text-run", setCell.TrackChangesSupportClass);
         Assert.Equal("tracked-cell-simple", setCell.TrackChangesSupport);
+        Assert.True(setCell.GeneratesTrackedChanges);
         Assert.Contains("E6002", setCell.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("set-table-style", out DocxPatchOperationInfo setTableStyle));
         Assert.Contains("expect-style", setTableStyle.OptionalFields);
+        Assert.Equal("preserve-only", setTableStyle.TrackChangesSupportClass);
         Assert.Equal("preserve-only", setTableStyle.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("set-table-metadata", out DocxPatchOperationInfo setTableMetadata));
         Assert.Contains("expect-caption", setTableMetadata.OptionalFields);
         Assert.Contains("expect-description", setTableMetadata.OptionalFields);
+        Assert.Equal("preserve-only", setTableMetadata.TrackChangesSupportClass);
         Assert.Equal("preserve-only", setTableMetadata.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("set-row-header", out DocxPatchOperationInfo setRowHeader));
         Assert.Contains("expect-header", setRowHeader.OptionalFields);
+        Assert.Equal("preserve-only", setRowHeader.TrackChangesSupportClass);
         Assert.Equal("preserve-only", setRowHeader.TrackChangesSupport);
         Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo removeHyperlink));
+        Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupportClass);
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupport);
         Assert.Contains("does not create new revision markup", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
         Assert.Contains("E6001", removeHyperlink.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("add-comment-reply", out DocxPatchOperationInfo addCommentReply));
+        Assert.Equal("unsupported", addCommentReply.TrackChangesSupportClass);
         Assert.Equal("unsupported", addCommentReply.TrackChangesSupport);
+        Assert.False(addCommentReply.GeneratesTrackedChanges);
         Assert.Contains("E4314", addCommentReply.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("add-repeating-section-item", out DocxPatchOperationInfo addRepeatingSectionItem));
+        Assert.Equal("unsupported", addRepeatingSectionItem.TrackChangesSupportClass);
         Assert.Equal("unsupported", addRepeatingSectionItem.TrackChangesSupport);
         Assert.Contains("E4315", addRepeatingSectionItem.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("insert-column-before", out DocxPatchOperationInfo insertColumnBefore));
+        Assert.Equal("unsupported", insertColumnBefore.TrackChangesSupportClass);
         Assert.Equal("unsupported", insertColumnBefore.TrackChangesSupport);
         Assert.Contains(insertColumnBefore.RequiredFields, field => field.Contains("column", StringComparison.Ordinal));
         Assert.Contains("E4316", insertColumnBefore.TrackChangesNote, StringComparison.Ordinal);
         Assert.True(DocxHelp.TryGetPatchOperation("add-bookmark", out DocxPatchOperationInfo addBookmark));
         Assert.Contains("expect-text", addBookmark.OptionalFields);
+        Assert.Equal("preserve-only", addBookmark.TrackChangesSupportClass);
         Assert.Equal("preserve-only", addBookmark.TrackChangesSupport);
         Assert.True(DocxHelp.TryRenderTopic("patch", out string patchHelp));
+        Assert.Contains("text-run (tracked-simple)", patchHelp, StringComparison.Ordinal);
         Assert.Contains("preserve-only", patchHelp, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void PatchCatalogUsesExplicitTrackChangeSupportClasses()
+    {
+        string[] validClasses =
+        [
+            "text-run",
+            "paragraph-block",
+            "paragraph-property",
+            "table-property",
+            "row-property",
+            "cell-property",
+            "section-property",
+            "relationship-metadata",
+            "preserve-only",
+            "unsupported"
+        ];
+
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            Assert.Contains(operation.TrackChangesSupportClass, validClasses);
+            Assert.Equal(
+                operation.TrackChangesSupportClass is not "preserve-only" and not "unsupported",
+                operation.GeneratesTrackedChanges);
+        }
     }
 
     [Fact]

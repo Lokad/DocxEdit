@@ -357,6 +357,13 @@ Other known operations are classified as `preserve-only`: they preserve existing
 tracked-change markup but do not create new revision markup. In `suggest` mode
 they apply directly with `W4001`; in `require` mode they fail with `E6001`.
 
+`docxedit help patch` prints both the support class and the operation-specific
+support value. Support classes include `text-run`, `paragraph-block`,
+`paragraph-property`, `table-property`, `row-property`, `cell-property`,
+`section-property`, `relationship-metadata`, `preserve-only`, and `unsupported`.
+The patch engine uses the support class, while the detailed support value explains
+the narrower operation shape, such as `tracked-simple` or `tracked-cell-simple`.
+
 Even supported tracked operations can fail for unsupported shapes, such as tabs,
 line breaks, protected OOXML boundaries, existing revision markup, or mixed direct
 run formatting. Those cases produce `W4002` in `suggest` mode or `E6002` in

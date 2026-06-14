@@ -188,7 +188,7 @@ internal static class DocxPatchEngine
     private static bool SupportsTrackedChangeOutput(string operationName)
     {
         return DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operation) &&
-            operation.TrackChangesSupport.StartsWith("tracked-", StringComparison.Ordinal);
+            operation.GeneratesTrackedChanges;
     }
 
     private static string BuildUnsupportedTrackedOperationMessage(TrackChangesMode mode, DocxPatchOperation operation)

@@ -37,8 +37,12 @@ public sealed record DocxPatchOperationInfo
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
     public string Description { get; init; } = string.Empty;
+    public string TrackChangesSupportClass { get; init; } = "unsupported";
     public string TrackChangesSupport { get; init; } = "unsupported";
     public string TrackChangesNote { get; init; } = "Suggest applies directly with W4001; Require fails with E6001.";
+
+    public bool GeneratesTrackedChanges =>
+        TrackChangesSupportClass is not "preserve-only" and not "unsupported";
 
     public string RenderSummary()
     {
@@ -54,6 +58,12 @@ public static class DocxHelp
 {
     private const string PreserveOnlyTrackChangesNote =
         "Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.";
+
+    private const string TrackClassTextRun = "text-run";
+    private const string TrackClassParagraphBlock = "paragraph-block";
+    private const string TrackClassParagraphProperty = "paragraph-property";
+    private const string TrackClassPreserveOnly = "preserve-only";
+    private const string TrackClassUnsupported = "unsupported";
 
     private const string PatchExamples =
         """
@@ -190,8 +200,28 @@ public static class DocxHelp
             Name = name,
             RequiredFields = requiredFields,
             OptionalFields = optionalFields ?? [],
+            TrackChangesSupportClass = TrackClassPreserveOnly,
             TrackChangesSupport = "preserve-only",
             TrackChangesNote = PreserveOnlyTrackChangesNote
+        };
+    }
+
+    private static DocxPatchOperationInfo Tracked(
+        string name,
+        IReadOnlyList<string> requiredFields,
+        string supportClass,
+        string support,
+        string note,
+        IReadOnlyList<string>? optionalFields = null)
+    {
+        return new DocxPatchOperationInfo
+        {
+            Name = name,
+            RequiredFields = requiredFields,
+            OptionalFields = optionalFields ?? [],
+            TrackChangesSupportClass = supportClass,
+            TrackChangesSupport = support,
+            TrackChangesNote = note
         };
     }
 
@@ -206,6 +236,7 @@ public static class DocxHelp
             Name = name,
             RequiredFields = requiredFields,
             OptionalFields = optionalFields ?? [],
+            TrackChangesSupportClass = TrackClassUnsupported,
             TrackChangesSupport = "unsupported",
             TrackChangesNote = note
         };
@@ -257,8 +288,10 @@ public static class DocxHelp
         {
             builder.Append("  ")
                 .Append(operation.Name.PadRight(24))
+                .Append(operation.TrackChangesSupportClass)
+                .Append(" (")
                 .Append(operation.TrackChangesSupport)
-                .Append(" - ")
+                .Append(") - ")
                 .AppendLine(operation.TrackChangesNote);
         }
 
@@ -680,53 +713,47 @@ public static class DocxHelp
             ],
             PatchOperations =
             [
-                new()
-                {
-                    Name = "replace-text",
-                    RequiredFields = ["target", "find", "with"],
-                    OptionalFields = ["expect-text", "preserve-runs", "occurrence"],
-                    TrackChangesSupport = "tracked-simple",
-                    TrackChangesNote = "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002."
-                },
-                new()
-                {
-                    Name = "replace-paragraph",
-                    RequiredFields = ["target", "text"],
-                    OptionalFields = ["expect-text", "style"],
-                    TrackChangesSupport = "tracked-paragraph",
-                    TrackChangesNote = "Suggest/Require emit whole-paragraph w:del/w:ins for simple text-only replacements; style-combined or complex shapes warn with W4002 or fail with E6002."
-                },
-                new()
-                {
-                    Name = "insert-before",
-                    RequiredFields = ["target", "text"],
-                    OptionalFields = ["style", "copy-paragraph-properties"],
-                    TrackChangesSupport = "tracked-paragraph-insert",
-                    TrackChangesNote = "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002."
-                },
-                new()
-                {
-                    Name = "insert-after",
-                    RequiredFields = ["target", "text"],
-                    OptionalFields = ["style", "copy-paragraph-properties"],
-                    TrackChangesSupport = "tracked-paragraph-insert",
-                    TrackChangesNote = "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002."
-                },
-                new()
-                {
-                    Name = "delete-block",
-                    RequiredFields = ["target"],
-                    OptionalFields = ["expect-text"],
-                    TrackChangesSupport = "tracked-paragraph-delete",
-                    TrackChangesNote = "Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002."
-                },
-                new()
-                {
-                    Name = "set-style",
-                    RequiredFields = ["target", "style"],
-                    TrackChangesSupport = "tracked-style",
-                    TrackChangesNote = "Suggest/Require emit paragraph property revisions with w:pPrChange."
-                },
+                Tracked(
+                    "replace-text",
+                    ["target", "find", "with"],
+                    TrackClassTextRun,
+                    "tracked-simple",
+                    "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.",
+                    ["expect-text", "preserve-runs", "occurrence"]),
+                Tracked(
+                    "replace-paragraph",
+                    ["target", "text"],
+                    TrackClassParagraphBlock,
+                    "tracked-paragraph",
+                    "Suggest/Require emit whole-paragraph w:del/w:ins for simple text-only replacements; style-combined or complex shapes warn with W4002 or fail with E6002.",
+                    ["expect-text", "style"]),
+                Tracked(
+                    "insert-before",
+                    ["target", "text"],
+                    TrackClassParagraphBlock,
+                    "tracked-paragraph-insert",
+                    "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
+                    ["style", "copy-paragraph-properties"]),
+                Tracked(
+                    "insert-after",
+                    ["target", "text"],
+                    TrackClassParagraphBlock,
+                    "tracked-paragraph-insert",
+                    "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
+                    ["style", "copy-paragraph-properties"]),
+                Tracked(
+                    "delete-block",
+                    ["target"],
+                    TrackClassParagraphBlock,
+                    "tracked-paragraph-delete",
+                    "Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.",
+                    ["expect-text"]),
+                Tracked(
+                    "set-style",
+                    ["target", "style"],
+                    TrackClassParagraphProperty,
+                    "tracked-style",
+                    "Suggest/Require emit paragraph property revisions with w:pPrChange."),
                 PreserveOnly("set-content-control-text", ["target", "text"], ["expect-text"]),
                 PreserveOnly("set-content-control-checkbox", ["target", "checked"]),
                 PreserveOnly("set-content-control-choice", ["target plus value or display-text"]),
@@ -768,14 +795,13 @@ public static class DocxHelp
                 PreserveOnly("set-hyperlink-text", ["target", "text"]),
                 PreserveOnly("insert-hyperlink-after", ["target", "text plus uri or anchor"], ["tooltip", "target-frame", "history"]),
                 PreserveOnly("remove-hyperlink", ["target"]),
-                new()
-                {
-                    Name = "set-cell",
-                    RequiredFields = ["target", "text"],
-                    OptionalFields = ["expect-text", "expect-row-count", "expect-column-count", "force"],
-                    TrackChangesSupport = "tracked-cell-simple",
-                    TrackChangesNote = "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002."
-                },
+                Tracked(
+                    "set-cell",
+                    ["target", "text"],
+                    TrackClassTextRun,
+                    "tracked-cell-simple",
+                    "Suggest/Require emit whole-cell paragraph w:del/w:ins for simple single-paragraph cells; force or complex cells warn with W4002 or fail with E6002.",
+                    ["expect-text", "expect-row-count", "expect-column-count", "force"]),
                 PreserveOnly("set-table-style", ["target", "style"], ["expect-style"]),
                 PreserveOnly("set-table-metadata", ["target plus caption or description"], ["expect-caption", "expect-description"]),
                 PreserveOnly("set-row-header", ["target", "header"], ["expect-header"]),
