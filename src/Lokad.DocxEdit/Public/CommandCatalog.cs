@@ -746,7 +746,7 @@ public static class DocxHelp
                     ["target", "text"],
                     TrackClassParagraphBlock,
                     "tracked-paragraph",
-                    "Suggest/Require emit whole-paragraph w:del/w:ins for simple text-only replacements; style-combined or complex shapes warn with W4002 or fail with E6002.",
+                    "Suggest/Require emit whole-paragraph w:del/w:ins for simple text replacements and add w:pPrChange when a compatible style change is included; complex shapes warn with W4002 or fail with E6002.",
                     ["expect-text", "style"]),
                 Tracked(
                     "insert-before",

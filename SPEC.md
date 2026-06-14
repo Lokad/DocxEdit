@@ -2506,7 +2506,7 @@ Current tracked-change generation support:
 
 ```text
 replace-text          simple text-only matches in one paragraph
-replace-paragraph     whole-paragraph text replacement without concurrent style change
+replace-paragraph     whole-paragraph text replacement, plus w:pPrChange for style
 insert-before         inserted paragraph text as w:ins
 insert-after          inserted paragraph text as w:ins
 delete-block          simple paragraph targets as w:del text

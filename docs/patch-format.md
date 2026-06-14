@@ -357,7 +357,7 @@ table printed by `docxedit help patch`.
 operation | support class | support value | behavior
 --- | --- | --- | ---
 replace-text | text-run | tracked-simple | Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.
-replace-paragraph | paragraph-block | tracked-paragraph | Suggest/Require emit whole-paragraph w:del/w:ins for simple text-only replacements; style-combined or complex shapes warn with W4002 or fail with E6002.
+replace-paragraph | paragraph-block | tracked-paragraph | Suggest/Require emit whole-paragraph w:del/w:ins for simple text replacements and add w:pPrChange when a compatible style change is included; complex shapes warn with W4002 or fail with E6002.
 insert-before | paragraph-block | tracked-paragraph-insert | Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.
 insert-after | paragraph-block | tracked-paragraph-insert | Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.
 delete-block | paragraph-block | tracked-paragraph-delete | Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.

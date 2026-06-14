@@ -617,6 +617,11 @@ internal static class DocxPatchEngine
         if (useTrackedChanges)
         {
             ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text!, options, generatedRevisionIds, cancellationToken);
+            if (style is not null)
+            {
+                SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, style, options, generatedRevisionIds, cancellationToken);
+            }
+
             SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
             return diagnostics;
         }
@@ -3498,12 +3503,6 @@ internal static class DocxPatchEngine
         out string? unsupportedReason)
     {
         unsupportedReason = null;
-        if (style is not null)
-        {
-            unsupportedReason = "tracked paragraph replacement cannot combine text and style changes";
-            return false;
-        }
-
         if (TextContainsTrackedUnsupportedCharacters(current) ||
             TextContainsTrackedUnsupportedCharacters(replacement))
         {
@@ -7697,7 +7696,16 @@ internal static class DocxPatchEngine
         List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
-        string[] ids = AllocateRevisionIds(package, count, cancellationToken);
+        int nextId = FindNextRevisionId(package, cancellationToken);
+        foreach (string generatedRevisionId in generatedRevisionIds)
+        {
+            if (int.TryParse(generatedRevisionId, out int id) && id >= nextId)
+            {
+                nextId = id + 1;
+            }
+        }
+
+        string[] ids = BuildRevisionIds(nextId, count);
         generatedRevisionIds.AddRange(ids);
         return ids;
     }
@@ -7705,6 +7713,13 @@ internal static class DocxPatchEngine
     private static string[] AllocateRevisionIds(
         OoxmlPackage package,
         int count,
+        CancellationToken cancellationToken)
+    {
+        return BuildRevisionIds(FindNextRevisionId(package, cancellationToken), count);
+    }
+
+    private static int FindNextRevisionId(
+        OoxmlPackage package,
         CancellationToken cancellationToken)
     {
         int nextId = 1;
@@ -7724,6 +7739,11 @@ internal static class DocxPatchEngine
             }
         }
 
+        return nextId;
+    }
+
+    private static string[] BuildRevisionIds(int nextId, int count)
+    {
         string[] ids = new string[count];
         for (int i = 0; i < ids.Length; i++)
         {

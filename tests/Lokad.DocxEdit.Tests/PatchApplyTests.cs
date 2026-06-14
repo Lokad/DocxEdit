@@ -1368,7 +1368,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void CheckTrackChangesRequireRejectsReplaceParagraphTextAndStyleCombination()
+    public static void CheckTrackChangesRequireAllowsReplaceParagraphTextAndStyleCombination()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
         using var patch = new StringReader("""
@@ -1383,18 +1383,12 @@ public static class PatchApplyTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
-        Assert.Contains("operation 'replace-paragraph'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'tracked-paragraph'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("tracked paragraph replacement cannot combine text and style changes", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
     }
 
     [Fact]
-    public static void ApplyTrackChangesSuggestFallsBackForReplaceParagraphTextAndStyleCombination()
+    public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceParagraphTextAndStyleCombination()
     {
         using MemoryStream input = CreateDocx("Revenue increased.");
         using var output = new MemoryStream();
@@ -1411,17 +1405,16 @@ public static class PatchApplyTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.True(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
-        Assert.Contains("operation 'replace-paragraph'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("tracked paragraph replacement cannot combine text and style changes", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
-        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
-        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Equal(["1", "2", "3"], Assert.Single(result.Operations).GeneratedRevisionIds);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
-        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:del", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Revenue increased.</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Revenue rose.</w:t>", xml, StringComparison.Ordinal);
         Assert.Contains("<w:pStyle w:val=\"Heading1\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:pPrChange w:id=\"3\"", xml, StringComparison.Ordinal);
         output.Position = 0;
         Assert.Equal("Revenue rose.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
