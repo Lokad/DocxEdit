@@ -146,10 +146,10 @@ internal static class DocxPatchEngine
                     "set-table-style" => ExecuteSetTableStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "set-table-metadata" => ExecuteSetTableMetadata(package, operation, apply, cancellationToken),
                     "set-row-header" => ExecuteSetRowHeader(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "append-row" => ExecuteAppendRow(package, operation, apply, cancellationToken),
-                    "insert-row-before" => ExecuteInsertRow(package, operation, insertAfter: false, apply, cancellationToken),
-                    "insert-row-after" => ExecuteInsertRow(package, operation, insertAfter: true, apply, cancellationToken),
-                    "delete-row" => ExecuteDeleteRow(package, operation, apply, cancellationToken),
+                    "append-row" => ExecuteAppendRow(package, operation, options, apply, generatedRevisionIds, cancellationToken),
+                    "insert-row-before" => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, generatedRevisionIds, cancellationToken),
+                    "insert-row-after" => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, generatedRevisionIds, cancellationToken),
+                    "delete-row" => ExecuteDeleteRow(package, operation, options, apply, generatedRevisionIds, cancellationToken),
                     "append-column" or "insert-column-before" or "insert-column-after" or "delete-column" => ExecuteUnsupportedColumnOperation(operation),
                     "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
                     "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
@@ -4433,6 +4433,31 @@ internal static class DocxPatchEngine
             oldRowProperties));
     }
 
+    private static void MarkRowRevision(
+        OoxmlPackage package,
+        XElement row,
+        XName revisionName,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        XElement rowProperties = row.Element(OoxmlNs.W + "trPr") ?? new XElement(OoxmlNs.W + "trPr");
+        if (rowProperties.Parent is null)
+        {
+            row.AddFirst(rowProperties);
+        }
+
+        rowProperties.Elements(OoxmlNs.W + "ins").Remove();
+        rowProperties.Elements(OoxmlNs.W + "del").Remove();
+        rowProperties.Elements(OoxmlNs.W + "trPrChange").Remove();
+        string revisionId = AllocateRevisionIds(package, 1, generatedRevisionIds, cancellationToken)[0];
+        rowProperties.AddFirst(new XElement(
+            revisionName,
+            new XAttribute(OoxmlNs.W + "id", revisionId),
+            new XAttribute(OoxmlNs.W + "author", GetRevisionAuthor(options)),
+            new XAttribute(OoxmlNs.W + "date", GetRevisionTimestamp(options))));
+    }
+
     private static void SetSectionPropertiesWithTrackedChange(
         OoxmlPackage package,
         XElement sectionProperties,
@@ -6089,7 +6114,9 @@ internal static class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ExecuteAppendRow(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -6145,22 +6172,40 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4303", $"append-row expected {columnCount} cell field(s), but received {cellTexts.Length}.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target!, tableTarget.Table, force: false, diagnostics))
+        {
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
         }
 
         XElement newRow = CreateRowFromTemplate(rows[^1], cellTexts);
+        if (useTrackedChanges)
+        {
+            MarkRowRevision(package, newRow, OoxmlNs.W + "ins", options, generatedRevisionIds, cancellationToken);
+        }
+
         rows[^1].AddAfterSelf(newRow);
         SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteInsertRow(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool insertAfter,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -6226,12 +6271,28 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4303", $"{operation.OperationName} expected {expectedCellCount} cell field(s), but received {cellTexts.Length}.", operation, target)];
         }
 
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target!, rowTarget.Table, force, diagnostics))
+        {
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
+        }
+
         if (!apply)
         {
-            return [];
+            return diagnostics;
         }
 
         XElement newRow = CreateRowFromTemplate(rowTarget.Row, cellTexts);
+        if (useTrackedChanges)
+        {
+            MarkRowRevision(package, newRow, OoxmlNs.W + "ins", options, generatedRevisionIds, cancellationToken);
+        }
+
         if (insertAfter)
         {
             rowTarget.Row.AddAfterSelf(newRow);
@@ -6242,13 +6303,15 @@ internal static class DocxPatchEngine
         }
 
         SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteDeleteRow(
         OoxmlPackage package,
         DocxPatchOperation operation,
+        DocxEditOptions options,
         bool apply,
+        List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
@@ -6298,14 +6361,33 @@ internal static class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' is not rectangular and cannot be edited safely without force true.", operation, target)];
         }
 
-        if (!apply)
+        bool useTrackedChanges = IsTrackedMode(options);
+        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target!, rowTarget.Table, force, diagnostics))
         {
-            return [];
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                return diagnostics;
+            }
+
+            useTrackedChanges = false;
         }
 
-        rowTarget.Row.Remove();
+        if (!apply)
+        {
+            return diagnostics;
+        }
+
+        if (useTrackedChanges)
+        {
+            MarkRowRevision(package, rowTarget.Row, OoxmlNs.W + "del", options, generatedRevisionIds, cancellationToken);
+        }
+        else
+        {
+            rowTarget.Row.Remove();
+        }
+
         SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
-        return [];
+        return diagnostics;
     }
 
     private static bool ValidateTableGuards(
@@ -6357,6 +6439,63 @@ internal static class DocxPatchEngine
         }
 
         return diagnostics.Count == 0;
+    }
+
+    private static bool TryUseTrackedRowStructure(
+        DocxEditOptions options,
+        DocxPatchOperation operation,
+        string target,
+        XElement table,
+        bool force,
+        List<DocxDiagnostic> diagnostics)
+    {
+        if (force)
+        {
+            AddTrackedRowStructureUnsupported(options, operation, target, "tracked row operations do not support force true", diagnostics);
+            return false;
+        }
+
+        if (ContainsNestedTables(table))
+        {
+            AddTrackedRowStructureUnsupported(options, operation, target, "tracked row operations do not support nested tables", diagnostics);
+            return false;
+        }
+
+        if (table.Elements(OoxmlNs.W + "tr").Any(RowHasTrackedRowRevision))
+        {
+            AddTrackedRowStructureUnsupported(options, operation, target, "table already contains tracked row insertion, deletion, or property revision markup", diagnostics);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void AddTrackedRowStructureUnsupported(
+        DocxEditOptions options,
+        DocxPatchOperation operation,
+        string target,
+        string reason,
+        List<DocxDiagnostic> diagnostics)
+    {
+        _ = TrackUnsupportedShape(options, operation, target, reason, diagnostics);
+    }
+
+    private static bool ContainsNestedTables(XElement table)
+    {
+        return table
+            .Elements(OoxmlNs.W + "tr")
+            .Elements(OoxmlNs.W + "tc")
+            .Descendants(OoxmlNs.W + "tbl")
+            .Any();
+    }
+
+    private static bool RowHasTrackedRowRevision(XElement row)
+    {
+        XElement? rowProperties = row.Element(OoxmlNs.W + "trPr");
+        return rowProperties is not null &&
+            (rowProperties.Elements(OoxmlNs.W + "ins").Any() ||
+                rowProperties.Elements(OoxmlNs.W + "del").Any() ||
+                rowProperties.Elements(OoxmlNs.W + "trPrChange").Any());
     }
 
     private static bool ValidateImageContentTypeGuard(

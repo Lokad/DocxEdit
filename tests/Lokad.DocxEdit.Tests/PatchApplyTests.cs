@@ -7482,7 +7482,7 @@ public static class PatchApplyTests
     [InlineData("delete-row", """
         target M.T0001.R02
         """)]
-    public static void CheckTrackChangesRequireRejectsRowOperationsAsPreserveOnly(string operationName, string operationFields)
+    public static void CheckTrackChangesRequireAllowsRowStructureRevisions(string operationName, string operationFields)
     {
         using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
         using var patch = new StringReader($"""
@@ -7495,12 +7495,8 @@ public static class PatchApplyTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
-        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.True(result.Success);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "E6001" or "E6002");
     }
 
     [Theory]
@@ -7508,21 +7504,28 @@ public static class PatchApplyTests
         target M.T0001
         cell East
         cell Margin
-        """, 3)]
+        """, 3, 3, "<w:ins w:id=\"1\"", "row-inserted", "[+East+]")]
     [InlineData("insert-row-before", """
         target M.T0001.R02
         cell East
         cell Margin
-        """, 3)]
+        """, 3, 3, "<w:ins w:id=\"1\"", "row-inserted", "[+East+]")]
     [InlineData("insert-row-after", """
         target M.T0001.R01
         cell East
         cell Margin
-        """, 3)]
+        """, 3, 3, "<w:ins w:id=\"1\"", "row-inserted", "[+East+]")]
     [InlineData("delete-row", """
         target M.T0001.R02
-        """, 1)]
-    public static void ApplyTrackChangesSuggestWarnsForRowOperationsAsPreserveOnly(string operationName, string operationFields, int expectedRows)
+        """, 1, 2, "<w:del w:id=\"1\"", "row-deleted", "[-South-]")]
+    public static void ApplyTrackChangesSuggestGeneratesRowStructureRevisions(
+        string operationName,
+        string operationFields,
+        int expectedFinalRows,
+        int expectedMarkupRows,
+        string expectedRevisionXml,
+        string expectedChangeType,
+        string expectedMarkupText)
     {
         using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
         using var output = new MemoryStream();
@@ -7537,17 +7540,113 @@ public static class PatchApplyTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
 
         Assert.True(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
-        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code is "W4001" or "W4002");
         DocxPatchOperationReport report = Assert.Single(result.Operations);
-        Assert.Empty(report.GeneratedRevisionIds);
+        Assert.Equal(["1"], report.GeneratedRevisionIds);
         Assert.NotEmpty(report.AffectedTargets);
         output.Position = 0;
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
-        Assert.Equal(expectedRows, table.RowCount);
+        Assert.Equal(expectedFinalRows, table.RowCount);
+        output.Position = 0;
+        DocxTableInfo originalTable = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Original }).Tables);
+        Assert.Equal(2, originalTable.RowCount);
+        output.Position = 0;
+        DocxTableInfo markupTable = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { TextView = DocxTextView.Markup }).Tables);
+        Assert.Equal(expectedMarkupRows, markupTable.RowCount);
+        Assert.Contains(markupTable.Cells, cell => cell.Text == expectedMarkupText);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains(expectedRevisionXml, xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains(new DocxEditor().Changes(output).Summary, summary => summary.Type == expectedChangeType && summary.Count == 1);
+    }
+
+    [Theory]
+    [InlineData("insert-row-before", """
+        target M.T0001.R02
+        force true
+        cell East
+        """)]
+    [InlineData("delete-row", """
+        target M.T0001.R01
+        force true
+        """)]
+    public static void CheckTrackChangesRequireRejectsForcedRowStructureRevisions(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>South total</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("tracked row operations do not support force true", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("insert-row-before", """
+        target M.T0001.R02
+        force true
+        cell East
+        """)]
+    [InlineData("delete-row", """
+        target M.T0001.R01
+        force true
+        """)]
+    public static void ApplyTrackChangesSuggestFallsBackForForcedRowStructureRevisions(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>South total</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Contains("tracked row operations do not support force true", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.DoesNotContain("<w:ins w:id=", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del w:id=", xml, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -68,7 +68,7 @@ internal static class DocxChangeScanner
                 changes.Add(new DocxChangeInfo
                 {
                     Id = $"{prefix}.CH{index++:0000}",
-                    Type = ChangeTypes[element.Name.LocalName],
+                    Type = ReadChangeType(element),
                     Story = story,
                     PartName = part.Name,
                     ParentType = ReadParentType(element),
@@ -859,6 +859,23 @@ internal static class DocxChangeScanner
         return IsCommentElement(element)
             ? null
             : (string?)element.Attribute(OoxmlNs.W + "author");
+    }
+
+    private static string ReadChangeType(XElement element)
+    {
+        if (element.Name == OoxmlNs.W + "ins" &&
+            element.Parent?.Name == OoxmlNs.W + "trPr")
+        {
+            return "row-inserted";
+        }
+
+        if (element.Name == OoxmlNs.W + "del" &&
+            element.Parent?.Name == OoxmlNs.W + "trPr")
+        {
+            return "row-deleted";
+        }
+
+        return ChangeTypes[element.Name.LocalName];
     }
 
     private static string? ReadParentType(XElement element)

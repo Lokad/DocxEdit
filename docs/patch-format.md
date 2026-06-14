@@ -393,10 +393,10 @@ set-cell | text-run | tracked-cell-simple | Suggest/Require emit w:del/w:ins for
 set-table-style | table-property | tracked-table-style | Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.
 set-table-metadata | preserve-only | preserve-only | Table caption and description updates are table metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-row-header | row-property | tracked-row-header | Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.
-append-row | preserve-only | preserve-only | Table row insertion revisions are not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-insert-row-before | preserve-only | preserve-only | Table row insertion revisions are not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-insert-row-after | preserve-only | preserve-only | Table row insertion revisions are not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-delete-row | preserve-only | preserve-only | Table row deletion revisions are not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+append-row | row-structure | tracked-row-insert | Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; complex shapes warn with W4002 or fail with E6002.
+insert-row-before | row-structure | tracked-row-insert | Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.
+insert-row-after | row-structure | tracked-row-insert | Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.
+delete-row | row-structure | tracked-row-delete | Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.
 append-column | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
 insert-column-before | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
 insert-column-after | unsupported | unsupported | Table-column transforms are not safely modeled yet; check/apply fails with E4316.
@@ -421,7 +421,8 @@ they apply directly with `W4001`; in `require` mode they fail with `E6001`.
 `docxedit help patch` prints both the support class and the operation-specific
 support value. Support classes include `text-run`, `paragraph-block`,
 `paragraph-property`, `table-property`, `row-property`, `cell-property`,
-`section-property`, `relationship-metadata`, `preserve-only`, and `unsupported`.
+`row-structure`, `section-property`, `relationship-metadata`, `preserve-only`,
+and `unsupported`.
 The patch engine uses the support class, while the detailed support value explains
 the narrower operation shape, such as `tracked-simple` or `tracked-cell-simple`.
 

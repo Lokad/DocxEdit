@@ -521,7 +521,8 @@ public sealed record DocxPatchOperationInfo
 `TrackChangesSupportClass` is the stable behavior class consumed by integrations
 and by the patch engine. Values include `text-run`, `paragraph-block`,
 `paragraph-property`, `table-property`, `row-property`, `cell-property`,
-`section-property`, `relationship-metadata`, `preserve-only`, and `unsupported`.
+`row-structure`, `section-property`, `relationship-metadata`, `preserve-only`,
+and `unsupported`.
 `GeneratesTrackedChanges` is true when the support class creates new revision
 markup. `TrackChangesSupport` remains the more specific operation-level support
 value, such as `tracked-simple`, `tracked-paragraph`,
@@ -2165,6 +2166,9 @@ Rules:
 * Clone the last row’s row properties and cell properties.
 * Number of `cell` fields must equal logical column count.
 * Preserve table style and grid.
+* In tracked output, mark the inserted row through `w:trPr/w:ins`.
+* Tracked output is limited to simple rectangular tables without nested tables or
+  existing row-level revision markers.
 
 ### 11.9 `insert-row-before`
 
@@ -2183,7 +2187,9 @@ Row target form:
 M.T0001.R03
 ```
 
-Rules are the same as `append-row`.
+Rules are the same as `append-row`. In tracked output, mark the inserted row
+through `w:trPr/w:ins`; `force true` remains a direct-edit fallback under
+`Suggest` or an `E6002` failure under `Require`.
 
 ### 11.10 `insert-row-after`
 
@@ -2207,6 +2213,10 @@ Rules:
 * Fail on visual-grid tables with `gridSpan`, `gridBefore`, `gridAfter`, or
   vertical merges in v0.1 unless `force true` is explicitly supported by that
   operation.
+* In tracked output, keep the row and mark it through `w:trPr/w:del`.
+* Tracked output is limited to simple rectangular tables without nested tables or
+  existing row-level revision markers; `force true` remains a direct-edit
+  fallback under `Suggest` or an `E6002` failure under `Require`.
 
 ### 11.11b Unsupported table-column transforms
 
@@ -2549,6 +2559,10 @@ insert-hyperlink-after simple inserted hyperlink display text as w:ins inside th
 set-cell              simple text-only cells as w:del/w:ins text, including compatible multi-paragraph cells
 set-table-style      table style property changes as w:tblPrChange
 set-row-header       repeating-row header property changes as w:trPrChange
+append-row           simple rectangular row insertions as w:trPr/w:ins
+insert-row-before    simple rectangular row insertions as w:trPr/w:ins
+insert-row-after     simple rectangular row insertions as w:trPr/w:ins
+delete-row           simple rectangular row deletions as w:trPr/w:del
 set-section-columns  section column property changes as w:sectPrChange
 set-section-orientation section page orientation changes as w:sectPrChange
 ```
@@ -2582,7 +2596,9 @@ preserves relationship or anchor metadata and wraps the inserted display text in
 fails under `require`. `set-style` records the previous paragraph properties in
 `w:pPrChange`. `set-table-style` records previous table properties in
 `w:tblPrChange`, and `set-row-header` records previous row properties in
-`w:trPrChange`. `set-section-columns` and `set-section-orientation` record
+`w:trPrChange`. `append-row`, `insert-row-before`, and `insert-row-after` mark
+inserted rows with `w:trPr/w:ins`; `delete-row` marks deleted rows with
+`w:trPr/w:del`. `set-section-columns` and `set-section-orientation` record
 previous section properties in `w:sectPrChange` while preserving page size and
 header/footer references.
 
@@ -2605,10 +2621,6 @@ refresh-field-result
 set-hyperlink-target
 remove-hyperlink
 set-table-metadata
-append-row
-insert-row-before
-insert-row-after
-delete-row
 replace-image
 insert-image-after
 set-image-alt

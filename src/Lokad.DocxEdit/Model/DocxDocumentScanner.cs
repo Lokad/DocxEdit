@@ -315,6 +315,14 @@ internal static class DocxDocumentScanner
         var activeVerticalMerges = new Dictionary<int, TableMergeState>();
         foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
         {
+            bool rowInserted = IsTableRowInserted(row);
+            bool rowDeleted = IsTableRowDeleted(row);
+            if (textView == DocxTextView.Final && rowDeleted ||
+                textView == DocxTextView.Original && rowInserted)
+            {
+                continue;
+            }
+
             int gridBefore = ReadRowGridOffset(row, "gridBefore");
             int gridAfter = ReadRowGridOffset(row, "gridAfter");
             RemoveActiveVerticalMerges(activeVerticalMerges, 1, gridBefore);
@@ -356,11 +364,24 @@ internal static class DocxDocumentScanner
                 }
 
                 targets[cell] = cellId;
+                string cellText = ReadText(cell, textView);
+                if (textView == DocxTextView.Markup)
+                {
+                    if (rowInserted)
+                    {
+                        cellText = $"[+{cellText}+]";
+                    }
+                    else if (rowDeleted)
+                    {
+                        cellText = $"[-{cellText}-]";
+                    }
+                }
+
                 cells.Add(new DocxTableCellInfo(
                     cellId,
                     rowIndex,
                     columnIndex,
-                    ReadText(cell, textView),
+                    cellText,
                     columnSpan,
                     verticalMerge,
                     cell.Elements(OoxmlNs.W + "tbl").Any())
@@ -465,6 +486,20 @@ internal static class DocxDocumentScanner
 
         string? value = (string?)element.Attribute(OoxmlNs.W + "val");
         return value is null || value is "1" or "true" or "on";
+    }
+
+    private static bool IsTableRowInserted(XElement row)
+    {
+        return row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + "ins") is not null;
+    }
+
+    private static bool IsTableRowDeleted(XElement row)
+    {
+        return row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + "del") is not null;
     }
 
     private static IReadOnlyList<DocxBookmarkInfo> ReadBookmarks(

@@ -64,6 +64,7 @@ public static class DocxHelp
     private const string TrackClassParagraphProperty = "paragraph-property";
     private const string TrackClassTableProperty = "table-property";
     private const string TrackClassRowProperty = "row-property";
+    private const string TrackClassRowStructure = "row-structure";
     private const string TrackClassSectionProperty = "section-property";
     private const string TrackClassPreserveOnly = "preserve-only";
     private const string TrackClassUnsupported = "unsupported";
@@ -932,25 +933,33 @@ public static class DocxHelp
                     "tracked-row-header",
                     "Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.",
                     ["expect-header"]),
-                PreserveOnly(
+                Tracked(
                     "append-row",
                     ["target plus repeated cell"],
-                    "Table row insertion revisions are not modeled yet.",
+                    TrackClassRowStructure,
+                    "tracked-row-insert",
+                    "Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count"]),
-                PreserveOnly(
+                Tracked(
                     "insert-row-before",
                     ["target plus repeated cell"],
-                    "Table row insertion revisions are not modeled yet.",
+                    TrackClassRowStructure,
+                    "tracked-row-insert",
+                    "Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                PreserveOnly(
+                Tracked(
                     "insert-row-after",
                     ["target plus repeated cell"],
-                    "Table row insertion revisions are not modeled yet.",
+                    TrackClassRowStructure,
+                    "tracked-row-insert",
+                    "Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                PreserveOnly(
+                Tracked(
                     "delete-row",
                     ["target"],
-                    "Table row deletion revisions are not modeled yet.",
+                    TrackClassRowStructure,
+                    "tracked-row-delete",
+                    "Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force or complex shapes warn with W4002 or fail with E6002.",
                     ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
                 Unsupported(
                     "append-column",

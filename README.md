@@ -82,6 +82,9 @@ Generated revisions default to author `docxedit`; supplied authors are trimmed
 and must not be empty, and timestamps are normalized to UTC.
 When `apply` creates revision markup, operation reports include the generated
 revision IDs for verification with `changes`.
+Simple rectangular row insertion/deletion edits are tracked as row structure
+revisions; forced or complex table row shapes fall back or fail with explicit
+diagnostics.
 Section column and orientation edits are tracked as section property revisions
 when the section does not already carry `w:sectPrChange` markup.
 

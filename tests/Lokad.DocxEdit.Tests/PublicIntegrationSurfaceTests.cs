@@ -65,6 +65,14 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("row-property", setRowHeader.TrackChangesSupportClass);
         Assert.Equal("tracked-row-header", setRowHeader.TrackChangesSupport);
         Assert.True(setRowHeader.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("append-row", out DocxPatchOperationInfo appendRow));
+        Assert.Equal("row-structure", appendRow.TrackChangesSupportClass);
+        Assert.Equal("tracked-row-insert", appendRow.TrackChangesSupport);
+        Assert.True(appendRow.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-row", out DocxPatchOperationInfo deleteRow));
+        Assert.Equal("row-structure", deleteRow.TrackChangesSupportClass);
+        Assert.Equal("tracked-row-delete", deleteRow.TrackChangesSupport);
+        Assert.True(deleteRow.GeneratesTrackedChanges);
         Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo removeHyperlink));
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupportClass);
         Assert.Equal("preserve-only", removeHyperlink.TrackChangesSupport);
@@ -126,6 +134,8 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("set-cell | text-run | tracked-cell-simple", table, StringComparison.Ordinal);
         Assert.Contains("set-table-style | table-property | tracked-table-style", table, StringComparison.Ordinal);
         Assert.Contains("set-row-header | row-property | tracked-row-header", table, StringComparison.Ordinal);
+        Assert.Contains("append-row | row-structure | tracked-row-insert", table, StringComparison.Ordinal);
+        Assert.Contains("delete-row | row-structure | tracked-row-delete", table, StringComparison.Ordinal);
         Assert.Contains("set-section-columns | section-property | tracked-section-columns", table, StringComparison.Ordinal);
         Assert.Contains("set-section-orientation | section-property | tracked-section-orientation", table, StringComparison.Ordinal);
         Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
@@ -149,6 +159,7 @@ public static class PublicIntegrationSurfaceTests
             "paragraph-property",
             "table-property",
             "row-property",
+            "row-structure",
             "cell-property",
             "section-property",
             "relationship-metadata",
