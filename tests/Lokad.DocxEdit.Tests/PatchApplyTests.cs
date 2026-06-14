@@ -1464,6 +1464,49 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesSuggestSetCellPreservesHorizontalMerge()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>Old merged</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            expect-text Old merged
+            text New merged
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            MarkFieldsDirtyWhenEditing = false
+        });
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:gridSpan w:val=\"2\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>Old merged</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>New merged</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal(2, table.ColumnCount);
+        Assert.Equal("New merged", Assert.Single(table.Cells).Text);
+    }
+
+    [Fact]
     public static void ApplyReplaceTextFailsWhenFindTextIsMissing()
     {
         using MemoryStream input = CreateDocx("Revenue increased by 8.4%.");
