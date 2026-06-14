@@ -3696,6 +3696,96 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E4311");
     }
 
+    [Theory]
+    [InlineData("add-bookmark", """
+        target M.P0002
+        name AddedBookmark
+        """)]
+    [InlineData("replace-bookmark-text", """
+        target M.B0001
+        text New Client
+        """)]
+    [InlineData("rename-bookmark", """
+        target M.B0001
+        name NewBookmark
+        """)]
+    [InlineData("delete-bookmark", """
+        target M.B0001
+        """)]
+    public static void CheckTrackChangesRequireRejectsBookmarkOperationsAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("add-bookmark", """
+        target M.P0002
+        name AddedBookmark
+        """, "w:name=\"AddedBookmark\"", null)]
+    [InlineData("replace-bookmark-text", """
+        target M.B0001
+        text New Client
+        """, "New Client", "Old Client")]
+    [InlineData("rename-bookmark", """
+        target M.B0001
+        name NewBookmark
+        """, "w:name=\"NewBookmark\"", "w:name=\"ClientName\"")]
+    [InlineData("delete-bookmark", """
+        target M.B0001
+        """, "Old Client", "bookmarkStart")]
+    public static void ApplyTrackChangesSuggestWarnsForBookmarkOperationsAsPreserveOnly(
+        string operationName,
+        string operationFields,
+        string expectedXml,
+        string? unexpectedXml)
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains(expectedXml, xml, StringComparison.Ordinal);
+        if (unexpectedXml is not null)
+        {
+            Assert.DoesNotContain(unexpectedXml, xml, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public static void ApplyAddCommentCreatesCommentsPartAndAnchorsParagraph()
     {
@@ -6657,6 +6747,20 @@ public static class PatchApplyTests
                         <w:r><w:t>Old cached result</w:t></w:r>
                       </w:fldSimple>
                     </w:p>
+            """);
+    }
+
+    private static MemoryStream CreateDocxWithSingleBookmark()
+    {
+        return CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Second paragraph</w:t></w:r></w:p>
             """);
     }
 
