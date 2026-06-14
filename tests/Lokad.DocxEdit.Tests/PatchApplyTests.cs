@@ -4509,6 +4509,82 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.S0001");
     }
 
+    [Theory]
+    [InlineData("set-section-columns", """
+        target M.S0001
+        count 2
+        """)]
+    [InlineData("set-section-orientation", """
+        target M.S0001
+        orientation landscape
+        """)]
+    public static void CheckTrackChangesRequireRejectsSectionOperationsAsPreserveOnly(string operationName, string operationFields)
+    {
+        using MemoryStream input = CreateDocxWithReferencedSection();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Theory]
+    [InlineData("set-section-columns", """
+        target M.S0001
+        count 2
+        """, "w:num=\"2\"", "w:w=\"12240\"", "w:h=\"15840\"")]
+    [InlineData("set-section-orientation", """
+        target M.S0001
+        orientation landscape
+        """, "w:orient=\"landscape\"", "w:w=\"15840\"", "w:h=\"12240\"")]
+    public static void ApplyTrackChangesSuggestWarnsForSectionOperationsAsPreserveOnly(
+        string operationName,
+        string operationFields,
+        string expectedXml,
+        string expectedWidth,
+        string expectedHeight)
+    {
+        using MemoryStream input = CreateDocxWithReferencedSection();
+        using var output = new MemoryStream();
+        using var patch = new StringReader($"""
+            docxpatch 1
+
+            op {operationName}
+            {operationFields}
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+
+        Assert.True(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4001");
+        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
+        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains(expectedXml, xml, StringComparison.Ordinal);
+        Assert.Contains(expectedWidth, xml, StringComparison.Ordinal);
+        Assert.Contains(expectedHeight, xml, StringComparison.Ordinal);
+        Assert.Contains("<w:headerReference w:type=\"default\" r:id=\"rHeader\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:footerReference w:type=\"default\" r:id=\"rFooter\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:ins", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:del", xml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public static void ApplySetStyleResolvesParagraphStyleByDisplayName()
     {
@@ -7108,6 +7184,60 @@ public static class PatchApplyTests
             $$"""
                   <w:p><w:r><w:t>{{footerText}}</w:t></w:r></w:p>
             """);
+    }
+
+    private static MemoryStream CreateDocxWithReferencedSection()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <w:body>
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                      <w:headerReference w:type="default" r:id="rHeader"/>
+                      <w:footerReference w:type="default" r:id="rFooter"/>
+                    </w:sectPr>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Header text</w:t></w:r></w:p>
+                </w:hdr>
+                """);
+            AddEntry(archive, "word/footer1.xml", """
+                <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Footer text</w:t></w:r></w:p>
+                </w:ftr>
+                """);
+        }
+
+        stream.Position = 0;
+        return stream;
     }
 
     private static MemoryStream CreateDocxWithHeaderFooterContent(string headerContent, string footerContent)
