@@ -2721,6 +2721,9 @@ public static class PatchApplyTests
     [Theory]
     [InlineData("../relative/report", "relative hyperlink targets are not supported")]
     [InlineData("file:///C:/secret/report.docx", "Unsupported hyperlink URI scheme 'file'")]
+    [InlineData(@"\\server\share\report.docx", "Unsupported hyperlink URI scheme 'file'")]
+    [InlineData(@"C:\secret\report.docx", "Unsupported hyperlink URI scheme 'file'")]
+    [InlineData("javascript:alert(1)", "Unsupported hyperlink URI scheme 'javascript'")]
     [InlineData("http://[::1", "malformed URI")]
     public static void CheckHyperlinkTargetRejectsUnsupportedUris(string uri, string expectedMessage)
     {
