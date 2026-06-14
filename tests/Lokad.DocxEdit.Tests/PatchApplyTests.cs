@@ -2109,6 +2109,24 @@ public static class PatchApplyTests
 
         Assert.False(revisionResult.Success);
         Assert.Contains(revisionResult.Diagnostics, diagnostic => diagnostic.Code == "E4305");
+
+        using MemoryStream commentInput = CreateDocxWithCommentAnchoredParagraph();
+        using var commentPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Commented
+            with Updated
+            end
+            """);
+
+        DocxCheckResult commentResult = new DocxEditor().Check(commentInput, commentPatch);
+
+        Assert.False(commentResult.Success);
+        Assert.Contains(commentResult.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4305" &&
+            diagnostic.Message.Contains("protected OOXML boundary 'comment'", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2136,6 +2154,29 @@ public static class PatchApplyTests
         Assert.False(result.Success);
         DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
         Assert.Contains("protected OOXML boundary 'hyperlink'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
+        Assert.Equal("require-failed", diagnostic.Fallback);
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsTextReplacementThroughCommentAnchors()
+    {
+        using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Commented
+            with Updated
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
+        Assert.Contains("protected OOXML boundary 'comment'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
         Assert.Equal("require-failed", diagnostic.Fallback);
     }
@@ -6802,6 +6843,26 @@ public static class PatchApplyTests
                     </w:p>
                     <w:p><w:r><w:t>Second paragraph</w:t></w:r></w:p>
             """);
+    }
+
+    private static MemoryStream CreateDocxWithCommentAnchoredParagraph()
+    {
+        return CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Comment body</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
     }
 
     private static MemoryStream CreateDocxWithSimpleTwoByTwoTable()
