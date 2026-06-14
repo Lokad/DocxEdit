@@ -1908,6 +1908,7 @@ target M.P0004
 expect-text <<<
 Reviewed paragraph text.
 >>>
+anchor-text paragraph text
 text Review note
 author Reviewer
 initials RV
@@ -1948,9 +1949,13 @@ Rules:
   main-document comments relationship, the comments content-type override, a new
   numeric comment ID, and matching `commentRangeStart`, `commentRangeEnd`, and
   `commentReference` markers when needed.
-* `add-comment` accepts optional `expect-text`, `author`, `initials`, and ISO-8601
-  `date` fields. Without `author` or `date`, library options supply the author and
-  timestamp.
+* `add-comment` accepts optional `expect-text`, `anchor-text`, `occurrence`,
+  `author`, `initials`, and ISO-8601 `date` fields. Without `author` or `date`,
+  library options supply the author and timestamp.
+* When `anchor-text` is present, `add-comment` anchors the comment to exactly one
+  normalized text span inside the target paragraph. Repeated anchor text requires
+  `occurrence`; missing text fails with `E4203`, ambiguous text fails with `E1202`,
+  and protected markup boundaries fail with `E4305` or `E4317`.
 * Comment targets use `comment:<id>` from `changes` output or comment body IDs such
   as `C001.C0001`.
 * `set-comment-text` replaces the body with one paragraph and preserves comment
@@ -1970,8 +1975,7 @@ Rules:
 * `add-comment-reply` and `delete-comment-reply` are recognized so callers receive
   explicit `E4314` diagnostics. They fail until DocxEdit safely models
   threaded-comment reply body edits and related thread metadata updates.
-* Selected-range comment creation and full threaded comment workflows are out of
-  scope for v0.1.
+* Full threaded comment workflows remain out of scope for v0.1.
 
 ### 11.6c Field flag operations
 

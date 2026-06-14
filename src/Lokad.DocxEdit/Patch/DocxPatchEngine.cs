@@ -1511,6 +1511,8 @@ internal static class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string? anchorText = operation.Fields.GetValueOrDefault("anchor-text");
+        int? occurrence = ReadPositiveOccurrence(operation, diagnostics);
         string author = operation.Fields.GetValueOrDefault("author") ?? options.Author;
         string? initials = operation.Fields.GetValueOrDefault("initials");
         DateTimeOffset timestampUtc = options.TimestampUtc.ToUniversalTime();
@@ -1529,6 +1531,16 @@ internal static class DocxPatchEngine
         if (string.IsNullOrWhiteSpace(author))
         {
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'author' must not be empty.", operation, target));
+        }
+
+        if (operation.Fields.ContainsKey("occurrence") && anchorText is null)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'occurrence' requires field 'anchor-text'.", operation, target));
+        }
+
+        if (anchorText is not null && anchorText.Length == 0)
+        {
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'anchor-text' must not be empty.", operation, target));
         }
 
         if (diagnostics.Count != 0)
@@ -1561,6 +1573,40 @@ internal static class DocxPatchEngine
             ];
         }
 
+        TextRange? anchorRange = null;
+        if (anchorText is not null)
+        {
+            IReadOnlyList<TextRange> matches = FindTextMatches(current, anchorText, occurrence);
+            if (matches.Count == 0)
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4203", $"Anchor text was not found in {target}.", operation, target)];
+            }
+
+            if (occurrence is null && matches.Count > 1)
+            {
+                return
+                [
+                    Diagnostic(
+                        DocxSeverity.Error,
+                        "E1202",
+                        $"Anchor text matched {matches.Count} ranges in {target}. Specify occurrence to select one range.",
+                        operation,
+                        target)
+                ];
+            }
+
+            if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4305", $"Selected comment range for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
+            }
+
+            anchorRange = matches[0];
+            if (!CanAddSelectedCommentAnchor(paragraphTarget.Paragraph, anchorRange.Value, out string? unsupportedReason))
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4317", $"Selected comment range is not supported for {target}: {unsupportedReason}.", operation, target)];
+            }
+        }
+
         DocxDiagnostic? commentsPartDiagnostic = ValidateExistingCommentsPart(package, cancellationToken);
         if (commentsPartDiagnostic is not null)
         {
@@ -1575,7 +1621,15 @@ internal static class DocxPatchEngine
         CommentsPartTarget commentsPart = ResolveOrCreateCommentsPart(package, cancellationToken);
         string commentId = AllocateCommentId(package, cancellationToken);
         commentsPart.Root.Add(CreateComment(commentId, text!, author, initials, timestampUtc));
-        AddCommentAnchor(paragraphTarget.Paragraph, commentId);
+        if (anchorRange is TextRange selectedRange)
+        {
+            AddSelectedCommentAnchor(paragraphTarget.Paragraph, commentId, selectedRange);
+        }
+        else
+        {
+            AddCommentAnchor(paragraphTarget.Paragraph, commentId);
+        }
+
         SaveDocumentPart(package, commentsPart.PartName, commentsPart.Document);
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
@@ -3484,6 +3538,144 @@ internal static class DocxPatchEngine
         paragraph.Add(new XElement(
             OoxmlNs.W + "r",
             new XElement(OoxmlNs.W + "commentReference", new XAttribute(OoxmlNs.W + "id", commentId))));
+    }
+
+    private static bool CanAddSelectedCommentAnchor(XElement paragraph, TextRange range, out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        TextPosition?[] positions = BuildTextPositions(paragraph);
+        if (positions.Length != ReadVisibleText(paragraph).Length)
+        {
+            unsupportedReason = "selected ranges are limited to direct paragraph runs";
+            return false;
+        }
+
+        if (range.Length <= 0 || range.Start < 0 || range.Start + range.Length > positions.Length)
+        {
+            unsupportedReason = "selected range is outside paragraph text";
+            return false;
+        }
+
+        for (int i = range.Start; i < range.Start + range.Length; i++)
+        {
+            if (positions[i] is null)
+            {
+                unsupportedReason = "selected range includes tabs, line breaks, or non-text run content";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void AddSelectedCommentAnchor(XElement paragraph, string commentId, TextRange range)
+    {
+        InsertCommentBoundaryAtTextOffset(
+            paragraph,
+            range.Start + range.Length,
+            new XElement(OoxmlNs.W + "commentRangeEnd", new XAttribute(OoxmlNs.W + "id", commentId)));
+        InsertCommentBoundaryAtTextOffset(
+            paragraph,
+            range.Start,
+            new XElement(OoxmlNs.W + "commentRangeStart", new XAttribute(OoxmlNs.W + "id", commentId)));
+        paragraph.Add(new XElement(
+            OoxmlNs.W + "r",
+            new XElement(OoxmlNs.W + "commentReference", new XAttribute(OoxmlNs.W + "id", commentId))));
+    }
+
+    private static void InsertCommentBoundaryAtTextOffset(XElement paragraph, int textOffset, XElement boundary)
+    {
+        TextPosition?[] positions = BuildTextPositions(paragraph);
+        if (textOffset == 0)
+        {
+            XElement? paragraphProperties = paragraph.Element(OoxmlNs.W + "pPr");
+            if (paragraphProperties is null)
+            {
+                paragraph.AddFirst(boundary);
+            }
+            else
+            {
+                paragraphProperties.AddAfterSelf(boundary);
+            }
+
+            return;
+        }
+
+        if (textOffset == positions.Length)
+        {
+            paragraph.Add(boundary);
+            return;
+        }
+
+        TextPosition position = positions[textOffset]
+            ?? throw new InvalidDataException("Selected comment range boundary cannot be placed on non-text run content.");
+        XElement afterRun = SplitRunAtTextPosition(position);
+        afterRun.AddBeforeSelf(boundary);
+    }
+
+    private static XElement SplitRunAtTextPosition(TextPosition position)
+    {
+        XElement textElement = position.TextElement;
+        XElement run = textElement.Parent
+            ?? throw new InvalidDataException("Text element has no parent run.");
+        if (run.Name != OoxmlNs.W + "r" || run.Parent?.Name != OoxmlNs.W + "p")
+        {
+            throw new InvalidDataException("Selected comment range boundary is not inside a direct paragraph run.");
+        }
+
+        var beforeRun = new XElement(OoxmlNs.W + "r");
+        var afterRun = new XElement(OoxmlNs.W + "r");
+        XElement? runProperties = run.Element(OoxmlNs.W + "rPr");
+        if (runProperties is not null)
+        {
+            beforeRun.Add(new XElement(runProperties));
+            afterRun.Add(new XElement(runProperties));
+        }
+
+        bool reachedTextElement = false;
+        foreach (XElement child in run.Elements().Where(child => child.Name != OoxmlNs.W + "rPr"))
+        {
+            if (!ReferenceEquals(child, textElement))
+            {
+                (reachedTextElement ? afterRun : beforeRun).Add(new XElement(child));
+                continue;
+            }
+
+            reachedTextElement = true;
+            string value = textElement.Value;
+            string beforeText = value[..position.Offset];
+            string afterText = value[position.Offset..];
+            if (beforeText.Length != 0)
+            {
+                XElement beforeTextElement = new XElement(textElement);
+                SetTextElementValue(beforeTextElement, beforeText);
+                beforeRun.Add(beforeTextElement);
+            }
+
+            if (afterText.Length != 0)
+            {
+                XElement afterTextElement = new XElement(textElement);
+                SetTextElementValue(afterTextElement, afterText);
+                afterRun.Add(afterTextElement);
+            }
+        }
+
+        bool hasBeforeContent = beforeRun.Elements().Any(element => element.Name != OoxmlNs.W + "rPr");
+        bool hasAfterContent = afterRun.Elements().Any(element => element.Name != OoxmlNs.W + "rPr");
+        if (hasBeforeContent)
+        {
+            run.AddBeforeSelf(beforeRun);
+        }
+
+        if (hasAfterContent)
+        {
+            run.AddBeforeSelf(afterRun);
+        }
+
+        run.Remove();
+        return hasAfterContent
+            ? afterRun
+            : beforeRun;
     }
 
     private static void RemoveCommentExtensionRecords(OoxmlPackage package, XElement comment, CancellationToken cancellationToken)

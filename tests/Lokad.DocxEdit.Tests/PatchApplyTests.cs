@@ -4783,6 +4783,102 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplyAddCommentCanAnchorSelectedParagraphText()
+    {
+        using MemoryStream input = CreateDocx("Alpha beta gamma.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            expect-text Alpha beta gamma.
+            anchor-text beta
+            text Review beta only
+            author Reviewer
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string documentXml = ReadDocumentXml(output);
+        int alphaIndex = documentXml.IndexOf(">Alpha ", StringComparison.Ordinal);
+        int startIndex = documentXml.IndexOf("<w:commentRangeStart w:id=\"0\"", StringComparison.Ordinal);
+        int betaIndex = documentXml.IndexOf(">beta<", StringComparison.Ordinal);
+        int endIndex = documentXml.IndexOf("<w:commentRangeEnd w:id=\"0\"", StringComparison.Ordinal);
+        int gammaIndex = documentXml.IndexOf("> gamma.<", StringComparison.Ordinal);
+        Assert.True(alphaIndex < startIndex);
+        Assert.True(startIndex < betaIndex);
+        Assert.True(betaIndex < endIndex);
+        Assert.True(endIndex < gammaIndex);
+        Assert.Contains("<w:commentReference w:id=\"0\"", documentXml, StringComparison.Ordinal);
+        output.Position = 0;
+        DocxChangeInfo comment = Assert.Single(
+            new DocxEditor().Changes(output, new DocxChangesOptions { IncludeCommentText = true }).Changes,
+            change => change.Type == "comment");
+        Assert.Equal("M.P0001", comment.CommentAnchorTargetId);
+        Assert.Equal("Review beta only", comment.CommentTextSnippet);
+        output.Position = 0;
+        Assert.True(new DocxEditor().Validate(output).Success);
+    }
+
+    [Fact]
+    public static void ApplyAddCommentSelectedTextRequiresOccurrenceWhenAmbiguous()
+    {
+        using MemoryStream input = CreateDocx("Alpha beta beta.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            anchor-text beta
+            text Review beta
+            author Reviewer
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E1202" &&
+            diagnostic.Message.Contains("Specify occurrence", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ApplyAddCommentSelectedTextRejectsProtectedMarkupBoundaries()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="B"/>
+                      <w:r><w:t>Alpha beta.</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            anchor-text beta
+            text Review beta
+            author Reviewer
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E4305" &&
+            diagnostic.Message.Contains("protected OOXML boundary 'bookmark'", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public static void ApplyTrackChangesSuggestTreatsCommentCreationAsPreserveOnly()
     {
         using MemoryStream input = CreateDocx("Anchor paragraph.");

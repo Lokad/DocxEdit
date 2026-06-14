@@ -21,7 +21,8 @@ Implemented areas include:
 - target-scoped `dump` change summaries for tracked markup records, including
   property revisions, without raw OOXML or revision text;
 - opt-in bounded comment body snippets through `changes`;
-- comment creation on modeled paragraphs, plus comment body editing and deletion
+- comment creation on modeled paragraphs or selected direct text spans inside one
+  paragraph, plus comment body editing and deletion
   through explicit patch operations keyed by paragraph IDs, `comment:<id>`, or
   comment body IDs;
 - comment anchor/context metadata and metadata-only comment body `dump`/`context`
@@ -101,8 +102,8 @@ Implemented areas include:
 Known limits include exotic/custom visual numbering expansion beyond deterministic
 decimal, letter, roman, bullet, and nested `lvlText` labels/components, previous
 numbering-state reconstruction for paragraph property revisions flagged with
-`W1026`, selected-range comment
-creation and full threaded comment models, advanced
+`W1026`, arbitrary multi-paragraph or protected-boundary comment selections and
+full threaded comment models, advanced
 bookmark/content-control editing beyond plain-text and guarded rich-text controls,
 checkbox toggles, dropdown/combo selections, date values, guarded paragraph
 bookmark creation, bookmark rename/delete, and guarded paragraph-bounded bookmark
@@ -135,7 +136,8 @@ unsupported WordprocessingML shapes without private document details.
 - Comment anchors, references, body IDs, duplicate IDs, orphan anchors, and
   orphan extension records are validated.
 - Comment creation, body replacement, resolution toggles, reopening, and deletion
-  are supported for basic comments in supported document stories.
+  are supported for basic comments in supported document stories. Creation can
+  target a whole paragraph or one direct text span inside a paragraph.
 
 ### Content Controls
 

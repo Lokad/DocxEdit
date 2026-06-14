@@ -112,6 +112,9 @@ public static class PublicIntegrationSurfaceTests
         Assert.Equal("text-run", replaceBookmarkText.TrackChangesSupportClass);
         Assert.Equal("tracked-bookmark-text", replaceBookmarkText.TrackChangesSupport);
         Assert.True(replaceBookmarkText.GeneratesTrackedChanges);
+        Assert.True(DocxHelp.TryGetPatchOperation("add-comment", out DocxPatchOperationInfo addComment));
+        Assert.Contains("anchor-text", addComment.OptionalFields);
+        Assert.Contains("occurrence", addComment.OptionalFields);
         Assert.True(DocxHelp.TryGetPatchOperation("set-comment-text", out DocxPatchOperationInfo setCommentText));
         Assert.Equal("text-run", setCommentText.TrackChangesSupportClass);
         Assert.Equal("tracked-comment-text", setCommentText.TrackChangesSupport);

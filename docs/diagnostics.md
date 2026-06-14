@@ -54,6 +54,9 @@ Common code ranges:
 - `E4316`: table column operations are recognized but not supported because DocxEdit
   does not safely model column transforms across grids, spans, omitted cells, and
   vertical merges yet.
+- `E4317`: selected-range comment creation was requested for a paragraph shape that
+  cannot safely host direct comment range markers, such as non-direct text runs or
+  tabs/line breaks inside the selected span.
 - `W5103`: apply marked a document containing fields for Word-side refresh because
   DocxEdit does not recalculate field results.
 - `E9199`/`W9199`: validation diagnostics were capped; `E9199` means omitted

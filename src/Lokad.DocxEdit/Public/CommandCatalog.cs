@@ -314,6 +314,7 @@ public static class DocxHelp
 
         builder.AppendLine();
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
+        builder.AppendLine("add-comment targets a modeled paragraph; optional anchor-text selects one direct text span inside it, and occurrence disambiguates repeated anchor text.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
         builder.AppendLine("add-comment-reply and delete-comment-reply are recognized but fail with E4314 until threaded comment metadata is safely modeled.");
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
@@ -837,8 +838,8 @@ public static class DocxHelp
                 PreserveOnly(
                     "add-comment",
                     ["target", "text"],
-                    "Comments are already review markup, so adding a comment does not create an additional tracked edit.",
-                    ["expect-text", "author", "initials", "date"]),
+                    "Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated.",
+                    ["expect-text", "anchor-text", "occurrence", "author", "initials", "date"]),
                 Tracked(
                     "set-comment-text",
                     ["target", "text"],

@@ -98,6 +98,21 @@ author Reviewer
 end
 ```
 
+Anchor a comment to one phrase inside a paragraph:
+
+```text
+docxpatch 1
+
+op add-comment
+target M.P0004
+expect-text Reviewed paragraph text with repeated phrase.
+anchor-text repeated phrase
+occurrence 1
+text Please verify this phrase.
+author Reviewer
+end
+```
+
 Replace an image while preserving its existing supported drawing layout:
 
 ```text
@@ -221,7 +236,7 @@ are rejected.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `add-comment` | `target`, `text` | `expect-text`, `author`, `initials`, `date` | Anchors a new comment to a modeled paragraph |
+| `add-comment` | `target`, `text` | `expect-text`, `anchor-text`, `occurrence`, `author`, `initials`, `date` | Anchors a new comment to a modeled paragraph, or to one selected text span inside it |
 | `set-comment-text` | `target`, `text` | | Replaces one comment body |
 | `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
 | `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
@@ -230,7 +245,10 @@ are rejected.
 | `delete-comment-reply` | `target` | | Recognized but fails with `E4314` |
 
 Existing comment operations target `comment:<id>` from `changes` or a comment body
-ID such as `C001.C0001`. Threaded replies are not safely modeled yet.
+ID such as `C001.C0001`. For `add-comment`, `anchor-text` selects one normalized
+text span inside the target paragraph; specify `occurrence` when that text is
+repeated. Selected ranges are intentionally limited to direct paragraph text runs
+and fail on protected markup boundaries. Threaded replies are not safely modeled yet.
 
 ### Fields
 
@@ -373,7 +391,7 @@ add-bookmark | preserve-only | preserve-only | Bookmark creation adds anchor met
 replace-bookmark-text | text-run | tracked-bookmark-text | Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; multi-paragraph or protected ranges warn with W4002 or fail with E6002.
 rename-bookmark | preserve-only | preserve-only | Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 delete-bookmark | preserve-only | preserve-only | Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
-add-comment | preserve-only | preserve-only | Comments are already review markup, so adding a comment does not create an additional tracked edit. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
+add-comment | preserve-only | preserve-only | Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-comment-text | text-run | tracked-comment-text | Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002.
 resolve-comment | preserve-only | preserve-only | Comment resolution changes review metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 reopen-comment | preserve-only | preserve-only | Comment reopening changes review metadata, not visible document text. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
