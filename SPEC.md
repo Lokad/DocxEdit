@@ -2869,6 +2869,9 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * modern `commentsExtended.xml` paraId consistency;
 * modern `commentsIds.xml` paraId/durableId consistency;
 * complex field begin/separate/end balance, instruction-text containment, cached-result containment, and dirty/lock flag validity;
+* tracked revision metadata and child-shape checks for `w:ins`, `w:del`,
+  `w:delText`, `w:pPrChange`, `w:tblPrChange`, `w:trPrChange`,
+  `w:tcPrChange`, and `w:sectPrChange`;
 * DrawingML `a:blip` relationship references, image target parts, and image media
   content types;
 * duplicate DrawingML `wp:docPr` IDs within a Word part;
@@ -2877,13 +2880,10 @@ without editing and report stable `E91xx` diagnostics with `PartName` metadata f
 * table visual-grid consistency for `gridSpan`, `gridBefore`, `gridAfter`,
   `vMerge` continuations, and declared `tblGrid` width.
 
-Return warning:
-
-```text
-W9001 internal validation is structural, not full ISO/IEC 29500 schema validation.
-```
-
-Only show this warning in verbose CLI output or machine-readable reports, not on every successful run unless requested.
+The schema-validation limitation is documented in help and docs, not emitted as a
+default warning on every successful validation. Emitting such a warning by
+default would make CLI `--strict` fail otherwise-valid documents even though no
+document problem was found.
 
 ---
 

@@ -128,7 +128,8 @@ Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warni
 - `E9120`: section properties are malformed, such as invalid column counts or page
   orientation values.
 - `E9121`: tracked revision markup is malformed, such as missing revision metadata,
-  orphan `w:delText`, or malformed paragraph property revisions.
+  orphan `w:delText`, or malformed paragraph, table, row, cell, or section
+  property revisions.
 - `E9122`: `commentsIds.xml` metadata is malformed, such as missing or duplicate
   `w16cid:paraId` / `w16cid:durableId`, or a paraId without a matching comment
   paragraph.

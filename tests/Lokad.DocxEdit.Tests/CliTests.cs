@@ -131,6 +131,8 @@ public static class CliTests
         Assert.Contains("--profile structural|package", validate.Output, StringComparison.Ordinal);
         Assert.Contains("--max-diagnostics N", validate.Output, StringComparison.Ordinal);
         Assert.Contains("WordprocessingML invariants", validate.Output, StringComparison.Ordinal);
+        Assert.Contains("not full ISO/IEC 29500 schema validation", validate.Output, StringComparison.Ordinal);
+        Assert.Contains("no strict schema profile", validate.Output, StringComparison.Ordinal);
         Assert.Contains("stable diagnostic codes", validate.Output, StringComparison.Ordinal);
         Assert.Equal(0, check.ExitCode);
         Assert.Contains("--track-changes off|preserve|suggest|require", check.Output, StringComparison.Ordinal);

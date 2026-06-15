@@ -57,7 +57,8 @@ Current checks include:
 - content-control metadata validity for `w:id`, `w:lock`, and checkbox
   `w:checked` values;
 - tracked revision metadata and obvious revision nesting issues for `w:ins`,
-  `w:del`, `w:delText`, and `w:pPrChange`;
+  `w:del`, `w:delText`, `w:pPrChange`, `w:tblPrChange`, `w:trPrChange`,
+  `w:tcPrChange`, and `w:sectPrChange`;
 - DrawingML `a:blip` relationship references, image relationship target parts, and
   image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;
@@ -67,9 +68,11 @@ Current checks include:
   `vMerge` continuations, and declared `tblGrid` width.
 
 This remains layered internal validation rather than full ISO/IEC 29500 schema
-validation. A strict schema profile is not exposed until an actual schema validator
-bridge exists. The current profiles are designed to catch common corruption and
-relationship mistakes with stable `E91xx` diagnostics.
+validation. A strict schema profile is not exposed until an actual schema
+validator bridge exists, and CLI `--strict` is only an exit-code policy for
+warnings, not a schema-validation profile. The current profiles are designed to
+catch common corruption and relationship mistakes with stable `E91xx`
+diagnostics.
 
 Public unit tests maintain a small synthetic validation fixture corpus with
 known-good documents, malformed structural cases, and warning-only cases. Patch

@@ -123,9 +123,11 @@ size/wrap/position/crop metadata, linked images and VML/grouped/chart/SmartArt/O
 drawing shapes beyond diagnostics-only preservation, complex
 merged/nested table edit transformations beyond visual cell/merge-root text,
 safe visual-grid row cloning/deletion, simple tracked row, and metadata edits,
-table-column transforms beyond explicit unsupported diagnostics,
-full tracked-change edit coverage, and full
-ISO/IEC 29500 schema validation beyond DocxEdit's layered structural invariants.
+  table-column transforms beyond explicit unsupported diagnostics, target shapes
+  that the shared track-change matrix classifies as preserve-only or unsupported,
+  future patch operations until their tracked-output behavior is classified, and
+  full ISO/IEC 29500 schema validation beyond DocxEdit's layered structural
+  invariants.
 
 ## OOXML Shape Inventory
 
