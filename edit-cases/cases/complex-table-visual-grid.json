@@ -1,0 +1,62 @@
+{
+  "id": "complex-table-visual-grid",
+  "description": "Exercises visual-grid table edits across horizontal spans, multi-row vertical merges, omitted columns, and a nested table.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tblGrid><w:gridCol/><w:gridCol/><w:gridCol/></w:tblGrid>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:tcPr><w:gridSpan w:val=\"2\"/><w:vMerge w:val=\"restart\"/></w:tcPr>",
+      "          <w:p><w:r><w:t>North total</w:t></w:r></w:p>",
+      "        </w:tc>",
+      "        <w:tc><w:p><w:r><w:t>East</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:tcPr><w:gridSpan w:val=\"2\"/><w:vMerge/></w:tcPr>",
+      "          <w:p><w:r><w:t></w:t></w:r></w:p>",
+      "        </w:tc>",
+      "        <w:tc>",
+      "          <w:p><w:r><w:t>Nested host</w:t></w:r></w:p>",
+      "          <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Nested value</w:t></w:r></w:p></w:tc></w:tr></w:tbl>",
+      "        </w:tc>",
+      "      </w:tr>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:tcPr><w:gridSpan w:val=\"2\"/><w:vMerge/></w:tcPr>",
+      "          <w:p><w:r><w:t></w:t></w:r></w:p>",
+      "        </w:tc>",
+      "        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "      <w:tr>",
+      "        <w:trPr><w:gridBefore w:val=\"1\"/><w:gridAfter w:val=\"1\"/></w:trPr>",
+      "        <w:tc><w:p><w:r><w:t>Omitted middle</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-cell",
+    "target M.T0001.MG0001",
+    "expect-text North total",
+    "text Updated total",
+    "end",
+    "",
+    "op set-cell-shading",
+    "target M.T0001.R02.C03",
+    "expect-fill none",
+    "fill A1B2C3",
+    "end",
+    "",
+    "op insert-row-before",
+    "target M.T0001.R04",
+    "cell Inserted omitted",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0
+  }
+}

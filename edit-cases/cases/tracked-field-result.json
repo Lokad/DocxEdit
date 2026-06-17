@@ -1,0 +1,34 @@
+{
+  "id": "tracked-field-result",
+  "description": "Applies a tracked simple-field cached result replacement.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" DATE \"><w:r><w:t>Old Date</w:t></w:r></w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-result",
+    "target M.F0001",
+    "text New Date",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New Date"
+    ],
+    "changeSummary": {
+      "deleted-run": 1,
+      "inserted-run": 1
+    }
+  }
+}

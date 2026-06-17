@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "completed": {
+      "type": "boolean"
+    },
+    "output_docx": {
+      "type": ["string", "null"],
+      "description": "Run-directory relative path to the edited docx, or null when the challenge does not require one."
+    },
+    "used_docxedit_commands": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "validation": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "observations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "docxedit_weaknesses": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "privacy_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [
+    "completed",
+    "output_docx",
+    "used_docxedit_commands",
+    "validation",
+    "observations",
+    "docxedit_weaknesses",
+    "privacy_notes"
+  ]
+}

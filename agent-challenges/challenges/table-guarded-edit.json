@@ -1,0 +1,24 @@
+{
+  "id": "table-guarded-edit",
+  "title": "Edit A Table Cell With Guards",
+  "tags": ["private", "tables", "guards", "patch"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, inspect the document for a simple table cell that can be safely edited.",
+    "Create a .docxpatch using set-cell with expect-text and any useful row or column count guards you can infer.",
+    "Run docxedit check before apply and write the edited .docx under the run directory.",
+    "If every candidate table is complex or unsafe, stop after check attempts and report the relevant diagnostics.",
+    "Validate any successful output with docxedit read --max-text 0 and docxedit changes."
+  ],
+  "successCriteria": [
+    "Uses stable table or cell IDs.",
+    "Uses at least one guard such as expect-text, expect-row-count, or expect-column-count.",
+    "Runs check before apply.",
+    "Does not inspect raw OOXML package parts."
+  ],
+  "observerQuestions": [
+    "Were table and cell IDs easy to discover?",
+    "Were guard fields clear enough for the agent to use without examples tailored to this document?",
+    "Did diagnostics distinguish complex table limits from syntax mistakes?"
+  ]
+}

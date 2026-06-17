@@ -1,0 +1,152 @@
+# DocxEdit
+
+DocxEdit is a stream-first .NET library and local CLI for inspecting and editing `.docx` files with deterministic, reviewable patch files.
+
+The package identity is `Lokad.DocxEdit`. The production library has no NuGet dependencies beyond the .NET platform libraries.
+
+For a concise inventory of supported and unsupported OOXML shapes, see
+[`docs/status.md`](docs/status.md).
+
+## DocxPatch DSL
+
+The core editing interface is `.docxpatch`: a small text DSL for describing Word document edits without touching raw WordprocessingML. The CLI helps an agent discover stable targets in the document, then the patch file describes what should change.
+
+First, inspect the document and locate a target:
+
+```text
+docxedit --help
+docxedit read report.docx --summary
+docxedit validate report.docx
+docxedit find report.docx "old wording"
+docxedit dump report.docx --id M.P0004 --runs
+```
+
+Then write a patch against the stable target ID:
+
+```text
+docxpatch 1
+
+op replace-text
+target M.P0004
+expect-text <<<
+old wording in the paragraph
+>>>
+find old wording
+with new wording
+end
+```
+
+Validate before writing a new `.docx`:
+
+```text
+docxedit check report.docx edits.docxpatch
+docxedit apply report.docx edits.docxpatch --output report.edited.docx
+```
+
+Patch operations are explicit and guarded. A table-cell edit can assert the expected table shape:
+
+```text
+op set-cell
+target M.T0001.R02.C03
+expect-row-count 4
+expect-column-count 3
+text <<<
+updated cell text
+>>>
+end
+```
+
+Table-cell targets use visual grid coordinates from `read` or `context`.
+Horizontally merged cells can also be addressed through merge-group IDs such as
+`M.T0001.MG0001`. Cell shading can be set or cleared through the same target
+forms with `set-cell-shading`.
+
+Image edits use document image IDs and external assets:
+
+```text
+op replace-image
+target M.I0001
+asset chart.png
+expect-content-type image/png
+alt Updated chart
+end
+```
+
+Track-change behavior is controlled at check/apply time:
+
+```text
+docxedit apply report.docx edits.docxpatch --output report.edited.docx --track-changes require --author Agent
+```
+
+Tracked-capable operations reject unsafe target shapes with diagnostics that name
+the operation, target ID, catalog support value, and unsupported-shape reason.
+The complete support matrix is generated from
+`DocxHelp.RenderPatchTrackChangesSupportTable()` and appears in
+[`docs/patch-format.md`](docs/patch-format.md) and `docxedit help patch`.
+Generated revisions default to author `docxedit`; supplied authors are trimmed
+and must not be empty, and timestamps are normalized to UTC.
+When `apply` creates revision markup, operation reports include the generated
+revision IDs. Pass that report back to `changes --operation-report` to annotate
+matching revision records with the originating operation index, name, and target.
+`dump` also shows target-scoped change metadata for tracked records, which lets
+agents verify property revisions without reading raw OOXML.
+Direct row insertion/deletion can clone safe visual-grid row shapes and preserve
+their table-grid metadata. Generated row insertion/deletion revisions remain
+limited to simple rectangular tables; visual-grid shapes fall back or fail with
+explicit diagnostics.
+Section column and orientation edits are tracked as section property revisions
+when the section does not already carry `w:sectPrChange` markup.
+
+Fresh agents are expected to rely on `docxedit help patch`, `docxedit help changes`, and `docxedit help dump` for the exact syntax. For product integrations, the same guidance is available from the NuGet library through `DocxHelp.Catalog`, and the CLI text output is reusable through `DocxTextRenderer`.
+
+## Library Quick Start
+
+```csharp
+using Lokad.DocxEdit;
+
+await using Stream input = File.OpenRead("report.docx");
+DocxReadResult read = new DocxEditor().Read(input);
+
+await using Stream applyInput = File.OpenRead("report.docx");
+using var patch = File.OpenText("edits.docxpatch");
+await using Stream edited = File.Create("report.edited.docx");
+DocxApplyResult result = new DocxEditor().Apply(applyInput, patch, edited);
+```
+
+Input and output streams are left open by default. Set `LeaveInputOpen` or `LeaveOutputOpen` to `false` on the relevant options when the editor should dispose them.
+
+Agent-facing help, output formatting, and privacy-safe workflow presets are available from the library:
+
+```csharp
+string help = DocxHelp.RenderTopic("changes");
+
+await using Stream contextInput = File.OpenRead("report.docx");
+DocxContextResult context = new DocxEditor().Context(
+    contextInput,
+    "M.P0004",
+    DocxPrivacyPresets.ContextMetadataOnly);
+string contextText = DocxTextRenderer.RenderContext(context);
+```
+
+## CLI Quick Start
+
+```powershell
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- read report.docx
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- changes report.docx
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- check report.docx edits.docxpatch
+dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- apply report.docx edits.docxpatch -o report.edited.docx
+```
+
+## Documentation
+
+See [docs/cli.md](docs/cli.md), [docs/patch-format.md](docs/patch-format.md), [docs/diagnostics.md](docs/diagnostics.md), [docs/validation.md](docs/validation.md), and [docs/status.md](docs/status.md).
+
+## Build And Test
+
+```powershell
+dotnet build Lokad.DocxEdit.slnx
+dotnet test Lokad.DocxEdit.slnx
+dotnet pack src/Lokad.DocxEdit/Lokad.DocxEdit.csproj -c Release
+```
+
+Generated packages are written under ignored `artifacts/nuget/`.

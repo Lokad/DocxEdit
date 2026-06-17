@@ -1,0 +1,36 @@
+{
+  "id": "negative-tracked-line-breaks",
+  "description": "Rejects tracked text replacement whose replacement contains line breaks.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find increased",
+    "with <<<",
+    "rose",
+    "sharply",
+    ">>>",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "replacement contains tabs or line breaks"
+    ]
+  }
+}

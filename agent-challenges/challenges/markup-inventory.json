@@ -1,0 +1,23 @@
+{
+  "id": "markup-inventory",
+  "title": "Inventory Existing Markup Without Content Disclosure",
+  "tags": ["private", "changes", "privacy", "track-changes"],
+  "requiresOutputDocx": false,
+  "task": [
+    "Inspect the private input copy using docxedit only.",
+    "Produce a concise inventory of existing tracked-change and comment markup by type and, when available, by story or target ID.",
+    "Do not quote document text. Use counts, IDs, change types, authors, timestamps, text lengths, child counts, and diagnostics only.",
+    "Assess whether the changes command gives enough information for a fresh agent to understand the markup surface."
+  ],
+  "successCriteria": [
+    "Uses docxedit changes, preferably with --json.",
+    "Does not unzip or inspect raw OOXML package parts.",
+    "Final response contains no private document text.",
+    "Identifies at least one concrete docxedit usability gap or says none was observed."
+  ],
+  "observerQuestions": [
+    "Did the agent discover that changes is the privacy-safe markup inventory command?",
+    "Did it confuse read --view markup with changes for aggregate markup discovery?",
+    "Were target IDs and metadata adequate without private text?"
+  ]
+}

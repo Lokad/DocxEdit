@@ -1,0 +1,26 @@
+{
+  "id": "word-fixture-replace",
+  "description": "Edits a non-private Microsoft Word-generated fixture.",
+  "input": {
+    "fixture": "edit-cases/fixtures/word-smoke.docx"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0002",
+    "find increased",
+    "with rose",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "DocxEdit public Word fixture",
+      "Revenue rose."
+    ],
+    "sections": [
+      "1|portrait"
+    ]
+  }
+}

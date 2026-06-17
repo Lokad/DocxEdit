@@ -1,0 +1,26 @@
+{
+  "id": "semantic-anchor-edit",
+  "title": "Edit Through A Semantic Anchor",
+  "tags": ["private", "bookmarks", "content-controls", "patch", "guards"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, inspect the private input copy for bookmark and content-control targets that look safe to edit.",
+    "Prefer semantic selectors or explicit bookmark/content-control IDs over broad text search. Use context or dump with low text limits only when needed.",
+    "Create a .docxpatch that edits one safe semantic anchor with an appropriate guard. Prefer replace-bookmark-text for a complete paragraph-bounded bookmark range, or a content-control operation for an editable control.",
+    "Run docxedit check before apply and write any edited .docx under the run directory.",
+    "If no safe semantic anchor exists, stop after the inspection/check attempts and report the relevant diagnostics and target classes without private text.",
+    "Validate any successful output with docxedit read --max-text 0 and docxedit changes."
+  ],
+  "successCriteria": [
+    "Uses docxedit read, context, dump, or outline to discover bookmark/content-control metadata.",
+    "Uses replace-bookmark-text or a content-control patch operation with a guard when a safe target exists.",
+    "Runs check before apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Could the agent discover semantic anchors without private-document-specific hints?",
+    "Were bookmark/content-control IDs, safe-edit metadata, and diagnostics sufficient to choose a safe operation?",
+    "Did the agent understand paragraph-bounded bookmark replacement and content-control lock limits?",
+    "Did failed checks produce actionable diagnostics rather than confusion about patch syntax?"
+  ]
+}

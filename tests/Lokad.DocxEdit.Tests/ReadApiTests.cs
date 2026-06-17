@@ -1,0 +1,3936 @@
+using System.IO.Compression;
+using System.Text;
+using System.Text.Json;
+
+namespace Lokad.DocxEdit.Tests;
+
+public static class ReadApiTests
+{
+    [Fact]
+    public static void ReadExtractsParagraphsTablesAndImages()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal("/word/document.xml", result.MainDocumentPartName);
+        Assert.Equal(2, result.Paragraphs.Count);
+        Assert.Equal("M.P0001", result.Paragraphs[0].Id);
+        Assert.Equal(1, result.Paragraphs[0].HeadingLevel);
+        Assert.Equal("Executive Summary", result.Paragraphs[0].Text);
+        Assert.Single(result.Tables);
+        Assert.Equal("North", result.Tables[0].Cells[0].Text);
+        Assert.Single(result.Images);
+        Assert.Equal("/word/media/image1.png", result.Images[0].PartName);
+        Assert.Contains("M.P0001 heading level=1", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001 table rows=1 columns=2", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.I0001 image layout=inline part=/word/media/image1.png", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ValidateAcceptsBasicDocument()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(DocxValidationProfile.Structural, result.Profile);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+        Assert.Contains("/word/document.xml", result.PartNames);
+        Assert.Equal("/word/document.xml", result.MainDocumentPartName);
+    }
+
+    [Fact]
+    public static void ValidatePackageProfileSkipsWordprocessingInvariants()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Unclosed"/>
+                      <w:r><w:t>Text</w:t></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream, new DocxValidateOptions { Profile = DocxValidationProfile.Package });
+
+        Assert.True(result.Success);
+        Assert.Equal(DocxValidationProfile.Package, result.Profile);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "E9103");
+    }
+
+    [Theory]
+    [InlineData("basic-document", true, null)]
+    [InlineData("unclosed-bookmark", false, "E9103")]
+    [InlineData("invalid-relationship-root", false, "E9102")]
+    [InlineData("missing-style-definition", true, "W9116")]
+    public static void ValidateFixtureCorpusCoversKnownGoodAndMalformedDocuments(
+        string fixtureName,
+        bool expectedSuccess,
+        string? expectedDiagnosticCode)
+    {
+        using MemoryStream stream = CreateValidationFixture(fixtureName);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.Equal(expectedSuccess, result.Success);
+        if (expectedDiagnosticCode is null)
+        {
+            Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+        }
+        else
+        {
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == expectedDiagnosticCode);
+        }
+    }
+
+    [Fact]
+    public static void ValidateWarnsOnDuplicateSemanticSelectors()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Shared"/>
+                      <w:r><w:t>First</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Shared"/>
+                      <w:r><w:t>Second</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>One</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Two</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9109" &&
+            diagnostic.Feature == "bookmark" &&
+            diagnostic.Fallback == "ambiguous-selector" &&
+            diagnostic.Message.Contains("M.B0001, M.B0002", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9109" &&
+            diagnostic.Feature == "content-control" &&
+            diagnostic.Message.Contains("content-control tag", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("M.CC0001, M.CC0002", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9109" &&
+            diagnostic.Feature == "content-control" &&
+            diagnostic.Message.Contains("content-control alias", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("M.CC0001, M.CC0002", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateWarnsOnMissingParagraphStyleDefinition()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="MissingStyle"/></w:pPr>
+                      <w:r><w:t>Styled text</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="KnownStyle">
+                    <w:name w:val="Known Style"/>
+                  </w:style>
+                </w:styles>
+                """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9116" &&
+            diagnostic.Feature == "style" &&
+            diagnostic.Fallback == "missing-style-definition" &&
+            diagnostic.Message.Contains("MissingStyle", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateWarnsOnMissingNumberingDefinitions()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr>
+                      <w:r><w:t>Numbered text</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+                """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9117" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "missing-numbering-definition" &&
+            diagnostic.Message.Contains("'42'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W9117" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "missing-abstract-numbering-definition" &&
+            diagnostic.Message.Contains("'7'", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidSettingsMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            extra: archive => AddEntry(archive, "word/settings.xml", """
+                <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:updateFields w:val="maybe"/>
+                </w:settings>
+                """));
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9118" &&
+            diagnostic.PartName == "/word/settings.xml" &&
+            diagnostic.Message.Contains("updateFields", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidHeaderFooterReferences()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                    <w:sectPr xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:headerReference w:type="default" r:id="rMissingHeader"/>
+                      <w:footerReference w:type="default" r:id="rWrongFooter"/>
+                    </w:sectPr>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rWrongFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footer" TargetMode="External"/>
+                </Relationships>
+                """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9119" &&
+            diagnostic.Message.Contains("rMissingHeader", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9119" &&
+            diagnostic.Message.Contains("rWrongFooter", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("expected footer relationship", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidSectionProperties()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:cols w:num="0"/>
+                      <w:pgSz w:orient="sideways"/>
+                    </w:sectPr>
+            """);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9120" &&
+            diagnostic.Message.Contains("columns", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9120" &&
+            diagnostic.Message.Contains("orient", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidFootnoteAndEndnoteRoots()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            extra: archive =>
+            {
+                AddEntry(archive, "word/footnotes.xml", """
+                    <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """);
+                AddEntry(archive, "word/endnotes.xml", """
+                    <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """);
+            });
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9102" &&
+            diagnostic.PartName == "/word/footnotes.xml" &&
+            diagnostic.Message.Contains("footnotes", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9102" &&
+            diagnostic.PartName == "/word/endnotes.xml" &&
+            diagnostic.Message.Contains("endnotes", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidRelationshipPartRoot()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            extra: archive => AddEntry(archive, "word/_rels/header1.xml.rels", """
+                <BrokenRelationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+                """));
+
+        DocxValidateResult result = new DocxEditor().Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9102" &&
+            diagnostic.PartName == "/word/_rels/header1.xml.rels" &&
+            diagnostic.Message.Contains("Relationships", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsWordprocessingInvariants()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                        xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                      <w:bookmarkStart w:id="7" w:name="OpenBookmark"/>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:docPr id="5" name="Picture 5"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rMissing"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:docPr id="5" name="Duplicate picture 5"/>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr/>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9103" &&
+            diagnostic.PartName == "/word/document.xml" &&
+            diagnostic.Message.Contains("bookmark", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9104");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9105");
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9107" &&
+            diagnostic.Message.Contains("docPr id '5'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9106" &&
+            diagnostic.Message.Contains("row", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateCapsDiagnosticsWithTruncationDiagnostic()
+    {
+        string bodyXml = string.Concat(Enumerable.Range(1, 6).Select(id => $"""
+                    <w:p>
+                      <w:bookmarkStart w:id="{id}" w:name="Bookmark{id}"/>
+                      <w:r><w:t>Text {id}</w:t></w:r>
+                    </w:p>
+            """));
+        using MemoryStream stream = CreateDocxWithBody(bodyXml);
+
+        DocxValidateResult result = new DocxEditor().Validate(stream, new DocxValidateOptions { MaxDiagnostics = 3 });
+
+        Assert.False(result.Success);
+        Assert.Equal(3, result.Diagnostics.Count);
+        Assert.Equal(2, result.Diagnostics.Count(diagnostic => diagnostic.Code == "E9103"));
+        DocxDiagnostic capped = result.Diagnostics.Last();
+        Assert.Equal("E9199", capped.Code);
+        Assert.Equal(DocxSeverity.Error, capped.Severity);
+        Assert.Contains("omitted 4 of 6", capped.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidDrawingGeometry()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="0" cy="100"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <a:srcRect l="60000" r="40000"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9109");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E9110");
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidDrawingImageTargets()
+    {
+        using MemoryStream stream = CreateDocxWithImageRelationshipIssues();
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9113" &&
+            diagnostic.Message.Contains("expected image relationship", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9113" &&
+            diagnostic.Message.Contains("non-image content type 'text/plain'", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidTableVisualGrid()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>Root</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>Mismatch</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Overflow</w:t></w:r></w:p></w:tc>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="0"/></w:tcPr>
+                          <w:p><w:r><w:t>Invalid span</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>Orphan</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("does not match active restart span", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("exceeding declared tblGrid", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("invalid gridSpan", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9114" &&
+            diagnostic.Message.Contains("has no active restart", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidFieldBoundariesAndFlags()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:instrText> ORPHAN </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="invalid"/></w:r>
+                      <w:fldSimple w:instr=" DATE " w:dirty="maybe">
+                        <w:r><w:t>Date</w:t></w:r>
+                      </w:fldSimple>
+                      <w:r><w:fldChar w:fldCharType="begin" w:fldLock="maybe"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:t>Cached result too early</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("instruction text", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("w:dirty", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("w:fldLock", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9112" &&
+            diagnostic.Message.Contains("result text appears before", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9104" &&
+            diagnostic.Message.Contains("separate appears without", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9104" &&
+            diagnostic.Message.Contains("invalid fldCharType", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9104" &&
+            diagnostic.Message.Contains("duplicate separate", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="abc"/>
+                          <w:lock w:val="maybe"/>
+                          <w:checkBox><w:checked w:val="maybe"/></w:checkBox>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>One</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:sdt>
+                        <w:sdtPr><w:id w:val="42"/></w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Two</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:sdt>
+                        <w:sdtPr><w:id w:val="42"/></w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Three</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("invalid integer", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("w:lock", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("w:checked", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9115" &&
+            diagnostic.Message.Contains("Duplicate content control", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidCommentsExtendedMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="1" w:author="Reviewer">
+                    <w:p w15:paraId="00AAA111"><w:r><w:t>Comment</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="2" w:author="Reviewer">
+                    <w:p w15:paraId="00CCC333"><w:r><w:t>Reply</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+            """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00AAA111" w15:done="0"/>
+                  <w15:commentEx w15:paraId="00AAA111" w15:done="1"/>
+                  <w15:commentEx w15:paraId="00BBB222" w15:done="0"/>
+                  <w15:commentEx w15:paraId="00CCC333" w15:paraIdParent="00MISSING" w15:done="0"/>
+                  <w15:commentEx w15:done="0"/>
+                </w15:commentsEx>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.PartName == "/word/commentsExtended.xml" &&
+            diagnostic.Message.Contains("Duplicate commentsExtended paraId '00AAA111'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.Message.Contains("00BBB222", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("no matching comment paragraph", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.Message.Contains("parent paraId '00MISSING'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9108" &&
+            diagnostic.Message.Contains("missing w15:paraId", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidCommentsIdsMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="1" w:author="Reviewer">
+                    <w:p w15:paraId="00AAA111"><w:r><w:t>Comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+            """,
+            commentsIdsXml: """
+                <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+                  <w16cid:commentId w16cid:paraId="00AAA111" w16cid:durableId="D1"/>
+                  <w16cid:commentId w16cid:paraId="00AAA111" w16cid:durableId="D2"/>
+                  <w16cid:commentId w16cid:paraId="00BBB222" w16cid:durableId="D1"/>
+                  <w16cid:commentId w16cid:paraId="00CCC333"/>
+                  <w16cid:commentId w16cid:durableId="D3"/>
+                </w16cid:commentsIds>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9122" &&
+            diagnostic.PartName == "/word/commentsIds.xml" &&
+            diagnostic.Message.Contains("Duplicate commentsIds paraId '00AAA111'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9122" &&
+            diagnostic.Message.Contains("Duplicate commentsIds durableId 'D1'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9122" &&
+            diagnostic.Message.Contains("00BBB222", StringComparison.Ordinal) &&
+            diagnostic.Message.Contains("no matching comment paragraph", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9122" &&
+            diagnostic.Message.Contains("missing w16cid:paraId", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9122" &&
+            diagnostic.Message.Contains("missing w16cid:durableId", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ValidateReportsInvalidCommentBodyAndAnchorConsistency()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:commentRangeStart w:id="4"/>
+                      <w:r><w:t>Missing body</w:t></w:r>
+                      <w:commentRangeEnd w:id="4"/>
+                      <w:r><w:commentReference w:id="4"/></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:commentRangeStart w:id="6"/>
+                      <w:r><w:t>No reference</w:t></w:r>
+                      <w:commentRangeEnd w:id="6"/>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:commentReference/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>First</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Duplicate</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="6" w:author="Reviewer">
+                    <w:p><w:r><w:t>No reference body</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:author="Reviewer">
+                    <w:p><w:r><w:t>Missing ID</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+            """);
+        var editor = new DocxEditor();
+
+        DocxValidateResult result = editor.Validate(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Duplicate comment body id '3'", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Comment markup id '4' has no matching comment body", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Comment range id '6' has no matching commentReference", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("Comment body is missing w:id", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "E9111" &&
+            diagnostic.Message.Contains("commentReference is missing w:id", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ReadExtractsMergedAndNestedTableMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>Wide</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>East</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>Continued</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc>
+                          <w:p><w:r><w:t>Outer</w:t></w:r></w:p>
+                          <w:tbl>
+                            <w:tr><w:tc><w:p><w:r><w:t>Inner</w:t></w:r></w:p></w:tc></w:tr>
+                          </w:tbl>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxTableInfo table = Assert.Single(result.Tables);
+        Assert.Equal(3, table.ColumnCount);
+        Assert.True(table.HasMergedCells);
+        Assert.True(table.HasNestedTables);
+        DocxTableCellInfo wide = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C01");
+        Assert.Equal(2, wide.ColumnSpan);
+        Assert.Equal(2, wide.VisualColumnEndIndex);
+        Assert.Equal("M.T0001.MG0001", wide.MergeGroupId);
+        Assert.Equal("restart", wide.VerticalMerge);
+        Assert.Equal("M.T0001.R01.C01", wide.VerticalMergeRootCellId);
+        Assert.False(wide.HasNestedTable);
+        DocxTableCellInfo east = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C03");
+        Assert.Equal("East", east.Text);
+        DocxTableCellInfo continued = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C01");
+        Assert.Equal(1, continued.VisualColumnEndIndex);
+        Assert.Equal("M.T0001.MG0001", continued.MergeGroupId);
+        Assert.Equal("continue", continued.VerticalMerge);
+        Assert.Equal("M.T0001.R01.C01", continued.VerticalMergeRootCellId);
+        DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C02");
+        Assert.True(nested.HasNestedTable);
+        Assert.Contains("M.T0001.R01.C01 physical-column=1 column-span=2 visual-column-end=2 merge-group=M.T0001.MG0001 vertical-merge=restart vertical-merge-root=M.T0001.R01.C01", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02.C01 physical-column=1 merge-group=M.T0001.MG0001 vertical-merge=continue vertical-merge-root=M.T0001.R01.C01", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02.C02 physical-column=2 nested-table=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001 table rows=2 columns=3 merged=true nested-table=true", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxContextResult context = editor.Context(stream, "M.T0001.R02.C01", new DocxContextOptions { MaxText = 20 });
+        DocxContextItem contextTarget = Assert.Single(context.Items, item => item.Id == "M.T0001.R02.C01");
+        Assert.Equal("M.T0001.MG0001", contextTarget.MergeGroupId);
+        Assert.Equal("M.T0001.R01.C01", contextTarget.VerticalMergeRootCellId);
+        Assert.Contains("merge-group=M.T0001.MG0001 vertical-merge=continue vertical-merge-root=M.T0001.R01.C01", context.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadModelsTableRowsStyleAndGridMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblStyle w:val="TableGrid"/>
+                        <w:tblCaption w:val="Revenue summary"/>
+                        <w:tblDescription w:val="Quarterly revenue by region"/>
+                      </w:tblPr>
+                      <w:tblGrid>
+                        <w:gridCol w:w="2000"/>
+                        <w:gridCol w:w="2000"/>
+                        <w:gridCol w:w="2000"/>
+                      </w:tblGrid>
+                      <w:tr>
+                        <w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Header 1</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Header 2</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Header 3</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+                        <w:tc><w:p><w:r><w:t>Offset 1</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Offset 2</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxTableInfo table = Assert.Single(result.Tables);
+        Assert.Equal("TableGrid", table.StyleId);
+        Assert.Equal("Revenue summary", table.Caption);
+        Assert.Equal("Quarterly revenue by region", table.Description);
+        Assert.Equal(3, table.GridColumnCount);
+        Assert.True(table.HasHeaderRow);
+        Assert.True(table.HasMergedCells);
+        Assert.Equal(2, table.Rows.Count);
+        Assert.True(table.Rows[0].IsHeader);
+        Assert.True(table.Rows[0].CantSplit);
+        Assert.Equal(1, table.Rows[1].GridBefore);
+        Assert.Equal(2, table.Rows[1].CellCount);
+        DocxTableCellInfo offset = table.Cells.Single(cell => cell.Text == "Offset 1");
+        Assert.Equal(2, offset.ColumnIndex);
+        Assert.Equal(1, offset.PhysicalColumnIndex);
+
+        Assert.Contains("M.T0001 table rows=2 columns=3 styleId=TableGrid caption=\"Revenue summary\" description=\"Quarterly revenue by region\" grid-columns=3 header-row=true merged=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R01 row cells=3 header=true cant-split=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R02 row cells=2 grid-before=1", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxContextResult context = editor.Context(stream, "M.T0001.R01.C01");
+        DocxContextItem parent = Assert.Single(context.Items, item => item.Id == "M.T0001");
+        Assert.Equal("Revenue summary", parent.Caption);
+        Assert.Equal("Quarterly revenue by region", parent.Description);
+        Assert.Contains("caption=\"Revenue summary\" description=\"Quarterly revenue by region\"", context.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void FindMatchesParagraphAndTableCellText()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxFindResult result = editor.Find(stream, "Revenue");
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Matches, match => match.StartsWith("M.P0002", StringComparison.Ordinal));
+        Assert.Contains(result.Matches, match => match.StartsWith("M.T0001.R01.C02", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void DumpReturnsParagraphOrCellText()
+    {
+        using MemoryStream paragraphStream = CreateDocx();
+        using MemoryStream cellStream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxDumpResult paragraph = editor.Dump(paragraphStream, "M.P0002");
+        DocxDumpResult cell = editor.Dump(cellStream, "M.T0001.R01.C02");
+
+        Assert.True(paragraph.Success);
+        Assert.Equal("Revenue increased", paragraph.Text);
+        Assert.True(cell.Success);
+        Assert.Equal("Revenue", cell.Text);
+    }
+
+    [Fact]
+    public static void ReadHonorsMaxTextInRenderedOutput()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream, new DocxReadOptions { MaxText = 10 });
+
+        Assert.True(result.Success);
+        Assert.Contains("Revenue...", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue increased", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpCanIncludeParagraphRuns()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P0002", new DocxDumpOptions { IncludeRuns = true });
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Text);
+        Assert.Contains("runs:", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.P0002.R0001 text=\"Revenue\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.P0002.R0002 text=\" increased\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpExposesTargetLevelPropertyRevisionSummaries()
+    {
+        const string bodyXml = """
+                    <w:p>
+                      <w:pPr>
+                        <w:pPrChange w:id="1" w:author="Reviewer" w:date="2026-06-01T00:00:00Z">
+                          <w:pPr/>
+                        </w:pPrChange>
+                      </w:pPr>
+                      <w:r><w:t>Private paragraph text</w:t></w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblPrChange w:id="2" w:author="Reviewer" w:date="2026-06-02T00:00:00Z">
+                          <w:tblPr/>
+                        </w:tblPrChange>
+                      </w:tblPr>
+                      <w:tr>
+                        <w:trPr>
+                          <w:trPrChange w:id="3" w:author="Reviewer" w:date="2026-06-03T00:00:00Z">
+                            <w:trPr/>
+                          </w:trPrChange>
+                        </w:trPr>
+                        <w:tc><w:p><w:r><w:t>Private cell text</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:sectPr>
+                      <w:sectPrChange w:id="4" w:author="Reviewer" w:date="2026-06-04T00:00:00Z">
+                        <w:sectPr/>
+                      </w:sectPrChange>
+                    </w:sectPr>
+            """;
+        var editor = new DocxEditor();
+        using MemoryStream paragraphStream = CreateDocxWithBody(bodyXml);
+        using MemoryStream tableStream = CreateDocxWithBody(bodyXml);
+        using MemoryStream rowStream = CreateDocxWithBody(bodyXml);
+        using MemoryStream sectionStream = CreateDocxWithBody(bodyXml);
+
+        DocxDumpResult paragraph = editor.Dump(paragraphStream, "M.P0001", new DocxDumpOptions { IncludeRuns = true });
+        DocxDumpResult table = editor.Dump(tableStream, "M.T0001");
+        DocxDumpResult row = editor.Dump(rowStream, "M.T0001.R01");
+        DocxDumpResult section = editor.Dump(sectionStream, "M.S0001");
+
+        Assert.True(paragraph.Success);
+        Assert.Contains("type=paragraph-properties-change", paragraph.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=1", paragraph.Text, StringComparison.Ordinal);
+        Assert.True(table.Success);
+        Assert.Contains("type=table-properties-change", table.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=2", table.Text, StringComparison.Ordinal);
+        Assert.True(row.Success);
+        Assert.Contains("changes:", row.Text, StringComparison.Ordinal);
+        Assert.Contains("type=row-properties-change", row.Text, StringComparison.Ordinal);
+        Assert.Contains("parent=row-properties", row.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=3", row.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private", row.Text, StringComparison.Ordinal);
+        Assert.True(section.Success);
+        Assert.Contains("type=section-properties-change", section.Text, StringComparison.Ordinal);
+        Assert.Contains("revision-id=4", section.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private", section.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextSummarizesNearbyStructureWithoutTextByDefault()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0002");
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Items, item => item.Id == "M.P0001" && item.Relation == "before" && item.Text == string.Empty);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.P0002");
+        Assert.Equal("paragraph", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal(string.Empty, target.Text);
+        Assert.Contains("target M.P0002 paragraph", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextCanSummarizeTableCellNeighborhood()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.T0001.R01.C02", new DocxContextOptions { MaxText = 20 });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Items, item => item.Id == "M.T0001" && item.Relation == "parent" && item.Kind == "table");
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.T0001.R01.C02");
+        Assert.Equal("cell", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("M.T0001", target.ParentId);
+        Assert.Equal(1, target.RowIndex);
+        Assert.Equal(2, target.ColumnIndex);
+        Assert.Equal("Revenue", target.Text);
+    }
+
+    [Fact]
+    public static void ContextReportsUnknownTarget()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P9999");
+
+        Assert.False(result.Success);
+        Assert.Empty(result.Items);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E2001" && diagnostic.TargetId == "M.P9999");
+    }
+
+    [Fact]
+    public static void ReadExtractsTabsAndLineBreaks()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>A</w:t><w:tab/><w:t>B</w:t><w:br/><w:t>C</w:t></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.Equal("A\tB\nC", Assert.Single(result.Paragraphs).Text);
+        Assert.Contains("A\\tB\\nC", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadExtractsParagraphListMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr>
+                          <w:ilvl w:val="1"/>
+                          <w:numId w:val="42"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>List item</w:t></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
+        Assert.NotNull(paragraph.List);
+        Assert.Equal("42", paragraph.List.NumberingId);
+        Assert.Equal(1, paragraph.List.Level);
+        Assert.Contains("M.P0001 paragraph list numId=42 level=1", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadResolvesNumberingDefinitionMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr>
+                          <w:ilvl w:val="1"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>Nested bullet</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="1">
+                      <w:numFmt w:val="bullet"/>
+                      <w:lvlText w:val="o"/>
+                      <w:pStyle w:val="BulletStyle"/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9">
+                    <w:abstractNumId w:val="7"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxListInfo list = Assert.Single(result.Paragraphs).List!;
+        Assert.Equal("9", list.NumberingId);
+        Assert.Equal(1, list.Level);
+        Assert.Equal("7", list.AbstractNumberingId);
+        Assert.Equal("bullet", list.Format);
+        Assert.Equal("o", list.LevelText);
+        Assert.Equal("BulletStyle", list.ParagraphStyleId);
+        Assert.Equal("direct", list.Source);
+        Assert.Equal("o", list.LabelText);
+        Assert.Equal("resolved", list.LabelStatus);
+        Assert.Contains("list numId=9 level=1 abstractNumId=7 format=bullet level-text=\"o\" paragraph-style=BulletStyle", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadResolvesStyleLinkedNumbering()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="ListParagraph"/></w:pPr>
+                      <w:r><w:t>Styled list item</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="ListParagraph">
+                    <w:name w:val="List Paragraph"/>
+                    <w:basedOn w:val="Normal"/>
+                    <w:pPr>
+                      <w:numPr>
+                        <w:ilvl w:val="0"/>
+                        <w:numId w:val="11"/>
+                      </w:numPr>
+                    </w:pPr>
+                  </w:style>
+                </w:styles>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="2">
+                    <w:lvl w:ilvl="0">
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="11">
+                    <w:abstractNumId w:val="2"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
+        Assert.Equal("ListParagraph", paragraph.StyleId);
+        Assert.Equal("List Paragraph", paragraph.StyleName);
+        Assert.NotNull(paragraph.List);
+        Assert.Equal("style", paragraph.List.Source);
+        Assert.Equal("decimal", paragraph.List.Format);
+        Assert.Equal("1.", paragraph.List.LabelText);
+        Assert.Contains("styleId=ListParagraph list numId=11 level=0 abstractNumId=2 format=decimal level-text=\"%1.\" source=style", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadExpandsResolvedNumberingLabels()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top one</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Nested one</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Nested two</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top two</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Nested reset</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="3"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                      <w:suff w:val="space"/>
+                    </w:lvl>
+                    <w:lvl w:ilvl="1">
+                      <w:start w:val="2"/>
+                      <w:numFmt w:val="lowerLetter"/>
+                      <w:lvlText w:val="%1.%2)"/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9">
+                    <w:abstractNumId w:val="7"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        string[] labels = result.Paragraphs
+            .Select(paragraph => paragraph.List?.LabelText ?? string.Empty)
+            .ToArray();
+        Assert.Equal(["3.", "3.b)", "3.c)", "4.", "4.b)"], labels);
+        Assert.All(result.Paragraphs, paragraph => Assert.Equal("resolved", paragraph.List?.LabelStatus));
+        Assert.Equal(3, result.Paragraphs[0].List?.StartValue);
+        Assert.Equal("space", result.Paragraphs[0].List?.Suffix);
+        DocxListLabelComponent[] components = result.Paragraphs[1].List!.LabelComponents.ToArray();
+        Assert.Equal(2, components.Length);
+        Assert.Equal(new DocxListLabelComponent(0, 3, "3", "decimal"), components[0]);
+        Assert.Equal(new DocxListLabelComponent(1, 2, "b", "lowerLetter"), components[1]);
+        Assert.Contains("M.P0002 paragraph list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.b)\" label-components=\"0:3:decimal:3,1:2:lowerLetter:b\" start=2", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxFindResult find = editor.Find(stream, "Nested two");
+        Assert.Contains("M.P0003 list numId=9 level=1 abstractNumId=7 format=lowerLetter level-text=\"%1.%2)\" label=\"3.c)\" label-components=\"0:3:decimal:3,1:3:lowerLetter:c\" start=2 text=\"Nested two\"", find.Matches);
+
+        stream.Position = 0;
+        DocxOutlineResult outline = editor.Outline(stream);
+        Assert.Contains("M.P0001 heading level=1 list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"3.\" label-components=\"0:3:decimal:3\" start=3 suffix=space text=\"Top one\"", outline.Lines);
+    }
+
+    [Fact]
+    public static void ReadNumberingLabelsAreStableAcrossTrackedRunTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>First </w:t></w:r>
+                      <w:ins w:id="1" w:author="Alice"><w:r><w:t>inserted</w:t></w:r></w:ins>
+                      <w:del w:id="2" w:author="Bob"><w:r><w:delText>deleted</w:delText></w:r></w:del>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Second</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["1.", "2."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "2."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "2."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal("First inserted", finalView.Paragraphs[0].Text);
+        Assert.Equal("First deleted", originalView.Paragraphs[0].Text);
+        Assert.Equal("First [+inserted+][-deleted-]", markupView.Paragraphs[0].Text);
+    }
+
+    [Fact]
+    public static void ReadNumberingLabelsFollowBlockRevisionTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>First</w:t></w:r>
+                    </w:p>
+                    <w:ins w:id="1" w:author="Alice">
+                      <w:p>
+                        <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:p>
+                    </w:ins>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Second</w:t></w:r>
+                    </w:p>
+                    <w:del w:id="2" w:author="Bob">
+                      <w:p>
+                        <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:delText>Deleted</w:delText></w:r>
+                      </w:p>
+                    </w:del>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Third</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["First", "Inserted", "Second", "Third"], finalView.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3.", "4."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["First", "Second", "Deleted", "Third"], originalView.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3.", "4."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["First", "[+Inserted+]", "Second", "[-Deleted-]", "Third"], markupView.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
+        Assert.Equal(["1.", "2.", "3.", "4.", "5."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+
+        stream.Position = 0;
+        DocxFindResult finalFind = editor.Find(stream, "Deleted");
+        Assert.Empty(finalFind.Matches);
+
+        stream.Position = 0;
+        DocxFindResult originalFind = editor.Find(stream, "Deleted", new DocxFindOptions { TextView = DocxTextView.Original });
+        Assert.Contains("M.P0003 list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"3.\" label-components=\"0:3:decimal:3\" start=1 text=\"Deleted\"", originalFind.Matches);
+
+        stream.Position = 0;
+        DocxContextResult originalContext = editor.Context(stream, "M.P0003", new DocxContextOptions { TextView = DocxTextView.Original, Radius = 0, MaxText = 20 });
+        DocxContextItem contextTarget = Assert.Single(originalContext.Items);
+        Assert.Equal("Deleted", contextTarget.Text);
+        Assert.Equal("3.", contextTarget.List?.LabelText);
+
+        stream.Position = 0;
+        DocxOutlineResult finalOutline = editor.Outline(stream);
+        Assert.DoesNotContain(finalOutline.Lines, line => line.Contains("Deleted", StringComparison.Ordinal));
+        Assert.Contains(finalOutline.Lines, line => line.Contains("M.P0002 heading level=1", StringComparison.Ordinal) && line.Contains("label=\"2.\"", StringComparison.Ordinal) && line.Contains("Inserted", StringComparison.Ordinal));
+
+        stream.Position = 0;
+        DocxOutlineResult markupOutline = editor.Outline(stream, new DocxOutlineOptions { TextView = DocxTextView.Markup });
+        Assert.Contains(markupOutline.Lines, line => line.Contains("M.P0004 heading level=1", StringComparison.Ordinal) && line.Contains("label=\"4.\"", StringComparison.Ordinal) && line.Contains("[-Deleted-]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ReadNumberingLabelsFollowMultiLevelBlockRevisionTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top one</w:t></w:r>
+                    </w:p>
+                    <w:ins w:id="1" w:author="Alice">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:t>Inserted child</w:t></w:r>
+                      </w:p>
+                    </w:ins>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Normal child</w:t></w:r>
+                    </w:p>
+                    <w:del w:id="2" w:author="Bob">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                        <w:r><w:delText>Deleted child</w:delText></w:r>
+                      </w:p>
+                    </w:del>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Top two</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                    <w:lvl w:ilvl="1">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1.%2."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["1.", "1.1.", "1.2.", "2."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "1.1.", "1.2.", "2."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "1.1.", "1.2.", "1.3.", "2."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal("Inserted child", finalView.Paragraphs[1].Text);
+        Assert.Equal("Deleted child", originalView.Paragraphs[2].Text);
+        Assert.Equal("[-Deleted child-]", markupView.Paragraphs[3].Text);
+    }
+
+    [Fact]
+    public static void ReadNumberingStartOverridesFollowBlockRevisionTextViews()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default one</w:t></w:r>
+                    </w:p>
+                    <w:ins w:id="1" w:author="Alice">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                        <w:r><w:t>Inserted override</w:t></w:r>
+                      </w:p>
+                    </w:ins>
+                    <w:del w:id="2" w:author="Bob">
+                      <w:p>
+                        <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                        <w:r><w:delText>Deleted override</w:delText></w:r>
+                      </w:p>
+                    </w:del>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default two</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                  <w:num w:numId="10">
+                    <w:abstractNumId w:val="7"/>
+                    <w:lvlOverride w:ilvl="0">
+                      <w:startOverride w:val="7"/>
+                    </w:lvlOverride>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult finalView = editor.Read(stream);
+        stream.Position = 0;
+        DocxReadResult originalView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+        stream.Position = 0;
+        DocxReadResult markupView = editor.Read(stream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal(["1.", "7.", "2."], finalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "7.", "2."], originalView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(["1.", "7.", "8.", "2."], markupView.Paragraphs.Select(paragraph => paragraph.List?.LabelText ?? string.Empty).ToArray());
+        Assert.Equal(7, finalView.Paragraphs[1].List?.StartValue);
+        Assert.Equal(7, originalView.Paragraphs[1].List?.StartValue);
+        Assert.Equal(7, markupView.Paragraphs[1].List?.StartValue);
+    }
+
+    [Fact]
+    public static void ReadWarnsWhenNumberingPropertyRevisionAffectsOriginalViewLabels()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr>
+                        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr>
+                        <w:pPrChange w:id="3" w:author="Alice">
+                          <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                        </w:pPrChange>
+                      </w:pPr>
+                      <w:r><w:t>Changed numbering</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                  <w:num w:numId="10"><w:abstractNumId w:val="7"/></w:num>
+                </w:numbering>
+            """);
+
+        DocxReadResult result = new DocxEditor().Read(stream, new DocxReadOptions { TextView = DocxTextView.Original });
+
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W1026" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "tracked-numbering-property-revision");
+    }
+
+    [Fact]
+    public static void ReadUsesNumberingStartOverridePerNumberingInstance()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Override start</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                      <w:r><w:t>Default start</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:start w:val="1"/>
+                      <w:numFmt w:val="decimal"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9">
+                    <w:abstractNumId w:val="7"/>
+                    <w:lvlOverride w:ilvl="0">
+                      <w:startOverride w:val="7"/>
+                    </w:lvlOverride>
+                  </w:num>
+                  <w:num w:numId="10">
+                    <w:abstractNumId w:val="7"/>
+                  </w:num>
+                </w:numbering>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.Equal("7.", result.Paragraphs[0].List?.LabelText);
+        Assert.Equal(7, result.Paragraphs[0].List?.StartValue);
+        Assert.Equal("1.", result.Paragraphs[1].List?.LabelText);
+        Assert.Equal(1, result.Paragraphs[1].List?.StartValue);
+    }
+
+    [Fact]
+    public static void ReadWarnsOnUnsupportedNumberingShapes()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr>
+                      <w:r><w:t>Custom format</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr>
+                      <w:r><w:t>Picture bullet</w:t></w:r>
+                    </w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:numPicBullet w:numPicBulletId="1"/>
+                  <w:abstractNum w:abstractNumId="7">
+                    <w:lvl w:ilvl="0">
+                      <w:numFmt w:val="chicago"/>
+                      <w:lvlText w:val="%1."/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:abstractNum w:abstractNumId="8">
+                    <w:lvl w:ilvl="0">
+                      <w:numFmt w:val="bullet"/>
+                      <w:lvlText w:val="%1"/>
+                      <w:lvlPicBulletId w:val="1"/>
+                    </w:lvl>
+                  </w:abstractNum>
+                  <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                  <w:num w:numId="10"><w:abstractNumId w:val="8"/></w:num>
+                </w:numbering>
+            """);
+
+        DocxReadResult result = new DocxEditor().Read(stream);
+
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W1024" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "unsupported-picture-bullet");
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W1025" &&
+            diagnostic.Feature == "numbering" &&
+            diagnostic.Fallback == "unsupported-numbering-format");
+        Assert.Contains("unsupported-format-level-0", result.Paragraphs[0].List?.LabelWarnings ?? []);
+    }
+
+    [Fact]
+    public static void MediaListsReferencedImagesOnly()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxMediaResult result = editor.Media(stream);
+
+        DocxImageInfo image = Assert.Single(result.Images);
+        Assert.Equal("M.I0001", image.Id);
+        Assert.Equal("/word/media/image1.png", image.PartName);
+        Assert.Equal("inline", image.LayoutKind);
+        Assert.Equal("rImage", image.RelationshipId);
+        Assert.Equal("M.P0002", image.ContainingTargetId);
+        Assert.Equal(914400, image.WidthEmu);
+        Assert.Equal(457200, image.HeightEmu);
+        Assert.Equal("Revenue chart", image.Description);
+    }
+
+    [Fact]
+    public static void ReadModelsAnchoredImageLayoutMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithImageBody("""
+                    <w:p>
+                      <w:r><w:t>Floating image</w:t></w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor behindDoc="1" relativeHeight="251659264" distT="10" distB="20" distL="30" distR="40" allowOverlap="1">
+                            <wp:positionH relativeFrom="column"><wp:posOffset>12345</wp:posOffset></wp:positionH>
+                            <wp:positionV relativeFrom="paragraph"><wp:align>top</wp:align></wp:positionV>
+                            <wp:extent cx="1000" cy="2000"/>
+                            <wp:wrapSquare/>
+                            <wp:docPr id="2" name="Floating picture" descr="Floating chart"/>
+                            <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                            <a:graphic>
+                              <a:graphicData>
+                                  <pic:pic>
+                                    <pic:blipFill>
+                                      <a:blip r:embed="rImage"/>
+                                      <a:srcRect l="10000" t="5000" r="2500" b="0"/>
+                                    </pic:blipFill>
+                                  </pic:pic>
+                                </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        DocxImageInfo image = Assert.Single(result.Images);
+        Assert.Equal("anchor", image.LayoutKind);
+        Assert.Equal("M.P0001", image.ContainingTargetId);
+        Assert.Equal(1000, image.WidthEmu);
+        Assert.Equal(2000, image.HeightEmu);
+        Assert.Equal("wrapSquare", image.WrapMode);
+        Assert.True(image.BehindDoc);
+        Assert.Equal(10L, image.WrapDistanceTopEmu);
+        Assert.Equal(20L, image.WrapDistanceBottomEmu);
+        Assert.Equal(30L, image.WrapDistanceLeftEmu);
+        Assert.Equal(40L, image.WrapDistanceRightEmu);
+        Assert.Equal(251659264L, image.RelativeHeight);
+        Assert.True(image.AllowOverlap);
+        Assert.True(image.LockAspectRatio);
+        Assert.Equal("column", image.HorizontalPositionRelativeFrom);
+        Assert.Equal(12345L, image.HorizontalPositionOffsetEmu);
+        Assert.Null(image.HorizontalPositionAlign);
+        Assert.Equal("paragraph", image.VerticalPositionRelativeFrom);
+        Assert.Null(image.VerticalPositionOffsetEmu);
+        Assert.Equal("top", image.VerticalPositionAlign);
+        Assert.Equal(10m, image.CropLeftPercent);
+        Assert.Equal(5m, image.CropTopPercent);
+        Assert.Equal(2.5m, image.CropRightPercent);
+        Assert.Equal(0m, image.CropBottomPercent);
+        Assert.Equal("Floating chart", image.Description);
+        Assert.Contains("layout=anchor", result.Text, StringComparison.Ordinal);
+        Assert.Contains("wrap=wrapSquare", result.Text, StringComparison.Ordinal);
+        Assert.Contains("behind-doc=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("wrap-dist-top-emu=10", result.Text, StringComparison.Ordinal);
+        Assert.Contains("wrap-dist-right-emu=40", result.Text, StringComparison.Ordinal);
+        Assert.Contains("relative-height=251659264", result.Text, StringComparison.Ordinal);
+        Assert.Contains("allow-overlap=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("lock-aspect=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-h-relative=column", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-h-offset-emu=12345", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-v-relative=paragraph", result.Text, StringComparison.Ordinal);
+        Assert.Contains("position-v-align=top", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-left-percent=10", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-top-percent=5", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-right-percent=2.5", result.Text, StringComparison.Ordinal);
+        Assert.Contains("crop-bottom-percent=0", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1007" && diagnostic.Fallback == "modeled-metadata");
+    }
+
+    [Fact]
+    public static void ReadExtractsSectionColumnsAndOrientation()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxSectionInfo section = Assert.Single(result.Sections);
+        Assert.Equal("M.S0001", section.Id);
+        Assert.Equal(2, section.Columns);
+        Assert.Equal("landscape", section.Orientation);
+        Assert.Contains("M.S0001 section columns=2 orientation=landscape", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void OutlineIncludesSections()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxOutlineResult result = editor.Outline(stream);
+
+        Assert.Contains(result.Lines, line => line == "M.S0001 section columns=2 orientation=landscape");
+    }
+
+    [Fact]
+    public static void StylesListsParagraphCharacterAndTableStyles()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxStylesResult result = editor.Styles(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.Styles.Count);
+        Assert.Contains(result.Styles, style => style.StyleId == "Normal" && style.Type == "paragraph" && style.IsDefault);
+        Assert.Contains(result.Styles, style => style.StyleId == "Emphasis" && style.Type == "character");
+        Assert.Contains(result.Styles, style => style.StyleId == "TableGrid" && style.Type == "table");
+    }
+
+    [Fact]
+    public static void StylesExposeInheritanceLinksAndNumberingDefaults()
+    {
+        using MemoryStream stream = CreateDocxWithStylesAndNumbering(
+            """
+                    <w:p><w:r><w:t>Styled paragraph</w:t></w:r></w:p>
+            """,
+            """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="Base">
+                    <w:name w:val="Base"/>
+                  </w:style>
+                  <w:style w:type="paragraph" w:styleId="Derived">
+                    <w:name w:val="Derived"/>
+                    <w:basedOn w:val="Base"/>
+                    <w:next w:val="NextStyle"/>
+                    <w:link w:val="DerivedChar"/>
+                    <w:pPr>
+                      <w:numPr>
+                        <w:ilvl w:val="2"/>
+                        <w:numId w:val="44"/>
+                      </w:numPr>
+                    </w:pPr>
+                  </w:style>
+                  <w:style w:type="character" w:styleId="DerivedChar">
+                    <w:name w:val="Derived Char"/>
+                  </w:style>
+                </w:styles>
+            """,
+            """
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxStylesResult result = editor.Styles(stream);
+
+        DocxStyleInfo style = result.Styles.Single(style => style.StyleId == "Derived");
+        Assert.Equal("Base", style.BasedOnStyleId);
+        Assert.Equal("NextStyle", style.NextStyleId);
+        Assert.Equal("DerivedChar", style.LinkedStyleId);
+        Assert.Equal("44", style.NumberingId);
+        Assert.Equal(2, style.NumberingLevel);
+        string stylesText = DocxTextRenderer.RenderStyles(result);
+        Assert.Contains("styleId=Derived", stylesText, StringComparison.Ordinal);
+        Assert.Contains("based-on=Base", stylesText, StringComparison.Ordinal);
+        Assert.Contains("numbering numId=44 level=2", stylesText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadIncludesHeaderAndFooterStoriesWhenRequested()
+    {
+        using MemoryStream defaultStream = CreateDocx();
+        using MemoryStream allStoriesStream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxReadResult defaultResult = editor.Read(defaultStream);
+        DocxReadResult allStories = editor.Read(allStoriesStream, new DocxReadOptions { IncludeHeadersFooters = true });
+
+        Assert.DoesNotContain(defaultResult.Paragraphs, paragraph => paragraph.Id.StartsWith("H", StringComparison.Ordinal));
+        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Story == "header[1]" && paragraph.Text == "Confidential");
+        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Story == "footer[1]" && paragraph.Text == "Page 1");
+    }
+
+    [Fact]
+    public static void ReadResolvesHeaderAndFooterNumberingWhenRequested()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p><w:r><w:t>Main body</w:t></w:r></w:p>
+                    <w:sectPr xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:headerReference w:type="default" r:id="rHeader"/>
+                      <w:footerReference w:type="default" r:id="rFooter"/>
+                    </w:sectPr>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                </Relationships>
+                """,
+            archive =>
+            {
+                AddEntry(archive, "word/styles.xml", """
+                    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """);
+                AddEntry(archive, "word/numbering.xml", """
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:abstractNum w:abstractNumId="7">
+                        <w:lvl w:ilvl="0">
+                          <w:start w:val="1"/>
+                          <w:numFmt w:val="decimal"/>
+                          <w:lvlText w:val="%1."/>
+                        </w:lvl>
+                      </w:abstractNum>
+                      <w:num w:numId="9"><w:abstractNumId w:val="7"/></w:num>
+                    </w:numbering>
+                    """);
+                AddEntry(archive, "word/header1.xml", """
+                    <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Header item</w:t></w:r></w:p>
+                    </w:hdr>
+                    """);
+                AddEntry(archive, "word/footer1.xml", """
+                    <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Footer item</w:t></w:r></w:p>
+                    </w:ftr>
+                    """);
+            });
+
+        DocxReadResult result = new DocxEditor().Read(stream, new DocxReadOptions { IncludeHeadersFooters = true });
+
+        DocxParagraphInfo header = Assert.Single(result.Paragraphs, paragraph => paragraph.Id == "H001.P0001");
+        DocxParagraphInfo footer = Assert.Single(result.Paragraphs, paragraph => paragraph.Id == "F001.P0001");
+        Assert.Equal("1.", header.List?.LabelText);
+        Assert.Equal("1.", footer.List?.LabelText);
+        Assert.Contains("H001.P0001 paragraph list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"1.\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("F001.P0001 paragraph list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"1.\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void FindCanSearchHeaderAndFooterStoriesWhenRequested()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxFindResult result = editor.Find(stream, "Confidential", new DocxFindOptions { IncludeHeadersFooters = true });
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Matches, match => match.StartsWith("H001.P0001", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ChangesListsTrackedMarkupWithoutRevisionText()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before</w:t></w:r>
+                      <w:ins w:id="9" w:author="Alice" w:date="2026-06-01T12:00:00Z">
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:ins>
+                      <w:del w:id="10" w:author="Bob" w:date="2026-06-02T12:00:00Z">
+                        <w:r><w:delText>Deleted</w:delText></w:r>
+                      </w:del>
+                      <w:r>
+                        <w:rPr>
+                          <w:rPrChange w:id="11" w:author="Carol" w:date="2026-06-03T12:00:00Z"/>
+                        </w:rPr>
+                        <w:t>After</w:t>
+                      </w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:tcPrChange w:id="12" w:author="Dan" w:date="2026-06-04T12:00:00Z"/></w:tcPr>
+                          <w:p><w:r><w:t>Cell</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:sectPr>
+                      <w:sectPrChange w:id="13" w:author="Eve" w:date="2026-06-05T12:00:00Z"/>
+                    </w:sectPr>
+                    <w:customXmlDelRangeStart w:id="14" w:author="Frank" w:date="2026-06-06T12:00:00Z"/>
+                    <w:customXmlDelRangeEnd w:id="14"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(7, result.Changes.Count);
+        Assert.Contains(result.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "deleted-run" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "run-properties-change" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "cell-properties-change" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "section-properties-change" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "custom-xml-delete-range-start" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "custom-xml-delete-range-end" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "story" && summary.Key == "main" && summary.Type == "inserted-run" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "part" && summary.Key == "/word/document.xml" && summary.Type == "deleted-run" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "author" && summary.Key == "Alice" && summary.Type == "inserted-run" && summary.Count == 1);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "run-properties-change" && summary.Count == 1);
+        DocxChangeTargetSummary paragraphSummary = Assert.Single(result.TargetSummary, summary => summary.TargetId == "M.P0001");
+        Assert.Contains(paragraphSummary.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
+
+        DocxChangeInfo insertion = Assert.Single(result.Changes, change => change.Type == "inserted-run");
+        Assert.Equal("M.CH0001", insertion.Id);
+        Assert.Equal("main", insertion.Story);
+        Assert.Equal("/word/document.xml", insertion.PartName);
+        Assert.Equal("paragraph", insertion.ParentType);
+        Assert.Equal("M.P0001", insertion.TargetId);
+        Assert.Equal("targeted", insertion.TargetStatus);
+        Assert.Equal("ancestor", insertion.TargetSource);
+        Assert.Null(insertion.TargetNote);
+        Assert.Equal("Alice", insertion.Author);
+        Assert.Equal("9", insertion.RevisionId);
+        Assert.Equal(8, insertion.TextLength);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-01T12:00:00Z").ToUniversalTime(), insertion.TimestampUtc);
+
+        DocxChangeInfo cellChange = Assert.Single(result.Changes, change => change.Type == "cell-properties-change");
+        Assert.Equal("cell-properties", cellChange.ParentType);
+        Assert.Equal("M.T0001.R01.C01", cellChange.TargetId);
+
+        DocxChangeInfo customRangeStart = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start");
+        DocxChangeInfo customRangeEnd = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end");
+        Assert.Equal("adjacent-range", customRangeStart.TargetSource);
+        Assert.Equal("range-boundary", customRangeStart.TargetReason);
+        Assert.Equal(customRangeEnd.Id, customRangeStart.PairedChangeId);
+        Assert.Equal(customRangeStart.Id, customRangeEnd.PairedChangeId);
+
+        string serialized = JsonSerializer.Serialize(result);
+        Assert.DoesNotContain("Inserted", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deleted", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesListsCommentMarkupWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment-range-start" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment-range-end" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment-reference" && summary.Count == 1);
+        Assert.Contains(result.Summary, summary => summary.Type == "comment" && summary.Count == 1);
+
+        DocxChangeInfo commentStart = Assert.Single(result.Changes, change => change.Type == "comment-range-start");
+        Assert.Equal("M.P0001", commentStart.TargetId);
+        Assert.Equal("ancestor", commentStart.TargetSource);
+        Assert.Null(commentStart.RevisionId);
+        Assert.Equal("3", commentStart.CommentId);
+        Assert.Equal("M.P0001", commentStart.CommentAnchorTargetId);
+        Assert.Equal("M.P0001", commentStart.CommentReferenceTargetId);
+        Assert.Equal("main", commentStart.CommentAnchorStory);
+        Assert.Equal("/word/document.xml", commentStart.CommentAnchorPartName);
+        Assert.Equal("Reviewer", commentStart.CommentAuthor);
+        Assert.Equal("RV", commentStart.CommentInitials);
+        Assert.Equal(DateTimeOffset.Parse("2026-06-07T12:00:00Z").ToUniversalTime(), commentStart.CommentTimestampUtc);
+
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal("comments[1]", comment.Story);
+        Assert.Equal("/word/comments.xml", comment.PartName);
+        Assert.Equal("C001.C0001", comment.TargetId);
+        Assert.Equal("M.P0001", comment.CommentAnchorTargetId);
+        Assert.Equal("M.P0001", comment.CommentReferenceTargetId);
+        Assert.Equal("main", comment.CommentAnchorStory);
+        Assert.Equal("/word/document.xml", comment.CommentAnchorPartName);
+        Assert.Equal(20, comment.TextLength);
+        Assert.Null(comment.CommentTextLength);
+        Assert.Null(comment.CommentTextSnippet);
+        DocxChangeInfo commentEnd = Assert.Single(result.Changes, change => change.Type == "comment-range-end");
+        Assert.Equal(commentEnd.Id, commentStart.PairedChangeId);
+        Assert.Equal(commentStart.Id, commentEnd.PairedChangeId);
+        Assert.Contains(result.GroupSummary, summary => summary.Group == "target" && summary.Key == "M.P0001" && summary.Type == "comment" && summary.Count == 1);
+        DocxCommentThreadSummary commentSummary = Assert.Single(result.CommentSummary);
+        Assert.Equal("3", commentSummary.CommentId);
+        Assert.Equal("M.P0001", commentSummary.AnchorTargetId);
+        Assert.Equal("M.P0001", commentSummary.ReferenceTargetId);
+        Assert.Equal("Reviewer", commentSummary.Author);
+        Assert.Null(commentSummary.TextLength);
+        Assert.Null(commentSummary.TextSnippet);
+        Assert.Contains(commentSummary.Summary, summary => summary.Type == "comment" && summary.Count == 1);
+
+        string serialized = JsonSerializer.Serialize(result);
+        Assert.DoesNotContain("Private comment text", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesCanIncludeBoundedCommentTextWhenExplicitlyRequested()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream, new DocxChangesOptions
+        {
+            IncludeCommentText = true,
+            MaxCommentText = 7
+        });
+
+        Assert.True(result.Success);
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal(20, comment.CommentTextLength);
+        Assert.Equal("Private", comment.CommentTextSnippet);
+        Assert.True(comment.CommentTextTruncated);
+
+        DocxChangeInfo commentStart = Assert.Single(result.Changes, change => change.Type == "comment-range-start");
+        Assert.Null(commentStart.CommentTextSnippet);
+
+        DocxCommentThreadSummary commentSummary = Assert.Single(result.CommentSummary);
+        Assert.Equal("RV", commentSummary.Initials);
+        Assert.Equal(20, commentSummary.TextLength);
+        Assert.Equal("Private", commentSummary.TextSnippet);
+        Assert.True(commentSummary.TextTruncated);
+
+        string rendered = DocxTextRenderer.RenderChanges(result);
+        Assert.Contains("comment-text-length=20", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-text=\"Private\"", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-text-truncated=true", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesExposeCommentResolutionMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00ABCDEF" w15:paraIdParent="00112233" w15:done="1"/>
+                </w15:commentsEx>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal("00ABCDEF", comment.CommentParaId);
+        Assert.Equal("00112233", comment.CommentParentParaId);
+        Assert.Equal("00112233", comment.CommentRootParaId);
+        Assert.True(comment.CommentIsReply);
+        Assert.True(comment.CommentResolved);
+        Assert.Null(comment.CommentTextSnippet);
+        DocxCommentThreadSummary summary = Assert.Single(result.CommentSummary);
+        Assert.Equal("00ABCDEF", summary.ParaId);
+        Assert.Equal("00112233", summary.ParentParaId);
+        Assert.Equal("00112233", summary.RootParaId);
+        Assert.True(summary.IsReply);
+        Assert.True(summary.Resolved);
+        string rendered = DocxTextRenderer.RenderChanges(result);
+        Assert.Contains("root-para-id=00112233", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-root-para-id=00112233", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-is-reply=true", rendered, StringComparison.Ordinal);
+        Assert.Contains("resolved=true", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-resolved=true", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesExposeCommentDurableIdsFromCommentsIds()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00ABCDEF" w15:done="0"/>
+                </w15:commentsEx>
+                """,
+            """
+                <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+                  <w16cid:commentId w16cid:paraId="00ABCDEF" w16cid:durableId="7F0A11BC"/>
+                </w16cid:commentsIds>
+                """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        DocxChangeInfo comment = Assert.Single(result.Changes, change => change.Type == "comment");
+        Assert.Equal("00ABCDEF", comment.CommentParaId);
+        Assert.Equal("7F0A11BC", comment.CommentDurableId);
+        Assert.Null(comment.CommentTextSnippet);
+        DocxCommentThreadSummary summary = Assert.Single(result.CommentSummary);
+        Assert.Equal("00ABCDEF", summary.ParaId);
+        Assert.Equal("7F0A11BC", summary.DurableId);
+        string rendered = DocxTextRenderer.RenderChanges(result);
+        Assert.Contains("durable-id=7F0A11BC", rendered, StringComparison.Ordinal);
+        Assert.Contains("comment-durable-id=7F0A11BC", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesClassifiesTargetlessRecords()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:del w:id="44" w:author="Reviewer">
+                      <w:r><w:delText>Body level deletion</w:delText></w:r>
+                    </w:del>
+                    <w:p><w:r><w:t>Nearby modeled paragraph</w:t></w:r></w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        DocxChangeInfo deletion = Assert.Single(result.Changes);
+        Assert.Equal("deleted-run", deletion.Type);
+        Assert.Null(deletion.TargetId);
+        Assert.Equal("targetless", deletion.TargetStatus);
+        Assert.Equal("none", deletion.TargetSource);
+        Assert.Equal("body-level-markup", deletion.TargetReason);
+        Assert.Equal("M.P0001", deletion.NearestTargetId);
+        Assert.Contains("direct child of the document body", deletion.TargetNote, StringComparison.Ordinal);
+        Assert.Contains("nearest-target=M.P0001", deletion.TargetNote, StringComparison.Ordinal);
+        Assert.Contains(result.TargetSummary, summary => summary.TargetId == "(none)" && summary.Count == 1);
+    }
+
+    [Fact]
+    public static void ReadModelsBookmarkAndContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Client </w:t></w:r>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        DocxBookmarkInfo bookmark = Assert.Single(result.Bookmarks);
+        Assert.Equal("M.B0001", bookmark.Id);
+        Assert.Equal("ClientName", bookmark.Name);
+        Assert.Equal("1", bookmark.OoxmlId);
+        Assert.Equal("main", bookmark.Story);
+        Assert.Equal("/word/document.xml", bookmark.PartName);
+        Assert.Equal("M.P0001", bookmark.StartTargetId);
+        Assert.Equal("M.P0001", bookmark.EndTargetId);
+        Assert.True(bookmark.IsComplete);
+
+        DocxContentControlInfo control = Assert.Single(result.ContentControls);
+        Assert.Equal("M.CC0001", control.Id);
+        Assert.Equal("plain-text", control.Kind);
+        Assert.Equal("77", control.OoxmlId);
+        Assert.Equal("client_name", control.Tag);
+        Assert.Equal("Client Name", control.Alias);
+        Assert.Equal("M.P0001", control.TargetId);
+        Assert.Equal(4, control.TextLength);
+
+        Assert.Contains("M.B0001 bookmark name=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("M.CC0001 content-control kind=plain-text", result.Text, StringComparison.Ordinal);
+        Assert.Contains("tag=\"client_name\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1005" && diagnostic.Fallback == "modeled-metadata");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1006" && diagnostic.Fallback == "modeled-metadata");
+    }
+
+    [Fact]
+    public static void ReadSurfacesDuplicateBookmarkAndContentControlSelectorMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Shared"/>
+                      <w:r><w:t>First</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Shared"/>
+                      <w:r><w:t>Second</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>One</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:tag w:val="shared_tag"/>
+                          <w:alias w:val="Shared Alias"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Two</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        foreach (DocxBookmarkInfo bookmark in result.Bookmarks)
+        {
+            Assert.True(bookmark.IsNameDuplicate);
+            Assert.Equal(new[] { "M.B0001", "M.B0002" }, bookmark.DuplicateNameBookmarkIds);
+        }
+
+        foreach (DocxContentControlInfo control in result.ContentControls)
+        {
+            Assert.True(control.IsTagDuplicate);
+            Assert.Equal(new[] { "M.CC0001", "M.CC0002" }, control.DuplicateTagControlIds);
+            Assert.True(control.IsAliasDuplicate);
+            Assert.Equal(new[] { "M.CC0001", "M.CC0002" }, control.DuplicateAliasControlIds);
+        }
+
+        Assert.Contains("name-duplicate=true duplicate-name-bookmark-ids=\"M.B0001,M.B0002\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("tag-duplicate=true duplicate-tag-control-ids=\"M.CC0001,M.CC0002\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("alias-duplicate=true duplicate-alias-control-ids=\"M.CC0001,M.CC0002\"", result.Text, StringComparison.Ordinal);
+
+        stream.Position = 0;
+        DocxOutlineResult outline = editor.Outline(stream);
+
+        Assert.True(outline.Success);
+        Assert.Contains(outline.Lines, line => line.Contains("duplicate-name-bookmark-ids=\"M.B0001,M.B0002\"", StringComparison.Ordinal));
+        Assert.Contains(outline.Lines, line => line.Contains("duplicate-tag-control-ids=\"M.CC0001,M.CC0002\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void ReadModelsAdvancedContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:checkBox>
+                            <w:checked w:val="1"/>
+                            <w:checkedState w:val="2612"/>
+                            <w:uncheckedState w:val="2610"/>
+                          </w:checkBox>
+                          <w:tag w:val="accepted"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Checked</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:dropDownList>
+                            <w:listItem w:displayText="North" w:value="north"/>
+                            <w:listItem w:displayText="South" w:value="south"/>
+                          </w:dropDownList>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:date>
+                            <w:dateFormat w:val="yyyy-MM-dd"/>
+                            <w:lid w:val="en-US"/>
+                            <w:calendar w:val="gregorian"/>
+                            <w:fullDate w:val="2026-06-12T00:00:00Z"/>
+                          </w:date>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>2026-06-12</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:repeatingSection w:sectionTitle="Line items"/>
+                          <w:placeholder><w:docPart w:val="DefaultPlaceholder"/></w:placeholder>
+                          <w:showingPlcHdr/>
+                          <w:dataBinding w:xpath="/root/item" w:storeItemID="{11111111-1111-1111-1111-111111111111}" w:prefixMappings="xmlns:ns='urn:test'"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:sdt>
+                            <w:sdtPr><w:repeatingSectionItem/></w:sdtPr>
+                            <w:sdtContent>
+                              <w:sdt>
+                                <w:sdtPr>
+                                  <w:text/>
+                                  <w:lock w:val="contentLocked"/>
+                                </w:sdtPr>
+                                <w:sdtContent><w:r><w:t>Nested</w:t></w:r></w:sdtContent>
+                              </w:sdt>
+                            </w:sdtContent>
+                          </w:sdt>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxContentControlInfo checkbox = result.ContentControls.Single(control => control.Kind == "checkbox");
+        Assert.True(checkbox.Checked);
+        Assert.Equal("2612", checkbox.CheckedSymbol);
+        Assert.Equal("2610", checkbox.UncheckedSymbol);
+        DocxContentControlInfo dropdown = result.ContentControls.Single(control => control.Kind == "dropdown-list");
+        Assert.Equal(2, dropdown.ListItems.Count);
+        Assert.Equal("North", dropdown.ListItems[0].DisplayText);
+        Assert.Equal("north", dropdown.ListItems[0].Value);
+        DocxContentControlInfo date = result.ContentControls.Single(control => control.Kind == "date");
+        Assert.Equal("yyyy-MM-dd", date.DateFormat);
+        Assert.Equal("en-US", date.DateLanguage);
+        Assert.Equal("gregorian", date.DateCalendar);
+        Assert.Equal("2026-06-12T00:00:00Z", date.DateValue);
+        DocxContentControlInfo repeating = result.ContentControls.Single(control => control.Kind == "repeating-section");
+        Assert.Equal("DefaultPlaceholder", repeating.PlaceholderDocPart);
+        Assert.True(repeating.IsShowingPlaceholderText);
+        Assert.Equal("/root/item", repeating.DataBindingXPath);
+        Assert.Equal("{11111111-1111-1111-1111-111111111111}", repeating.DataBindingStoreItemId);
+        Assert.Equal("xmlns:ns='urn:test'", repeating.DataBindingPrefixMappings);
+        Assert.Equal("Line items", repeating.RepeatingSectionTitle);
+        Assert.Equal(1, repeating.RepeatingSectionItemCount);
+        Assert.Null(repeating.ParentContentControlId);
+        Assert.Equal(new[] { "M.CC0005" }, repeating.ChildContentControlIds);
+        Assert.Equal("unsupported-repeating-section", repeating.SafeEditStatus);
+        DocxContentControlInfo nested = result.ContentControls.Single(control => control.Id == "M.CC0006");
+        Assert.Equal("M.CC0005", nested.ParentContentControlId);
+        Assert.Equal("locked", nested.SafeEditStatus);
+        Assert.Contains("kind=checkbox", result.Text, StringComparison.Ordinal);
+        Assert.Contains("checked=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("list-items=2", result.Text, StringComparison.Ordinal);
+        Assert.Contains("date-format=\"yyyy-MM-dd\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("date-value=\"2026-06-12T00:00:00Z\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("placeholder-doc-part=\"DefaultPlaceholder\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("data-binding-xpath=\"/root/item\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("repeating-section-items=1", result.Text, StringComparison.Ordinal);
+        Assert.Contains("parent-control=M.CC0005", result.Text, StringComparison.Ordinal);
+        Assert.Contains("safe-edit=locked", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadContentControlsExposeSafeEditReasonsForUnsupportedKinds()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:picture/>
+                          <w:alias w:val="Logo"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Image placeholder</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:group/>
+                          <w:tag w:val="review-group"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:sdt>
+                            <w:sdtPr><w:text/></w:sdtPr>
+                            <w:sdtContent><w:r><w:t>Editable child</w:t></w:r></w:sdtContent>
+                          </w:sdt>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+
+        DocxReadResult result = new DocxEditor().Read(stream);
+
+        DocxContentControlInfo picture = result.ContentControls.Single(control => control.Kind == "picture");
+        Assert.Equal("unsupported-picture", picture.SafeEditStatus);
+        Assert.Contains("picture controls", picture.SafeEditReason, StringComparison.Ordinal);
+        DocxContentControlInfo group = result.ContentControls.Single(control => control.Kind == "group");
+        Assert.Equal("unsupported-group", group.SafeEditStatus);
+        Assert.Contains("target an editable child content control", group.SafeEditReason, StringComparison.Ordinal);
+        Assert.Equal(new[] { "M.CC0003" }, group.ChildContentControlIds);
+        Assert.Contains("safe-edit-reason=\"picture controls preserve a picture container", result.Text, StringComparison.Ordinal);
+        Assert.Contains("safe-edit-reason=\"group controls protect a container", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithBookmarkAndContentControlMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>Client </w:t></w:r>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "ClientName" }, item.BookmarkNames);
+        Assert.Equal(new[] { "M.CC0001" }, item.ContentControlIds);
+        Assert.Equal(new[] { "client_name" }, item.ContentControlTags);
+        Assert.Equal(new[] { "Client Name" }, item.ContentControlAliases);
+        Assert.Contains("bookmark-names=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("content-controls=\"M.CC0001\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("content-control-tags=\"client_name\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadModelsSimpleAndComplexFieldMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:fldSimple w:instr=" DATE " w:dirty="true" w:fldLock="1">
+                        <w:r><w:t>June 12, 2026</w:t></w:r>
+                      </w:fldSimple>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>
+                      <w:r><w:instrText> REF  ClientName \h </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>Client result</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Fields.Count);
+        DocxFieldInfo simple = result.Fields[0];
+        Assert.Equal("M.F0001", simple.Id);
+        Assert.Equal("simple", simple.Kind);
+        Assert.Equal("DATE", simple.FieldType);
+        Assert.Equal("DATE", simple.Code);
+        Assert.Equal("M.P0001", simple.TargetId);
+        Assert.Equal("June 12, 2026", simple.CachedResultText);
+        Assert.Equal(13, simple.ResultTextLength);
+        Assert.Equal(0, simple.NestingDepth);
+        Assert.Empty(simple.Arguments);
+        Assert.Empty(simple.Switches);
+        Assert.Empty(simple.BookmarkDependencies);
+        Assert.Empty(simple.HyperlinkDependencies);
+        Assert.Equal("date-time", simple.RefreshPolicy);
+        Assert.False(simple.CanRefreshDeterministically);
+        Assert.Contains("date/time", simple.RefreshReason, StringComparison.Ordinal);
+        Assert.Equal("locked", simple.SafeEditStatus);
+        Assert.True(simple.IsDirty);
+        Assert.True(simple.IsLocked);
+        Assert.True(simple.IsComplete);
+
+        DocxFieldInfo complex = result.Fields[1];
+        Assert.Equal("M.F0002", complex.Id);
+        Assert.Equal("complex", complex.Kind);
+        Assert.Equal("REF", complex.FieldType);
+        Assert.Equal(@"REF ClientName \h", complex.Code);
+        Assert.Equal("M.P0002", complex.TargetId);
+        Assert.Equal("Client result", complex.CachedResultText);
+        Assert.Equal(13, complex.ResultTextLength);
+        Assert.Equal(0, complex.NestingDepth);
+        Assert.Equal(new[] { "ClientName" }, complex.Arguments);
+        Assert.Equal(new[] { "\\H" }, complex.Switches);
+        Assert.Equal(new[] { "ClientName" }, complex.BookmarkDependencies);
+        Assert.Empty(complex.HyperlinkDependencies);
+        Assert.Equal("same-part-bookmark", complex.RefreshPolicy);
+        Assert.True(complex.CanRefreshDeterministically);
+        Assert.Equal("flags-only", complex.SafeEditStatus);
+        Assert.True(complex.IsDirty);
+        Assert.Null(complex.IsLocked);
+        Assert.True(complex.IsComplete);
+
+        Assert.Contains("M.F0001 field kind=simple type=DATE", result.Text, StringComparison.Ordinal);
+        Assert.Contains("cached-result=\"June 12, 2026\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("safe-edit=locked", result.Text, StringComparison.Ordinal);
+        Assert.Contains(@"code=""REF ClientName \\h""", result.Text, StringComparison.Ordinal);
+        Assert.Contains("arguments=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("switches=\"\\\\H\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("refresh-policy=same-part-bookmark", result.Text, StringComparison.Ordinal);
+        Assert.Contains("bookmark-dependencies=\"ClientName\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1003" && diagnostic.Fallback == "modeled-metadata");
+    }
+
+    [Fact]
+    public static void ReadModelsNestedComplexFieldMetadataAndValidatesBalance()
+    {
+        const string nestedFieldBody = """
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> IF </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t xml:space="preserve">Prefix </w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> DATE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>June 13</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                      <w:r><w:t xml:space="preserve"> Suffix</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """;
+        var editor = new DocxEditor();
+
+        using MemoryStream readStream = CreateDocxWithBody(nestedFieldBody);
+        DocxReadResult read = editor.Read(readStream);
+
+        Assert.True(read.Success);
+        Assert.Equal(2, read.Fields.Count);
+        DocxFieldInfo inner = Assert.Single(read.Fields, field => field.Code == "DATE");
+        Assert.Equal("complex", inner.Kind);
+        Assert.Equal("DATE", inner.FieldType);
+        Assert.Equal("M.P0001", inner.TargetId);
+        Assert.Equal("June 13", inner.CachedResultText);
+        Assert.Equal(7, inner.ResultTextLength);
+        Assert.Equal(1, inner.NestingDepth);
+        Assert.True(inner.IsComplete);
+
+        DocxFieldInfo outer = Assert.Single(read.Fields, field => field.Code == "IF");
+        Assert.Equal("complex", outer.Kind);
+        Assert.Equal("IF", outer.FieldType);
+        Assert.Equal("M.P0001", outer.TargetId);
+        Assert.Equal("Prefix June 13 Suffix", outer.CachedResultText);
+        Assert.Equal(21, outer.ResultTextLength);
+        Assert.Equal(0, outer.NestingDepth);
+        Assert.True(outer.IsComplete);
+
+        using MemoryStream validateStream = CreateDocxWithBody(nestedFieldBody);
+        DocxValidateResult validate = editor.Validate(validateStream);
+
+        Assert.True(validate.Success);
+        Assert.DoesNotContain(validate.Diagnostics, diagnostic => diagnostic.Code is "E9104" or "E9112");
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithFieldMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> PAGE </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>1</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "M.F0001" }, item.FieldIds);
+        Assert.Equal(new[] { "PAGE" }, item.FieldCodes);
+        Assert.Equal(new[] { "complex" }, item.FieldKinds);
+        Assert.Equal(new[] { "PAGE" }, item.FieldTypes);
+        Assert.Contains("fields=\"M.F0001\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("field-codes=\"PAGE\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("field-kinds=\"complex\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("field-types=\"PAGE\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadModelsHyperlinkFieldDependencies()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                      <w:r><w:instrText> HYPERLINK "https://example.test/report" \l "Section1" </w:instrText></w:r>
+                      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                      <w:r><w:t>Report link</w:t></w:r>
+                      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxFieldInfo field = Assert.Single(result.Fields);
+        Assert.Equal("HYPERLINK", field.FieldType);
+        Assert.Equal(new[] { "Section1" }, field.BookmarkDependencies);
+        Assert.Equal(new[] { "https://example.test/report" }, field.HyperlinkDependencies);
+        Assert.Equal("flags-only", field.SafeEditStatus);
+        Assert.Contains("hyperlink-dependencies=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("bookmark-dependencies=\"Section1\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadModelsExternalInternalAndBrokenHyperlinks()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink" w:tooltip="Open example" w:tgtFrame="_blank" w:history="1">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Section1">
+                        <w:r><w:t>Internal</w:t></w:r>
+                      </w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rMissing">
+                        <w:r><w:t>Broken</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.Hyperlinks.Count);
+        DocxHyperlinkInfo external = result.Hyperlinks[0];
+        Assert.Equal("M.L0001", external.Id);
+        Assert.Equal("M.P0001", external.TargetId);
+        Assert.Equal("rLink", external.RelationshipId);
+        Assert.Equal("/word/_rels/document.xml.rels", external.RelationshipPartName);
+        Assert.Equal("External", external.RelationshipTargetMode);
+        Assert.Equal("https://example.test/report", external.Uri);
+        Assert.Equal("https", external.UriScheme);
+        Assert.True(external.IsUriValid);
+        Assert.Null(external.UriValidationReason);
+        Assert.True(external.IsExternal);
+        Assert.False(external.IsBroken);
+        Assert.Equal("Open example", external.Tooltip);
+        Assert.Equal("_blank", external.TargetFrame);
+        Assert.True(external.History);
+        Assert.Equal(8, external.DisplayTextLength);
+
+        DocxHyperlinkInfo internalLink = result.Hyperlinks[1];
+        Assert.Equal("Section1", internalLink.Anchor);
+        Assert.True(internalLink.IsAnchorMissing);
+        Assert.False(internalLink.IsAnchorDuplicate);
+        Assert.False(internalLink.IsExternal);
+        Assert.False(internalLink.IsBroken);
+        Assert.Null(internalLink.RelationshipPartName);
+        Assert.Null(internalLink.RelationshipTargetMode);
+
+        DocxHyperlinkInfo broken = result.Hyperlinks[2];
+        Assert.Equal("rMissing", broken.RelationshipId);
+        Assert.Equal("/word/_rels/document.xml.rels", broken.RelationshipPartName);
+        Assert.Null(broken.RelationshipTargetMode);
+        Assert.True(broken.IsBroken);
+        Assert.Null(broken.Uri);
+
+        Assert.Contains("M.L0001 hyperlink", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("relationship-part=/word/_rels/document.xml.rels", result.Text, StringComparison.Ordinal);
+        Assert.Contains("target-mode=External", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-scheme=https", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-valid=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("target-frame=\"_blank\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("history=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor=\"Section1\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("broken=True", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1002" && diagnostic.Fallback == "modeled-metadata");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1015" && diagnostic.Fallback == "broken-relationship");
+    }
+
+    [Fact]
+    public static void ReadValidatesHyperlinkDestinations()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Known"/>
+                      <w:r><w:t>Anchor</w:t></w:r>
+                      <w:bookmarkEnd w:id="1"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="Dup"/>
+                      <w:r><w:t>First duplicate</w:t></w:r>
+                      <w:bookmarkEnd w:id="2"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="3" w:name="Dup"/>
+                      <w:r><w:t>Second duplicate</w:t></w:r>
+                      <w:bookmarkEnd w:id="3"/>
+                    </w:p>
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rUnsafe"><w:r><w:t>Unsafe</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rRelative"><w:r><w:t>Relative</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rMalformed"><w:r><w:t>Malformed</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rFile"><w:r><w:t>File</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rMailto"><w:r><w:t>Mail</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink r:id="rPart"><w:r><w:t>Part</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Missing"><w:r><w:t>Missing</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Known"><w:r><w:t>Known</w:t></w:r></w:hyperlink>
+                      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+                      <w:hyperlink w:anchor="Dup"><w:r><w:t>Duplicate</w:t></w:r></w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+                  <Relationship Id="rRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../relative/report" TargetMode="External"/>
+                  <Relationship Id="rMalformed" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="http://[::1" TargetMode="External"/>
+                  <Relationship Id="rFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///C:/secret/report.docx" TargetMode="External"/>
+                  <Relationship Id="rMailto" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="mailto:reviewer@example.test" TargetMode="External"/>
+                  <Relationship Id="rPart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="document.xml"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        DocxHyperlinkInfo unsafeLink = result.Hyperlinks.Single(link => link.RelationshipId == "rUnsafe");
+        Assert.Equal("javascript", unsafeLink.UriScheme);
+        Assert.False(unsafeLink.IsUriValid);
+        Assert.Equal("unsupported-uri-scheme", unsafeLink.UriValidationReason);
+
+        DocxHyperlinkInfo relativeLink = result.Hyperlinks.Single(link => link.RelationshipId == "rRelative");
+        Assert.Null(relativeLink.UriScheme);
+        Assert.False(relativeLink.IsUriValid);
+        Assert.Equal("relative-uri", relativeLink.UriValidationReason);
+
+        DocxHyperlinkInfo malformedLink = result.Hyperlinks.Single(link => link.RelationshipId == "rMalformed");
+        Assert.Null(malformedLink.UriScheme);
+        Assert.False(malformedLink.IsUriValid);
+        Assert.Equal("malformed-uri", malformedLink.UriValidationReason);
+
+        DocxHyperlinkInfo fileLink = result.Hyperlinks.Single(link => link.RelationshipId == "rFile");
+        Assert.Equal("file", fileLink.UriScheme);
+        Assert.False(fileLink.IsUriValid);
+        Assert.Equal("unsupported-uri-scheme", fileLink.UriValidationReason);
+
+        DocxHyperlinkInfo mailtoLink = result.Hyperlinks.Single(link => link.RelationshipId == "rMailto");
+        Assert.Equal("mailto", mailtoLink.UriScheme);
+        Assert.True(mailtoLink.IsUriValid);
+        Assert.Null(mailtoLink.UriValidationReason);
+
+        DocxHyperlinkInfo partLink = result.Hyperlinks.Single(link => link.RelationshipId == "rPart");
+        Assert.False(partLink.IsExternal);
+        Assert.Equal("/word/document.xml", partLink.TargetPartName);
+        Assert.Null(partLink.UriValidationReason);
+
+        DocxHyperlinkInfo missing = result.Hyperlinks.Single(link => link.Anchor == "Missing");
+        Assert.True(missing.IsAnchorMissing);
+        Assert.False(missing.IsAnchorDuplicate);
+
+        DocxHyperlinkInfo known = result.Hyperlinks.Single(link => link.Anchor == "Known");
+        Assert.False(known.IsAnchorMissing);
+        Assert.False(known.IsAnchorDuplicate);
+
+        DocxHyperlinkInfo duplicate = result.Hyperlinks.Single(link => link.Anchor == "Dup");
+        Assert.False(duplicate.IsAnchorMissing);
+        Assert.True(duplicate.IsAnchorDuplicate);
+
+        Assert.Contains("uri-valid=false", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=unsupported-uri-scheme", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=relative-uri", result.Text, StringComparison.Ordinal);
+        Assert.Contains("uri-reason=malformed-uri", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-missing=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-duplicate=true", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1016" && diagnostic.Fallback == "invalid-uri");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1017" && diagnostic.Fallback == "missing-anchor");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1018" && diagnostic.Fallback == "duplicate-anchor");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1023" && diagnostic.Fallback == "unsupported-internal-part-link");
+    }
+
+    [Fact]
+    public static void DumpRunsAnnotatesHyperlinkMarkup()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P0001", new DocxDumpOptions { IncludeRuns = true });
+
+        Assert.True(result.Success);
+        DocxDumpRunInfo run = Assert.Single(result.Runs);
+        Assert.Equal("hyperlink", run.MarkupType);
+        Assert.Equal("rLink", run.HyperlinkRelationshipId);
+        Assert.Contains("markup=hyperlink", result.Text, StringComparison.Ordinal);
+        Assert.Contains("hyperlink-relationship-id=rLink", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithHyperlinkMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "M.L0001" }, item.HyperlinkIds);
+        Assert.Equal(new[] { "https://example.test/report" }, item.HyperlinkTargets);
+        Assert.Contains("hyperlinks=\"M.L0001\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("hyperlink-targets=\"https://example.test/report\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpRunsAnnotateTrackedChangeAndCommentMarkup()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:ins w:id="7" w:author="Alice" w:date="2026-06-01T12:00:00Z">
+                        <w:r><w:t>Inserted</w:t></w:r>
+                      </w:ins>
+                      <w:del w:id="8" w:author="Bob" w:date="2026-06-02T12:00:00Z">
+                        <w:r><w:delText>Deleted</w:delText></w:r>
+                      </w:del>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P0001", new DocxDumpOptions
+        {
+            IncludeRuns = true,
+            TextView = DocxTextView.Markup
+        });
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Text);
+        Assert.Contains("markup=inserted-run revision-id=7 author=\"Alice\" timestamp-utc=2026-06-01T12:00:00.0000000+00:00", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=deleted-run revision-id=8 author=\"Bob\" timestamp-utc=2026-06-02T12:00:00.0000000+00:00", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=comment-range-start comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=comment-range-end comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.Contains("markup=comment-reference comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+        Assert.Contains(result.Runs, run => run.MarkupType == "inserted-run" && run.RevisionId == "7" && run.Author == "Alice");
+        Assert.Contains(result.Runs, run => run.MarkupType == "deleted-run" && run.RevisionId == "8" && run.Author == "Bob");
+        Assert.Contains(result.Runs, run => run.MarkupType == "comment-reference" && run.CommentId == "3");
+    }
+
+    [Fact]
+    public static void DumpCanTargetCommentBodyWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "C001.C0001");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Text);
+        Assert.Contains("comment-id=3", result.Text, StringComparison.Ordinal);
+        Assert.Contains("anchor-target=M.P0001", result.Text, StringComparison.Ordinal);
+        Assert.Contains("reference-target=M.P0001", result.Text, StringComparison.Ordinal);
+        Assert.Contains("text-length=20", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextAnnotatesTargetsWithCommentMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "3" }, item.CommentIds);
+        Assert.Equal(new[] { "C001.C0001" }, item.CommentBodyIds);
+        Assert.Contains("comments=\"3\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("comment-bodies=\"C001.C0001\"", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextAnnotatesCommentThreadMetadataWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p w15:paraId="00PARENT"><w:r><w:t>Private parent text</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="4" w:author="Second Reviewer">
+                    <w:p w15:paraId="00REPLY1"><w:r><w:t>Private reply text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """,
+            """
+                <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                  <w15:commentEx w15:paraId="00PARENT" w15:done="1"/>
+                  <w15:commentEx w15:paraId="00REPLY1" w15:paraIdParent="00PARENT" w15:done="0"/>
+                </w15:commentsEx>
+                """,
+            """
+                <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+                  <w16cid:commentId w16cid:paraId="00PARENT" w16cid:durableId="DURABLEP"/>
+                  <w16cid:commentId w16cid:paraId="00REPLY1" w16cid:durableId="DURABLER"/>
+                </w16cid:commentsIds>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P0001");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal(new[] { "3", "4" }, item.CommentIds);
+        Assert.Equal(new[] { "C001.C0001", "C001.C0002" }, item.CommentBodyIds);
+        Assert.Equal(new[] { "00PARENT", "00REPLY1" }, item.CommentParaIds);
+        Assert.Equal(new[] { "00PARENT" }, item.CommentParentParaIds);
+        Assert.Equal(new[] { "00PARENT" }, item.CommentRootParaIds);
+        Assert.Equal(new[] { "DURABLEP", "DURABLER" }, item.CommentDurableIds);
+        Assert.Equal(new[] { "4" }, item.CommentReplyIds);
+        Assert.Equal(new[] { "3" }, item.CommentResolvedIds);
+        Assert.Contains("comment-reply-ids=\"4\"", result.Text, StringComparison.Ordinal);
+        Assert.Contains("comment-durable-ids=\"DURABLEP,DURABLER\"", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private parent text", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private reply text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextCanTargetCommentBodyWithoutCommentText()
+    {
+        using MemoryStream stream = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>Private comment text</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "comment:3");
+
+        Assert.True(result.Success);
+        DocxContextItem item = Assert.Single(result.Items);
+        Assert.Equal("C001.C0001", item.Id);
+        Assert.Equal("comment", item.Kind);
+        Assert.Equal("M.P0001", item.ParentId);
+        Assert.Equal(new[] { "3" }, item.CommentIds);
+        Assert.Equal(new[] { "C001.C0001" }, item.CommentBodyIds);
+        Assert.DoesNotContain("Private comment text", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DocxChangeInfoUsesPropertyBasedPublicShape()
+    {
+        Assert.Contains(typeof(DocxChangeInfo).GetConstructors(), constructor => constructor.GetParameters().Length == 0);
+        Assert.DoesNotContain(typeof(DocxChangeInfo).GetConstructors(), constructor => constructor.GetParameters().Length > 0);
+
+        var change = new DocxChangeInfo
+        {
+            Id = "M.CH0001",
+            Type = "inserted-run",
+            Story = "main",
+            PartName = "/word/document.xml",
+            ParentType = "paragraph",
+            TextLength = 8,
+            ChildElementCount = 1
+        };
+
+        string serialized = JsonSerializer.Serialize(change);
+        Assert.Contains("\"Id\":\"M.CH0001\"", serialized, StringComparison.Ordinal);
+        Assert.Contains("\"Type\":\"inserted-run\"", serialized, StringComparison.Ordinal);
+        Assert.Contains("\"ParentType\":\"paragraph\"", serialized, StringComparison.Ordinal);
+        Assert.Contains("\"TextLength\":8", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ChangesLinksBodyLevelRangeMarkersToAdjacentTargets()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:moveFromRangeStart w:id="4" w:author="Alice"/>
+                    <w:p><w:r><w:t>Moved paragraph</w:t></w:r></w:p>
+                    <w:moveFromRangeEnd w:id="4"/>
+                    <w:customXmlDelRangeStart w:id="5" w:author="Bob"/>
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+                    <w:customXmlDelRangeEnd w:id="5"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxChangesResult result = editor.Changes(stream);
+
+        Assert.True(result.Success);
+        DocxChangeInfo moveStart = Assert.Single(result.Changes, change => change.Type == "move-from-range-start");
+        DocxChangeInfo moveEnd = Assert.Single(result.Changes, change => change.Type == "move-from-range-end");
+        DocxChangeInfo customStart = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start");
+        DocxChangeInfo customEnd = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end");
+
+        Assert.Equal("M.P0001", moveStart.TargetId);
+        Assert.Equal("M.P0001", moveEnd.TargetId);
+        Assert.Equal("M.T0001", customStart.TargetId);
+        Assert.Equal("M.T0001", customEnd.TargetId);
+        Assert.Equal("adjacent-range", moveStart.TargetSource);
+        Assert.Equal("adjacent-range", moveEnd.TargetSource);
+        Assert.Equal(moveEnd.Id, moveStart.PairedChangeId);
+        Assert.Equal(moveStart.Id, moveEnd.PairedChangeId);
+        Assert.Equal(customEnd.Id, customStart.PairedChangeId);
+        Assert.Equal(customStart.Id, customEnd.PairedChangeId);
+    }
+
+    [Fact]
+    public static void ReadCanSwitchTrackedChangeTextViews()
+    {
+        using MemoryStream finalStream = CreateDocxWithBody(TrackedChangeBodyXml);
+        using MemoryStream originalStream = CreateDocxWithBody(TrackedChangeBodyXml);
+        using MemoryStream markupStream = CreateDocxWithBody(TrackedChangeBodyXml);
+        var editor = new DocxEditor();
+
+        DocxReadResult final = editor.Read(finalStream);
+        DocxReadResult original = editor.Read(originalStream, new DocxReadOptions { TextView = DocxTextView.Original });
+        DocxReadResult markup = editor.Read(markupStream, new DocxReadOptions { TextView = DocxTextView.Markup });
+
+        Assert.Equal("Before Inserted After", Assert.Single(final.Paragraphs).Text);
+        Assert.Equal("Before Deleted After", Assert.Single(original.Paragraphs).Text);
+        Assert.Contains("[+Inserted +]", Assert.Single(markup.Paragraphs).Text, StringComparison.Ordinal);
+        Assert.Contains("[-Deleted -]", Assert.Single(markup.Paragraphs).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadWarnsWhenTrackedChangeMarkupIsOnlyPartiallyModeled()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:ins w:id="1" w:author="A">
+                        <w:r><w:t>PrivateInserted</w:t></w:r>
+                      </w:ins>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1001" && diagnostic.Feature == "tracked-changes");
+        string serializedDiagnostics = JsonSerializer.Serialize(result.Diagnostics);
+        Assert.DoesNotContain("PrivateInserted", serializedDiagnostics, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ReadFindAndDumpReportUnsupportedFeatureDiagnosticsConsistently()
+    {
+        using MemoryStream readStream = CreateDocxWithBody("""
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Revenue</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+                    </w:p>
+            """);
+        using MemoryStream findStream = CreateDocxWithBody("""
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Revenue</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+                    </w:p>
+            """);
+        using MemoryStream dumpStream = CreateDocxWithBody("""
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Revenue</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult read = editor.Read(readStream);
+        DocxFindResult find = editor.Find(findStream, "Revenue");
+        DocxDumpResult dump = editor.Dump(dumpStream, "M.P0001");
+
+        AssertUnsupportedFeatureDiagnostics(read.Diagnostics);
+        AssertUnsupportedFeatureDiagnostics(find.Diagnostics);
+        AssertUnsupportedFeatureDiagnostics(dump.Diagnostics);
+    }
+
+    [Fact]
+    public static void MediaWarnsAboutFloatingAndExternalImages()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor>
+                            <a:graphic>
+                              <a:graphicData>
+                                <a:blip r:embed="rExternalImage"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rExternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/image.png" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxMediaResult result = editor.Media(stream);
+
+        Assert.True(result.Success);
+        Assert.Empty(result.Images);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1007" && diagnostic.Feature == "floating-image");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1008" && diagnostic.Feature == "external-image");
+    }
+
+    [Fact]
+    public static void ReadWarnsAboutUnsupportedPreservedObjects()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                      <w:r>
+                        <w:drawing>
+                          <c:chart r:id="rChart"/>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:altChunk xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rAltChunk"/>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1009" && diagnostic.Feature == "chart");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1013" && diagnostic.Feature == "alt-chunk");
+    }
+
+    [Fact]
+    public static void ReadWarnsAboutUnsupportedDrawingShapes()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                        xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+                        xmlns:v="urn:schemas-microsoft-com:vml"
+                        xmlns:o="urn:schemas-microsoft-com:office:office">
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <a:graphic>
+                              <a:graphicData>
+                                <a:blip r:link="rLinkedImage"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <a:graphic>
+                              <a:graphicData>
+                                <wpg:wgp/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                      <w:r><w:pict><v:shape id="v1"/></w:pict></w:r>
+                      <w:r><w:object><o:OLEObject Type="Embed"/></w:object></w:r>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/linked.png" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1008" && diagnostic.Feature == "external-image");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1019" && diagnostic.Feature == "linked-image");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1020" && diagnostic.Feature == "vml");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1021" && diagnostic.Feature == "grouped-drawing");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "W1022" && diagnostic.Feature == "ole-object");
+    }
+
+    [Fact]
+    public static void ReadWarnsAboutComplexSectionFlow()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:sectPr>
+                          <w:cols w:num="2"/>
+                        </w:sectPr>
+                      </w:pPr>
+                      <w:r><w:t>First section</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Second section</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "W1014" &&
+            diagnostic.Feature == "section-flow" &&
+            diagnostic.PartName == "/word/document.xml" &&
+            diagnostic.Story == "main");
+    }
+
+    [Fact]
+    public static void ReadUnsupportedFeatureDiagnosticsCarryStableMetadata()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p
+                        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                        xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                        xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                      <w:bookmarkStart w:id="1" w:name="Bookmark"/>
+                      <w:hyperlink r:id="rHyperlink"><w:r><w:t>Link</w:t></w:r></w:hyperlink>
+                      <w:fldSimple w:instr="DATE"><w:r><w:t>Date</w:t></w:r></w:fldSimple>
+                      <w:commentRangeStart w:id="1"/>
+                      <w:sdt><w:sdtContent><w:r><w:t>Control</w:t></w:r></w:sdtContent></w:sdt>
+                      <w:ins w:id="2" w:author="A"><w:r><w:t>Revision</w:t></w:r></w:ins>
+                      <w:r>
+                        <w:drawing>
+                          <wp:anchor>
+                            <a:graphic>
+                              <a:graphicData>
+                                <c:chart r:id="rChart"/>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:anchor>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:altChunk xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rAltChunk"/>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rExternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/image.png" TargetMode="External"/>
+                </Relationships>
+                """);
+        var editor = new DocxEditor();
+
+        DocxReadResult result = editor.Read(stream);
+
+        DocxDiagnostic[] warnings = result.Diagnostics
+            .Where(diagnostic => diagnostic.Code.StartsWith("W10", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(warnings);
+        Assert.All(warnings, diagnostic =>
+        {
+            Assert.Equal(DocxSeverity.Warning, diagnostic.Severity);
+            Assert.Matches("^W10[0-9]{2}$", diagnostic.Code);
+            Assert.Equal("/word/document.xml", diagnostic.PartName);
+            Assert.Equal("main", diagnostic.Story);
+            Assert.False(string.IsNullOrWhiteSpace(diagnostic.Feature));
+            Assert.False(string.IsNullOrWhiteSpace(diagnostic.Fallback));
+        });
+        Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1001" && diagnostic.Fallback == "selected-text-view");
+        Assert.Contains(warnings, diagnostic => diagnostic.Code == "W1008" && diagnostic.Fallback == "omit-from-editable-images");
+    }
+
+    private const string TrackedChangeBodyXml = """
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:ins w:id="1" w:author="Alice">
+                        <w:r><w:t>Inserted </w:t></w:r>
+                      </w:ins>
+                      <w:del w:id="2" w:author="Bob">
+                        <w:r><w:delText>Deleted </w:delText></w:r>
+                      </w:del>
+                      <w:r><w:t>After</w:t></w:r>
+                    </w:p>
+            """;
+
+    private static MemoryStream CreateDocx()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                  <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Executive Summary</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:t>Revenue</w:t></w:r>
+                      <w:r><w:t xml:space="preserve"> increased</w:t></w:r>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="Revenue chart" title="Chart title"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rImage"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+                    <w:sectPr>
+                      <w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>
+                      <w:cols w:num="2"/>
+                    </w:sectPr>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/styles.xml", """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="Normal" w:default="1">
+                    <w:name w:val="Normal"/>
+                  </w:style>
+                  <w:style w:type="character" w:styleId="Emphasis">
+                    <w:name w:val="Emphasis"/>
+                  </w:style>
+                  <w:style w:type="table" w:styleId="TableGrid">
+                    <w:name w:val="Table Grid"/>
+                  </w:style>
+                  <w:style w:type="numbering" w:styleId="ListNumber">
+                    <w:name w:val="List Number"/>
+                  </w:style>
+                </w:styles>
+                """);
+            AddEntry(archive, "word/header1.xml", """
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Confidential</w:t></w:r></w:p>
+                </w:hdr>
+                """);
+            AddEntry(archive, "word/footer1.xml", """
+                <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>Page 1</w:t></w:r></w:p>
+                </w:ftr>
+                """);
+            AddEntry(archive, "word/media/image1.png", "fake-png");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithBody(
+        string bodyXml,
+        string? documentRelationshipsXml = null,
+        Action<ZipArchive>? extra = null)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", documentRelationshipsXml ?? """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            extra?.Invoke(archive);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateValidationFixture(string fixtureName)
+    {
+        return fixtureName switch
+        {
+            "basic-document" => CreateDocx(),
+            "unclosed-bookmark" => CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Unclosed"/>
+                      <w:r><w:t>Text</w:t></w:r>
+                    </w:p>
+                """),
+            "invalid-relationship-root" => CreateDocxWithBody(
+                """
+                    <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                """,
+                extra: archive => AddEntry(archive, "word/_rels/header1.xml.rels", """
+                    <BrokenRelationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+                    """)),
+            "missing-style-definition" => CreateDocxWithStylesAndNumbering(
+                """
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="MissingStyle"/></w:pPr>
+                      <w:r><w:t>Styled text</w:t></w:r>
+                    </w:p>
+                """,
+                """
+                    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:style w:type="paragraph" w:styleId="KnownStyle"/>
+                    </w:styles>
+                    """,
+                """
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+                    """),
+            _ => throw new ArgumentOutOfRangeException(nameof(fixtureName), fixtureName, "Unknown validation fixture.")
+        };
+    }
+
+    private static MemoryStream CreateDocxWithImageRelationshipIssues()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="txt" ContentType="text/plain"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/image.png" TargetMode="External"/>
+                  <Relationship Id="rTextPart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/not-image.txt"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <w:body>
+                    <w:p>
+                      <w:r><w:drawing><a:blip r:embed="rWrongType"/></w:drawing></w:r>
+                      <w:r><w:drawing><a:blip r:embed="rTextPart"/></w:drawing></w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/media/not-image.txt", "not image data");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithImageBody(string bodyXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/media/image1.png", "fake-png");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithStylesAndNumbering(
+        string bodyXml,
+        string stylesXml,
+        string numberingXml)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(archive, "[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+                </Types>
+                """);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+                </Relationships>
+                """);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/styles.xml", stylesXml);
+            AddEntry(archive, "word/numbering.xml", numberingXml);
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static void AssertUnsupportedFeatureDiagnostics(IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1001" && diagnostic.Feature == "tracked-changes");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1002" && diagnostic.Feature == "hyperlink");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1003" && diagnostic.Feature == "field");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "W1004" && diagnostic.Feature == "comment");
+    }
+
+    private static MemoryStream CreateDocxWithBodyAndComments(
+        string bodyXml,
+        string commentsXml,
+        string? commentsExtendedXml = null,
+        string? commentsIdsXml = null)
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            string commentsExtendedOverride = commentsExtendedXml is null
+                ? string.Empty
+                : "                  <Override PartName=\"/word/commentsExtended.xml\" ContentType=\"application/vnd.ms-word.commentsExtended+xml\"/>\n";
+            string commentsIdsOverride = commentsIdsXml is null
+                ? string.Empty
+                : "                  <Override PartName=\"/word/commentsIds.xml\" ContentType=\"application/vnd.ms-word.commentsIds+xml\"/>\n";
+            string contentTypesXml = """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+                """ + commentsExtendedOverride + commentsIdsOverride + """
+                </Types>
+                """;
+            AddEntry(archive, "[Content_Types].xml", contentTypesXml);
+            AddEntry(archive, "_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            string commentsExtendedRelationship = commentsExtendedXml is null
+                ? string.Empty
+                : "                  <Relationship Id=\"rCommentsExtended\" Type=\"http://schemas.microsoft.com/office/2011/relationships/commentsExtended\" Target=\"commentsExtended.xml\"/>\n";
+            string commentsIdsRelationship = commentsIdsXml is null
+                ? string.Empty
+                : "                  <Relationship Id=\"rCommentsIds\" Type=\"http://schemas.microsoft.com/office/2016/09/relationships/commentsIds\" Target=\"commentsIds.xml\"/>\n";
+            string relationshipsXml = """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+                """ + commentsExtendedRelationship + commentsIdsRelationship + """
+                </Relationships>
+                """;
+            AddEntry(archive, "word/_rels/document.xml.rels", relationshipsXml);
+            AddEntry(archive, "word/document.xml", """
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:body>
+
+                """ + bodyXml + """
+
+                  </w:body>
+                </w:document>
+                """);
+            AddEntry(archive, "word/comments.xml", commentsXml);
+            if (commentsExtendedXml is not null)
+            {
+                AddEntry(archive, "word/commentsExtended.xml", commentsExtendedXml);
+            }
+
+            if (commentsIdsXml is not null)
+            {
+                AddEntry(archive, "word/commentsIds.xml", commentsIdsXml);
+            }
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static void AddEntry(ZipArchive archive, string name, string text)
+    {
+        ZipArchiveEntry entry = archive.CreateEntry(name);
+        using Stream stream = entry.Open();
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        stream.Write(bytes, 0, bytes.Length);
+    }
+}

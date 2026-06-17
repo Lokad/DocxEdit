@@ -1,0 +1,36 @@
+{
+  "id": "tracked-hyperlink-text",
+  "description": "Applies a tracked hyperlink display text replacement.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"1\" w:name=\"Destination\"/>",
+      "      <w:bookmarkEnd w:id=\"1\"/>",
+      "      <w:hyperlink w:anchor=\"Destination\"><w:r><w:t>Old Link</w:t></w:r></w:hyperlink>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-hyperlink-text",
+    "target M.L0001",
+    "text New Link",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New Link"
+    ],
+    "changeSummary": {
+      "deleted-run": 1,
+      "inserted-run": 1
+    }
+  }
+}

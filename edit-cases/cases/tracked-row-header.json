@@ -1,0 +1,35 @@
+{
+  "id": "tracked-row-header",
+  "description": "Applies a tracked table row header property revision.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-row-header",
+    "target M.T0001.R01",
+    "header true",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "Header",
+      "Body"
+    ],
+    "changeSummary": {
+      "row-properties-change": 1
+    }
+  }
+}

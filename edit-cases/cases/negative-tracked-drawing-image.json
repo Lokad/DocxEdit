@@ -1,0 +1,36 @@
+{
+  "id": "negative-tracked-drawing-image",
+  "description": "Rejects require-mode generated revision markup for image insertion.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Chart anchor</w:t></w:r></w:p>"
+    ]
+  },
+  "assets": {
+    "chart.png": "public-chart-bytes"
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-image-after",
+    "target M.P0001",
+    "asset {{asset:chart.png}}",
+    "alt Inserted chart",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6001"
+    ],
+    "diagnosticMessagesContain": [
+      "does not generate new revision markup"
+    ]
+  }
+}

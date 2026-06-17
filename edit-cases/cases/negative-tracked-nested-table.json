@@ -1,0 +1,41 @@
+{
+  "id": "negative-tracked-nested-table",
+  "description": "Rejects tracked row structure edits on tables containing nested tables.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:p><w:r><w:t>Outer</w:t></w:r></w:p>",
+      "          <w:tbl>",
+      "            <w:tr><w:tc><w:p><w:r><w:t>Inner</w:t></w:r></w:p></w:tc></w:tr>",
+      "          </w:tbl>",
+      "        </w:tc>",
+      "      </w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op append-row",
+    "target M.T0001",
+    "cell Added",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "tracked row operations do not support nested tables"
+    ]
+  }
+}
