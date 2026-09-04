@@ -12,3 +12,4 @@
 - Added initial documentation for CLI usage, patch syntax, diagnostics, validation, and architecture.
 - Changed `DocxSectionInfo.Orientation` from `string` to the `DocxOrientation` enum (`Portrait`/`Landscape`); text, JSON, and patch wire values stay lowercase strings.
 - Changed change-target annotation (`TargetStatus`/`TargetSource`/`TargetReason`) and field `RefreshPolicy` from `string` to enums (`DocxTargetStatus`, `DocxTargetSource`, `DocxTargetReason`, `DocxRefreshPolicy`); text and JSON wire values stay lowercase strings.
+- Documented the full public API surface (missing-docs warning enforced by the build) and cataloged every diagnostic code in `docs/diagnostics.md`.

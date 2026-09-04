@@ -2,48 +2,115 @@ using System.Text;
 
 namespace Lokad.DocxEdit;
 
+/// <summary>
+/// Machine-readable command surface: commands, examples, and patch operations.
+/// </summary>
 public sealed record DocxCommandCatalog
 {
+    /// <summary>Invoked tool name.</summary>
     public string ToolName { get; init; } = "docxedit";
+
+    /// <summary>One-line tool summary.</summary>
     public string Summary { get; init; } = "read and patch .docx documents";
+
+    /// <summary>Inspect commands (read, find, check, apply, …).</summary>
     public IReadOnlyList<DocxCommandInfo> Commands { get; init; } = [];
+
+    /// <summary>End-to-end example invocations.</summary>
     public IReadOnlyList<string> Examples { get; init; } = [];
+
+    /// <summary>Patch operations with fields and track-change support.</summary>
     public IReadOnlyList<DocxPatchOperationInfo> PatchOperations { get; init; } = [];
 }
 
+/// <summary>
+/// One inspect/check/apply command: usage, options, outputs, and privacy notes.
+/// </summary>
 public sealed record DocxCommandInfo
 {
+    /// <summary>Command name (for example <c>dump</c>).</summary>
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>Command group (inspect, validate, or edit).</summary>
     public string Category { get; init; } = string.Empty;
+
+    /// <summary>One-line command summary.</summary>
     public string Summary { get; init; } = string.Empty;
+
+    /// <summary>Canonical usage line.</summary>
     public string Usage { get; init; } = string.Empty;
+
+    /// <summary>Longer command description.</summary>
     public string Description { get; init; } = string.Empty;
+
+    /// <summary>Accepted flags and values.</summary>
     public IReadOnlyList<DocxOptionInfo> Options { get; init; } = [];
+
+    /// <summary>Output fields callers can rely on.</summary>
     public IReadOnlyList<DocxOutputFieldInfo> OutputFields { get; init; } = [];
+
+    /// <summary>Privacy handling notes for this command.</summary>
     public IReadOnlyList<string> PrivacyNotes { get; init; } = [];
+
+    /// <summary>Long-form help sections.</summary>
     public IReadOnlyList<DocxHelpSection> Notes { get; init; } = [];
+
+    /// <summary>Example invocations.</summary>
     public IReadOnlyList<string> Examples { get; init; } = [];
 }
 
+/// <summary>
+/// One accepted flag or value.
+/// </summary>
+/// <param name="Syntax">Flag syntax as shown in usage.</param>
+/// <param name="Description">What the flag does.</param>
 public sealed record DocxOptionInfo(string Syntax, string Description);
 
+/// <summary>
+/// One output field callers can rely on.
+/// </summary>
+/// <param name="Name">Field name.</param>
+/// <param name="Description">What the field carries.</param>
 public sealed record DocxOutputFieldInfo(string Name, string Description);
 
+/// <summary>
+/// One help section: a heading plus body lines.
+/// </summary>
+/// <param name="Heading">Section heading.</param>
+/// <param name="Lines">Section body lines.</param>
 public sealed record DocxHelpSection(string Heading, IReadOnlyList<string> Lines);
 
+/// <summary>
+/// One patch operation: fields, prose, and track-change support.
+/// </summary>
 public sealed record DocxPatchOperationInfo
 {
+    /// <summary>Operation name (for example <c>replace-text</c>).</summary>
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>Required patch fields.</summary>
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
+
+    /// <summary>Optional patch fields.</summary>
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
+
+    /// <summary>What the operation does.</summary>
     public string Description { get; init; } = string.Empty;
+
+    /// <summary>Machine-readable track-change class (drives <c>GeneratesTrackedChanges</c>).</summary>
     public string TrackChangesSupportClass { get; init; } = "unsupported";
+
+    /// <summary>Human track-change support label.</summary>
     public string TrackChangesSupport { get; init; } = "unsupported";
+
+    /// <summary>Suggest/Require behavior note.</summary>
     public string TrackChangesNote { get; init; } = "Suggest applies directly with W4001; Require fails with E6001.";
 
+    /// <summary>Whether the operation can emit tracked-change markup.</summary>
     public bool GeneratesTrackedChanges =>
         TrackChangesSupportClass is not "preserve-only" and not "unsupported";
 
+    /// <summary>Renders a one-line summary of the operation.</summary>
     public string RenderSummary()
     {
         string required = RequiredFields.Count == 0 ? string.Empty : string.Join("/", RequiredFields);
@@ -54,6 +121,9 @@ public sealed record DocxPatchOperationInfo
     }
 }
 
+/// <summary>
+/// Built-in help: catalog lookup plus text rendering for the CLI.
+/// </summary>
 public static class DocxHelp
 {
     private const string PatchExamples =
@@ -115,8 +185,10 @@ public static class DocxHelp
         end
         """;
 
+    /// <summary>Shared command catalog instance.</summary>
     public static DocxCommandCatalog Catalog { get; } = BuildCatalog();
 
+    /// <summary>Tries to look up a command by name.</summary>
     public static bool TryGetCommand(string name, out DocxCommandInfo command)
     {
         command = Catalog.Commands.FirstOrDefault(command =>
@@ -124,6 +196,7 @@ public static class DocxHelp
         return !string.IsNullOrEmpty(command.Name);
     }
 
+    /// <summary>Tries to look up a patch operation by name.</summary>
     public static bool TryGetPatchOperation(string name, out DocxPatchOperationInfo operation)
     {
         operation = Catalog.PatchOperations.FirstOrDefault(operation =>
@@ -131,6 +204,7 @@ public static class DocxHelp
         return !string.IsNullOrEmpty(operation.Name);
     }
 
+    /// <summary>Renders the top-level help overview.</summary>
     public static string RenderOverview()
     {
         var builder = new StringBuilder();
@@ -160,6 +234,7 @@ public static class DocxHelp
         return builder.ToString();
     }
 
+    /// <summary>Tries to render one help topic by name.</summary>
     public static bool TryRenderTopic(string topic, out string text)
     {
         if (string.Equals(topic, "patch", StringComparison.Ordinal))
@@ -178,6 +253,7 @@ public static class DocxHelp
         return false;
     }
 
+    /// <summary>Renders one help topic by name.</summary>
     public static string RenderTopic(string topic)
     {
         if (TryRenderTopic(topic, out string text))
@@ -188,6 +264,7 @@ public static class DocxHelp
         throw new ArgumentException($"Unknown help topic '{topic}'.", nameof(topic));
     }
 
+    /// <summary>Renders the patch track-change support table.</summary>
     public static string RenderPatchTrackChangesSupportTable()
     {
         var builder = new StringBuilder();

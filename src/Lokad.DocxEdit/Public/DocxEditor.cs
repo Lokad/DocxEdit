@@ -6,6 +6,9 @@ using System.Xml;
 
 namespace Lokad.DocxEdit;
 
+/// <summary>
+/// Stream-first entry point for inspecting and editing .docx packages.
+/// </summary>
 public sealed class DocxEditor
 {
     /// <summary>Reads a document. Uses default options and no cancellation.</summary>
@@ -22,6 +25,7 @@ public sealed class DocxEditor
         return Read(input, options, CancellationToken.None);
     }
 
+    /// <summary>Reads a document with explicit options and cancellation.</summary>
     public DocxReadResult Read(
         Stream input,
         DocxReadOptions options,
@@ -83,6 +87,7 @@ public sealed class DocxEditor
         return Outline(input, options, CancellationToken.None);
     }
 
+    /// <summary>Outlines document structure with explicit options and cancellation.</summary>
     public DocxOutlineResult Outline(
         Stream input,
         DocxOutlineOptions options,
@@ -132,6 +137,7 @@ public sealed class DocxEditor
         return Find(input, query, options, CancellationToken.None);
     }
 
+    /// <summary>Searches visible text with explicit options and cancellation.</summary>
     public DocxFindResult Find(
         Stream input,
         string query,
@@ -181,6 +187,7 @@ public sealed class DocxEditor
         return Dump(input, targetId, options, CancellationToken.None);
     }
 
+    /// <summary>Dumps one target with explicit options and cancellation.</summary>
     public DocxDumpResult Dump(
         Stream input,
         string targetId,
@@ -241,6 +248,7 @@ public sealed class DocxEditor
         return Context(input, targetId, options, CancellationToken.None);
     }
 
+    /// <summary>Summarizes target context with explicit options and cancellation.</summary>
     public DocxContextResult Context(
         Stream input,
         string targetId,
@@ -306,6 +314,7 @@ public sealed class DocxEditor
         return Styles(input, options, CancellationToken.None);
     }
 
+    /// <summary>Lists styles with explicit options and cancellation.</summary>
     public DocxStylesResult Styles(
         Stream input,
         DocxStylesOptions options,
@@ -349,6 +358,7 @@ public sealed class DocxEditor
         return Media(input, options, CancellationToken.None);
     }
 
+    /// <summary>Lists embedded images with explicit options and cancellation.</summary>
     public DocxMediaResult Media(
         Stream input,
         DocxMediaOptions options,
@@ -394,6 +404,7 @@ public sealed class DocxEditor
         return Validate(input, options, CancellationToken.None);
     }
 
+    /// <summary>Validates the package with explicit options and cancellation.</summary>
     public DocxValidateResult Validate(
         Stream input,
         DocxValidateOptions options,
@@ -466,6 +477,7 @@ public sealed class DocxEditor
         return Changes(input, options, CancellationToken.None);
     }
 
+    /// <summary>Lists existing markup with explicit options and cancellation.</summary>
     public DocxChangesResult Changes(
         Stream input,
         DocxChangesOptions options,
@@ -563,6 +575,7 @@ public sealed class DocxEditor
         return ParsePatch(patchReader, options, CancellationToken.None);
     }
 
+    /// <summary>Parses patch text with explicit options and cancellation.</summary>
     public DocxPatch ParsePatch(
         TextReader patchReader,
         DocxPatchParseOptions options,
@@ -590,6 +603,7 @@ public sealed class DocxEditor
         return Check(input, patchReader, options, CancellationToken.None);
     }
 
+    /// <summary>Dry-runs a patch with explicit options and cancellation.</summary>
     public DocxCheckResult Check(
         Stream input,
         TextReader patchReader,
@@ -646,6 +660,7 @@ public sealed class DocxEditor
         return Apply(input, patchReader, output, options, CancellationToken.None);
     }
 
+    /// <summary>Applies a patch with explicit options and cancellation.</summary>
     public DocxApplyResult Apply(
         Stream input,
         TextReader patchReader,

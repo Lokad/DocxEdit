@@ -4,14 +4,23 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
+/// <summary>
+/// Compact text rendering for operation results.
+/// </summary>
 public static class DocxTextRenderer
 {
+    /// <summary>
+    /// Renders full read output including text.
+    /// </summary>
     public static string RenderRead(DocxReadResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         return result.Text;
     }
 
+    /// <summary>
+    /// Renders a compact read summary without text.
+    /// </summary>
     public static string RenderReadSummary(DocxReadResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -40,18 +49,27 @@ public static class DocxTextRenderer
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Renders outline lines.
+    /// </summary>
     public static string RenderOutline(DocxOutlineResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         return RenderLines(result.Lines);
     }
 
+    /// <summary>
+    /// Renders text-search matches.
+    /// </summary>
     public static string RenderFind(DocxFindResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         return RenderLines(result.Matches);
     }
 
+    /// <summary>
+    /// Renders one dumped target.
+    /// </summary>
     public static string RenderDump(DocxDumpResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -65,12 +83,18 @@ public static class DocxTextRenderer
             : result.Text + Environment.NewLine;
     }
 
+    /// <summary>
+    /// Renders target context.
+    /// </summary>
     public static string RenderContext(DocxContextResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         return result.Text;
     }
 
+    /// <summary>
+    /// Renders the style inventory.
+    /// </summary>
     public static string RenderStyles(DocxStylesResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -103,6 +127,9 @@ public static class DocxTextRenderer
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Renders the image inventory.
+    /// </summary>
     public static string RenderMedia(DocxMediaResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -187,6 +214,9 @@ public static class DocxTextRenderer
         }
     }
 
+    /// <summary>
+    /// Renders validation diagnostics.
+    /// </summary>
     public static string RenderValidate(DocxValidateResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -209,6 +239,9 @@ public static class DocxTextRenderer
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Renders change markup metadata.
+    /// </summary>
     public static string RenderChanges(DocxChangesResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -373,6 +406,9 @@ public static class DocxTextRenderer
         }
     }
 
+    /// <summary>
+    /// Renders per-operation patch summaries.
+    /// </summary>
     public static string RenderOperationSummary(IReadOnlyList<DocxPatchOperationReport> operations)
     {
         ArgumentNullException.ThrowIfNull(operations);

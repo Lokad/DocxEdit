@@ -41,6 +41,36 @@ Common code ranges:
   invalid generated revision metadata before operation execution. Empty revision
   authors are rejected with `Feature = track-changes-revision-metadata` and
   `Fallback = no-output-written`.
+- `E1201`: selector matched no targets, or the target shape is wrong for the operation.
+- `E1202`: selector matched multiple targets ambiguously; the message lists candidate IDs.
+- `E1203`: selector text is malformed.
+- `E2001`: patch text is empty.
+- `E2002`: patch is missing the required `docxpatch 1` preamble.
+- `E2003`: unsupported docxpatch major version.
+- `E2004`: the `expect-hash` feature is not supported.
+- `E2005`: unexpected patch line.
+- `E2006`: operation name is required.
+- `E2007`: invalid field line.
+- `E2008`: unterminated heredoc for a field.
+- `E2009`: operation is missing `end`.
+- `E2010`: unknown operation.
+- `E2011`: unknown field for the operation.
+- `E2012`: boolean field value must be true or false.
+- `E2013`: integer field value must be an integer.
+- `E3201`: guard failed: an `expect-*` value differs from the current value.
+- `E4201`: operation is recognized but not supported in this mode.
+- `E4202`: required field or field combination is missing.
+- `E4203`: find or anchor text was not found.
+- `E4204`: boolean field value must be true or false.
+- `E4205`: field value fails its shape rule.
+- `E4301`: table, row, or cell target is unsafe (visual grid or vertical merges).
+- `E4302`: cell contains unsupported content; `force true` is required to replace it all.
+- `E4303`: cell field count does not match the expected count.
+- `E4304`: the last table row cannot be deleted.
+- `E4305`: the edit would remove protected OOXML boundary markup.
+- `E4306`: run-preserving replacement is not supported for the target shape.
+- `E4307`: `copy-paragraph-properties` requires a paragraph target.
+- `E4311`: bookmark operation target is unsafe (duplicates, incomplete range, hyperlink anchors, or protected boundary).
 - `E4310`: content-control edit requested a control kind, content container, or
   lock state that is not safely editable.
 - `E4312`: comment resolution state cannot be edited because the comment body shape
@@ -60,6 +90,20 @@ Common code ranges:
 - `E4317`: selected-range comment creation was requested for a paragraph shape that
   cannot safely host direct comment range markers, such as non-direct text runs or
   tabs/line breaks inside the selected span.
+- `E5201`: no asset provider is configured for image operation assets.
+- `E5202`: image asset could not be resolved.
+- `E5203`: image asset is not a supported PNG or JPEG image.
+- `E5204`: replacing the image content type is not supported for existing media.
+- `E5205`: image lacks editable DrawingML (properties, crop, or anchored-only metadata).
+- `E5206`: invalid image width or height.
+- `E5208`: image crop percentages are invalid.
+- `E5209`: image wrap mode or wrap distance is invalid.
+- `E5210`: image position axis is invalid.
+- `E6201`: section column count must be between 1 and 4.
+- `E6202`: section orientation must be portrait or landscape.
+- `E7101`: style was not found.
+- `E7102`: style name is ambiguous.
+- `E9001`: post-edit validation failed.
 - `W5103`: apply marked a document containing fields for Word-side refresh because
   DocxEdit does not recalculate field results.
 - `E9199`/`W9199`: validation diagnostics were capped; `E9199` means omitted
@@ -97,6 +141,27 @@ tracked paragraph property revisions that carry previous `w:numPr` state
 (`W1026`). For `W1026`, final-view labels use current numbering properties, while
 original-view reconstruction of the previous numbering properties is not modeled.
 
+
+Read-model unsupported-feature warnings by code:
+
+- `W1001`: tracked-change markup is present.
+- `W1002`: hyperlinks are surfaced as metadata.
+- `W1003`: fields are surfaced as metadata; results are not evaluated.
+- `W1004`: comment anchors are surfaced; comment text is hidden from the read model.
+- `W1005`: bookmarks are surfaced as metadata.
+- `W1006`: content controls are surfaced as metadata.
+- `W1007`: floating images are surfaced with limited layout editing.
+- `W1008`: external images are not fetched or listed.
+- `W1009`: charts are preserved but not modeled.
+- `W1010`: SmartArt is preserved but not modeled.
+- `W1011`: equations are preserved but not modeled.
+- `W1012`: shapes are preserved but not modeled.
+- `W1013`: `altChunk` content is preserved but not imported.
+- `W1014`: complex section flow with a basic section model.
+- `W1017`: internal hyperlink anchors match no bookmark.
+- `W1018`: internal hyperlink anchors match multiple bookmarks.
+- `W1021`: grouped drawings are preserved but not modeled.
+- `W1022`: OLE objects are preserved but not executed.
 Use `--diagnostics path` to write diagnostics JSON. Use `--strict` to turn warnings into exit code `3`.
 
 `validate` currently emits:
