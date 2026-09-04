@@ -9,236 +9,6 @@ namespace Lokad.DocxEdit;
 
 internal static partial class DocxPatchEngine
 {
-    private static bool TryParseMainParagraphTarget(string target, out int paragraphOrdinal)
-    {
-        paragraphOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.P", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out paragraphOrdinal);
-    }
-
-    private static bool TryParseMainTableTarget(string target, out int tableOrdinal)
-    {
-        tableOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.T", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out tableOrdinal);
-    }
-
-    private static bool TryParseMainCellTarget(string target, out int tableOrdinal, out int rowOrdinal, out int cellOrdinal)
-    {
-        tableOrdinal = 0;
-        rowOrdinal = 0;
-        cellOrdinal = 0;
-        if (target.Length != 15 ||
-            !target.StartsWith("M.T", StringComparison.Ordinal) ||
-            target[7..9] != ".R" ||
-            target[11..13] != ".C")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[3..7], out tableOrdinal) &&
-            int.TryParse(target[9..11], out rowOrdinal) &&
-            int.TryParse(target[13..15], out cellOrdinal);
-    }
-
-    private static bool TryParseMainMergeGroupTarget(string target, out int tableOrdinal, out int mergeGroupOrdinal)
-    {
-        tableOrdinal = 0;
-        mergeGroupOrdinal = 0;
-        if (target.Length != 14 ||
-            !target.StartsWith("M.T", StringComparison.Ordinal) ||
-            target[7..10] != ".MG")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[3..7], out tableOrdinal) &&
-            int.TryParse(target[10..14], out mergeGroupOrdinal);
-    }
-
-    private static bool TryParseStoryMergeGroupTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int tableOrdinal,
-        out int mergeGroupOrdinal)
-    {
-        storyOrdinal = 0;
-        tableOrdinal = 0;
-        mergeGroupOrdinal = 0;
-        if (target.Length != 17 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".T" ||
-            target[10..13] != ".MG")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..10], out tableOrdinal) &&
-            int.TryParse(target[13..17], out mergeGroupOrdinal);
-    }
-
-    private static bool TryParseMainRowTarget(string target, out int tableOrdinal, out int rowOrdinal)
-    {
-        tableOrdinal = 0;
-        rowOrdinal = 0;
-        if (target.Length != 11 ||
-            !target.StartsWith("M.T", StringComparison.Ordinal) ||
-            target[7..9] != ".R")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[3..7], out tableOrdinal) &&
-            int.TryParse(target[9..11], out rowOrdinal);
-    }
-
-    private static bool TryParseMainImageTarget(string target, out int imageOrdinal)
-    {
-        imageOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.I", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out imageOrdinal);
-    }
-
-    private static bool TryParseMainHyperlinkTarget(string target, out int hyperlinkOrdinal)
-    {
-        hyperlinkOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.L", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out hyperlinkOrdinal);
-    }
-
-    private static bool TryParseMainFieldTarget(string target, out int fieldOrdinal)
-    {
-        fieldOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.F", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out fieldOrdinal);
-    }
-
-    private static bool TryParseMainBookmarkTarget(string target, out int bookmarkOrdinal)
-    {
-        bookmarkOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.B", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out bookmarkOrdinal);
-    }
-
-    private static bool TryParseMainContentControlTarget(string target, out int contentControlOrdinal)
-    {
-        contentControlOrdinal = 0;
-        return target.Length == 8 &&
-            target.StartsWith("M.CC", StringComparison.Ordinal) &&
-            int.TryParse(target[4..], out contentControlOrdinal);
-    }
-
-    private static bool TryParseStoryImageTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int imageOrdinal)
-    {
-        storyOrdinal = 0;
-        imageOrdinal = 0;
-        if (target.Length != 10 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".I")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..], out imageOrdinal);
-    }
-
-    private static bool TryParseStoryHyperlinkTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int hyperlinkOrdinal)
-    {
-        storyOrdinal = 0;
-        hyperlinkOrdinal = 0;
-        if (target.Length != 10 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".L")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..], out hyperlinkOrdinal);
-    }
-
-    private static bool TryParseStoryFieldTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int fieldOrdinal)
-    {
-        storyOrdinal = 0;
-        fieldOrdinal = 0;
-        if (target.Length != 10 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".F")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..], out fieldOrdinal);
-    }
-
-    private static bool TryParseStoryBookmarkTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int bookmarkOrdinal)
-    {
-        storyOrdinal = 0;
-        bookmarkOrdinal = 0;
-        if (target.Length != 10 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".B")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..], out bookmarkOrdinal);
-    }
-
-    private static bool TryParseStoryContentControlTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int contentControlOrdinal)
-    {
-        storyOrdinal = 0;
-        contentControlOrdinal = 0;
-        if (target.Length != 11 ||
-            target[0] != storyPrefix ||
-            target[4..7] != ".CC")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[7..], out contentControlOrdinal);
-    }
-
-    private static bool TryParseMainSectionTarget(string target, out int sectionOrdinal)
-    {
-        sectionOrdinal = 0;
-        return target.Length == 7 &&
-            target.StartsWith("M.S", StringComparison.Ordinal) &&
-            int.TryParse(target[3..], out sectionOrdinal);
-    }
-
     private static XElement? FindTable(XElement body, int tableOrdinal)
     {
         return tableOrdinal < 1
@@ -389,146 +159,6 @@ internal static partial class DocxPatchEngine
             : new ParagraphTarget(package.MainDocumentPartName, mainDocument, selectedParagraph);
     }
 
-    internal static bool TryParseTargetId(string? target, out DocxTargetId targetId)
-    {
-        targetId = default;
-        if (string.IsNullOrEmpty(target))
-        {
-            return false;
-        }
-
-        if (TryParseMainParagraphTarget(target, out int paragraphOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Paragraph, paragraphOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainTableTarget(target, out int tableOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Table, tableOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainCellTarget(target, out int cellTableOrdinal, out int rowOrdinal, out int cellOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Cell, cellTableOrdinal, rowOrdinal, cellOrdinal);
-            return true;
-        }
-
-        if (TryParseMainMergeGroupTarget(target, out int mergeGroupTableOrdinal, out int mergeGroupOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.MergeGroup, mergeGroupTableOrdinal, mergeGroupOrdinal, 0);
-            return true;
-        }
-
-        if (TryParseMainRowTarget(target, out int rowTableOrdinal, out int mainRowOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Row, rowTableOrdinal, mainRowOrdinal, 0);
-            return true;
-        }
-
-        if (TryParseMainImageTarget(target, out int imageOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Image, imageOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainHyperlinkTarget(target, out int hyperlinkOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Hyperlink, hyperlinkOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainFieldTarget(target, out int fieldOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Field, fieldOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainBookmarkTarget(target, out int bookmarkOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainContentControlTarget(target, out int contentControlOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.ContentControl, contentControlOrdinal, 0, 0);
-            return true;
-        }
-
-        if (TryParseMainSectionTarget(target, out int sectionOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Section, sectionOrdinal, 0, 0);
-            return true;
-        }
-
-        foreach (char storyPrefix in new[] { 'H', 'F' })
-        {
-            if (TryParseStoryParagraphTarget(target, storyPrefix, out int storyOrdinal, out int storyParagraphOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Paragraph, storyParagraphOrdinal, 0, 0);
-                return true;
-            }
-
-            if (TryParseStoryTableTarget(target, storyPrefix, out storyOrdinal, out int storyTableOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Table, storyTableOrdinal, 0, 0);
-                return true;
-            }
-
-            if (TryParseStoryCellTarget(target, storyPrefix, out storyOrdinal, out int storyCellTableOrdinal, out int storyRowOrdinal, out int storyCellOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Cell, storyCellTableOrdinal, storyRowOrdinal, storyCellOrdinal);
-                return true;
-            }
-
-            if (TryParseStoryMergeGroupTarget(target, storyPrefix, out storyOrdinal, out int storyMergeGroupTableOrdinal, out int storyMergeGroupOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.MergeGroup, storyMergeGroupTableOrdinal, storyMergeGroupOrdinal, 0);
-                return true;
-            }
-
-            if (TryParseStoryRowTarget(target, storyPrefix, out storyOrdinal, out int storyRowTableOrdinal, out int storyRowRowOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Row, storyRowTableOrdinal, storyRowRowOrdinal, 0);
-                return true;
-            }
-
-            if (TryParseStoryImageTarget(target, storyPrefix, out storyOrdinal, out int storyImageOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Image, storyImageOrdinal, 0, 0);
-                return true;
-            }
-
-            if (TryParseStoryHyperlinkTarget(target, storyPrefix, out storyOrdinal, out int storyHyperlinkOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Hyperlink, storyHyperlinkOrdinal, 0, 0);
-                return true;
-            }
-
-            if (TryParseStoryFieldTarget(target, storyPrefix, out storyOrdinal, out int storyFieldOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Field, storyFieldOrdinal, 0, 0);
-                return true;
-            }
-
-            if (TryParseStoryBookmarkTarget(target, storyPrefix, out storyOrdinal, out int storyBookmarkOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Bookmark, storyBookmarkOrdinal, 0, 0);
-                return true;
-            }
-
-            if (TryParseStoryContentControlTarget(target, storyPrefix, out storyOrdinal, out int storyContentControlOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.ContentControl, storyContentControlOrdinal, 0, 0);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool TryParseTargetSelector(
         string target,
         DocxPatchOperation operation,
@@ -603,7 +233,7 @@ internal static partial class DocxPatchEngine
             return true;
         }
 
-        DocxTargetId? parsedTargetId = TryParseTargetId(target, out DocxTargetId parsedTargetIdValue) ? parsedTargetIdValue : null;
+        DocxTargetId? parsedTargetId = DocxTargetId.TryParse(target, out DocxTargetId parsedTargetIdValue) ? parsedTargetIdValue : null;
         selector = new ExplicitIdTargetSelector(target, parsedTargetId);
         return true;
     }
@@ -813,7 +443,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId sectionId) ||
+        if (!DocxTargetId.TryParse(target, out DocxTargetId sectionId) ||
             sectionId is not { Story: 'M', Kind: DocxTargetKind.Section } ||
             sectionId.Primary < 1)
         {
@@ -872,94 +502,6 @@ internal static partial class DocxPatchEngine
         return paragraph is null ? null : new ParagraphTarget(relationship.ResolvedTarget, document, paragraph);
     }
 
-    private static bool TryParseStoryParagraphTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int paragraphOrdinal)
-    {
-        storyOrdinal = 0;
-        paragraphOrdinal = 0;
-        if (target.Length != 10 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".P")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..], out paragraphOrdinal);
-    }
-
-    private static bool TryParseStoryTableTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int tableOrdinal)
-    {
-        storyOrdinal = 0;
-        tableOrdinal = 0;
-        if (target.Length != 10 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".T")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..], out tableOrdinal);
-    }
-
-    private static bool TryParseStoryRowTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int tableOrdinal,
-        out int rowOrdinal)
-    {
-        storyOrdinal = 0;
-        tableOrdinal = 0;
-        rowOrdinal = 0;
-        if (target.Length != 14 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".T" ||
-            target[10..12] != ".R")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..10], out tableOrdinal) &&
-            int.TryParse(target[12..], out rowOrdinal);
-    }
-
-    private static bool TryParseStoryCellTarget(
-        string target,
-        char storyPrefix,
-        out int storyOrdinal,
-        out int tableOrdinal,
-        out int rowOrdinal,
-        out int cellOrdinal)
-    {
-        storyOrdinal = 0;
-        tableOrdinal = 0;
-        rowOrdinal = 0;
-        cellOrdinal = 0;
-        if (target.Length != 18 ||
-            target[0] != storyPrefix ||
-            target[4..6] != ".T" ||
-            target[10..12] != ".R" ||
-            target[14..16] != ".C")
-        {
-            return false;
-        }
-
-        return int.TryParse(target[1..4], out storyOrdinal) &&
-            int.TryParse(target[6..10], out tableOrdinal) &&
-            int.TryParse(target[12..14], out rowOrdinal) &&
-            int.TryParse(target[16..], out cellOrdinal);
-    }
-
     private static BlockTarget? ResolveRelatedStoryBlockTarget(
         OoxmlPackage package,
         string relationshipType,
@@ -990,17 +532,17 @@ internal static partial class DocxPatchEngine
 
     private static bool IsSupportedTableTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId tableId) && tableId.Kind == DocxTargetKind.Table;
+        return DocxTargetId.TryParse(target, out DocxTargetId tableId) && tableId.Kind == DocxTargetKind.Table;
     }
 
     private static bool IsSupportedRowTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId rowId) && rowId.Kind == DocxTargetKind.Row;
+        return DocxTargetId.TryParse(target, out DocxTargetId rowId) && rowId.Kind == DocxTargetKind.Row;
     }
 
     private static bool IsSupportedCellTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId cellId)
+        return DocxTargetId.TryParse(target, out DocxTargetId cellId)
             && cellId.Kind is (DocxTargetKind.Cell or DocxTargetKind.MergeGroup);
     }
 
@@ -1009,7 +551,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId tableId) || tableId.Kind != DocxTargetKind.Table)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId tableId) || tableId.Kind != DocxTargetKind.Table)
         {
             return null;
         }
@@ -1045,7 +587,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId rowId) || rowId.Kind != DocxTargetKind.Row)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId rowId) || rowId.Kind != DocxTargetKind.Row)
         {
             return null;
         }
@@ -1070,7 +612,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId cellId) ||
+        if (!DocxTargetId.TryParse(target, out DocxTargetId cellId) ||
             cellId.Kind is not (DocxTargetKind.Cell or DocxTargetKind.MergeGroup))
         {
             return null;
@@ -1234,27 +776,27 @@ internal static partial class DocxPatchEngine
 
     private static bool IsSupportedImageTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId imageId) && imageId.Kind == DocxTargetKind.Image;
+        return DocxTargetId.TryParse(target, out DocxTargetId imageId) && imageId.Kind == DocxTargetKind.Image;
     }
 
     private static bool IsSupportedHyperlinkTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId hyperlinkId) && hyperlinkId.Kind == DocxTargetKind.Hyperlink;
+        return DocxTargetId.TryParse(target, out DocxTargetId hyperlinkId) && hyperlinkId.Kind == DocxTargetKind.Hyperlink;
     }
 
     private static bool IsSupportedContentControlTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId contentcontrolId) && contentcontrolId.Kind == DocxTargetKind.ContentControl;
+        return DocxTargetId.TryParse(target, out DocxTargetId contentcontrolId) && contentcontrolId.Kind == DocxTargetKind.ContentControl;
     }
 
     private static bool IsSupportedFieldTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId fieldId) && fieldId.Kind == DocxTargetKind.Field;
+        return DocxTargetId.TryParse(target, out DocxTargetId fieldId) && fieldId.Kind == DocxTargetKind.Field;
     }
 
     private static bool IsSupportedBookmarkTargetShape(string target)
     {
-        return TryParseTargetId(target, out DocxTargetId bookmarkId) && bookmarkId.Kind == DocxTargetKind.Bookmark;
+        return DocxTargetId.TryParse(target, out DocxTargetId bookmarkId) && bookmarkId.Kind == DocxTargetKind.Bookmark;
     }
 
     private static ContentControlTarget? ResolveContentControlTarget(
@@ -1262,7 +804,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId controlId) || controlId.Kind != DocxTargetKind.ContentControl)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId controlId) || controlId.Kind != DocxTargetKind.ContentControl)
         {
             return null;
         }
@@ -1287,7 +829,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId fieldId) || fieldId.Kind != DocxTargetKind.Field)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId fieldId) || fieldId.Kind != DocxTargetKind.Field)
         {
             return null;
         }
@@ -1416,7 +958,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId bookmarkId) || bookmarkId.Kind != DocxTargetKind.Bookmark)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId bookmarkId) || bookmarkId.Kind != DocxTargetKind.Bookmark)
         {
             return null;
         }
@@ -1465,7 +1007,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId hyperlinkId) || hyperlinkId.Kind != DocxTargetKind.Hyperlink)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId hyperlinkId) || hyperlinkId.Kind != DocxTargetKind.Hyperlink)
         {
             return null;
         }
@@ -1508,7 +1050,7 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseTargetId(target, out DocxTargetId imageId) || imageId.Kind != DocxTargetKind.Image)
+        if (!DocxTargetId.TryParse(target, out DocxTargetId imageId) || imageId.Kind != DocxTargetKind.Image)
         {
             return null;
         }

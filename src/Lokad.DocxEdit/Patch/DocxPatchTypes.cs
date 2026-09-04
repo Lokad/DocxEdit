@@ -111,8 +111,7 @@ internal abstract record TargetSelector(string Raw);
 /// <summary>
 /// Catch-all for targets without a <c>prefix:</c> selector: a stable explicit ID
 /// (<c>M.P0001</c>, <c>H001.P0002</c>, table/cell/image/section/comment IDs, …).
-/// Never handled by the predicate path — callers dispatch on ID shape instead
-/// (<c>TryParseMainParagraphTarget</c>, <c>TryParseStoryTableTarget</c>, …).
+/// Never handled by the predicate path — resolution matches on <c>TargetId</c> instead.
 /// </summary>
 /// <c>TargetId</c> carries the parsed structure when <c>Raw</c> matches the explicit-ID
 /// grammar, null otherwise; resolution choke points match on it instead of re-parsing <c>Raw</c>.

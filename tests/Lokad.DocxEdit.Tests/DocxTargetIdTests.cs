@@ -34,7 +34,7 @@ public static class DocxTargetIdTests
         int secondary,
         int tertiary)
     {
-        Assert.True(DocxPatchEngine.TryParseTargetId(wire, out DocxTargetId targetId));
+        Assert.True(DocxTargetId.TryParse(wire, out DocxTargetId targetId));
         Assert.Equal(new DocxTargetId(story, storyPart, (DocxTargetKind)kindValue, primary, secondary, tertiary), targetId);
         Assert.Equal(wire, targetId.ToWireValue());
     }
@@ -54,6 +54,6 @@ public static class DocxTargetIdTests
     [InlineData("M.CC001")]
     public static void RejectsMalformedWireForm(string? wire)
     {
-        Assert.False(DocxPatchEngine.TryParseTargetId(wire, out DocxTargetId _));
+        Assert.False(DocxTargetId.TryParse(wire, out DocxTargetId _));
     }
 }
