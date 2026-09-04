@@ -1132,7 +1132,7 @@ public static class ReadApiTests
 
         DocxReadResult result = editor.Read(stream);
 
-        DocxListInfo list = Assert.Single(result.Paragraphs).List!;
+        DocxListInfo list = Assert.IsType<DocxListInfo>(Assert.Single(result.Paragraphs).List);
         Assert.Equal("9", list.NumberingId);
         Assert.Equal(1, list.Level);
         Assert.Equal("7", list.AbstractNumberingId);
@@ -1256,7 +1256,7 @@ public static class ReadApiTests
         Assert.All(result.Paragraphs, paragraph => Assert.Equal("resolved", paragraph.List?.LabelStatus));
         Assert.Equal(3, result.Paragraphs[0].List?.StartValue);
         Assert.Equal("space", result.Paragraphs[0].List?.Suffix);
-        DocxListLabelComponent[] components = result.Paragraphs[1].List!.LabelComponents.ToArray();
+        DocxListLabelComponent[] components = Assert.IsType<DocxListInfo>(result.Paragraphs[1].List).LabelComponents.ToArray();
         Assert.Equal(2, components.Length);
         Assert.Equal(new DocxListLabelComponent(0, 3, "3", "decimal"), components[0]);
         Assert.Equal(new DocxListLabelComponent(1, 2, "b", "lowerLetter"), components[1]);

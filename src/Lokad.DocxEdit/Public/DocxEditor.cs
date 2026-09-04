@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Lokad.DocxEdit.Ooxml;
 using Lokad.DocxEdit.Model;
 using Lokad.DocxEdit.Rendering;
@@ -56,8 +57,8 @@ public sealed class DocxEditor
                 .ToArray(),
             PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
-            Text = TextRenderers.RenderRead(model!, options.MaxText),
-            Paragraphs = model!.Paragraphs,
+            Text = TextRenderers.RenderRead(model, options.MaxText),
+            Paragraphs = model.Paragraphs,
             Tables = model.Tables,
             Images = model.Images,
             Sections = model.Sections,
@@ -113,7 +114,7 @@ public sealed class DocxEditor
                 .ToArray(),
             PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
-            Lines = TextRenderers.RenderOutline(model!)
+            Lines = TextRenderers.RenderOutline(model)
         };
     }
 
@@ -162,7 +163,7 @@ public sealed class DocxEditor
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
                 .ToArray(),
             Query = query,
-            Matches = TextRenderers.Find(model!, query, options.MaxText)
+            Matches = TextRenderers.Find(model, query, options.MaxText)
         };
     }
 
@@ -221,8 +222,8 @@ public sealed class DocxEditor
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
                 .ToArray(),
             TargetId = targetId,
-            Text = TextRenderers.Dump(model!, changes!, targetId, options.IncludeRuns, options.MaxText),
-            Runs = options.IncludeRuns ? TextRenderers.DumpRuns(model!, targetId, options.MaxText) : []
+            Text = TextRenderers.Dump(model, changes, targetId, options.IncludeRuns, options.MaxText),
+            Runs = options.IncludeRuns ? TextRenderers.DumpRuns(model, targetId, options.MaxText) : []
         };
     }
 
@@ -274,7 +275,7 @@ public sealed class DocxEditor
             };
         }
 
-        IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model!, changes!, targetId, options.Radius, options.MaxText);
+        IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model, changes, targetId, options.Radius, options.MaxText);
         IReadOnlyList<DocxDiagnostic> contextDiagnostics = items.Count == 0
             ? [new DocxDiagnostic(DocxSeverity.Error, "E2001", $"Target '{targetId}' was not found.", TargetId: targetId)]
             : [];
@@ -330,7 +331,7 @@ public sealed class DocxEditor
         {
             Success = true,
             Diagnostics = diagnostics,
-            Styles = styles!
+            Styles = styles
         };
     }
 
@@ -375,7 +376,7 @@ public sealed class DocxEditor
             Diagnostics = diagnostics
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
                 .ToArray(),
-            Images = model!.Images
+            Images = model.Images
         };
     }
 
@@ -418,7 +419,7 @@ public sealed class DocxEditor
         }
 
         IReadOnlyList<DocxDiagnostic> allDiagnostics = CapValidationDiagnostics(
-            diagnostics.Concat(validationDiagnostics!),
+            diagnostics.Concat(validationDiagnostics),
             options.MaxDiagnostics);
         return new DocxValidateResult
         {
@@ -488,7 +489,7 @@ public sealed class DocxEditor
             };
         }
 
-        IReadOnlyList<DocxChangeInfo> annotatedChanges = AnnotateOperationReports(changes!, options.OperationReports);
+        IReadOnlyList<DocxChangeInfo> annotatedChanges = AnnotateOperationReports(changes, options.OperationReports);
 
         return new DocxChangesResult
         {
@@ -625,7 +626,7 @@ public sealed class DocxEditor
 
         return new DocxCheckResult
         {
-            Success = execution!.Success,
+            Success = execution.Success,
             Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
             Operations = execution.Reports
         };
@@ -681,7 +682,7 @@ public sealed class DocxEditor
             };
         }
 
-        if (!execution!.Success)
+        if (!execution.Success)
         {
             return new DocxApplyResult
             {
@@ -739,7 +740,7 @@ public sealed class DocxEditor
 
     private static bool TryDocumentOperation<T>(
         Func<T> operation,
-        out T? result,
+        [NotNullWhen(true)] out T? result,
         out IReadOnlyList<DocxDiagnostic> diagnostics)
         where T : class
     {

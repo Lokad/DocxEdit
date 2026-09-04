@@ -15,10 +15,6 @@ internal static class DocxStyleScanner
     public static IReadOnlyList<DocxStyleInfo> Scan(OoxmlPackage package, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         OoxmlRelationship? relationship = package
             .GetRelationships(package.MainDocumentPartName, cancellationToken)

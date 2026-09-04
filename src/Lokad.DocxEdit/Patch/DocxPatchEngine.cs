@@ -565,13 +565,13 @@ internal static partial class DocxPatchEngine
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         bool? preserveRuns = ReadBooleanField(operation, "preserve-runs", diagnostics);
         int? occurrence = ReadPositiveOccurrence(operation, diagnostics);
-        if (diagnostics.Count != 0)
+        if (find is null || replacement is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
         bool shouldPreserveRuns = preserveRuns ?? true;
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -582,7 +582,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (find!.Length == 0)
+        if (find.Length == 0)
         {
             return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'find' must not be empty.", operation, target)];
         }
@@ -605,14 +605,14 @@ internal static partial class DocxPatchEngine
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
-                TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
+                TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
                 return diagnostics;
             }
 
             return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
-        IReadOnlyList<TextRange> matches = FindTextMatches(current, find!, occurrence);
+        IReadOnlyList<TextRange> matches = FindTextMatches(current, find, occurrence);
         if (matches.Count == 0)
         {
             return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target)];
@@ -623,9 +623,9 @@ internal static partial class DocxPatchEngine
         string? trackedUnsupportedReason = null;
         if (useTrackedChanges)
         {
-            canUseTrackedChanges = TryValidateTrackedTextReplacement(paragraphTarget.Paragraph, current, matches, replacement!, out trackedUnsupportedReason);
-            if (!canUseTrackedChanges &&
-                !TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+            canUseTrackedChanges = TryValidateTrackedTextReplacement(paragraphTarget.Paragraph, current, matches, replacement, out trackedUnsupportedReason);
+            if (!canUseTrackedChanges && trackedUnsupportedReason is not null &&
+                !TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
             {
                 return diagnostics;
             }
@@ -638,21 +638,21 @@ internal static partial class DocxPatchEngine
 
         if (useTrackedChanges && canUseTrackedChanges)
         {
-            ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement!, options, generatedRevisionIds, cancellationToken);
+            ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
             return [];
         }
 
         if (shouldPreserveRuns)
         {
-            if (!TryReplaceParagraphTextPreservingRuns(paragraphTarget.Paragraph, matches, replacement!, out string? unsupportedReason))
+            if (!TryReplaceParagraphTextPreservingRuns(paragraphTarget.Paragraph, matches, replacement, out string? unsupportedReason))
             {
                 return [Diagnostic(DocxSeverity.Error, "E4306", $"Run-preserving replacement is not supported for {target}: {unsupportedReason}. Use preserve-runs false to allow paragraph-level rewriting.", operation, target)];
             }
         }
         else
         {
-            string edited = ApplyTextReplacement(current, matches, replacement!);
+            string edited = ApplyTextReplacement(current, matches, replacement);
             ReplaceParagraphText(paragraphTarget.Paragraph, edited);
         }
 
@@ -673,12 +673,12 @@ internal static partial class DocxPatchEngine
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         string? style = operation.Fields.GetValueOrDefault("style");
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -699,7 +699,7 @@ internal static partial class DocxPatchEngine
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
-                TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
+                TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
                 return diagnostics;
             }
 
@@ -708,9 +708,9 @@ internal static partial class DocxPatchEngine
 
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges &&
-            !TryValidateTrackedWholeParagraphReplacement(paragraphTarget.Paragraph, current, text!, style, out string? trackedUnsupportedReason))
+            !TryValidateTrackedWholeParagraphReplacement(paragraphTarget.Paragraph, current, text, style, out string? trackedUnsupportedReason))
         {
-            if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+            if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
             {
                 return diagnostics;
             }
@@ -725,7 +725,7 @@ internal static partial class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text, options, generatedRevisionIds, cancellationToken);
             if (style is not null)
             {
                 SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, style, options, generatedRevisionIds, cancellationToken);
@@ -735,7 +735,7 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        ReplaceParagraphText(paragraphTarget.Paragraph, text!);
+        ReplaceParagraphText(paragraphTarget.Paragraph, text);
         if (style is not null)
         {
             SetParagraphStyle(paragraphTarget.Paragraph, style);
@@ -759,12 +759,12 @@ internal static partial class DocxPatchEngine
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? style = operation.Fields.GetValueOrDefault("style");
         bool copyParagraphProperties = ReadBooleanField(operation, "copy-paragraph-properties", diagnostics) ?? false;
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -781,9 +781,9 @@ internal static partial class DocxPatchEngine
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
-        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text!))
+        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text))
         {
-            if (!TrackUnsupportedShape(options, operation, target!, "inserted paragraph text contains tabs or line breaks", diagnostics))
+            if (!TrackUnsupportedShape(options, operation, target, "inserted paragraph text contains tabs or line breaks", diagnostics))
             {
                 return diagnostics;
             }
@@ -800,8 +800,8 @@ internal static partial class DocxPatchEngine
             ? CloneParagraphPropertiesForInsertion(blockTarget.Block.Element(OoxmlNs.W + "pPr"))
             : null;
         XElement paragraph = useTrackedChanges
-            ? CreateTrackedInsertedParagraph(package, text!, style, paragraphProperties, options, generatedRevisionIds, cancellationToken)
-            : CreateSimpleParagraph(text!, style, paragraphProperties);
+            ? CreateTrackedInsertedParagraph(package, text, style, paragraphProperties, options, generatedRevisionIds, cancellationToken)
+            : CreateSimpleParagraph(text, style, paragraphProperties);
         if (insertAfter)
         {
             blockTarget.Block.AddAfterSelf(paragraph);
@@ -839,12 +839,12 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -869,7 +869,7 @@ internal static partial class DocxPatchEngine
         {
             if (blockTarget.Block.Name != OoxmlNs.W + "p")
             {
-                if (!TrackUnsupportedShape(options, operation, target!, "tracked block deletion is supported only for paragraph targets", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, "tracked block deletion is supported only for paragraph targets", diagnostics))
                 {
                     return diagnostics;
                 }
@@ -878,7 +878,7 @@ internal static partial class DocxPatchEngine
             }
             else if (ParagraphHasSectionProperties(blockTarget.Block))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, "paragraph contains section properties", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, "paragraph contains section properties", diagnostics))
                 {
                     return diagnostics;
                 }
@@ -887,7 +887,7 @@ internal static partial class DocxPatchEngine
             }
             else if (TryGetProtectedTextEditFeature(blockTarget.Block, out string protectedFeature))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
                 {
                     return diagnostics;
                 }
@@ -896,7 +896,7 @@ internal static partial class DocxPatchEngine
             }
             else if (TextContainsTrackedUnsupportedCharacters(current))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, "deleted paragraph text contains tabs or line breaks", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, "deleted paragraph text contains tabs or line breaks", diagnostics))
                 {
                     return diagnostics;
                 }
@@ -940,12 +940,12 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? style = ReadRequiredField(operation, "style", diagnostics);
-        if (diagnostics.Count != 0)
+        if (style is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -956,7 +956,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!TryResolveStyleId(package, style!, "paragraph", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+        if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
         {
             return [styleDiagnostic!];
         }
@@ -968,11 +968,11 @@ internal static partial class DocxPatchEngine
 
         if (IsTrackedMode(options))
         {
-            SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, styleId!, options, generatedRevisionIds, cancellationToken);
+            SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, styleId, options, generatedRevisionIds, cancellationToken);
         }
         else
         {
-            SetParagraphStyle(paragraphTarget.Paragraph, styleId!);
+            SetParagraphStyle(paragraphTarget.Paragraph, styleId);
         }
 
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
@@ -991,13 +991,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
-        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
         }
@@ -1011,10 +1011,10 @@ internal static partial class DocxPatchEngine
         bool isRichText = IsRichTextContentControl(controlTarget.ContentControl);
         if (!isPlainText && !isRichText)
         {
-            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a plain-text or rich-text content control")];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target, "a plain-text or rich-text content control")];
         }
 
-        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target);
         if (lockDiagnostic is not null)
         {
             return [lockDiagnostic];
@@ -1058,9 +1058,9 @@ internal static partial class DocxPatchEngine
         {
             if (!isPlainText)
             {
-                if (!TryGetTrackedRichTextContentControlParagraphs(content, text!, out trackedParagraphs, out string? trackedUnsupportedReason))
+                if (!TryGetTrackedRichTextContentControlParagraphs(content, text, out trackedParagraphs, out string? trackedUnsupportedReason))
                 {
-                    if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                    if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
                     {
                         return diagnostics;
                     }
@@ -1068,9 +1068,9 @@ internal static partial class DocxPatchEngine
                     useTrackedChanges = false;
                 }
             }
-            else if (!TryGetTrackedContentControlTextContainer(content, text!, out trackedContainer, out trackedCurrent, out string? trackedUnsupportedReason))
+            else if (!TryGetTrackedContentControlTextContainer(content, text, out trackedContainer, out trackedCurrent, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
                 {
                     return diagnostics;
                 }
@@ -1088,18 +1088,18 @@ internal static partial class DocxPatchEngine
         {
             if (trackedParagraphs is not null)
             {
-                ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text!, options, generatedRevisionIds, cancellationToken);
+                ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text, options, generatedRevisionIds, cancellationToken);
             }
-            else
+            else if (trackedContainer is not null)
             {
-                ReplaceWholeParagraphTextWithTrackedChanges(package, trackedContainer!, trackedCurrent, text!, options, generatedRevisionIds, cancellationToken);
+                ReplaceWholeParagraphTextWithTrackedChanges(package, trackedContainer, trackedCurrent, text, options, generatedRevisionIds, cancellationToken);
             }
 
             SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
             return diagnostics;
         }
 
-        ReplaceContentControlText(content, text!);
+        ReplaceContentControlText(content, text);
         SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
         return diagnostics;
     }
@@ -1114,13 +1114,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         _ = ReadRequiredField(operation, "checked", diagnostics);
         bool? checkedValue = ReadBooleanField(operation, "checked", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || checkedValue is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
-        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
         }
@@ -1135,10 +1135,10 @@ internal static partial class DocxPatchEngine
             ?.Element(OoxmlNs.W + "checkBox");
         if (checkBox is null)
         {
-            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a checkbox content control")];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target, "a checkbox content control")];
         }
 
-        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target);
         if (lockDiagnostic is not null)
         {
             return [lockDiagnostic];
@@ -1155,7 +1155,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        SetCheckboxChecked(checkBox, checkedValue!.Value);
+        SetCheckboxChecked(checkBox, checkedValue.Value);
         ReplaceContentControlText(content, GetCheckboxDisplaySymbol(checkBox, checkedValue.Value));
         SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
         return [];
@@ -1176,13 +1176,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Exactly one of 'value' or 'display-text' is required for set-content-control-choice.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
-        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
         }
@@ -1198,10 +1198,10 @@ internal static partial class DocxPatchEngine
             .FirstOrDefault(element => element.Name == OoxmlNs.W + "dropDownList" || element.Name == OoxmlNs.W + "comboBox");
         if (list is null)
         {
-            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a dropdown or combo box content control")];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target, "a dropdown or combo box content control")];
         }
 
-        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target);
         if (lockDiagnostic is not null)
         {
             return [lockDiagnostic];
@@ -1240,13 +1240,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? value = ReadRequiredField(operation, "value", diagnostics);
         string? displayText = operation.Fields.GetValueOrDefault("display-text");
-        if (diagnostics.Count != 0)
+        if (value is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target!, cancellationToken);
-        if (controlTarget is null && !IsSupportedContentControlTargetShape(target!))
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
         }
@@ -1261,10 +1261,10 @@ internal static partial class DocxPatchEngine
             ?.Element(OoxmlNs.W + "date");
         if (date is null)
         {
-            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target!, "a date content control")];
+            return [UnsupportedContentControlKindDiagnostic(controlTarget.ContentControl, operation, target, "a date content control")];
         }
 
-        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target!);
+        DocxDiagnostic? lockDiagnostic = ValidateContentControlUnlocked(controlTarget.ContentControl, operation, target);
         if (lockDiagnostic is not null)
         {
             return [lockDiagnostic];
@@ -1281,8 +1281,8 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        SetContentControlDateValue(date, value!);
-        ReplaceContentControlText(content, displayText ?? value!);
+        SetContentControlDateValue(date, value);
+        ReplaceContentControlText(content, displayText ?? value);
         SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
         return [];
     }
@@ -1298,13 +1298,13 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target!, cancellationToken);
-        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target!))
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target, cancellationToken);
+        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
         }
@@ -1363,7 +1363,7 @@ internal static partial class DocxPatchEngine
         string[]? structuredReplacementLines = null;
         if (structuredTextSlots is not null)
         {
-            structuredReplacementLines = SplitReplacementParagraphText(text!);
+            structuredReplacementLines = SplitReplacementParagraphText(text);
             if (structuredReplacementLines.Length != structuredTextSlots.Length)
             {
                 return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' table-spanning replacement requires {structuredTextSlots.Length} replacement lines, one per visible text slot, but received {structuredReplacementLines.Length}.", operation, target)];
@@ -1379,7 +1379,7 @@ internal static partial class DocxPatchEngine
                 if (!TrackUnsupportedShape(
                     options,
                     operation,
-                    target!,
+                    target,
                     "tracked replace-bookmark-text supports only simple same-paragraph bookmark ranges",
                     diagnostics))
                 {
@@ -1388,9 +1388,9 @@ internal static partial class DocxPatchEngine
 
                 useTrackedChanges = false;
             }
-            else if (!TryBuildTrackedBookmarkReplacement(nodes, text!, out trackedReplacement, out string? trackedUnsupportedReason))
+            else if (!TryBuildTrackedBookmarkReplacement(nodes, text, out trackedReplacement, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
                 {
                     return diagnostics;
                 }
@@ -1404,7 +1404,7 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        if (useTrackedChanges)
+        if (useTrackedChanges && trackedReplacement is not null)
         {
             foreach (XNode node in nodes)
             {
@@ -1413,8 +1413,8 @@ internal static partial class DocxPatchEngine
 
             XNode[] trackedNodes = CreateTrackedBookmarkReplacementNodes(
                 package,
-                trackedReplacement!.DeletedText,
-                text!,
+                trackedReplacement.DeletedText,
+                text,
                 trackedReplacement.RunProperties,
                 options,
                 generatedRevisionIds,
@@ -1428,11 +1428,11 @@ internal static partial class DocxPatchEngine
                 node.Remove();
             }
 
-            bookmarkTarget.Start.AddAfterSelf(CreateSimpleRun(text!));
+            bookmarkTarget.Start.AddAfterSelf(CreateSimpleRun(text));
         }
-        else if (structuredTextSlots is not null)
+        else if (structuredTextSlots is not null && structuredReplacementLines is not null)
         {
-            ReplaceStructuredBookmarkTextSlots(structuredTextSlots, structuredReplacementLines!);
+            ReplaceStructuredBookmarkTextSlots(structuredTextSlots, structuredReplacementLines);
         }
         else
         {
@@ -1442,7 +1442,7 @@ internal static partial class DocxPatchEngine
                 endParagraph,
                 bookmarkTarget.End,
                 intermediateNodes,
-                text!);
+                text);
         }
 
         SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
@@ -1459,17 +1459,17 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? name = ReadRequiredField(operation, "name", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
-        if (diagnostics.Count != 0)
+        if (name is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        if (!IsValidBookmarkName(name!))
+        if (!IsValidBookmarkName(name))
         {
             return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'name' must be a non-empty bookmark name without whitespace.", operation, target)];
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -1486,7 +1486,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
         }
 
-        if (BookmarkNameExists(paragraphTarget.Document, name!))
+        if (BookmarkNameExists(paragraphTarget.Document, name))
         {
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark name '{name}' already exists in part '{paragraphTarget.PartName}'.", operation, target)];
         }
@@ -1505,7 +1505,7 @@ internal static partial class DocxPatchEngine
         var start = new XElement(
             OoxmlNs.W + "bookmarkStart",
             new XAttribute(OoxmlNs.W + "id", id),
-            new XAttribute(OoxmlNs.W + "name", name!));
+            new XAttribute(OoxmlNs.W + "name", name));
         var end = new XElement(
             OoxmlNs.W + "bookmarkEnd",
             new XAttribute(OoxmlNs.W + "id", id));
@@ -1534,18 +1534,18 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? name = ReadRequiredField(operation, "name", diagnostics);
-        if (diagnostics.Count != 0)
+        if (name is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        if (!IsValidBookmarkName(name!))
+        if (!IsValidBookmarkName(name))
         {
             return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'name' must be a non-empty bookmark name without whitespace.", operation, target)];
         }
 
-        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target!, cancellationToken);
-        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target!))
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target, cancellationToken);
+        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
         }
@@ -1566,7 +1566,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        if (BookmarkNameExists(bookmarkTarget.Document, bookmarkTarget.Start, name!))
+        if (BookmarkNameExists(bookmarkTarget.Document, bookmarkTarget.Start, name))
         {
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark name '{name}' already exists in part '{bookmarkTarget.PartName}'.", operation, target)];
         }
@@ -1583,7 +1583,7 @@ internal static partial class DocxPatchEngine
         }
 
         bookmarkTarget.Start.SetAttributeValue(OoxmlNs.W + "name", name);
-        UpdateInternalHyperlinkAnchors(bookmarkTarget.Document, oldName, name!);
+        UpdateInternalHyperlinkAnchors(bookmarkTarget.Document, oldName, name);
         SaveDocumentPart(package, bookmarkTarget.PartName, bookmarkTarget.Document);
         return [];
     }
@@ -1596,13 +1596,13 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target!, cancellationToken);
-        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target!))
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target, cancellationToken);
+        if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
         }
@@ -1619,7 +1619,7 @@ internal static partial class DocxPatchEngine
 
         string? name = (string?)bookmarkTarget.Start.Attribute(OoxmlNs.W + "name");
         if (!string.IsNullOrWhiteSpace(name) &&
-            HasInternalHyperlinkAnchor(bookmarkTarget.Document, name!))
+            HasInternalHyperlinkAnchor(bookmarkTarget.Document, name))
         {
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is referenced by same-part hyperlink anchors; update or remove those hyperlinks before deleting the bookmark.", operation, target)];
         }
@@ -1678,12 +1678,12 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'anchor-text' must not be empty.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || text is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -1755,7 +1755,7 @@ internal static partial class DocxPatchEngine
 
         CommentsPartTarget commentsPart = ResolveOrCreateCommentsPart(package, cancellationToken);
         string commentId = AllocateCommentId(package, cancellationToken);
-        commentsPart.Root.Add(CreateComment(commentId, text!, author, initials, timestampUtc));
+        commentsPart.Root.Add(CreateComment(commentId, text, author, initials, timestampUtc));
         if (anchorRange is TextRange selectedRange)
         {
             AddSelectedCommentAnchor(paragraphTarget.Paragraph, commentId, selectedRange);
@@ -1781,12 +1781,12 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CommentTarget? commentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        CommentTarget? commentTarget = ResolveCommentTarget(package, target, operation, cancellationToken, out DocxDiagnostic? diagnostic);
         if (diagnostic is not null)
         {
             return [diagnostic];
@@ -1800,9 +1800,9 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         XElement[]? trackedParagraphs = null;
         if (useTrackedChanges &&
-            !TryGetTrackedCommentParagraphs(commentTarget.Comment, text!, out trackedParagraphs, out string? trackedUnsupportedReason))
+            !TryGetTrackedCommentParagraphs(commentTarget.Comment, text, out trackedParagraphs, out string? trackedUnsupportedReason))
         {
-            if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+            if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
             {
                 return diagnostics;
             }
@@ -1815,13 +1815,13 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        if (useTrackedChanges)
+        if (useTrackedChanges && trackedParagraphs is not null)
         {
-            ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs!, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text, options, generatedRevisionIds, cancellationToken);
         }
         else
         {
-            ReplaceCommentText(commentTarget.Comment, text!);
+            ReplaceCommentText(commentTarget.Comment, text);
         }
 
         SaveDocumentPart(package, commentTarget.PartName, commentTarget.Document);
@@ -1837,12 +1837,12 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CommentTarget? commentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        CommentTarget? commentTarget = ResolveCommentTarget(package, target, operation, cancellationToken, out DocxDiagnostic? diagnostic);
         if (diagnostic is not null)
         {
             return [diagnostic];
@@ -1868,7 +1868,7 @@ internal static partial class DocxPatchEngine
             package,
             commentTarget,
             operation,
-            target!,
+            target,
             cancellationToken,
             out diagnostic,
             out bool commentDocumentChanged);
@@ -1900,12 +1900,12 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CommentTarget? commentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        CommentTarget? commentTarget = ResolveCommentTarget(package, target, operation, cancellationToken, out DocxDiagnostic? diagnostic);
         if (diagnostic is not null)
         {
             return [diagnostic];
@@ -1960,12 +1960,12 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'author' must not be empty.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CommentTarget? parentTarget = ResolveCommentTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        CommentTarget? parentTarget = ResolveCommentTarget(package, target, operation, cancellationToken, out DocxDiagnostic? diagnostic);
         if (diagnostic is not null)
         {
             return [diagnostic];
@@ -2008,7 +2008,7 @@ internal static partial class DocxPatchEngine
             package,
             parentTarget,
             operation,
-            target!,
+            target,
             cancellationToken,
             out diagnostic,
             out _);
@@ -2027,7 +2027,7 @@ internal static partial class DocxPatchEngine
         string replyParaId = AllocateCommentParaId(package, [parentParaId], cancellationToken);
         string replyCommentId = AllocateCommentId(package, cancellationToken);
         EnsureNamespaceDeclaration(parentTarget.Document.Root, "w15", OoxmlNs.W15);
-        parentTarget.Comment.AddAfterSelf(CreateComment(replyCommentId, text!, author, initials, timestampUtc, replyParaId));
+        parentTarget.Comment.AddAfterSelf(CreateComment(replyCommentId, text, author, initials, timestampUtc, replyParaId));
 
         XElement parentExtensionRoot = parentExtensionTarget?.Document.Root
             ?? throw new InvalidDataException("commentsExtended document has no XML root.");
@@ -2059,12 +2059,12 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CommentReplyTarget? replyTarget = ResolveCommentReplyTarget(package, target!, operation, cancellationToken, out DocxDiagnostic? diagnostic);
+        CommentReplyTarget? replyTarget = ResolveCommentReplyTarget(package, target, operation, cancellationToken, out DocxDiagnostic? diagnostic);
         if (diagnostic is not null)
         {
             return [diagnostic];
@@ -2106,12 +2106,12 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         _ = ReadRequiredField(operation, fieldName, diagnostics);
         bool? value = ReadBooleanField(operation, fieldName, diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || value is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        if (IsAllFieldsTarget(target!))
+        if (IsAllFieldsTarget(target))
         {
             IReadOnlyList<FieldTarget> fieldTargets = ResolveAllFieldTargets(package, cancellationToken);
             if (fieldTargets.Count == 0)
@@ -2126,7 +2126,7 @@ internal static partial class DocxPatchEngine
 
             foreach (FieldTarget targetField in fieldTargets)
             {
-                targetField.Element.SetAttributeValue(OoxmlNs.W + attributeName, value!.Value ? "true" : "false");
+                targetField.Element.SetAttributeValue(OoxmlNs.W + attributeName, value.Value ? "true" : "false");
             }
 
             foreach (IGrouping<string, FieldTarget> partGroup in fieldTargets.GroupBy(fieldTarget => fieldTarget.PartName, StringComparer.Ordinal))
@@ -2137,8 +2137,8 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
-        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected 'all' or a field ID such as M.F0001 or H001.F0001.", operation, target)];
         }
@@ -2153,7 +2153,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + attributeName, value!.Value ? "true" : "false");
+        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + attributeName, value.Value ? "true" : "false");
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
         return [];
     }
@@ -2168,13 +2168,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? code = ReadRequiredField(operation, "code", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-code");
-        if (diagnostics.Count != 0)
+        if (code is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
-        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
         }
@@ -2200,7 +2200,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "instr", code!);
+        fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "instr", code);
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", "true");
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
         return [];
@@ -2218,13 +2218,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-result");
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
-        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
         }
@@ -2236,7 +2236,7 @@ internal static partial class DocxPatchEngine
 
         bool simpleField = fieldTarget.Element.Name == OoxmlNs.W + "fldSimple";
         XElement? complexSeparateRun = null;
-        XElement[]? complexResultRuns = null;
+        XElement[] complexResultRuns = [];
         if (!simpleField)
         {
             if (!TryGetSimpleComplexFieldResultRuns(
@@ -2251,7 +2251,7 @@ internal static partial class DocxPatchEngine
 
         string current = simpleField
             ? ReadVisibleText(fieldTarget.Element)
-            : ReadVisibleText(new XElement(OoxmlNs.W + "p", complexResultRuns!));
+            : ReadVisibleText(new XElement(OoxmlNs.W + "p", complexResultRuns));
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
@@ -2262,7 +2262,7 @@ internal static partial class DocxPatchEngine
         {
             if (!simpleField)
             {
-                if (!TrackUnsupportedShape(options, operation, target!, "tracked complex-field result replacement is not modeled", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, "tracked complex-field result replacement is not modeled", diagnostics))
                 {
                     return diagnostics;
                 }
@@ -2271,16 +2271,16 @@ internal static partial class DocxPatchEngine
             }
             else if (TryGetProtectedTextEditFeature(fieldTarget.Element, out string protectedFeature))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, $"field result contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, $"field result contains protected OOXML boundary '{protectedFeature}'", diagnostics))
                 {
                     return diagnostics;
                 }
 
                 useTrackedChanges = false;
             }
-            else if (!TryValidateTrackedWholeParagraphReplacement(fieldTarget.Element, current, text!, style: null, out string? trackedUnsupportedReason))
+            else if (!TryValidateTrackedWholeParagraphReplacement(fieldTarget.Element, current, text, style: null, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
                 {
                     return diagnostics;
                 }
@@ -2296,18 +2296,18 @@ internal static partial class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, fieldTarget.Element, current, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, fieldTarget.Element, current, text, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
             return diagnostics;
         }
 
         if (simpleField)
         {
-            ReplaceSimpleFieldResult(fieldTarget.Element, text!);
+            ReplaceSimpleFieldResult(fieldTarget.Element, text);
         }
-        else
+        else if (complexSeparateRun is not null)
         {
-            ReplaceComplexFieldResult(complexSeparateRun!, complexResultRuns!, text!);
+            ReplaceComplexFieldResult(complexSeparateRun, complexResultRuns, text);
         }
 
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
@@ -2324,13 +2324,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? expectedCode = operation.Fields.GetValueOrDefault("expect-code");
         string? expectedResult = operation.Fields.GetValueOrDefault("expect-result");
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        FieldTarget? fieldTarget = ResolveFieldTarget(package, target!, cancellationToken);
-        if (fieldTarget is null && !IsSupportedFieldTargetShape(target!))
+        FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
+        if (fieldTarget is null && !IsSupportedFieldTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported field target '{target}'. Expected a field ID such as M.F0001 or H001.F0001.", operation, target)];
         }
@@ -2364,7 +2364,7 @@ internal static partial class DocxPatchEngine
                 return [];
             }
 
-            ReplaceSimpleFieldResult(fieldTarget.Element, quoteText!);
+            ReplaceSimpleFieldResult(fieldTarget.Element, quoteText);
             fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", null);
             SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
             return [];
@@ -2372,10 +2372,10 @@ internal static partial class DocxPatchEngine
 
         if (!TryReadRefFieldBookmarkName(currentCode, out string? bookmarkName))
         {
-            return [UnsupportedFieldRefreshDiagnostic(operation, target!, currentCode)];
+            return [UnsupportedFieldRefreshDiagnostic(operation, target, currentCode)];
         }
 
-        if (!TryReadSimpleBookmarkText(fieldTarget.Document, bookmarkName!, out string? bookmarkText, out string? unsupportedReason))
+        if (!TryReadSimpleBookmarkText(fieldTarget.Document, bookmarkName, out string? bookmarkText, out string? unsupportedReason))
         {
             return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} cannot resolve bookmark '{bookmarkName}': {unsupportedReason}.", operation, target)];
         }
@@ -2385,7 +2385,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        ReplaceSimpleFieldResult(fieldTarget.Element, bookmarkText!);
+        ReplaceSimpleFieldResult(fieldTarget.Element, bookmarkText);
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", null);
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
         return [];
@@ -2398,7 +2398,7 @@ internal static partial class DocxPatchEngine
             code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 
-    private static bool TryReadRefFieldBookmarkName(string code, out string? bookmarkName)
+    private static bool TryReadRefFieldBookmarkName(string code, [NotNullWhen(true)] out string? bookmarkName)
     {
         bookmarkName = null;
         string[] tokens = TokenizeFieldCodeForPatch(code);
@@ -2427,7 +2427,7 @@ internal static partial class DocxPatchEngine
         return false;
     }
 
-    private static bool TryReadQuoteFieldText(string code, out string? text)
+    private static bool TryReadQuoteFieldText(string code, [NotNullWhen(true)] out string? text)
     {
         text = null;
         string[] tokens = TokenizeFieldCodeForPatch(code);
@@ -2520,8 +2520,8 @@ internal static partial class DocxPatchEngine
     private static bool TryReadSimpleBookmarkText(
         XDocument document,
         string bookmarkName,
-        out string? text,
-        out string? unsupportedReason)
+        [NotNullWhen(true)] out string? text,
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         text = null;
         unsupportedReason = null;
@@ -2598,7 +2598,7 @@ internal static partial class DocxPatchEngine
         XElement beginFieldChar,
         out XElement? separateRun,
         out XElement[] resultRuns,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         separateRun = null;
         resultRuns = [];
@@ -2744,13 +2744,13 @@ internal static partial class DocxPatchEngine
 
         bool? history = ReadBooleanField(operation, "history", diagnostics);
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target!, cancellationToken);
-        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target!))
+        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
+        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported hyperlink target '{target}'. Expected a hyperlink ID such as M.L0001 or H001.L0001.", operation, target)];
         }
@@ -2769,9 +2769,9 @@ internal static partial class DocxPatchEngine
         {
             SetExternalHyperlinkTarget(package, hyperlinkTarget, uri, cancellationToken);
         }
-        else
+        else if (anchor is not null)
         {
-            SetInternalHyperlinkAnchor(package, hyperlinkTarget, anchor!, cancellationToken);
+            SetInternalHyperlinkAnchor(package, hyperlinkTarget, anchor, cancellationToken);
         }
 
         if (operation.Fields.TryGetValue("tooltip", out string? tooltip))
@@ -2804,13 +2804,13 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target!, cancellationToken);
-        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target!))
+        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
+        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported hyperlink target '{target}'. Expected a hyperlink ID such as M.L0001 or H001.L0001.", operation, target)];
         }
@@ -2826,16 +2826,16 @@ internal static partial class DocxPatchEngine
         {
             if (TryGetProtectedTextEditFeature(hyperlinkTarget.Hyperlink, out string protectedFeature))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, $"hyperlink contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, $"hyperlink contains protected OOXML boundary '{protectedFeature}'", diagnostics))
                 {
                     return diagnostics;
                 }
 
                 useTrackedChanges = false;
             }
-            else if (!TryValidateTrackedWholeParagraphReplacement(hyperlinkTarget.Hyperlink, current, text!, style: null, out string? trackedUnsupportedReason))
+            else if (!TryValidateTrackedWholeParagraphReplacement(hyperlinkTarget.Hyperlink, current, text, style: null, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
                 {
                     return diagnostics;
                 }
@@ -2851,12 +2851,12 @@ internal static partial class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceWholeParagraphTextWithTrackedChanges(package, hyperlinkTarget.Hyperlink, current, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, hyperlinkTarget.Hyperlink, current, text, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
             return diagnostics;
         }
 
-        ReplaceHyperlinkText(hyperlinkTarget.Hyperlink, text!);
+        ReplaceHyperlinkText(hyperlinkTarget.Hyperlink, text);
         SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
         return diagnostics;
     }
@@ -2879,12 +2879,12 @@ internal static partial class DocxPatchEngine
 
         bool? history = ReadBooleanField(operation, "history", diagnostics);
 
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -2896,9 +2896,9 @@ internal static partial class DocxPatchEngine
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
-        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text!))
+        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text))
         {
-            if (!TrackUnsupportedShape(options, operation, target!, "inserted hyperlink text contains tabs or line breaks", diagnostics))
+            if (!TrackUnsupportedShape(options, operation, target, "inserted hyperlink text contains tabs or line breaks", diagnostics))
             {
                 return diagnostics;
             }
@@ -2919,7 +2919,7 @@ internal static partial class DocxPatchEngine
         }
 
         XElement paragraph = CreateHyperlinkParagraph(
-            useTrackedChanges ? string.Empty : text!,
+            useTrackedChanges ? string.Empty : text,
             relationshipId,
             anchor,
             operation.Fields.GetValueOrDefault("tooltip"),
@@ -2930,7 +2930,7 @@ internal static partial class DocxPatchEngine
             XElement hyperlink = paragraph.Element(OoxmlNs.W + "hyperlink")
                 ?? throw new InvalidDataException("Hyperlink paragraph did not contain a hyperlink element.");
             hyperlink.RemoveNodes();
-            ReplaceWholeParagraphTextWithTrackedChanges(package, hyperlink, string.Empty, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceWholeParagraphTextWithTrackedChanges(package, hyperlink, string.Empty, text, options, generatedRevisionIds, cancellationToken);
         }
 
         blockTarget.Block.AddAfterSelf(paragraph);
@@ -2946,13 +2946,13 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target!, cancellationToken);
-        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target!))
+        HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
+        if (hyperlinkTarget is null && !IsSupportedHyperlinkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported hyperlink target '{target}'. Expected a hyperlink ID such as M.L0001 or H001.L0001.", operation, target)];
         }
@@ -2970,9 +2970,9 @@ internal static partial class DocxPatchEngine
         string? relationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
         hyperlinkTarget.Hyperlink.ReplaceWith(hyperlinkTarget.Hyperlink.Nodes().ToArray());
         if (!string.IsNullOrWhiteSpace(relationshipId) &&
-            !UsesHyperlinkRelationship(hyperlinkTarget.Document, relationshipId!))
+            !UsesHyperlinkRelationship(hyperlinkTarget.Document, relationshipId))
         {
-            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId!, cancellationToken);
+            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId, cancellationToken);
         }
 
         SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
@@ -3039,7 +3039,7 @@ internal static partial class DocxPatchEngine
         if (uri is not null &&
             !TryValidateExternalHyperlinkUri(uri, out string? uriDiagnostic))
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", uriDiagnostic!, operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", uriDiagnostic, operation, target));
             return false;
         }
 
@@ -3052,7 +3052,7 @@ internal static partial class DocxPatchEngine
         return true;
     }
 
-    private static bool TryValidateExternalHyperlinkUri(string uri, out string? diagnostic)
+    private static bool TryValidateExternalHyperlinkUri(string uri, [NotNullWhen(false)] out string? diagnostic)
     {
         diagnostic = null;
         if (!Uri.TryCreate(uri, UriKind.RelativeOrAbsolute, out Uri? parsed))
@@ -3084,9 +3084,9 @@ internal static partial class DocxPatchEngine
     {
         string? oldRelationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
         bool canReuseRelationship = !string.IsNullOrWhiteSpace(oldRelationshipId) &&
-            CountHyperlinkRelationshipUses(hyperlinkTarget.Document, oldRelationshipId!) == 1;
-        string relationshipId = canReuseRelationship
-            ? oldRelationshipId!
+            CountHyperlinkRelationshipUses(hyperlinkTarget.Document, oldRelationshipId) == 1;
+        string relationshipId = canReuseRelationship && oldRelationshipId is not null
+            ? oldRelationshipId
             : OoxmlIds.AllocateRelationshipId(package.GetRelationships(hyperlinkTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
         if (canReuseRelationship)
         {
@@ -3108,9 +3108,9 @@ internal static partial class DocxPatchEngine
         hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.R + "id", null);
         hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "anchor", anchor);
         if (!string.IsNullOrWhiteSpace(oldRelationshipId) &&
-            !UsesHyperlinkRelationship(hyperlinkTarget.Document, oldRelationshipId!))
+            !UsesHyperlinkRelationship(hyperlinkTarget.Document, oldRelationshipId))
         {
-            package.RemoveRelationship(hyperlinkTarget.PartName, oldRelationshipId!, cancellationToken);
+            package.RemoveRelationship(hyperlinkTarget.PartName, oldRelationshipId, cancellationToken);
         }
     }
 
@@ -3304,11 +3304,11 @@ internal static partial class DocxPatchEngine
             .Element(OoxmlNs.W + stateElementName)
             ?.Attribute(OoxmlNs.W + "val");
         return TryDecodeStateSymbol(stateValue, out string? symbol)
-            ? symbol!
+            ? symbol
             : char.ConvertFromUtf32(checkedValue ? 0x2612 : 0x2610);
     }
 
-    private static bool TryDecodeStateSymbol(string? value, out string? symbol)
+    private static bool TryDecodeStateSymbol(string? value, [NotNullWhen(true)] out string? symbol)
     {
         symbol = null;
         if (string.IsNullOrEmpty(value))
@@ -3672,8 +3672,8 @@ internal static partial class DocxPatchEngine
     private static bool TryBuildTrackedBookmarkReplacement(
         IReadOnlyList<XNode> nodes,
         string replacement,
-        out TrackedBookmarkReplacement? trackedReplacement,
-        out string? unsupportedReason)
+        [NotNullWhen(true)] out TrackedBookmarkReplacement? trackedReplacement,
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         trackedReplacement = null;
         unsupportedReason = null;
@@ -4007,31 +4007,23 @@ internal static partial class DocxPatchEngine
 
     private static IReadOnlyList<string> GetCommentsPartNames(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         return package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Comments)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget!)
+            .Select(relationship => relationship.ResolvedTarget)
             .ToArray();
     }
 
     private static IReadOnlyList<string> GetCommentsExtendedPartNames(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         var partNames = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsExtended && relationship.ResolvedTarget is not null)
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.CommentsExtended)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget!)
+            .Select(relationship => relationship.ResolvedTarget)
             .ToList();
         if (package.GetPart("/word/commentsExtended.xml") is not null &&
             !partNames.Contains("/word/commentsExtended.xml", StringComparer.Ordinal))
@@ -4044,16 +4036,12 @@ internal static partial class DocxPatchEngine
 
     private static IReadOnlyList<string> GetCommentsIdsPartNames(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         var partNames = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsIds && relationship.ResolvedTarget is not null)
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.CommentsIds)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget!)
+            .Select(relationship => relationship.ResolvedTarget)
             .ToList();
         if (package.GetPart("/word/commentsIds.xml") is not null &&
             !partNames.Contains("/word/commentsIds.xml", StringComparer.Ordinal))
@@ -4134,9 +4122,9 @@ internal static partial class DocxPatchEngine
             }
 
             string relationshipId = OoxmlIds.AllocateRelationshipId(package
-                .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+                .GetRelationships(package.MainDocumentPartName, cancellationToken)
                 .Select(relationship => relationship.Id));
-            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Comments, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsPartName), targetMode: null, cancellationToken);
+            package.AddRelationship(package.MainDocumentPartName, relationshipId, OoxmlRelTypes.Comments, GetRelativeRelationshipTarget(package.MainDocumentPartName, commentsPartName), targetMode: null, cancellationToken);
         }
         else if (package.GetPart(commentsPartName) is null)
         {
@@ -4310,9 +4298,9 @@ internal static partial class DocxPatchEngine
             }
 
             string relationshipId = OoxmlIds.AllocateRelationshipId(package
-                .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+                .GetRelationships(package.MainDocumentPartName, cancellationToken)
                 .Select(relationship => relationship.Id));
-            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsExtended, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsExtendedPartName), targetMode: null, cancellationToken);
+            package.AddRelationship(package.MainDocumentPartName, relationshipId, OoxmlRelTypes.CommentsExtended, GetRelativeRelationshipTarget(package.MainDocumentPartName, commentsExtendedPartName), targetMode: null, cancellationToken);
         }
         else if (package.GetPart(commentsExtendedPartName) is null)
         {
@@ -4349,9 +4337,9 @@ internal static partial class DocxPatchEngine
             }
 
             string relationshipId = OoxmlIds.AllocateRelationshipId(package
-                .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+                .GetRelationships(package.MainDocumentPartName, cancellationToken)
                 .Select(relationship => relationship.Id));
-            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsIds, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsIdsPartName), targetMode: null, cancellationToken);
+            package.AddRelationship(package.MainDocumentPartName, relationshipId, OoxmlRelTypes.CommentsIds, GetRelativeRelationshipTarget(package.MainDocumentPartName, commentsIdsPartName), targetMode: null, cancellationToken);
         }
         else if (package.GetPart(commentsIdsPartName) is null)
         {
@@ -4389,7 +4377,7 @@ internal static partial class DocxPatchEngine
                 .Descendants(OoxmlNs.W16Cid + "commentId")
                 .Select(element => (string?)element.Attribute(OoxmlNs.W16Cid + "durableId"))
                 .Where(durableId => !string.IsNullOrWhiteSpace(durableId))
-                .Select(durableId => durableId!))
+                .OfType<string>())
             {
                 used.Add(durableId);
             }
@@ -4440,7 +4428,7 @@ internal static partial class DocxPatchEngine
                 .Descendants(OoxmlNs.W + "p")
                 .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
                 .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-                .Select(paraId => paraId!))
+                .OfType<string>())
             {
                 used.Add(paraId);
             }
@@ -4460,7 +4448,7 @@ internal static partial class DocxPatchEngine
             {
                 foreach (string paraId in new[] { (string?)extension.Attribute(OoxmlNs.W15 + "paraId"), (string?)extension.Attribute(OoxmlNs.W15 + "paraIdParent") }
                     .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-                    .Select(paraId => paraId!))
+                    .OfType<string>())
                 {
                     used.Add(paraId);
                 }
@@ -4809,13 +4797,13 @@ internal static partial class DocxPatchEngine
         string? asset = ReadRequiredField(operation, "asset", diagnostics);
         bool hasAlt = operation.Fields.ContainsKey("alt");
         string? alt = operation.Fields.GetValueOrDefault("alt");
-        if (diagnostics.Count != 0)
+        if (asset is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported replace-image target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -4825,12 +4813,12 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryReadAsset(options.AssetProvider, asset!, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
+        if (!TryReadAsset(options.AssetProvider, asset, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
             return [assetDiagnostic!];
         }
@@ -4843,7 +4831,7 @@ internal static partial class DocxPatchEngine
 
         XElement? imageContainer = null;
         if (hasAlt &&
-            !TryGetImageDrawingContainer(imageTarget, target!, operation, out imageContainer, out DocxDiagnostic? altDiagnostic))
+            !TryGetImageDrawingContainer(imageTarget, target, operation, out imageContainer, out DocxDiagnostic? altDiagnostic))
         {
             return [altDiagnostic!];
         }
@@ -4854,9 +4842,9 @@ internal static partial class DocxPatchEngine
         }
 
         package.ReplacePartBytes(imageTarget.Part.Name, bytes);
-        if (hasAlt)
+        if (hasAlt && imageContainer is not null)
         {
-            SetImageAlt(imageContainer!, alt!, target!);
+            SetImageAlt(imageContainer, alt, target);
             SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         }
 
@@ -4873,12 +4861,12 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? asset = ReadRequiredField(operation, "asset", diagnostics);
-        if (diagnostics.Count != 0)
+        if (asset is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target!, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
             return selectorDiagnostics;
@@ -4889,17 +4877,17 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!TryReadAsset(options.AssetProvider, asset!, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
+        if (!TryReadAsset(options.AssetProvider, asset, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
             return [assetDiagnostic!];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, contentType!, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, contentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryReadImageExtent(operation, bytes, contentType!, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
+        if (!TryReadImageExtent(operation, bytes, contentType, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
         {
             return [dimensionDiagnostic!];
         }
@@ -4909,9 +4897,9 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType!);
+        string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType);
         string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(paragraphTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
-        package.AddPart(imagePartName, contentType!, bytes, cancellationToken);
+        package.AddPart(imagePartName, contentType, bytes, cancellationToken);
         package.AddRelationship(paragraphTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(paragraphTarget.PartName, imagePartName), targetMode: null, cancellationToken);
         int docPrId = AllocateDrawingDocPrId(paragraphTarget.Document);
         XElement imageParagraph = CreateInlineImageParagraph(relationshipId, docPrId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
@@ -4934,13 +4922,13 @@ internal static partial class DocxPatchEngine
         bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
         bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
         bool hasPixelSize = TryReadImagePixelSize(bytes, contentType, out int pixelWidth, out int pixelHeight);
-        if (hasWidth && !OoxmlUnits.TryParseDimension(width!, out widthEmus))
+        if (width is not null && !OoxmlUnits.TryParseDimension(width, out widthEmus))
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
         }
 
-        if (hasHeight && !OoxmlUnits.TryParseDimension(height!, out heightEmus))
+        if (height is not null && !OoxmlUnits.TryParseDimension(height, out heightEmus))
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image height '{height}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
@@ -4972,7 +4960,7 @@ internal static partial class DocxPatchEngine
         string current,
         IReadOnlyList<TextRange> matches,
         string replacement,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         unsupportedReason = null;
         if (replacement.Contains('\t') || replacement.Contains('\n'))
@@ -5011,7 +4999,7 @@ internal static partial class DocxPatchEngine
         string current,
         string replacement,
         string? style,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         unsupportedReason = null;
         if (TextContainsTrackedUnsupportedCharacters(current) ||
@@ -5040,7 +5028,7 @@ internal static partial class DocxPatchEngine
         XElement cell,
         string replacement,
         out XElement[] paragraphs,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         paragraphs = cell.Elements(OoxmlNs.W + "p").ToArray();
         unsupportedReason = null;
@@ -5093,9 +5081,9 @@ internal static partial class DocxPatchEngine
     private static bool TryGetTrackedContentControlTextContainer(
         XElement content,
         string replacement,
-        out XElement? trackedContainer,
+        [NotNullWhen(true)] out XElement? trackedContainer,
         out string current,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         trackedContainer = null;
         current = string.Empty;
@@ -5153,7 +5141,7 @@ internal static partial class DocxPatchEngine
         XElement content,
         string replacement,
         out XElement[] paragraphs,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         paragraphs = content.Elements(OoxmlNs.W + "p").ToArray();
         unsupportedReason = null;
@@ -5207,7 +5195,7 @@ internal static partial class DocxPatchEngine
         XElement comment,
         string replacement,
         out XElement[] paragraphs,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         paragraphs = comment.Elements(OoxmlNs.W + "p").ToArray();
         unsupportedReason = null;
@@ -6050,13 +6038,13 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? alt = ReadRequiredField(operation, "alt", diagnostics);
-        if (diagnostics.Count != 0)
+        if (alt is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-alt target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6066,14 +6054,14 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
-            return [diagnostic!];
+            return [diagnostic];
         }
 
         if (!apply)
@@ -6081,7 +6069,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        SetImageAlt(imageContainer!, alt!, target!);
+        SetImageAlt(imageContainer, alt, target);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         return [];
     }
@@ -6102,13 +6090,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-metadata' requires at least one of 'alt', 'title', or 'name'.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-metadata target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6118,14 +6106,14 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
-            return [diagnostic!];
+            return [diagnostic];
         }
 
         if (!apply)
@@ -6133,7 +6121,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        SetImageMetadata(imageContainer!, target!, alt, title, name);
+        SetImageMetadata(imageContainer, target, alt, title, name);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         return [];
     }
@@ -6153,13 +6141,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-size' requires 'width', 'height', or both.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-size target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6169,20 +6157,20 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
-            return [diagnostic!];
+            return [diagnostic];
         }
 
-        if (!TryReadExistingImageSize(imageContainer!, imageTarget.Part, out long currentWidthEmus, out long currentHeightEmus) ||
-            !TryReadImageSize(operation, currentWidthEmus, currentHeightEmus, out long widthEmus, out long heightEmus, out diagnostic))
+        TryReadExistingImageSize(imageContainer, imageTarget.Part, out long currentWidthEmus, out long currentHeightEmus);
+        if (!TryReadImageSize(operation, currentWidthEmus, currentHeightEmus, out long widthEmus, out long heightEmus, out diagnostic))
         {
-            return [diagnostic!];
+            return [diagnostic];
         }
 
         if (!apply)
@@ -6190,7 +6178,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        SetImageSize(imageContainer!, widthEmus, heightEmus);
+        SetImageSize(imageContainer, widthEmus, heightEmus);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         return [];
     }
@@ -6214,13 +6202,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-wrap' requires 'mode' or at least one distance field.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-wrap target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6230,17 +6218,17 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
-            return [diagnostic!];
+            return [diagnostic];
         }
 
-        if (imageContainer!.Name != OoxmlNs.Wp + "anchor")
+        if (imageContainer.Name != OoxmlNs.Wp + "anchor")
         {
             return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' is inline; wrap metadata is only editable on anchored images.", operation, target)];
         }
@@ -6298,13 +6286,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-position' requires at least one position field.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-position target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6314,17 +6302,17 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
 
-        if (!TryGetImageDrawingContainer(imageTarget, target!, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
+        if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
-            return [diagnostic!];
+            return [diagnostic];
         }
 
-        if (imageContainer!.Name != OoxmlNs.Wp + "anchor")
+        if (imageContainer.Name != OoxmlNs.Wp + "anchor")
         {
             return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' is inline; position metadata is only editable on anchored images.", operation, target)];
         }
@@ -6364,13 +6352,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-crop' requires at least one crop field.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-image-crop target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6380,7 +6368,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
@@ -6425,8 +6413,8 @@ internal static partial class DocxPatchEngine
         ImageBlipTarget imageTarget,
         string target,
         DocxPatchOperation operation,
-        out XElement? container,
-        out DocxDiagnostic? diagnostic)
+        [NotNullWhen(true)] out XElement? container,
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic)
     {
         XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
         container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
@@ -6441,7 +6429,7 @@ internal static partial class DocxPatchEngine
         return true;
     }
 
-    private static void SetImageAlt(XElement container, string alt, string target)
+    private static void SetImageAlt(XElement container, string? alt, string target)
     {
         SetImageMetadata(container, target, alt, title: null, name: null);
     }
@@ -6502,20 +6490,20 @@ internal static partial class DocxPatchEngine
         long currentHeightEmus,
         out long widthEmus,
         out long heightEmus,
-        out DocxDiagnostic? diagnostic)
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic)
     {
         widthEmus = currentWidthEmus;
         heightEmus = currentHeightEmus;
         diagnostic = null;
         bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
         bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
-        if (hasWidth && (!OoxmlUnits.TryParseDimension(width!, out widthEmus) || widthEmus <= 0))
+        if (width is not null && (!OoxmlUnits.TryParseDimension(width, out widthEmus) || widthEmus <= 0))
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
         }
 
-        if (hasHeight && (!OoxmlUnits.TryParseDimension(height!, out heightEmus) || heightEmus <= 0))
+        if (height is not null && (!OoxmlUnits.TryParseDimension(height, out heightEmus) || heightEmus <= 0))
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image height '{height}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
@@ -6662,16 +6650,16 @@ internal static partial class DocxPatchEngine
             return false;
         }
 
-        if (hasRelative && !IsValidImagePositionRelative(axis, relative!))
+        if (relative is not null && !IsValidImagePositionRelative(axis, relative))
         {
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Unsupported image {axis} relative value '{relative}'.", operation, operation.Fields.GetValueOrDefault("target")));
             return false;
         }
 
         long? offsetEmus = null;
-        if (hasOffset)
+        if (offsetText is not null)
         {
-            if (!TryParseSignedDimension(offsetText!, out long parsedOffset))
+            if (!TryParseSignedDimension(offsetText, out long parsedOffset))
             {
                 diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Image position field '{axis}-offset' must be a signed dimension.", operation, operation.Fields.GetValueOrDefault("target")));
                 return false;
@@ -6680,7 +6668,7 @@ internal static partial class DocxPatchEngine
             offsetEmus = parsedOffset;
         }
 
-        if (hasAlign && !IsValidImagePositionAlign(axis, align!))
+        if (align is not null && !IsValidImagePositionAlign(axis, align))
         {
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E5210", $"Unsupported image {axis} align value '{align}'.", operation, operation.Fields.GetValueOrDefault("target")));
             return false;
@@ -6924,13 +6912,13 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target!, cancellationToken);
-        if (imageTarget is null && !IsSupportedImageTargetShape(target!))
+        ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+        if (imageTarget is null && !IsSupportedImageTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-image target '{target}'. Expected an image ID such as M.I0001 or H001.I0001.", operation, target)];
         }
@@ -6940,7 +6928,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateImageContentTypeGuard(operation, target!, imageTarget.Part.ContentType, diagnostics))
+        if (!ValidateImageContentTypeGuard(operation, target, imageTarget.Part.ContentType, diagnostics))
         {
             return diagnostics;
         }
@@ -7007,7 +6995,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? countText = ReadRequiredField(operation, "count", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
@@ -7017,13 +7005,13 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E6201", "Section column count must be between 1 and 4.", operation, target)];
         }
 
-        SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target!, cancellationToken);
+        SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target, cancellationToken);
         if (sectionTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateSectionGuards(operation, target!, sectionTarget.SectionProperties, diagnostics))
+        if (!ValidateSectionGuards(operation, target, sectionTarget.SectionProperties, diagnostics))
         {
             return diagnostics;
         }
@@ -7031,7 +7019,7 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges && sectionTarget.SectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any())
         {
-            if (!TrackUnsupportedShape(options, operation, target!, "section already contains tracked section property revision markup", diagnostics))
+            if (!TrackUnsupportedShape(options, operation, target, "section already contains tracked section property revision markup", diagnostics))
             {
                 return diagnostics;
             }
@@ -7074,7 +7062,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? orientation = ReadRequiredField(operation, "orientation", diagnostics);
-        if (diagnostics.Count != 0)
+        if (orientation is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
@@ -7084,13 +7072,13 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E6202", "Section orientation must be portrait or landscape.", operation, target)];
         }
 
-        SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target!, cancellationToken);
+        SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target, cancellationToken);
         if (sectionTarget is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateSectionGuards(operation, target!, sectionTarget.SectionProperties, diagnostics))
+        if (!ValidateSectionGuards(operation, target, sectionTarget.SectionProperties, diagnostics))
         {
             return diagnostics;
         }
@@ -7098,7 +7086,7 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges && sectionTarget.SectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any())
         {
-            if (!TrackUnsupportedShape(options, operation, target!, "section already contains tracked section property revision markup", diagnostics))
+            if (!TrackUnsupportedShape(options, operation, target, "section already contains tracked section property revision markup", diagnostics))
             {
                 return diagnostics;
             }
@@ -7116,14 +7104,14 @@ internal static partial class DocxPatchEngine
             SetSectionPropertiesWithTrackedChange(
                 package,
                 sectionTarget.SectionProperties,
-                properties => SetSectionOrientation(properties, orientation!),
+                properties => SetSectionOrientation(properties, orientation),
                 options,
                 generatedRevisionIds,
                 cancellationToken);
         }
         else
         {
-            SetSectionOrientation(sectionTarget.SectionProperties, orientation!);
+            SetSectionOrientation(sectionTarget.SectionProperties, orientation);
         }
 
         SaveMainDocument(package, sectionTarget.Document);
@@ -7143,13 +7131,13 @@ internal static partial class DocxPatchEngine
         string? text = ReadRequiredField(operation, "text", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         bool force = ReadBooleanField(operation, "force", diagnostics) ?? false;
-        if (diagnostics.Count != 0)
+        if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CellTarget? cellTarget = ResolveCellTarget(package, target!, cancellationToken);
-        if (cellTarget is null && !IsSupportedCellTargetShape(target!))
+        CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+        if (cellTarget is null && !IsSupportedCellTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell target '{target}'. Expected a table cell ID such as M.T0001.R02.C03 or H001.T0001.R02.C03, or a merge group ID such as M.T0001.MG0001.", operation, target)];
         }
@@ -7159,7 +7147,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, cellTarget.Table, cellTarget.Row, diagnostics))
+        if (!ValidateTableGuards(operation, target, cellTarget.Table, cellTarget.Row, diagnostics))
         {
             return diagnostics;
         }
@@ -7189,16 +7177,16 @@ internal static partial class DocxPatchEngine
         {
             if (force)
             {
-                if (!TrackUnsupportedShape(options, operation, target!, "tracked set-cell does not support force true replacement", diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, "tracked set-cell does not support force true replacement", diagnostics))
                 {
                     return diagnostics;
                 }
 
                 useTrackedChanges = false;
             }
-            else if (!TryGetTrackedSetCellParagraphs(cellTarget.Cell, text!, out trackedParagraphs, out string? trackedUnsupportedReason))
+            else if (!TryGetTrackedSetCellParagraphs(cellTarget.Cell, text, out trackedParagraphs, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target!, trackedUnsupportedReason!, diagnostics))
+                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
                 {
                     return diagnostics;
                 }
@@ -7219,12 +7207,12 @@ internal static partial class DocxPatchEngine
 
         if (useTrackedChanges)
         {
-            ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text!, options, generatedRevisionIds, cancellationToken);
+            ReplaceCellParagraphTextWithTrackedChanges(package, trackedParagraphs, text, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
             return diagnostics;
         }
 
-        ReplaceCellText(cellTarget.Cell, text!);
+        ReplaceCellText(cellTarget.Cell, text);
         SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
         return diagnostics;
     }
@@ -7264,13 +7252,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", $"Field 'expect-fill' must be a 6-digit hexadecimal color, 'auto', or 'none', found '{expectedFill}'.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        CellTarget? cellTarget = ResolveCellTarget(package, target!, cancellationToken);
-        if (cellTarget is null && !IsSupportedCellTargetShape(target!))
+        CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+        if (cellTarget is null && !IsSupportedCellTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-cell-shading target '{target}'. Expected a table cell ID such as M.T0001.R02.C03 or H001.T0001.R02.C03, or a merge group ID such as M.T0001.MG0001.", operation, target)];
         }
@@ -7321,13 +7309,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? style = ReadRequiredField(operation, "style", diagnostics);
         string? expectedStyle = operation.Fields.GetValueOrDefault("expect-style");
-        if (diagnostics.Count != 0)
+        if (style is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        TableTarget? tableTarget = ResolveTableTarget(package, target!, cancellationToken);
-        if (tableTarget is null && !IsSupportedTableTargetShape(target!))
+        TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
+        if (tableTarget is null && !IsSupportedTableTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-table-style target '{target}'. Expected a table ID such as M.T0001 or H001.T0001.", operation, target)];
         }
@@ -7350,11 +7338,11 @@ internal static partial class DocxPatchEngine
 
         if (IsTrackedMode(options))
         {
-            SetTableStyleWithTrackedChange(package, tableTarget.Table, style!, options, generatedRevisionIds, cancellationToken);
+            SetTableStyleWithTrackedChange(package, tableTarget.Table, style, options, generatedRevisionIds, cancellationToken);
         }
         else
         {
-            SetTableStyle(tableTarget.Table, style!);
+            SetTableStyle(tableTarget.Table, style);
         }
 
         SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);
@@ -7378,13 +7366,13 @@ internal static partial class DocxPatchEngine
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-table-metadata' requires at least one of 'caption' or 'description'.", operation, target));
         }
 
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        TableTarget? tableTarget = ResolveTableTarget(package, target!, cancellationToken);
-        if (tableTarget is null && !IsSupportedTableTargetShape(target!))
+        TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
+        if (tableTarget is null && !IsSupportedTableTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-table-metadata target '{target}'. Expected a table ID such as M.T0001 or H001.T0001.", operation, target)];
         }
@@ -7430,13 +7418,13 @@ internal static partial class DocxPatchEngine
         _ = ReadRequiredField(operation, "header", diagnostics);
         bool? header = ReadBooleanField(operation, "header", diagnostics);
         bool? expectedHeader = ReadBooleanField(operation, "expect-header", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || header is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        RowTarget? rowTarget = ResolveRowTarget(package, target!, cancellationToken);
-        if (rowTarget is null && !IsSupportedRowTargetShape(target!))
+        RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+        if (rowTarget is null && !IsSupportedRowTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported set-row-header target '{target}'. Expected a table row ID such as M.T0001.R02 or H001.T0001.R02.", operation, target)];
         }
@@ -7459,11 +7447,11 @@ internal static partial class DocxPatchEngine
 
         if (IsTrackedMode(options))
         {
-            SetTableRowHeaderWithTrackedChange(package, rowTarget.Row, header!.Value, options, generatedRevisionIds, cancellationToken);
+            SetTableRowHeaderWithTrackedChange(package, rowTarget.Row, header.Value, options, generatedRevisionIds, cancellationToken);
         }
         else
         {
-            SetTableRowHeader(rowTarget.Row, header!.Value);
+            SetTableRowHeader(rowTarget.Row, header.Value);
         }
 
         SaveDocumentPart(package, rowTarget.PartName, rowTarget.Document);
@@ -7480,13 +7468,13 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        TableTarget? tableTarget = ResolveTableTarget(package, target!, cancellationToken);
-        if (tableTarget is null && !IsSupportedTableTargetShape(target!))
+        TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
+        if (tableTarget is null && !IsSupportedTableTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported append-row target '{target}'. Expected a table ID such as M.T0001 or H001.T0001.", operation, target)];
         }
@@ -7505,7 +7493,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, tableTarget.Table, row: null, diagnostics))
+        if (!ValidateTableGuards(operation, target, tableTarget.Table, row: null, diagnostics))
         {
             return diagnostics;
         }
@@ -7539,7 +7527,7 @@ internal static partial class DocxPatchEngine
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
-        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target!, tableTarget.Table, force: false, diagnostics))
+        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target, tableTarget.Table, force: false, diagnostics))
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
@@ -7577,13 +7565,13 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         bool force = ReadBooleanField(operation, "force", diagnostics) ?? false;
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        RowTarget? rowTarget = ResolveRowTarget(package, target!, cancellationToken);
-        if (rowTarget is null && !IsSupportedRowTargetShape(target!))
+        RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+        if (rowTarget is null && !IsSupportedRowTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported {operation.OperationName} target '{target}'. Expected a table row ID such as M.T0001.R02 or H001.T0001.R02.", operation, target)];
         }
@@ -7602,7 +7590,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, rowTarget.Table, rowTarget.Row, diagnostics))
+        if (!ValidateTableGuards(operation, target, rowTarget.Table, rowTarget.Row, diagnostics))
         {
             return diagnostics;
         }
@@ -7642,7 +7630,7 @@ internal static partial class DocxPatchEngine
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
-        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target!, rowTarget.Table, force, diagnostics))
+        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target, rowTarget.Table, force, diagnostics))
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
@@ -7688,13 +7676,13 @@ internal static partial class DocxPatchEngine
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? expectedContains = operation.Fields.GetValueOrDefault("expect-contains");
         bool force = ReadBooleanField(operation, "force", diagnostics) ?? false;
-        if (diagnostics.Count != 0)
+        if (target is null || diagnostics.Count != 0)
         {
             return diagnostics;
         }
 
-        RowTarget? rowTarget = ResolveRowTarget(package, target!, cancellationToken);
-        if (rowTarget is null && !IsSupportedRowTargetShape(target!))
+        RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+        if (rowTarget is null && !IsSupportedRowTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported delete-row target '{target}'. Expected a table row ID such as M.T0001.R02 or H001.T0001.R02.", operation, target)];
         }
@@ -7704,7 +7692,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!ValidateTableGuards(operation, target!, rowTarget.Table, rowTarget.Row, diagnostics))
+        if (!ValidateTableGuards(operation, target, rowTarget.Table, rowTarget.Row, diagnostics))
         {
             return diagnostics;
         }
@@ -7734,7 +7722,7 @@ internal static partial class DocxPatchEngine
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
-        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target!, rowTarget.Table, force, diagnostics))
+        if (useTrackedChanges && !TryUseTrackedRowStructure(options, operation, target, rowTarget.Table, force, diagnostics))
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
@@ -8267,7 +8255,7 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        return ResolveMainParagraphElementBySelector(body, selector!, operation, out diagnostics);
+        return ResolveMainParagraphElementBySelector(body, selector, operation, out diagnostics);
     }
 
     private static BlockTarget? ResolveBlockTarget(
@@ -8286,10 +8274,6 @@ internal static partial class DocxPatchEngine
 
         if (selector is not ExplicitIdTargetSelector)
         {
-            if (package.MainDocumentPartName is null)
-            {
-                return null;
-            }
 
             XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
             XElement? selectedBlock = ResolveMainBlock(mainBody, operation, target, out diagnostics);
@@ -8302,7 +8286,7 @@ internal static partial class DocxPatchEngine
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
             XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
-            return paragraph is null || package.MainDocumentPartName is null
+            return paragraph is null
                 ? null
                 : new BlockTarget(package.MainDocumentPartName, document, paragraph);
         }
@@ -8311,7 +8295,7 @@ internal static partial class DocxPatchEngine
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
             XElement? table = FindTable(body, mainTableOrdinal);
-            return table is null || package.MainDocumentPartName is null
+            return table is null
                 ? null
                 : new BlockTarget(package.MainDocumentPartName, document, table);
         }
@@ -8359,7 +8343,7 @@ internal static partial class DocxPatchEngine
             {
                 XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
                 XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
-                return paragraph is null || package.MainDocumentPartName is null
+                return paragraph is null
                     ? null
                     : new ParagraphTarget(package.MainDocumentPartName, document, paragraph);
             }
@@ -8377,13 +8361,9 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        if (package.MainDocumentPartName is null)
-        {
-            return null;
-        }
 
         XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
-        XElement? selectedParagraph = ResolveMainParagraphElementBySelector(mainBody, selector!, operation, out diagnostics);
+        XElement? selectedParagraph = ResolveMainParagraphElementBySelector(mainBody, selector, operation, out diagnostics);
         return selectedParagraph is null
             ? null
             : new ParagraphTarget(package.MainDocumentPartName, mainDocument, selectedParagraph);
@@ -8392,7 +8372,7 @@ internal static partial class DocxPatchEngine
     private static bool TryParseTargetSelector(
         string target,
         DocxPatchOperation operation,
-        out TargetSelector? selector,
+        [NotNullWhen(true)] out TargetSelector? selector,
         out DocxDiagnostic? diagnostic)
     {
         selector = null;
@@ -8709,17 +8689,17 @@ internal static partial class DocxPatchEngine
         int paragraphOrdinal,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null || storyOrdinal < 1)
+        if (storyOrdinal < 1)
         {
             return null;
         }
 
-        OoxmlRelationship? relationship = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == relationshipType && relationship.ResolvedTarget is not null)
+        ResolvedOoxmlRelationship? relationship = package
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == relationshipType)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .ElementAtOrDefault(storyOrdinal - 1);
-        if (relationship?.ResolvedTarget is null)
+        if (relationship is null)
         {
             return null;
         }
@@ -8825,17 +8805,17 @@ internal static partial class DocxPatchEngine
         int blockOrdinal,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null || storyOrdinal < 1 || blockOrdinal < 1)
+        if (storyOrdinal < 1 || blockOrdinal < 1)
         {
             return null;
         }
 
-        OoxmlRelationship? relationship = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == relationshipType && relationship.ResolvedTarget is not null)
+        ResolvedOoxmlRelationship? relationship = package
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == relationshipType)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .ElementAtOrDefault(storyOrdinal - 1);
-        if (relationship?.ResolvedTarget is null)
+        if (relationship is null)
         {
             return null;
         }
@@ -8878,7 +8858,7 @@ internal static partial class DocxPatchEngine
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
             XElement? table = FindTable(body, mainTableOrdinal);
-            return table is null || package.MainDocumentPartName is null
+            return table is null
                 ? null
                 : new TableTarget(package.MainDocumentPartName, document, table);
         }
@@ -9161,9 +9141,7 @@ internal static partial class DocxPatchEngine
     {
         if (TryParseMainContentControlTarget(target, out int mainControlOrdinal))
         {
-            return package.MainDocumentPartName is null
-                ? null
-                : FindContentControlTarget(package, package.MainDocumentPartName, mainControlOrdinal, cancellationToken);
+            return FindContentControlTarget(package, package.MainDocumentPartName, mainControlOrdinal, cancellationToken);
         }
 
         if (TryParseStoryContentControlTarget(target, 'H', out int headerOrdinal, out int headerControlOrdinal))
@@ -9190,7 +9168,7 @@ internal static partial class DocxPatchEngine
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
             XElement? field = FindField(body, mainFieldOrdinal);
-            return field is null || package.MainDocumentPartName is null
+            return field is null
                 ? null
                 : new FieldTarget(package.MainDocumentPartName, document, field);
         }
@@ -9317,9 +9295,7 @@ internal static partial class DocxPatchEngine
     {
         if (TryParseMainBookmarkTarget(target, out int mainBookmarkOrdinal))
         {
-            return package.MainDocumentPartName is null
-                ? null
-                : FindBookmarkTarget(package, package.MainDocumentPartName, mainBookmarkOrdinal, cancellationToken);
+            return FindBookmarkTarget(package, package.MainDocumentPartName, mainBookmarkOrdinal, cancellationToken);
         }
 
         if (TryParseStoryBookmarkTarget(target, 'H', out int headerOrdinal, out int headerBookmarkOrdinal))
@@ -9368,9 +9344,7 @@ internal static partial class DocxPatchEngine
     {
         if (TryParseMainHyperlinkTarget(target, out int mainHyperlinkOrdinal))
         {
-            return package.MainDocumentPartName is null
-                ? null
-                : FindHyperlinkTarget(package, package.MainDocumentPartName, mainHyperlinkOrdinal, cancellationToken);
+            return FindHyperlinkTarget(package, package.MainDocumentPartName, mainHyperlinkOrdinal, cancellationToken);
         }
 
         if (TryParseStoryHyperlinkTarget(target, 'H', out int headerOrdinal, out int headerHyperlinkOrdinal))
@@ -9413,9 +9387,7 @@ internal static partial class DocxPatchEngine
     {
         if (TryParseMainImageTarget(target, out int mainImageOrdinal))
         {
-            return package.MainDocumentPartName is null
-                ? null
-                : FindImageBlipTarget(package, package.MainDocumentPartName, mainImageOrdinal, cancellationToken);
+            return FindImageBlipTarget(package, package.MainDocumentPartName, mainImageOrdinal, cancellationToken);
         }
 
         if (TryParseStoryImageTarget(target, 'H', out int headerOrdinal, out int headerImageOrdinal))
@@ -9484,14 +9456,14 @@ internal static partial class DocxPatchEngine
         int storyOrdinal,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null || storyOrdinal < 1)
+        if (storyOrdinal < 1)
         {
             return null;
         }
 
         return package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == relationshipType && relationship.ResolvedTarget is not null)
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == relationshipType)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .ElementAtOrDefault(storyOrdinal - 1)
             ?.ResolvedTarget;
@@ -9501,22 +9473,18 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         var partNames = new List<string> { package.MainDocumentPartName };
-        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
+        IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
         partNames.AddRange(relationships
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget!)
+            .Select(relationship => relationship.ResolvedTarget)
             .Where(partName => package.GetPart(partName) is not null));
         partNames.AddRange(relationships
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget!)
+            .Select(relationship => relationship.ResolvedTarget)
             .Where(partName => package.GetPart(partName) is not null));
         return partNames;
     }
@@ -9526,8 +9494,8 @@ internal static partial class DocxPatchEngine
         string asset,
         CancellationToken cancellationToken,
         out byte[] bytes,
-        out string? contentType,
-        out DocxDiagnostic? diagnostic,
+        [NotNullWhen(true)] out string? contentType,
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic,
         DocxPatchOperation operation,
         string? target)
     {
@@ -9568,7 +9536,7 @@ internal static partial class DocxPatchEngine
         string requestedStyle,
         string styleType,
         CancellationToken cancellationToken,
-        out string? styleId,
+        [NotNullWhen(true)] out string? styleId,
         out DocxDiagnostic? diagnostic,
         DocxPatchOperation operation,
         string? target)
@@ -9702,8 +9670,9 @@ internal static partial class DocxPatchEngine
     {
         foreach (XElement element in paragraph.Descendants())
         {
-            if (ProtectedTextEditElements.TryGetValue(element.Name, out feature!))
+            if (ProtectedTextEditElements.TryGetValue(element.Name, out string? found) && found is not null)
             {
+                feature = found;
                 return true;
             }
         }
@@ -9774,7 +9743,7 @@ internal static partial class DocxPatchEngine
         XElement paragraph,
         IReadOnlyList<TextRange> matches,
         string replacement,
-        out string? unsupportedReason)
+        [NotNullWhen(false)] out string? unsupportedReason)
     {
         unsupportedReason = null;
         if (replacement.Contains('\t') || replacement.Contains('\n'))
@@ -10686,11 +10655,6 @@ internal static partial class DocxPatchEngine
 
     private static IReadOnlyList<DocxDiagnostic> MarkFieldsDirty(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return [new DocxDiagnostic(DocxSeverity.Error, "E9001", "Post-edit validation failed: main document part is missing.")];
-        }
-
         string settingsPartName = ResolveOrCreateSettingsPart(package, cancellationToken);
         OoxmlPart settingsPart = package.GetPart(settingsPartName)
             ?? throw new InvalidDataException($"Settings part '{settingsPartName}' does not exist.");
@@ -10717,13 +10681,10 @@ internal static partial class DocxPatchEngine
 
     private static string ResolveOrCreateSettingsPart(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        OoxmlRelationship? relationship = package
-            .GetRelationships(package.MainDocumentPartName!, cancellationToken)
-            .FirstOrDefault(relationship =>
-                !relationship.IsExternal &&
-                relationship.Type == OoxmlRelTypes.Settings &&
-                relationship.ResolvedTarget is not null);
-        if (relationship?.ResolvedTarget is not null)
+        ResolvedOoxmlRelationship? relationship = package
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .FirstOrDefault(relationship => relationship.Type == OoxmlRelTypes.Settings);
+        if (relationship is not null)
         {
             return relationship.ResolvedTarget;
         }
@@ -10739,9 +10700,9 @@ internal static partial class DocxPatchEngine
         }
 
         string relationshipId = OoxmlIds.AllocateRelationshipId(package
-            .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
             .Select(relationship => relationship.Id));
-        package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Settings, GetRelativeRelationshipTarget(package.MainDocumentPartName!, settingsPartName), targetMode: null, cancellationToken);
+        package.AddRelationship(package.MainDocumentPartName, relationshipId, OoxmlRelTypes.Settings, GetRelativeRelationshipTarget(package.MainDocumentPartName, settingsPartName), targetMode: null, cancellationToken);
         return settingsPartName;
     }
 
@@ -10921,7 +10882,7 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken,
         out XElement body)
     {
-        XDocument document = LoadDocumentPart(package, package.MainDocumentPartName!, cancellationToken, out XElement root);
+        XDocument document = LoadDocumentPart(package, package.MainDocumentPartName, cancellationToken, out XElement root);
         body = root.Element(OoxmlNs.W + "body")
             ?? throw new InvalidDataException("Main document part is missing w:body.");
         return document;
@@ -10944,7 +10905,7 @@ internal static partial class DocxPatchEngine
 
     private static void SaveMainDocument(OoxmlPackage package, XDocument document)
     {
-        SaveDocumentPart(package, package.MainDocumentPartName!, document);
+        SaveDocumentPart(package, package.MainDocumentPartName, document);
     }
 
     private static void SaveDocumentPart(OoxmlPackage package, string partName, XDocument document)

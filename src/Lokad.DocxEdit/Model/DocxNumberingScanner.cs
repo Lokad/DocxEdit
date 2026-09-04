@@ -27,10 +27,6 @@ internal sealed class DocxNumberingCatalog
     public static DocxNumberingCatalog Scan(OoxmlPackage package, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (package.MainDocumentPartName is null)
-        {
-            return Empty;
-        }
 
         OoxmlRelationship? relationship = package
             .GetRelationships(package.MainDocumentPartName, cancellationToken)

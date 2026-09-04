@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using Lokad.DocxEdit;
@@ -678,7 +679,7 @@ internal static class ProgramMain
                             return WithError(command, "Missing value for --track-changes.");
                         }
 
-                        if (!TryParseTrackChangesMode(trackChangesValue!, out trackChanges))
+                        if (!TryParseTrackChangesMode(trackChangesValue, out trackChanges))
                         {
                             return WithError(command, "Invalid value for --track-changes. Expected off, preserve, suggest, or require.");
                         }
@@ -690,7 +691,7 @@ internal static class ProgramMain
                             return WithError(command, "Missing value for --view.");
                         }
 
-                        if (!TryParseTextView(textViewValue!, out textView))
+                        if (!TryParseTextView(textViewValue, out textView))
                         {
                             return WithError(command, "Invalid value for --view. Expected final, original, or markup.");
                         }
@@ -702,7 +703,7 @@ internal static class ProgramMain
                             return WithError(command, "Missing value for --profile.");
                         }
 
-                        if (!TryParseValidationProfile(profileValue!, out validationProfile))
+                        if (!TryParseValidationProfile(profileValue, out validationProfile))
                         {
                             return WithError(command, "Invalid value for --profile. Expected structural or package.");
                         }
@@ -780,7 +781,7 @@ internal static class ProgramMain
             };
         }
 
-        private static bool TryReadValue(string[] args, ref int index, out string? value)
+        private static bool TryReadValue(string[] args, ref int index, [NotNullWhen(true)] out string? value)
         {
             if (index + 1 >= args.Length)
             {

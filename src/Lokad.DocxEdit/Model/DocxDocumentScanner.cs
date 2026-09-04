@@ -13,10 +13,6 @@ internal static class DocxDocumentScanner
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (package.MainDocumentPartName is null)
-        {
-            return DocxDocumentModel.Empty;
-        }
 
         IReadOnlyList<DocxStyleInfo> styles = DocxStyleScanner.Scan(package, cancellationToken);
         IReadOnlyDictionary<string, DocxStyleInfo> stylesById = styles.ToDictionary(style => style.StyleId, StringComparer.Ordinal);
@@ -33,28 +29,28 @@ internal static class DocxDocumentScanner
 
         if (includeHeadersFooters)
         {
-            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
+            IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
             int headerIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+            foreach (ResolvedOoxmlRelationship relationship in relationships
+                .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
                 .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
             {
-                if (package.GetPart(relationship.ResolvedTarget!) is not null)
+                if (package.GetPart(relationship.ResolvedTarget) is not null)
                 {
                     string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
                 }
             }
 
             int footerIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+            foreach (ResolvedOoxmlRelationship relationship in relationships
+                .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
                 .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
             {
-                if (package.GetPart(relationship.ResolvedTarget!) is not null)
+                if (package.GetPart(relationship.ResolvedTarget) is not null)
                 {
                     string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget!, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
+                    ScanStory(package, relationship.ResolvedTarget, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
                 }
             }
         }
@@ -559,10 +555,9 @@ internal static class DocxDocumentScanner
         var bookmarks = new List<DocxBookmarkInfo>();
         var endsByOoxmlId = document
             .Descendants(OoxmlNs.W + "bookmarkEnd")
-            .Select(end => ((string?)end.Attribute(OoxmlNs.W + "id"), end))
-            .Where(pair => !string.IsNullOrWhiteSpace(pair.Item1))
-            .GroupBy(pair => pair.Item1!, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().end, StringComparer.Ordinal);
+            .WithNonBlankKey(end => (string?)end.Attribute(OoxmlNs.W + "id"))
+            .GroupBy(pair => pair.Key, pair => pair.Item, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
         int bookmarkIndex = 1;
         foreach (XElement start in document.Descendants(OoxmlNs.W + "bookmarkStart"))
@@ -717,13 +712,12 @@ internal static class DocxDocumentScanner
         Func<T, string> idSelector)
     {
         return items
-            .Select(item => (Key: keySelector(item), Id: idSelector(item)))
-            .Where(item => !string.IsNullOrWhiteSpace(item.Key))
-            .GroupBy(item => item.Key!, StringComparer.Ordinal)
+            .WithNonBlankKey(keySelector)
+            .GroupBy(pair => pair.Key, pair => pair.Item, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .ToDictionary(
                 group => group.Key,
-                group => group.Select(item => item.Id).ToArray(),
+                group => group.Select(item => idSelector(item)).ToArray(),
                 StringComparer.Ordinal);
     }
 
@@ -858,7 +852,8 @@ internal static class DocxDocumentScanner
             .Descendants(OoxmlNs.W + "bookmarkStart")
             .Select(bookmark => (string?)bookmark.Attribute(OoxmlNs.W + "name"))
             .Where(name => !string.IsNullOrWhiteSpace(name))
-            .GroupBy(name => name!, StringComparer.Ordinal)
+            .OfType<string>()
+            .GroupBy(name => name, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
         int hyperlinkIndex = 1;
         foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))

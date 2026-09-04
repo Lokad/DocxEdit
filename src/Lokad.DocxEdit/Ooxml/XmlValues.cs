@@ -32,6 +32,29 @@ internal static class XmlValues
     {
         return int.TryParse(value, out int parsed) ? parsed : null;
     }
+
+
+    /// <summary>
+    /// Pairs each item with its non-blank string key, dropping items whose key
+    /// is missing or whitespace. Use before grouping by a nullable key so the
+    /// group key stays non-nullable without null-forgiving operators; combine
+    /// with the two-argument `GroupBy` overload to keep grouping whole items.
+    /// </summary>
+    public static IEnumerable<(string Key, T Item)> WithNonBlankKey<T>(
+        this IEnumerable<T> items,
+        Func<T, string?> keySelector)
+    {
+        foreach (T item in items)
+        {
+            string? key = keySelector(item);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            yield return (key, item);
+        }
+    }
 }
 
 /// <summary>

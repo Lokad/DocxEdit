@@ -46,32 +46,28 @@ internal static class DocxPackageValidator
         CancellationToken cancellationToken)
     {
         var prefixes = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (package.MainDocumentPartName is null)
-        {
-            return prefixes;
-        }
 
         prefixes[package.MainDocumentPartName] = "M";
-        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
+        IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
         int headerIndex = 1;
-        foreach (OoxmlRelationship relationship in relationships
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
         {
-            if (package.GetPart(relationship.ResolvedTarget!) is not null)
+            if (package.GetPart(relationship.ResolvedTarget) is not null)
             {
-                prefixes[relationship.ResolvedTarget!] = $"H{headerIndex++:000}";
+                prefixes[relationship.ResolvedTarget] = $"H{headerIndex++:000}";
             }
         }
 
         int footerIndex = 1;
-        foreach (OoxmlRelationship relationship in relationships
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
         {
-            if (package.GetPart(relationship.ResolvedTarget!) is not null)
+            if (package.GetPart(relationship.ResolvedTarget) is not null)
             {
-                prefixes[relationship.ResolvedTarget!] = $"F{footerIndex++:000}";
+                prefixes[relationship.ResolvedTarget] = $"F{footerIndex++:000}";
             }
         }
 
@@ -246,12 +242,14 @@ internal static class DocxPackageValidator
         var starts = document.Descendants(startName)
             .Select(element => (string?)element.Attribute(OoxmlNs.W + "id"))
             .Where(id => !string.IsNullOrWhiteSpace(id))
-            .GroupBy(id => id!, StringComparer.Ordinal)
+            .OfType<string>()
+            .GroupBy(id => id, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
         var ends = document.Descendants(endName)
             .Select(element => (string?)element.Attribute(OoxmlNs.W + "id"))
             .Where(id => !string.IsNullOrWhiteSpace(id))
-            .GroupBy(id => id!, StringComparer.Ordinal)
+            .OfType<string>()
+            .GroupBy(id => id, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
 
         foreach (string id in starts.Keys.Concat(ends.Keys).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
@@ -279,7 +277,7 @@ internal static class DocxPackageValidator
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
             .ToArray();
         AddDuplicateSelectorWarnings(
-            bookmarks.Select(item => (item.Name!, item.Id)),
+            bookmarks.Select(item => (item.Name, item.Id)),
             "bookmark name",
             "bookmark",
             partName,
@@ -298,16 +296,14 @@ internal static class DocxPackageValidator
             .ToArray();
         AddDuplicateSelectorWarnings(
             contentControls
-                .Where(item => !string.IsNullOrWhiteSpace(item.Tag))
-                .Select(item => (item.Tag!, item.Id)),
+                .Select(item => (item.Tag, item.Id)),
             "content-control tag",
             "content-control",
             partName,
             diagnostics);
         AddDuplicateSelectorWarnings(
             contentControls
-                .Where(item => !string.IsNullOrWhiteSpace(item.Alias))
-                .Select(item => (item.Alias!, item.Id)),
+                .Select(item => (item.Alias, item.Id)),
             "content-control alias",
             "content-control",
             partName,
@@ -315,18 +311,19 @@ internal static class DocxPackageValidator
     }
 
     private static void AddDuplicateSelectorWarnings(
-        IEnumerable<(string Value, string Id)> candidates,
+        IEnumerable<(string? Value, string Id)> candidates,
         string label,
         string feature,
         string partName,
         List<DocxDiagnostic> diagnostics)
     {
-        foreach (IGrouping<string, (string Value, string Id)> group in candidates
-            .GroupBy(candidate => candidate.Value, StringComparer.Ordinal)
+        foreach (IGrouping<string, string> group in candidates
+            .WithNonBlankKey(candidate => candidate.Value)
+            .GroupBy(pair => pair.Key, pair => pair.Item.Id, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            string ids = string.Join(", ", group.Select(candidate => candidate.Id));
+            string ids = string.Join(", ", group);
             diagnostics.Add(Warning(
                 "W9109",
                 $"Duplicate {label} '{group.Key}' appears {group.Count()} times; candidate IDs: {ids}.",
@@ -509,7 +506,7 @@ internal static class DocxPackageValidator
             .Descendants(OoxmlNs.W + "pStyle")
             .Select(style => (string?)style.Attribute(OoxmlNs.W + "val"))
             .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
-            .Select(styleId => styleId!)
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal))
         {
@@ -542,7 +539,7 @@ internal static class DocxPackageValidator
             .Where(style => string.Equals((string?)style.Attribute(OoxmlNs.W + "type"), "paragraph", StringComparison.Ordinal))
             .Select(style => (string?)style.Attribute(OoxmlNs.W + "styleId"))
             .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
-            .Select(styleId => styleId!)
+            .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);
     }
 
@@ -569,7 +566,7 @@ internal static class DocxPackageValidator
             .Elements(OoxmlNs.W + "numId")
             .Select(numId => (string?)numId.Attribute(OoxmlNs.W + "val"))
             .Where(numberingId => !string.IsNullOrWhiteSpace(numberingId) && numberingId != "0")
-            .Select(numberingId => numberingId!)
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal))
         {
@@ -599,7 +596,7 @@ internal static class DocxPackageValidator
             .Descendants(OoxmlNs.W + "abstractNum")
             .Select(abstractNum => (string?)abstractNum.Attribute(OoxmlNs.W + "abstractNumId"))
             .Where(abstractId => !string.IsNullOrWhiteSpace(abstractId))
-            .Select(abstractId => abstractId!)
+            .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (string abstractId in document
@@ -607,7 +604,7 @@ internal static class DocxPackageValidator
             .Elements(OoxmlNs.W + "abstractNumId")
             .Select(abstractNumId => (string?)abstractNumId.Attribute(OoxmlNs.W + "val"))
             .Where(abstractId => !string.IsNullOrWhiteSpace(abstractId))
-            .Select(abstractId => abstractId!)
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal))
         {
@@ -639,7 +636,7 @@ internal static class DocxPackageValidator
             .Descendants(OoxmlNs.W + "num")
             .Select(num => (string?)num.Attribute(OoxmlNs.W + "numId"))
             .Where(numberingId => !string.IsNullOrWhiteSpace(numberingId))
-            .Select(numberingId => numberingId!)
+            .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);
     }
 
@@ -784,7 +781,7 @@ internal static class DocxPackageValidator
             .Descendants(OoxmlNs.Wp + "docPr")
             .Select(element => (string?)element.Attribute("id"))
             .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(id => id!)
+            .OfType<string>()
             .GroupBy(id => id, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .OrderBy(group => group.Key, StringComparer.Ordinal);
@@ -874,7 +871,7 @@ internal static class DocxPackageValidator
         foreach (IGrouping<string, string> group in extensionParaIds
             .Select(item => item.ParaId)
             .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-            .Select(paraId => paraId!)
+            .OfType<string>()
             .GroupBy(paraId => paraId, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
@@ -885,7 +882,7 @@ internal static class DocxPackageValidator
         foreach (string paraId in extensionParaIds
             .Select(item => item.ParaId)
             .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-            .Select(paraId => paraId!)
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal))
         {
@@ -908,7 +905,7 @@ internal static class DocxPackageValidator
                 continue;
             }
 
-            if (!commentParaIds.Contains(parentParaId!))
+            if (parentParaId is null || !commentParaIds.Contains(parentParaId))
             {
                 diagnostics.Add(Error("E9108", $"commentsExtended parent paraId '{parentParaId}' has no matching comment paragraph.", partName));
             }
@@ -944,7 +941,7 @@ internal static class DocxPackageValidator
         foreach (IGrouping<string, string> group in ids
             .Select(item => item.ParaId)
             .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-            .Select(paraId => paraId!)
+            .OfType<string>()
             .GroupBy(paraId => paraId, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
@@ -955,7 +952,7 @@ internal static class DocxPackageValidator
         foreach (IGrouping<string, string> group in ids
             .Select(item => item.DurableId)
             .Where(durableId => !string.IsNullOrWhiteSpace(durableId))
-            .Select(durableId => durableId!)
+            .OfType<string>()
             .GroupBy(durableId => durableId, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
@@ -966,7 +963,7 @@ internal static class DocxPackageValidator
         foreach (string paraId in ids
             .Select(item => item.ParaId)
             .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-            .Select(paraId => paraId!)
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal))
         {
@@ -1012,7 +1009,7 @@ internal static class DocxPackageValidator
                 .Descendants(OoxmlNs.W + "p")
                 .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
                 .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
-                .Select(paraId => paraId!))
+                .OfType<string>())
             {
                 paraIds.Add(paraId);
             }
@@ -1118,16 +1115,11 @@ internal static class DocxPackageValidator
     private static IReadOnlyList<string> GetCommentsPartNames(OoxmlPackage package, CancellationToken cancellationToken)
     {
         var partNames = new SortedSet<string>(StringComparer.Ordinal);
-        if (package.MainDocumentPartName is not null)
+        foreach (ResolvedOoxmlRelationship relationship in package
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Comments))
         {
-            foreach (OoxmlRelationship relationship in package
-                .GetRelationships(package.MainDocumentPartName, cancellationToken)
-                .Where(relationship => !relationship.IsExternal &&
-                    relationship.Type == OoxmlRelTypes.Comments &&
-                    relationship.ResolvedTarget is not null))
-            {
-                partNames.Add(relationship.ResolvedTarget!);
-            }
+            partNames.Add(relationship.ResolvedTarget);
         }
 
         if (package.GetPart("/word/comments.xml") is not null)

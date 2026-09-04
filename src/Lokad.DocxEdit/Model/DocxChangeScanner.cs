@@ -133,8 +133,8 @@ internal static class DocxChangeScanner
     public static IReadOnlyList<DocxCommentThreadSummary> SummarizeComments(IReadOnlyList<DocxChangeInfo> changes)
     {
         return changes
-            .Where(change => !string.IsNullOrWhiteSpace(change.CommentId))
-            .GroupBy(change => change.CommentId!, StringComparer.Ordinal)
+            .WithNonBlankKey(change => change.CommentId)
+            .GroupBy(pair => pair.Key, pair => pair.Item, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group =>
             {
@@ -297,47 +297,44 @@ internal static class DocxChangeScanner
             return "main";
         }
 
-        if (package.MainDocumentPartName is not null)
+        IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
+        int commentsIndex = 1;
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Comments)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
         {
-            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
-            int commentsIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
             {
-                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return $"comments[{commentsIndex}]";
-                }
-
-                commentsIndex++;
+                return $"comments[{commentsIndex}]";
             }
 
-            int headerIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return $"header[{headerIndex}]";
-                }
+            commentsIndex++;
+        }
 
-                headerIndex++;
+        int headerIndex = 1;
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"header[{headerIndex}]";
             }
 
-            int footerIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return $"footer[{footerIndex}]";
-                }
+            headerIndex++;
+        }
 
-                footerIndex++;
+        int footerIndex = 1;
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"footer[{footerIndex}]";
             }
+
+            footerIndex++;
         }
 
         return $"part[{fallbackPartIndex}]";
@@ -350,47 +347,44 @@ internal static class DocxChangeScanner
             return "M";
         }
 
-        if (package.MainDocumentPartName is not null)
+        IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
+        int commentsIndex = 1;
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Comments)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
         {
-            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
-            int commentsIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
             {
-                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return $"C{commentsIndex:000}";
-                }
-
-                commentsIndex++;
+                return $"C{commentsIndex:000}";
             }
 
-            int headerIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return $"H{headerIndex:000}";
-                }
+            commentsIndex++;
+        }
 
-                headerIndex++;
+        int headerIndex = 1;
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"H{headerIndex:000}";
             }
 
-            int footerIndex = 1;
-            foreach (OoxmlRelationship relationship in relationships
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return $"F{footerIndex:000}";
-                }
+            headerIndex++;
+        }
 
-                footerIndex++;
+        int footerIndex = 1;
+        foreach (ResolvedOoxmlRelationship relationship in relationships
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
+            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+        {
+            if (string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"F{footerIndex:000}";
             }
+
+            footerIndex++;
         }
 
         return $"P{fallbackPartIndex++:000}";
@@ -664,21 +658,17 @@ internal static class DocxChangeScanner
         int maxCommentText,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return new Dictionary<string, CommentMetadata>(StringComparer.Ordinal);
-        }
 
         var comments = new Dictionary<string, CommentMetadata>(StringComparer.Ordinal);
         IReadOnlyDictionary<string, CommentExtensionMetadata> commentExtensions = BuildCommentExtensionMap(package, cancellationToken);
         IReadOnlyDictionary<string, CommentIdMetadata> commentIds = BuildCommentIdMap(package, cancellationToken);
-        foreach (OoxmlRelationship relationship in package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
+        foreach (ResolvedOoxmlRelationship relationship in package
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.Comments)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget!);
+            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
             if (part is null)
             {
                 continue;
@@ -722,19 +712,15 @@ internal static class DocxChangeScanner
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return new Dictionary<string, CommentExtensionMetadata>(StringComparer.Ordinal);
-        }
 
         var extensions = new Dictionary<string, CommentExtensionMetadata>(StringComparer.Ordinal);
-        foreach (OoxmlRelationship relationship in package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsExtended && relationship.ResolvedTarget is not null)
+        foreach (ResolvedOoxmlRelationship relationship in package
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.CommentsExtended)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget!);
+            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
             if (part is null)
             {
                 continue;
@@ -794,15 +780,11 @@ internal static class DocxChangeScanner
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         var partNames = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.CommentsIds && relationship.ResolvedTarget is not null)
-            .Select(relationship => relationship.ResolvedTarget!)
+            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .Where(relationship => relationship.Type == OoxmlRelTypes.CommentsIds)
+            .Select(relationship => relationship.ResolvedTarget)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (package.GetPart("/word/commentsIds.xml") is not null &&
@@ -824,7 +806,7 @@ internal static class DocxChangeScanner
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        string current = paraId!;
+        string current = paraId;
         string root = current;
         while (seen.Add(current))
         {
@@ -835,7 +817,7 @@ internal static class DocxChangeScanner
                 return root;
             }
 
-            current = extension.ParentParaId!;
+            current = extension.ParentParaId;
         }
 
         return root;
@@ -902,10 +884,6 @@ internal static class DocxChangeScanner
 
     private static bool IsCommentsPart(OoxmlPackage package, string partName, CancellationToken cancellationToken)
     {
-        if (package.MainDocumentPartName is null)
-        {
-            return false;
-        }
 
         return package.GetRelationships(package.MainDocumentPartName, cancellationToken)
             .Any(relationship => !relationship.IsExternal &&

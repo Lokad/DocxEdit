@@ -892,16 +892,22 @@ internal static class TextRenderers
             AddAnnotation(hyperlinkTargets, hyperlink.TargetId, hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName);
         }
 
-        IReadOnlyDictionary<string, string> commentBodyById = changes
-            .Where(change => string.Equals(change.Type, "comment", StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(change.CommentId) &&
-                !string.IsNullOrWhiteSpace(change.TargetId))
-            .GroupBy(change => change.CommentId!, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().TargetId!, StringComparer.Ordinal);
+        var commentBodyById = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (DocxChangeInfo change in changes)
+        {
+            if (!string.Equals(change.Type, "comment", StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(change.CommentId) ||
+                string.IsNullOrWhiteSpace(change.TargetId))
+            {
+                continue;
+            }
+
+            commentBodyById.TryAdd(change.CommentId, change.TargetId);
+        }
         IReadOnlyDictionary<string, DocxChangeInfo> commentByParaId = changes
-            .Where(change => string.Equals(change.Type, "comment", StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(change.CommentParaId))
-            .GroupBy(change => change.CommentParaId!, StringComparer.Ordinal)
+            .Where(change => string.Equals(change.Type, "comment", StringComparison.Ordinal))
+            .WithNonBlankKey(change => change.CommentParaId)
+            .GroupBy(pair => pair.Key, pair => pair.Item, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         foreach (DocxChangeInfo change in changes)
         {
@@ -914,7 +920,7 @@ internal static class TextRenderers
             IEnumerable<string?> targets = new[] { change.TargetId, change.CommentAnchorTargetId, change.CommentReferenceTargetId };
             if (change.CommentIsReply == true &&
                 !string.IsNullOrWhiteSpace(change.CommentParentParaId) &&
-                commentByParaId.TryGetValue(change.CommentParentParaId!, out DocxChangeInfo? parentComment))
+                commentByParaId.TryGetValue(change.CommentParentParaId, out DocxChangeInfo? parentComment))
             {
                 targets = targets.Concat(new[] { parentComment.TargetId, parentComment.CommentAnchorTargetId, parentComment.CommentReferenceTargetId });
             }

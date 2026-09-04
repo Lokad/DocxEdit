@@ -8,7 +8,7 @@ internal sealed class OoxmlPackage
     private readonly Dictionary<string, OoxmlPart> parts;
     private readonly HashSet<string> touchedPartNames = new(StringComparer.OrdinalIgnoreCase);
 
-    private OoxmlPackage(Dictionary<string, OoxmlPart> parts, string? mainDocumentPartName)
+    private OoxmlPackage(Dictionary<string, OoxmlPart> parts, string mainDocumentPartName)
     {
         this.parts = parts;
         MainDocumentPartName = mainDocumentPartName;
@@ -17,7 +17,8 @@ internal sealed class OoxmlPackage
     public IReadOnlyDictionary<string, OoxmlPart> Parts => parts;
     public IReadOnlyCollection<string> TouchedPartNames => touchedPartNames;
     public OoxmlPart ContentTypesPart => parts["/[Content_Types].xml"];
-    public string? MainDocumentPartName { get; }
+    /// <summary>Main document part name. Never null: <see cref="Load"/> throws when the package has no main document.</summary>
+    public string MainDocumentPartName { get; }
 
     public static OoxmlPackage Load(
         Stream input,
@@ -155,6 +156,25 @@ internal sealed class OoxmlPackage
 
         using Stream stream = relationshipPart.OpenRead();
         return ParseRelationships(stream, sourcePartName, cancellationToken);
+    }
+
+    /// <summary>Enumerates package-internal relationships with a resolved part-name target.</summary>
+    public IReadOnlyList<ResolvedOoxmlRelationship> GetResolvedRelationships(
+        string sourcePartName,
+        CancellationToken cancellationToken)
+    {
+        var resolved = new List<ResolvedOoxmlRelationship>();
+        foreach (OoxmlRelationship relationship in GetRelationships(sourcePartName, cancellationToken))
+        {
+            if (relationship.IsExternal || relationship.ResolvedTarget is null)
+            {
+                continue;
+            }
+
+            resolved.Add(new ResolvedOoxmlRelationship(relationship.Id, relationship.Type, relationship.ResolvedTarget));
+        }
+
+        return resolved;
     }
 
     public void Save(Stream output, CancellationToken cancellationToken)

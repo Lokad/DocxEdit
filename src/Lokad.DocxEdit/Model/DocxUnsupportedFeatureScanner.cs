@@ -47,31 +47,27 @@ internal static class DocxUnsupportedFeatureScanner
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (package.MainDocumentPartName is null)
-        {
-            return [];
-        }
 
         var diagnostics = new List<DocxDiagnostic>();
         ScanStory(package, package.MainDocumentPartName, "main", diagnostics, cancellationToken);
         if (includeHeadersFooters)
         {
             int headerIndex = 1;
-            foreach (OoxmlRelationship relationship in package
-                .GetRelationships(package.MainDocumentPartName, cancellationToken)
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Header && relationship.ResolvedTarget is not null)
+            foreach (ResolvedOoxmlRelationship relationship in package
+                .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+                .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
                 .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
             {
-                ScanStory(package, relationship.ResolvedTarget!, $"header[{headerIndex++}]", diagnostics, cancellationToken);
+                ScanStory(package, relationship.ResolvedTarget, $"header[{headerIndex++}]", diagnostics, cancellationToken);
             }
 
             int footerIndex = 1;
-            foreach (OoxmlRelationship relationship in package
-                .GetRelationships(package.MainDocumentPartName, cancellationToken)
-                .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Footer && relationship.ResolvedTarget is not null)
+            foreach (ResolvedOoxmlRelationship relationship in package
+                .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+                .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
                 .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
             {
-                ScanStory(package, relationship.ResolvedTarget!, $"footer[{footerIndex++}]", diagnostics, cancellationToken);
+                ScanStory(package, relationship.ResolvedTarget, $"footer[{footerIndex++}]", diagnostics, cancellationToken);
             }
         }
 
@@ -85,7 +81,7 @@ internal static class DocxUnsupportedFeatureScanner
         CancellationToken cancellationToken)
     {
         OoxmlRelationship? relationship = package
-            .GetRelationships(package.MainDocumentPartName!, cancellationToken)
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
             .FirstOrDefault(relationship =>
                 !relationship.IsExternal &&
                 relationship.Type == OoxmlRelTypes.Numbering &&
@@ -226,7 +222,7 @@ internal static class DocxUnsupportedFeatureScanner
         return document
             .Descendants(OoxmlNs.W + "numFmt")
             .Select(element => (string?)element.Attribute(OoxmlNs.W + "val"))
-            .Count(format => !string.IsNullOrWhiteSpace(format) && !SupportedNumberingFormats.Contains(format!));
+            .Count(format => !string.IsNullOrWhiteSpace(format) && !SupportedNumberingFormats.Contains(format));
     }
 
     private static int CountNumberingPropertyRevisions(XDocument document)
@@ -254,10 +250,11 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "hyperlink")
             .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.R + "id"))
             .Where(id => !string.IsNullOrWhiteSpace(id) &&
-                relationshipsById.TryGetValue(id!, out OoxmlRelationship? relationship) &&
+                relationshipsById.TryGetValue(id, out OoxmlRelationship? relationship) &&
                 relationship.IsExternal &&
                 relationship.Type == OoxmlRelTypes.Hyperlink)
-            .Count(id => !IsSupportedHyperlinkUri(relationshipsById[id!].Target));
+            .OfType<string>()
+            .Count(id => !IsSupportedHyperlinkUri(relationshipsById[id].Target));
     }
 
     private static bool IsSupportedHyperlinkUri(string uri)
@@ -273,7 +270,7 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "hyperlink")
             .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.R + "id"))
             .Count(id => !string.IsNullOrWhiteSpace(id) &&
-                relationshipsById.TryGetValue(id!, out OoxmlRelationship? relationship) &&
+                relationshipsById.TryGetValue(id, out OoxmlRelationship? relationship) &&
                 !relationship.IsExternal &&
                 relationship.Type == OoxmlRelTypes.Hyperlink);
     }
@@ -285,7 +282,8 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "hyperlink")
             .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.W + "anchor"))
             .Where(anchor => !string.IsNullOrWhiteSpace(anchor))
-            .Count(anchor => !bookmarkCounts.ContainsKey(anchor!));
+            .OfType<string>()
+            .Count(anchor => !bookmarkCounts.ContainsKey(anchor));
     }
 
     private static int CountDuplicateHyperlinkAnchors(XDocument document)
@@ -295,7 +293,8 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "hyperlink")
             .Select(hyperlink => (string?)hyperlink.Attribute(OoxmlNs.W + "anchor"))
             .Where(anchor => !string.IsNullOrWhiteSpace(anchor))
-            .Count(anchor => bookmarkCounts.TryGetValue(anchor!, out int count) && count > 1);
+            .OfType<string>()
+            .Count(anchor => bookmarkCounts.TryGetValue(anchor, out int count) && count > 1);
     }
 
     private static IReadOnlyDictionary<string, int> CountBookmarkNames(XDocument document)
@@ -304,7 +303,8 @@ internal static class DocxUnsupportedFeatureScanner
             .Descendants(OoxmlNs.W + "bookmarkStart")
             .Select(bookmark => (string?)bookmark.Attribute(OoxmlNs.W + "name"))
             .Where(name => !string.IsNullOrWhiteSpace(name))
-            .GroupBy(name => name!, StringComparer.Ordinal)
+            .OfType<string>()
+            .GroupBy(name => name, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
     }
 
