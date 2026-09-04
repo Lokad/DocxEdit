@@ -2345,6 +2345,15 @@ failure under `Require`.
 
 ### 11.10 `insert-row-after`
 
+```text
+op insert-row-after
+target M.T0001.R03
+cell <<<New metric>>>
+cell <<<Q3 value>>>
+cell <<<Q4 value>>>
+end
+```
+
 Same as `insert-row-before`, but inserts after the row target.
 
 ### 11.11 `delete-row`
