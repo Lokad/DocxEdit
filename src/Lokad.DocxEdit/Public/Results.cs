@@ -1,11 +1,40 @@
 namespace Lokad.DocxEdit;
 
+/// <summary>
+/// Base contract for every <see cref="DocxEditor"/> operation result.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="Success"/> reports whether the requested effect happened, not
+/// whether <see cref="Diagnostics"/> is empty. Warnings (for example
+/// unsupported-structure reports) are returned alongside <see cref="Success"/>
+/// set to <c>true</c>; consumers must inspect <see cref="Diagnostics"/> even on
+/// success. The CLI maps warning-bearing successes to its strict-mode exit code
+/// instead of failing the operation.
+/// </para>
+/// <para>
+/// <see cref="Success"/> set to <c>false</c> means the requested effect did not
+/// happen (<c>Apply</c> writes no output in that case). <see cref="Diagnostics"/>
+/// always explains why and contains at least one <see cref="DocxSeverity.Error"/>
+/// entry on current failure paths; keep it that way when adding new ones.
+/// </para>
+/// <para>
+/// <see cref="Diagnostics"/> is ordered causally: package-load diagnostics first,
+/// then operation/scan diagnostics, then unsupported-feature reports. On failure the
+/// remaining payload properties keep their defaults, and <c>PartNames</c> /
+/// <c>MainDocumentPartName</c> are only populated when the package itself loaded —
+/// do not rely on them when <see cref="Success"/> is <c>false</c>.
+/// </para>
+/// </remarks>
 public abstract record DocxOperationResult
 {
+/// <summary>Whether the requested effect happened. See remarks.</summary>
     public required bool Success { get; init; }
+/// <summary>All diagnostics produced along the way, in causal order. May contain warnings even when <see cref="Success"/> is <c>true</c>.</summary>
     public required IReadOnlyList<DocxDiagnostic> Diagnostics { get; init; }
 }
 
+/// <summary>Structural view of the document. <see cref="DocxOperationResult.Success"/> means the package loaded and scanned; payload properties are populated.</summary>
 public sealed record DocxReadResult : DocxOperationResult
 {
     public IReadOnlyList<string> PartNames { get; init; } = [];
@@ -21,6 +50,7 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxHyperlinkInfo> Hyperlinks { get; init; } = [];
 }
 
+/// <summary>Heading/paragraph outline lines. <see cref="DocxOperationResult.Success"/> means the package loaded and scanned.</summary>
 public sealed record DocxOutlineResult : DocxOperationResult
 {
     public IReadOnlyList<string> PartNames { get; init; } = [];
@@ -28,12 +58,14 @@ public sealed record DocxOutlineResult : DocxOperationResult
     public IReadOnlyList<string> Lines { get; init; } = [];
 }
 
+/// <summary>Text search matches. An empty <c>Matches</c> list is a successful search with no hits, not a failure.</summary>
 public sealed record DocxFindResult : DocxOperationResult
 {
     public string Query { get; init; } = string.Empty;
     public IReadOnlyList<string> Matches { get; init; } = [];
 }
 
+/// <summary>Target-scoped dump. <see cref="DocxOperationResult.Success"/> reports only that the document scanned: an unknown target yields success with null <c>Text</c> and empty <c>Runs</c>. Check the payload, not just success.</summary>
 public sealed record DocxDumpResult : DocxOperationResult
 {
     public string TargetId { get; init; } = string.Empty;
@@ -41,6 +73,7 @@ public sealed record DocxDumpResult : DocxOperationResult
     public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
 }
 
+/// <summary>Target neighborhood. Unlike dump, an unknown target fails with <c>E2001</c>; <see cref="DocxOperationResult.Success"/> is equivalent to "target found".</summary>
 public sealed record DocxContextResult : DocxOperationResult
 {
     public string TargetId { get; init; } = string.Empty;
@@ -48,16 +81,19 @@ public sealed record DocxContextResult : DocxOperationResult
     public IReadOnlyList<DocxContextItem> Items { get; init; } = [];
 }
 
+/// <summary>Style catalog. <see cref="DocxOperationResult.Success"/> means the package loaded and the styles part (when present) parsed.</summary>
 public sealed record DocxStylesResult : DocxOperationResult
 {
     public IReadOnlyList<DocxStyleInfo> Styles { get; init; } = [];
 }
 
+/// <summary>Image inventory. <see cref="DocxOperationResult.Success"/> means the package loaded and scanned.</summary>
 public sealed record DocxMediaResult : DocxOperationResult
 {
     public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
 }
 
+/// <summary>Validation outcome. <see cref="DocxOperationResult.Success"/> means no <see cref="DocxSeverity.Error"/> diagnostic was produced; warnings (including the <c>W9199</c>/<c>E9199</c> cap marker) do not fail validation by themselves.</summary>
 public sealed record DocxValidateResult : DocxOperationResult
 {
     public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
@@ -65,6 +101,7 @@ public sealed record DocxValidateResult : DocxOperationResult
     public string? MainDocumentPartName { get; init; }
 }
 
+/// <summary>Tracked-change and comment-markup inventory. <see cref="DocxOperationResult.Success"/> means the package loaded and scanned.</summary>
 public sealed record DocxChangesResult : DocxOperationResult
 {
     public IReadOnlyList<string> PartNames { get; init; } = [];
@@ -76,11 +113,13 @@ public sealed record DocxChangesResult : DocxOperationResult
     public IReadOnlyList<DocxCommentThreadSummary> CommentSummary { get; init; } = [];
 }
 
+/// <summary>Patch dry-run. <see cref="DocxOperationResult.Success"/> means the patch parsed, the package loaded, and every operation reported success; nothing was written.</summary>
 public sealed record DocxCheckResult : DocxOperationResult
 {
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
 }
 
+/// <summary>Patch application. <see cref="DocxOperationResult.Success"/> means the patch parsed, every operation reported success, and the output was written. No output is written on failure.</summary>
 public sealed record DocxApplyResult : DocxOperationResult
 {
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
