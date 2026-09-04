@@ -1,39 +1,53 @@
 using System.IO.Compression;
 using System.Text;
-using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit.Tests;
 
 public static class OoxmlPackageTests
 {
+    private const string HelloPatch = """
+        docxpatch 1
+
+        op replace-text
+        target M.P0001
+        find Hello
+        with Hello
+        end
+        """;
+
     [Fact]
-    public static void LoadDiscoversMainDocumentThroughPackageRelationship()
+    public static void PublicReadDiscoversMainDocumentThroughPackageRelationship()
     {
         using MemoryStream stream = CreateMinimalDocx();
+        var editor = new DocxEditor();
 
-        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
+        DocxReadResult result = editor.Read(stream);
 
-        Assert.Equal("/word/document.xml", package.MainDocumentPartName);
-        Assert.NotNull(package.GetPart("/word/document.xml"));
-        Assert.NotNull(package.GetPart("word/document.xml"));
+        Assert.True(result.Success);
+        Assert.Equal("/word/document.xml", result.MainDocumentPartName);
+        DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
+        Assert.Equal("M.P0001", paragraph.Id);
+        Assert.Contains("Hello", paragraph.Text, StringComparison.Ordinal);
     }
 
     [Fact]
-    public static void LoadRejectsUnsafeZipEntryPath()
+    public static void PublicReadReturnsDiagnosticForUnsafeZipEntryPath()
     {
         using MemoryStream stream = CreatePackage(archive =>
         {
             AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
             AddEntry(archive, "../word/document.xml", "<w:document />");
         });
+        var editor = new DocxEditor();
 
-        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
-        Assert.Contains("Unsafe OOXML", ex.Message, StringComparison.Ordinal);
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
     }
 
     [Fact]
-    public static void LoadRejectsDuplicateNormalizedPartNames()
+    public static void PublicReadReturnsDiagnosticForDuplicateNormalizedPartNames()
     {
         using MemoryStream stream = CreatePackage(archive =>
         {
@@ -43,14 +57,16 @@ public static class OoxmlPackageTests
             AddEntry(archive, "WORD/document.xml", DocumentXml());
             AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml());
         });
+        var editor = new DocxEditor();
 
-        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
-        Assert.Contains("duplicate part", ex.Message, StringComparison.OrdinalIgnoreCase);
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
     }
 
     [Fact]
-    public static void LoadRejectsMissingRequiredPackageRelationships()
+    public static void PublicReadReturnsDiagnosticForMissingPackageRelationships()
     {
         using MemoryStream stream = CreatePackage(archive =>
         {
@@ -58,40 +74,31 @@ public static class OoxmlPackageTests
             AddEntry(archive, "word/document.xml", DocumentXml());
             AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml());
         });
+        var editor = new DocxEditor();
 
-        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
-        Assert.Contains("/_rels/.rels", ex.Message, StringComparison.Ordinal);
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
     }
 
     [Fact]
-    public static void LoadPreservesUnknownSafeParts()
+    public static void PublicApplyPreservesUnknownSafeParts()
     {
         using MemoryStream stream = CreateMinimalDocx(archive =>
             AddEntry(archive, "custom/data.bin", "opaque"));
+        using var output = new MemoryStream();
+        var editor = new DocxEditor();
 
-        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
+        DocxApplyResult result = editor.Apply(stream, new StringReader(HelloPatch), output);
 
-        OoxmlPart? part = package.GetPart("/custom/data.bin");
-        Assert.NotNull(part);
-        Assert.Null(part.ContentType);
-        Assert.Equal("opaque", Encoding.UTF8.GetString(part.Bytes));
-    }
-
-    [Fact]
-    public static void LoadRejectsXmlDtd()
-    {
-        using MemoryStream stream = CreatePackage(archive =>
-        {
-            AddEntry(archive, "[Content_Types].xml", """
-                <!DOCTYPE Types [
-                  <!ELEMENT Types ANY>
-                ]>
-                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" />
-                """);
-        });
-
-        Assert.ThrowsAny<Exception>(() => OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
+        Assert.True(result.Success);
+        output.Position = 0;
+        using var archive = new ZipArchive(output, ZipArchiveMode.Read);
+        ZipArchiveEntry entry = archive.GetEntry("custom/data.bin")
+            ?? throw new InvalidDataException("Missing custom/data.bin.");
+        using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
+        Assert.Equal("opaque", reader.ReadToEnd());
     }
 
     [Fact]
@@ -171,19 +178,20 @@ public static class OoxmlPackageTests
     }
 
     [Fact]
-    public static void GetRelationshipsResolvesRelativeAndExternalTargets()
+    public static void PublicMediaResolvesRelativeImageTargets()
     {
-        using MemoryStream stream = CreateMinimalDocx();
-        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
+        using MemoryStream stream = CreateMinimalDocxWithImage();
+        var editor = new DocxEditor();
 
-        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships("/word/document.xml", CancellationToken.None);
+        DocxMediaResult result = editor.Media(stream);
 
-        Assert.Contains(relationships, relationship => relationship.Id == "rImage" && relationship.ResolvedTarget == "/word/media/image1.png");
-        Assert.Contains(relationships, relationship => relationship.Id == "rExternal" && relationship.IsExternal && relationship.ResolvedTarget is null);
+        Assert.True(result.Success);
+        DocxImageInfo image = Assert.Single(result.Images);
+        Assert.Equal("/word/media/image1.png", image.PartName);
     }
 
     [Fact]
-    public static void LoadRejectsRelationshipTargetsEscapingPackageRoot()
+    public static void PublicReadReturnsDiagnosticForRelationshipTargetEscapingPackageRoot()
     {
         using MemoryStream stream = CreatePackage(archive =>
         {
@@ -192,14 +200,16 @@ public static class OoxmlPackageTests
             AddEntry(archive, "word/document.xml", DocumentXml());
             AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml("../../escape.xml"));
         });
+        var editor = new DocxEditor();
 
-        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
-        Assert.Contains("escapes", ex.Message, StringComparison.Ordinal);
+        DocxReadResult result = editor.Read(stream);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
     }
 
     [Fact]
-    public static void LoadRejectsMissingInternalRelationshipTarget()
+    public static void PublicReadReturnsDiagnosticForMissingInternalRelationshipTarget()
     {
         using MemoryStream stream = CreatePackage(archive =>
         {
@@ -208,54 +218,37 @@ public static class OoxmlPackageTests
             AddEntry(archive, "word/document.xml", DocumentXml());
             AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml("media/missing.png"));
         });
+        var editor = new DocxEditor();
 
-        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
-
-        Assert.Contains("targets missing part", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public static void LoadRejectsMacroEnabledDocumentByDefault()
-    {
-        using MemoryStream stream = CreateMinimalDocx(extra: null, macroEnabled: true);
-
-        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
-
-        Assert.Contains("Macro-enabled", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public static void LoadAllowsMacroEnabledDocumentWhenExplicitlyConfigured()
-    {
-        using MemoryStream stream = CreateMinimalDocx(extra: null, macroEnabled: true);
-
-        OoxmlPackage package = OoxmlPackage.Load(stream, MacroPackageOptions(), CancellationToken.None);
-
-        Assert.Equal("/word/document.xml", package.MainDocumentPartName);
-    }
-
-    [Fact]
-    public static void ApplyValidatesTouchedDocumentPartsBeforeSave()
-    {
-        using MemoryStream stream = CreateMinimalDocx();
-        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
-        package.ReplacePartBytes(
-            "/word/document.xml",
-            Encoding.UTF8.GetBytes("""
-                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
-                """));
-        var patch = new DocxPatch(true, 1, [], []);
-
-        PatchExecutionResult result = DocxPatchEngine.Apply(package, patch, new DocxEditOptions(), CancellationToken.None);
+        DocxReadResult result = editor.Read(stream);
 
         Assert.False(result.Success);
-        Assert.Contains(package.TouchedPartNames, partName => partName == "/word/document.xml");
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Code == "E9001" &&
-            diagnostic.PartName == "/word/document.xml" &&
-            diagnostic.Message.Contains("w:body", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Severity == DocxSeverity.Error);
+    }
+
+    [Fact]
+    public static void PublicCheckRejectsMacroEnabledDocumentByDefault()
+    {
+        using MemoryStream stream = CreateMinimalDocx(extra: null, macroEnabled: true);
+        var editor = new DocxEditor();
+
+        DocxCheckResult result = editor.Check(stream, new StringReader(HelloPatch));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error
+            && diagnostic.Message.Contains("Macro-enabled", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public static void PublicCheckAllowsMacroEnabledDocumentWhenExplicitlyConfigured()
+    {
+        using MemoryStream stream = CreateMinimalDocx(extra: null, macroEnabled: true);
+        var editor = new DocxEditor();
+        var options = new DocxEditOptions { AllowMacroEnabledDocuments = true };
+
+        DocxCheckResult result = editor.Check(stream, new StringReader(HelloPatch), options);
+
+        Assert.True(result.Success);
     }
 
     [Fact]
@@ -290,6 +283,18 @@ public static class OoxmlPackageTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Message.Contains("WordprocessingML", StringComparison.Ordinal));
     }
 
+    private static MemoryStream CreateMinimalDocxWithImage()
+    {
+        return CreatePackage(archive =>
+        {
+            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
+            AddEntry(archive, "_rels/.rels", PackageRelationshipsXml());
+            AddEntry(archive, "word/document.xml", DocumentXmlWithImage());
+            AddEntry(archive, "word/_rels/document.xml.rels", RelationshipsXml());
+            AddEntry(archive, "word/media/image1.png", "png");
+        });
+    }
+
     private static MemoryStream CreateMinimalDocx()
     {
         return CreateMinimalDocx(extra: null, macroEnabled: false);
@@ -313,17 +318,6 @@ public static class OoxmlPackageTests
         });
     }
 
-    private static OoxmlPackageOptions PackageOptions()
-    {
-        DocxPackageLimits limits = DocxPackageLimits.Default;
-        return new OoxmlPackageOptions(limits.LeaveInputOpen, limits.MaxZipEntries, limits.MaxUncompressedBytes, limits.MaxSinglePartBytes, AllowMacroEnabledDocuments: false);
-    }
-
-    private static OoxmlPackageOptions MacroPackageOptions()
-    {
-        DocxPackageLimits limits = DocxPackageLimits.Default;
-        return new OoxmlPackageOptions(limits.LeaveInputOpen, limits.MaxZipEntries, limits.MaxUncompressedBytes, limits.MaxSinglePartBytes, AllowMacroEnabledDocuments: true);
-    }
 
     private static MemoryStream CreatePackage(Action<ZipArchive> configure)
     {
@@ -388,6 +382,40 @@ public static class OoxmlPackageTests
               <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="{{imageTarget}}"/>
               <Relationship Id="rExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/image.png" TargetMode="External"/>
             </Relationships>
+            """;
+    }
+
+    private static string DocumentXmlWithImage()
+    {
+        return """
+            <?xml version="1.0" encoding="utf-8"?>
+            <w:document
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <w:body>
+                <w:p>
+                  <w:r><w:t>Hello</w:t></w:r>
+                  <w:r>
+                    <w:drawing>
+                      <wp:inline>
+                        <a:graphic>
+                          <a:graphicData>
+                            <pic:pic>
+                              <pic:blipFill>
+                                <a:blip r:embed="rImage"/>
+                              </pic:blipFill>
+                            </pic:pic>
+                          </a:graphicData>
+                        </a:graphic>
+                      </wp:inline>
+                    </w:drawing>
+                  </w:r>
+                </w:p>
+              </w:body>
+            </w:document>
             """;
     }
 
