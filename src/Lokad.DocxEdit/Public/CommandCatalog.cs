@@ -315,8 +315,16 @@ public static class DocxHelp
     private static void AppendLines(
         StringBuilder builder,
         string heading,
+        IReadOnlyList<string> lines)
+    {
+        AppendLines(builder, heading, lines, indent: "");
+    }
+
+    private static void AppendLines(
+        StringBuilder builder,
+        string heading,
         IReadOnlyList<string> lines,
-        string indent = "")
+        string indent)
     {
         if (lines.Count == 0)
         {

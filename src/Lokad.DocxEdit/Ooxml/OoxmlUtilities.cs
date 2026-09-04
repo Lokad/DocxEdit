@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace Lokad.DocxEdit.Ooxml;
 
@@ -7,6 +7,7 @@ internal static class OoxmlUnits
     public const long EmusPerInch = 914400;
     public const long EmusPerCentimeter = 360000;
     public const long EmusPerPoint = 12700;
+    public const double ScreenDpi = 96;
 
     public static long InchesToEmu(double inches)
     {
@@ -23,7 +24,12 @@ internal static class OoxmlUnits
         return checked((long)Math.Round(points * EmusPerPoint, MidpointRounding.AwayFromZero));
     }
 
-    public static long PixelsToEmu(double pixels, double dpi = 96)
+    public static long PixelsToEmu(double pixels)
+    {
+        return PixelsToEmu(pixels, ScreenDpi);
+    }
+
+    public static long PixelsToEmu(double pixels, double dpi)
     {
         if (dpi <= 0)
         {

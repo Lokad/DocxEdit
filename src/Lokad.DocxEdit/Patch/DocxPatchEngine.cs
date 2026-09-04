@@ -4494,8 +4494,18 @@ internal static partial class DocxPatchEngine
         string text,
         string author,
         string? initials,
+        DateTimeOffset timestampUtc)
+    {
+        return CreateComment(commentId, text, author, initials, timestampUtc, paraId: null);
+    }
+
+    private static XElement CreateComment(
+        string commentId,
+        string text,
+        string author,
+        string? initials,
         DateTimeOffset timestampUtc,
-        string? paraId = null)
+        string? paraId)
     {
         var comment = new XElement(
             OoxmlNs.W + "comment",
@@ -10925,10 +10935,29 @@ internal static partial class DocxPatchEngine
         DocxSeverity severity,
         string code,
         string message,
+        DocxPatchOperation operation)
+    {
+        return Diagnostic(severity, code, message, operation, targetId: null);
+    }
+
+    private static DocxDiagnostic Diagnostic(
+        DocxSeverity severity,
+        string code,
+        string message,
         DocxPatchOperation operation,
-        string? targetId = null,
-        string? feature = null,
-        string? fallback = null)
+        string? targetId)
+    {
+        return Diagnostic(severity, code, message, operation, targetId, feature: null, fallback: null);
+    }
+
+    private static DocxDiagnostic Diagnostic(
+        DocxSeverity severity,
+        string code,
+        string message,
+        DocxPatchOperation operation,
+        string? targetId,
+        string? feature,
+        string? fallback)
     {
         return new DocxDiagnostic(
             severity,
