@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Runtime.InteropServices;
 using Lokad.DocxEdit;
 
 return ProgramMain.Run(args);
@@ -56,7 +57,8 @@ internal static class ProgramMain
                 "check" => RunCheck(options),
                 "apply" => RunApply(options),
                 "catalog" => RunCatalog(options),
-                _ => InvalidUsage($"Unknown command '{options.Command}'.")
+                "version" => RunVersion(options),
+                _ => InvalidUsage($"Unknown command '{options.Command}'.\nValid commands: {ValidCommands()}\nSee 'docxedit --help'.")
             };
         }
         catch (Exception ex)
@@ -165,7 +167,7 @@ internal static class ProgramMain
     {
         return RunInputCommand(
             options,
-            "Usage: docxedit read input.docx [--summary] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("read"),
             input => new DocxEditor().Read(input, new DocxReadOptions
             {
                 IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
@@ -192,7 +194,7 @@ internal static class ProgramMain
     {
         return RunInputCommand(
             options,
-            "Usage: docxedit outline input.docx [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("outline"),
             input => new DocxEditor().Outline(input, new DocxOutlineOptions
             {
                 IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
@@ -207,13 +209,13 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 2)
         {
-            return InvalidUsage("Usage: docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage(CommandUsageError("find"));
         }
 
         string query = options.Positionals[1];
         return RunInputCommand(
             options,
-            "Usage: docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("find"),
             input => new DocxEditor().Find(input, query, new DocxFindOptions
             {
                 IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
@@ -229,13 +231,13 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1 || options.Id is null)
         {
-            return InvalidUsage("Usage: docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage(CommandUsageError("dump"));
         }
 
         string id = options.Id;
         return RunInputCommand(
             options,
-            "Usage: docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("dump"),
             input => new DocxEditor().Dump(input, id, new DocxDumpOptions
             {
                 IncludeRuns = options.Flags.Contains("--runs"),
@@ -251,13 +253,13 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1 || options.Id is null)
         {
-            return InvalidUsage("Usage: docxedit context input.docx --id M.P0001 [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage(CommandUsageError("context"));
         }
 
         string id = options.Id;
         return RunInputCommand(
             options,
-            "Usage: docxedit context input.docx --id M.P0001 [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("context"),
             input => new DocxEditor().Context(input, id, new DocxContextOptions
             {
                 IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
@@ -274,7 +276,7 @@ internal static class ProgramMain
     {
         return RunInputCommand(
             options,
-            "Usage: docxedit styles input.docx [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("styles"),
             static input => new DocxEditor().Styles(input),
             static result => result.Diagnostics,
             static result => result.Success,
@@ -285,7 +287,7 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit media input.docx [--extract <dir>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage(CommandUsageError("media"));
         }
 
         string inputPath = options.Positionals[0];
@@ -303,7 +305,7 @@ internal static class ProgramMain
     {
         return RunInputCommand(
             options,
-            "Usage: docxedit validate input.docx [--profile structural|package] [--max-diagnostics <count>] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("validate"),
             input => new DocxEditor().Validate(input, new DocxValidateOptions
             {
                 Profile = options.ValidationProfile,
@@ -318,7 +320,7 @@ internal static class ProgramMain
     {
         return RunInputCommand(
             options,
-            "Usage: docxedit changes input.docx [--operation-report <path>] [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            CommandUsageError("changes"),
             input => new DocxEditor().Changes(input, new DocxChangesOptions
             {
                 IncludeCommentText = options.Flags.Contains("--include-comment-text"),
@@ -334,7 +336,7 @@ internal static class ProgramMain
     {
         return RunPatchCommand(
             options,
-            "Usage: docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]",
+            CommandUsageError("check"),
             (input, patch) => new DocxEditor().Check(input, patch, ToEditOptions(options)),
             static result => result.Diagnostics,
             static result => result.Success,
@@ -350,13 +352,13 @@ internal static class ProgramMain
     {
         if (options.OutputPath is null)
         {
-            return InvalidUsage("Usage: docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
+            return InvalidUsage(CommandUsageError("apply"));
         }
 
         string outputPath = options.OutputPath;
         return RunPatchCommand(
             options,
-            "Usage: docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]",
+            CommandUsageError("apply"),
             (input, patch) =>
             {
                 using Stream output = File.Create(outputPath);
@@ -376,7 +378,7 @@ internal static class ProgramMain
     {
         if (options.Positionals.Count != 0)
         {
-            return InvalidUsage("Usage: docxedit catalog [--json]");
+            return InvalidUsage(CommandUsageError("catalog"));
         }
 
         if (options.Json)
@@ -388,6 +390,34 @@ internal static class ProgramMain
             Console.Write(DocxHelp.RenderOverview());
             Console.WriteLine();
             Console.Write(DocxHelp.RenderPatchTrackChangesSupportTable());
+        }
+
+        return 0;
+    }
+
+    private static int RunVersion(ParsedOptions options)
+    {
+        if (options.Positionals.Count != 0)
+        {
+            return InvalidUsage(CommandUsageError("version"));
+        }
+
+        string version = typeof(DocxEditor).Assembly.GetName().Version?.ToString() ?? "unknown";
+        string framework = RuntimeInformation.FrameworkDescription;
+        int operations = DocxHelp.Catalog.PatchOperations.Count;
+        if (options.Json)
+        {
+            WriteJson(new
+            {
+                Tool = DocxHelp.Catalog.ToolName,
+                Version = version,
+                Framework = framework,
+                PatchOperations = operations,
+            });
+        }
+        else
+        {
+            Console.WriteLine($"docxedit {version} ({framework}), {operations} patch operations");
         }
 
         return 0;
@@ -612,6 +642,26 @@ internal static class ProgramMain
         return strict && diagnostics.Any(diagnostic => diagnostic.Severity is DocxSeverity.Warning or DocxSeverity.Error)
             ? 3
             : 0;
+    }
+
+    private static string CommandUsage(string command)
+    {
+        if (DocxHelp.TryGetCommand(command, out DocxCommandInfo info) && !string.IsNullOrWhiteSpace(info.Usage))
+        {
+            return "Usage: " + info.Usage;
+        }
+
+        return $"Usage: docxedit {command} [options]";
+    }
+
+    private static string CommandUsageError(string command)
+    {
+        return $"{CommandUsage(command)}\nSee 'docxedit help {command}'.";
+    }
+
+    private static string ValidCommands()
+    {
+        return string.Join(", ", DocxHelp.Catalog.Commands.Select(static command => command.Name));
     }
 
     private static int InvalidUsage(string message)
@@ -892,6 +942,7 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
+            string detail = DocxHelp.TryGetCommand(command, out DocxCommandInfo _) ? CommandUsageError(command) : $"Valid commands: {ValidCommands()}\nSee 'docxedit --help'.";
             return new ParsedOptions
             {
                 Command = command,
@@ -914,7 +965,7 @@ internal static class ProgramMain
                 TimestampUtc = null,
                 TextView = DocxTextView.Final,
                 ValidationProfile = DocxValidationProfile.Structural,
-                Error = message
+                Error = $"{message}\n{detail}"
             };
         }
 

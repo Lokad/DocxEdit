@@ -80,6 +80,7 @@ agent or human needs compact context.
 | `apply` | Patch application | Write a new edited `.docx`; the input is not modified |
 | `help` | Built-in command guidance | Show command-specific or patch-operation help |
 | `catalog` | Machine-readable surface | Commands, options, output fields, and patch operations as text or `--json` |
+| `version` | Build version | Assembly version, framework, and patch-operation count as text or `--json` |
 
 ## Common Options
 

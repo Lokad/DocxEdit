@@ -427,7 +427,7 @@ public static class DocxHelp
                     Name = "read",
                     Category = "read",
                     Summary = "Produce an agent-friendly structural view of a .docx",
-                    Usage = "docxedit read input.docx [--summary] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit read input.docx [--summary] [--headers-footers] [--all-stories] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
                     Description = "Produce an agent-friendly structural view of a .docx.",
                     Options =
                     [
@@ -491,7 +491,7 @@ public static class DocxHelp
                     Name = "outline",
                     Category = "read",
                     Summary = "Show headings, tables, images, sections, headers, footers",
-                    Usage = "docxedit outline input.docx [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit outline input.docx [--headers-footers] [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]",
                     Description = "Show headings, tables, images, sections, headers, and footers.",
                     Options =
                     [
@@ -514,7 +514,7 @@ public static class DocxHelp
                     Name = "find",
                     Category = "read",
                     Summary = "Find text and print stable edit targets",
-                    Usage = "docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit find input.docx \"text\" [--headers-footers] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
                     Description = "Find text and print stable edit targets.",
                     Options =
                     [
@@ -538,7 +538,7 @@ public static class DocxHelp
                     Name = "dump",
                     Category = "read",
                     Summary = "Dump one target in detail",
-                    Usage = "docxedit dump input.docx --id TARGET [options]",
+                    Usage = "docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
                     Description = "Dump one target by stable ID. Paragraph and cell dumps print visible text. Comment body targets such as C001.C0001 or comment:3 print metadata only, never comment body text. With --runs, paragraph dumps include run-level markup metadata such as markup=inserted-run, markup=deleted-run, revision-id, author, timestamp-utc, comment-id, and comment range/reference markers without printing comment body text. For targets that own tracked markup records, dump appends a privacy-safe changes block with change IDs, types, parent type, revision metadata, and child element counts; this is how property revisions on paragraph, table, row, cell, and section targets can be inspected without raw OOXML. With --json, the Runs array exposes run metadata as structured fields. Change IDs from `changes` identify markup records; run IDs from dump identify rendered run/marker lines and are not the same namespace. In JSON output, inspect Runs[] for structured run metadata.",
                     Options =
                     [
@@ -566,7 +566,7 @@ public static class DocxHelp
                     Name = "context",
                     Category = "read",
                     Summary = "Show nearby structure around one target without broad text",
-                    Usage = "docxedit context input.docx --id TARGET [options]",
+                    Usage = "docxedit context input.docx --id M.P0001 [--headers-footers] [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
                     Description = "Summarize nearby modeled structure around one target without broad document text. By default, --max-text is 0, so paragraph and cell text fields are present but empty. Comment anchors are surfaced as comment IDs, comment body IDs, para IDs, durable IDs, reply IDs, resolved IDs, and parent/root para IDs; comment body targets such as C001.C0001 or comment:3 return metadata only. Increase --max-text only when short snippets are needed.",
                     Options =
                     [
@@ -651,7 +651,7 @@ public static class DocxHelp
                     Name = "changes",
                     Category = "read",
                     Summary = "List tracked-change and comment markup; comment text is opt-in",
-                    Usage = "docxedit changes input.docx [options]",
+                    Usage = "docxedit changes input.docx [--operation-report <path>] [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]",
                     Description = "List tracked-change and comment markup. By default this does not print revision text or comment body text. Records include change IDs, type, story, part, normalized parent type, target, revision/comment metadata, text length, child element count, and comment anchor targets when known. Use --operation-report with a check/apply report to annotate generated revisions with the originating operation. Use --include-comment-text only when short comment body snippets are needed.",
                     Options =
                     [
@@ -718,10 +718,26 @@ public static class DocxHelp
                 },
                 new()
                 {
+                    Name = "version",
+                    Category = "read",
+                    Summary = "Print the docxedit version",
+                    Usage = "docxedit version [--json]",
+                    Description = "Print the library version, target framework, and patch-operation count. Text output prints one line; --json prints the version object.",
+                    Options =
+                    [
+                        new("--json", "Print the version object as JSON"),
+                    ],
+                    Examples =
+                    [
+                        "docxedit version",
+                    ]
+                },
+                new()
+                {
                     Name = "check",
                     Category = "patch",
                     Summary = "Validate a .docxpatch file without writing output",
-                    Usage = "docxedit check input.docx edits.docxpatch [options]",
+                    Usage = "docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]",
                     Description = "Validate a patch against an input document without writing an output file. Use check before apply to verify selectors, guards, assets, and track-change constraints. Text output includes one operation line per patch operation and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
@@ -744,7 +760,7 @@ public static class DocxHelp
                     Name = "apply",
                     Category = "patch",
                     Summary = "Apply a .docxpatch file and write a new .docx",
-                    Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [options]",
+                    Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]",
                     Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation, generated revision IDs when tracked markup is created, and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [

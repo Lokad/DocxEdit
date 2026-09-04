@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using System.Text;
 
 namespace Lokad.DocxEdit.Tests;
@@ -48,6 +49,91 @@ public static class CliTests
 
         Assert.Equal(2, result.ExitCode);
         Assert.Contains("Usage: docxedit dump", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliVersionPrintsVersion()
+    {
+        string expectedVersion = typeof(DocxEditor).Assembly.GetName().Version?.ToString() ?? "unknown";
+        int expectedOperations = DocxHelp.Catalog.PatchOperations.Count;
+
+        CliResult result = RunCli("version");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(expectedVersion, result.Output, StringComparison.Ordinal);
+        Assert.Contains($"{expectedOperations} patch operations", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliVersionJsonPrintsVersionObject()
+    {
+        string expectedVersion = typeof(DocxEditor).Assembly.GetName().Version?.ToString() ?? "unknown";
+        int expectedOperations = DocxHelp.Catalog.PatchOperations.Count;
+
+        CliResult result = RunCli("version", "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains($"\"Version\": \"{expectedVersion}\"", result.Output, StringComparison.Ordinal);
+        Assert.Contains($"\"PatchOperations\": {expectedOperations}", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliUnknownCommandListsValidCommands()
+    {
+        CliResult result = RunCli("frobnicate");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Unknown command 'frobnicate'.", result.Error, StringComparison.Ordinal);
+        foreach (DocxCommandInfo command in DocxHelp.Catalog.Commands)
+        {
+            Assert.Contains(command.Name, result.Error, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("docxedit --help", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliUnknownOptionPrintsUsageAndHelpPointer()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult result = RunCli("read", input, "--bogus");
+
+        Assert.True(DocxHelp.TryGetCommand("read", out DocxCommandInfo read));
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Unknown option '--bogus'.", result.Error, StringComparison.Ordinal);
+        Assert.Contains("Usage: " + read.Usage, result.Error, StringComparison.Ordinal);
+        Assert.Contains("help read", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliMissingPositionalPrintsUsageAndHelpPointer()
+    {
+        CliResult result = RunCli("read");
+
+        Assert.True(DocxHelp.TryGetCommand("read", out DocxCommandInfo read));
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Usage: " + read.Usage, result.Error, StringComparison.Ordinal);
+        Assert.Contains("help read", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ParserFlagsAndCatalogUsageAgree()
+    {
+        string program = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "Lokad.DocxEdit.Cli", "Program.cs"));
+        var parserFlags = new HashSet<string>(Regex.Matches(program, "case \"(--[a-z][\\w-]*)\":").Select(match => match.Groups[1].Value), StringComparer.Ordinal);
+        var usageFlags = new HashSet<string>(DocxHelp.Catalog.Commands.SelectMany(command => Regex.Matches(command.Usage, "--[a-z][\\w-]*").Select(match => match.Value)), StringComparer.Ordinal);
+        foreach (string flag in parserFlags)
+        {
+            Assert.Contains(flag, usageFlags);
+        }
+
+        foreach (string flag in usageFlags)
+        {
+            Assert.Contains(flag, parserFlags);
+        }
     }
 
     [Fact]
@@ -104,7 +190,7 @@ public static class CliTests
         CliResult apply = RunCli("help", "apply");
 
         Assert.Equal(0, dump.ExitCode);
-        Assert.Contains("docxedit dump input.docx --id TARGET", dump.Output, StringComparison.Ordinal);
+        Assert.Contains("docxedit dump input.docx --id M.P0001 [--runs]", dump.Output, StringComparison.Ordinal);
         Assert.Contains("markup=inserted-run", dump.Output, StringComparison.Ordinal);
         Assert.Contains("Runs array", dump.Output, StringComparison.Ordinal);
         Assert.Contains("not the same namespace", dump.Output, StringComparison.Ordinal);
@@ -112,7 +198,7 @@ public static class CliTests
         Assert.DoesNotContain("PowerShell", dump.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("ConvertFrom-Json", dump.Output, StringComparison.Ordinal);
         Assert.Equal(0, context.ExitCode);
-        Assert.Contains("docxedit context input.docx --id TARGET", context.Output, StringComparison.Ordinal);
+        Assert.Contains("docxedit context input.docx --id M.P0001 [--headers-footers] [--radius", context.Output, StringComparison.Ordinal);
         Assert.Contains("--max-text is 0", context.Output, StringComparison.Ordinal);
         Assert.Contains("--radius N", context.Output, StringComparison.Ordinal);
         Assert.Equal(0, changes.ExitCode);
