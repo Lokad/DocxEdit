@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Lokad.DocxEdit;
 
 return ProgramMain.Run(args);
@@ -9,7 +10,8 @@ internal static class ProgramMain
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        WriteIndented = true
+        WriteIndented = true,
+        Converters = { new DocxOrientationJsonConverter() }
     };
 
     public static int Run(string[] args)
@@ -439,6 +441,25 @@ internal static class ProgramMain
             TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow,
             AssetProvider = FileSystemAssetProvider.Instance
         };
+    }
+
+    private sealed class DocxOrientationJsonConverter : JsonConverter<DocxOrientation>
+    {
+        public override DocxOrientation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            string? value = reader.GetString();
+            if (DocxOrientationExtensions.TryParseWireValue(value, out DocxOrientation orientation))
+            {
+                return orientation;
+            }
+
+            throw new JsonException($"Unsupported section orientation '{value}'. Expected portrait or landscape.");
+        }
+
+        public override void Write(Utf8JsonWriter writer, DocxOrientation value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.ToWireValue());
+        }
     }
 
     private sealed class FileSystemAssetProvider : IDocxAssetProvider

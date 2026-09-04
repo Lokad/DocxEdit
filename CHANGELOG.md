@@ -10,3 +10,4 @@
 - Made NuGet packaging explicit and Release-only, producing both `.nupkg` and `.snupkg` artifacts under `artifacts/nuget/`.
 - Added no-content private validation tooling for ignored local `.docx` cases.
 - Added initial documentation for CLI usage, patch syntax, diagnostics, validation, and architecture.
+- Changed `DocxSectionInfo.Orientation` from `string` to the `DocxOrientation` enum (`Portrait`/`Landscape`); text, JSON, and patch wire values stay lowercase strings.

@@ -12,7 +12,7 @@ internal static class TextRenderers
         var builder = new StringBuilder();
         foreach (DocxSectionInfo section in model.Sections)
         {
-            builder.Append(section.Id).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation).AppendLine();
+            builder.Append(section.Id).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation.ToWireValue()).AppendLine();
         }
 
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
@@ -276,7 +276,7 @@ internal static class TextRenderers
 
         foreach (DocxSectionInfo section in model.Sections)
         {
-            lines.Add($"{section.Id} section columns={section.Columns} orientation={section.Orientation}");
+            lines.Add($"{section.Id} section columns={section.Columns} orientation={section.Orientation.ToWireValue()}");
         }
 
         foreach (DocxImageInfo image in model.Images)

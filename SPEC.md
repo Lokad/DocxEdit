@@ -1056,7 +1056,7 @@ public sealed record DocxSectionInfo(
     string Id,
     string Story,
     int Columns,
-    string Orientation);
+    DocxOrientation Orientation);
 ```
 
 ### 8.8 Bookmark and content-control model

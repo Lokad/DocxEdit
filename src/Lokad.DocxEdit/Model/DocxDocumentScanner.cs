@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Xml.Linq;
 using Lokad.DocxEdit.Ooxml;
 
@@ -522,9 +522,14 @@ internal static partial class DocxDocumentScanner
         int columns = int.TryParse(columnCountText, out int parsedColumns) && parsedColumns > 0
             ? parsedColumns
             : 1;
-        string orientation = (string?)sectionProperties
+        string? orientationText = (string?)sectionProperties
             .Element(OoxmlNs.W + "pgSz")
-            ?.Attribute(OoxmlNs.W + "orient") ?? "portrait";
+            ?.Attribute(OoxmlNs.W + "orient");
+        // Absence means portrait per the OOXML default; an unrecognized value is coerced
+        // here and still reported by package validation (E9120).
+        DocxOrientation orientation = DocxOrientationExtensions.TryParseWireValue(orientationText, out DocxOrientation parsedOrientation)
+            ? parsedOrientation
+            : DocxOrientation.Portrait;
         return new DocxSectionInfo(id, story, columns, orientation);
     }
 

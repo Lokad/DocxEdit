@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -92,7 +92,7 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        if (orientation is not ("portrait" or "landscape"))
+        if (!DocxOrientationExtensions.TryParseWireValue(orientation, out DocxOrientation parsedOrientation))
         {
             return [Diagnostic(DocxSeverity.Error, "E6202", "Section orientation must be portrait or landscape.", operation, target)];
         }
@@ -129,14 +129,14 @@ internal static partial class DocxPatchEngine
             SetSectionPropertiesWithTrackedChange(
                 package,
                 sectionTarget.SectionProperties,
-                properties => SetSectionOrientation(properties, orientation),
+                properties => SetSectionOrientation(properties, parsedOrientation),
                 options,
                 generatedRevisionIds,
                 cancellationToken);
         }
         else
         {
-            SetSectionOrientation(sectionTarget.SectionProperties, orientation);
+            SetSectionOrientation(sectionTarget.SectionProperties, parsedOrientation);
         }
 
         SaveMainDocument(package, sectionTarget.Document);
@@ -162,18 +162,18 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (operation.Fields.TryGetValue("expect-orientation", out string? expectedOrientation))
+        if (operation.Fields.TryGetValue("expect-orientation", out string? expectedOrientationText))
         {
-            if (expectedOrientation is not ("portrait" or "landscape"))
+            if (!DocxOrientationExtensions.TryParseWireValue(expectedOrientationText, out DocxOrientation expectedOrientation))
             {
                 diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-orientation' must be portrait or landscape.", operation, target));
             }
             else
             {
-                string actualOrientation = ReadSectionOrientation(sectionProperties);
-                if (!string.Equals(actualOrientation, expectedOrientation, StringComparison.Ordinal))
+                DocxOrientation actualOrientation = ReadSectionOrientation(sectionProperties);
+                if (actualOrientation != expectedOrientation)
                 {
-                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected section orientation '{expectedOrientation}', found '{actualOrientation}'.", operation, target));
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected section orientation '{expectedOrientation.ToWireValue()}', found '{actualOrientation.ToWireValue()}'.", operation, target));
                 }
             }
         }
@@ -189,12 +189,14 @@ internal static partial class DocxPatchEngine
         return int.TryParse(countText, out int count) && count > 0 ? count : 1;
     }
 
-    private static string ReadSectionOrientation(XElement sectionProperties)
+    private static DocxOrientation ReadSectionOrientation(XElement sectionProperties)
     {
-        return (string?)sectionProperties
+        string? orientationText = (string?)sectionProperties
             .Element(OoxmlNs.W + "pgSz")
-            ?.Attribute(OoxmlNs.W + "orient")
-            ?? "portrait";
+            ?.Attribute(OoxmlNs.W + "orient");
+        return DocxOrientationExtensions.TryParseWireValue(orientationText, out DocxOrientation orientation)
+            ? orientation
+            : DocxOrientation.Portrait;
     }
 
     private static bool TryReadPositiveIntegerGuard(
@@ -231,7 +233,7 @@ internal static partial class DocxPatchEngine
         columns.SetAttributeValue(OoxmlNs.W + "num", count.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
-    private static void SetSectionOrientation(XElement sectionProperties, string orientation)
+    private static void SetSectionOrientation(XElement sectionProperties, DocxOrientation orientation)
     {
         XElement? pageSize = sectionProperties.Element(OoxmlNs.W + "pgSz");
         if (pageSize is null)
@@ -240,14 +242,14 @@ internal static partial class DocxPatchEngine
             sectionProperties.AddFirst(pageSize);
         }
 
-        string? currentOrientation = (string?)pageSize.Attribute(OoxmlNs.W + "orient") ?? "portrait";
-        if (!string.Equals(currentOrientation, orientation, StringComparison.Ordinal) &&
+        DocxOrientation currentOrientation = ReadSectionOrientation(sectionProperties);
+        if (currentOrientation != orientation &&
             pageSize.Attribute(OoxmlNs.W + "w") is XAttribute width &&
             pageSize.Attribute(OoxmlNs.W + "h") is XAttribute height)
         {
             (width.Value, height.Value) = (height.Value, width.Value);
         }
 
-        pageSize.SetAttributeValue(OoxmlNs.W + "orient", orientation);
+        pageSize.SetAttributeValue(OoxmlNs.W + "orient", orientation.ToWireValue());
     }
 }

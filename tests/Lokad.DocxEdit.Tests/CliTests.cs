@@ -448,6 +448,20 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliReadJsonEmitsLowercaseSectionOrientation()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocxWithLandscapeSection(input);
+
+        CliResult result = RunCli("read", input, "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"Orientation\": \"landscape\"", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Orientation\": 1", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliReadSupportsOriginalTrackedChangeView()
     {
         using TempDirectory temp = TempDirectory.Create();
@@ -781,6 +795,40 @@ public static class CliTests
                   <w:bookmarkEnd w:id="1"/>
                   <w:r><w:t> After</w:t></w:r>
                 </w:p>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void CreateDocxWithLandscapeSection(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p>
+                  <w:r><w:t>Wide</w:t></w:r>
+                </w:p>
+                <w:sectPr>
+                  <w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>
+                  <w:cols w:num="2"/>
+                </w:sectPr>
               </w:body>
             </w:document>
             """);

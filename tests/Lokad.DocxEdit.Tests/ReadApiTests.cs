@@ -1774,7 +1774,7 @@ public static class ReadApiTests
         DocxSectionInfo section = Assert.Single(result.Sections);
         Assert.Equal("M.S0001", section.Id);
         Assert.Equal(2, section.Columns);
-        Assert.Equal("landscape", section.Orientation);
+        Assert.Equal(DocxOrientation.Landscape, section.Orientation);
         Assert.Contains("M.S0001 section columns=2 orientation=landscape", result.Text, StringComparison.Ordinal);
     }
 

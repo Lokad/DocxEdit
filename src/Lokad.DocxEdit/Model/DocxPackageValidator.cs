@@ -1,4 +1,4 @@
-﻿using System.Xml.Linq;
+using System.Xml.Linq;
 using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit.Model;
@@ -422,7 +422,7 @@ internal static partial class DocxPackageValidator
             string? orientation = (string?)sectionProperties
                 .Element(OoxmlNs.W + "pgSz")
                 ?.Attribute(OoxmlNs.W + "orient");
-            if (!string.IsNullOrWhiteSpace(orientation) && orientation is not ("portrait" or "landscape"))
+            if (!string.IsNullOrWhiteSpace(orientation) && !DocxOrientationExtensions.TryParseWireValue(orientation, out _))
             {
                 diagnostics.Add(Error("E9120", $"Section page size w:orient has invalid value '{orientation}'.", partName));
             }

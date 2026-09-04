@@ -516,4 +516,4 @@ public sealed record DocxSectionInfo(
     string Id,
     string Story,
     int Columns,
-    string Orientation);
+    DocxOrientation Orientation);

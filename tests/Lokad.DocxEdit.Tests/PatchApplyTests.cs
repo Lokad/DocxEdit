@@ -6232,7 +6232,7 @@ public static class PatchApplyTests
         output.Position = 0;
         DocxSectionInfo section = Assert.Single(new DocxEditor().Read(output).Sections);
         Assert.Equal(2, section.Columns);
-        Assert.Equal("landscape", section.Orientation);
+        Assert.Equal(DocxOrientation.Landscape, section.Orientation);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("w:num=\"2\"", xml, StringComparison.Ordinal);
