@@ -56,20 +56,6 @@ public sealed record DocxPatchOperationInfo
 
 public static class DocxHelp
 {
-    private const string PreserveOnlyTrackChangesNote =
-        "Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.";
-
-    private const string TrackClassTextRun = "text-run";
-    private const string TrackClassParagraphBlock = "paragraph-block";
-    private const string TrackClassParagraphProperty = "paragraph-property";
-    private const string TrackClassTableProperty = "table-property";
-    private const string TrackClassRowProperty = "row-property";
-    private const string TrackClassCellProperty = "cell-property";
-    private const string TrackClassRowStructure = "row-structure";
-    private const string TrackClassSectionProperty = "section-property";
-    private const string TrackClassPreserveOnly = "preserve-only";
-    private const string TrackClassUnsupported = "unsupported";
-
     private const string PatchExamples =
         """
         docxpatch 1
@@ -214,59 +200,6 @@ public static class DocxHelp
         }
 
         return builder.ToString();
-    }
-
-    private static DocxPatchOperationInfo PreserveOnly(
-        string name,
-        IReadOnlyList<string> requiredFields,
-        string rationale,
-        IReadOnlyList<string>? optionalFields = null)
-    {
-        return new DocxPatchOperationInfo
-        {
-            Name = name,
-            RequiredFields = requiredFields,
-            OptionalFields = optionalFields ?? [],
-            TrackChangesSupportClass = TrackClassPreserveOnly,
-            TrackChangesSupport = "preserve-only",
-            TrackChangesNote = $"{rationale} {PreserveOnlyTrackChangesNote}"
-        };
-    }
-
-    private static DocxPatchOperationInfo Tracked(
-        string name,
-        IReadOnlyList<string> requiredFields,
-        string supportClass,
-        string support,
-        string note,
-        IReadOnlyList<string>? optionalFields = null)
-    {
-        return new DocxPatchOperationInfo
-        {
-            Name = name,
-            RequiredFields = requiredFields,
-            OptionalFields = optionalFields ?? [],
-            TrackChangesSupportClass = supportClass,
-            TrackChangesSupport = support,
-            TrackChangesNote = note
-        };
-    }
-
-    private static DocxPatchOperationInfo Unsupported(
-        string name,
-        IReadOnlyList<string> requiredFields,
-        string note,
-        IReadOnlyList<string>? optionalFields = null)
-    {
-        return new DocxPatchOperationInfo
-        {
-            Name = name,
-            RequiredFields = requiredFields,
-            OptionalFields = optionalFields ?? [],
-            TrackChangesSupportClass = TrackClassUnsupported,
-            TrackChangesSupport = "unsupported",
-            TrackChangesNote = note
-        };
     }
 
     private static void AppendCommandGroup(StringBuilder builder, string title, string category)
@@ -676,6 +609,23 @@ public static class DocxHelp
                 },
                 new()
                 {
+                    Name = "catalog",
+                    Category = "read",
+                    Summary = "Print the machine-readable command and patch-operation catalog",
+                    Usage = "docxedit catalog [--json]",
+                    Description = "Print the structured docxedit surface: commands with options and output fields, plus patch operations with required/optional fields and track-change support. Text output prints the overview and the operation support table; --json prints the full catalog object.",
+                    Options =
+                    [
+                        new("--json", "Print the catalog object as JSON"),
+                    ],
+                    Examples =
+                    [
+                        "docxedit catalog",
+                        "docxedit catalog --json",
+                    ]
+                },
+                new()
+                {
                     Name = "check",
                     Category = "patch",
                     Summary = "Validate a .docxpatch file without writing output",
@@ -745,318 +695,7 @@ public static class DocxHelp
                 "docxedit check report.docx edits.docxpatch",
                 "docxedit apply report.docx edits.docxpatch --output report.edited.docx"
             ],
-            PatchOperations =
-            [
-                Tracked(
-                    "replace-text",
-                    ["target", "find", "with"],
-                    TrackClassTextRun,
-                    "tracked-simple",
-                    "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.",
-                    ["expect-text", "preserve-runs", "occurrence"]),
-                Tracked(
-                    "replace-paragraph",
-                    ["target", "text"],
-                    TrackClassParagraphBlock,
-                    "tracked-paragraph",
-                    "Suggest/Require emit whole-paragraph w:del/w:ins for simple text replacements and add w:pPrChange when a compatible style change is included; complex shapes warn with W4002 or fail with E6002.",
-                    ["expect-text", "style"]),
-                Tracked(
-                    "insert-before",
-                    ["target", "text"],
-                    TrackClassParagraphBlock,
-                    "tracked-paragraph-insert",
-                    "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
-                    ["style", "copy-paragraph-properties"]),
-                Tracked(
-                    "insert-after",
-                    ["target", "text"],
-                    TrackClassParagraphBlock,
-                    "tracked-paragraph-insert",
-                    "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
-                    ["style", "copy-paragraph-properties"]),
-                Tracked(
-                    "delete-block",
-                    ["target"],
-                    TrackClassParagraphBlock,
-                    "tracked-paragraph-delete",
-                    "Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.",
-                    ["expect-text"]),
-                Tracked(
-                    "set-style",
-                    ["target", "style"],
-                    TrackClassParagraphProperty,
-                    "tracked-style",
-                    "Suggest/Require emit paragraph property revisions with w:pPrChange."),
-                Tracked(
-                    "set-content-control-text",
-                    ["target", "text"],
-                    TrackClassTextRun,
-                    "tracked-content-control-text",
-                    "Suggest/Require emit w:del/w:ins inside simple plain-text and guarded paragraph-only rich-text content controls while preserving wrappers, bindings, locks, and paragraph containers; complex content controls warn with W4002 or fail with E6002.",
-                    ["expect-text"]),
-                PreserveOnly(
-                    "set-content-control-checkbox",
-                    ["target", "checked"],
-                    "Checkbox content controls update state metadata, not a simple Word revision range."),
-                PreserveOnly(
-                    "set-content-control-choice",
-                    ["target plus value or display-text"],
-                    "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet."),
-                PreserveOnly(
-                    "set-content-control-date",
-                    ["target", "value"],
-                    "Date content controls update date metadata and display text together; generated revision markup is not modeled yet.",
-                    ["display-text"]),
-                Unsupported(
-                    "add-repeating-section-item",
-                    ["target"],
-                    "Repeating-section item insertion is not safely modeled yet; check/apply fails with E4315.",
-                    ["source", "index", "text"]),
-                Unsupported(
-                    "delete-repeating-section-item",
-                    ["target"],
-                    "Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.",
-                    ["index"]),
-                PreserveOnly(
-                    "add-bookmark",
-                    ["target", "name"],
-                    "Bookmark creation adds anchor metadata; Word has no useful generated revision range for the bookmark markers.",
-                    ["expect-text"]),
-                Tracked(
-                    "replace-bookmark-text",
-                    ["target", "text"],
-                    TrackClassTextRun,
-                    "tracked-bookmark-text",
-                    "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002."),
-                PreserveOnly(
-                    "rename-bookmark",
-                    ["target", "name"],
-                    "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update."),
-                PreserveOnly(
-                    "delete-bookmark",
-                    ["target"],
-                    "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal."),
-                PreserveOnly(
-                    "add-comment",
-                    ["target", "text"],
-                    "Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated.",
-                    ["expect-text", "anchor-text", "occurrence", "author", "initials", "date"]),
-                Tracked(
-                    "set-comment-text",
-                    ["target", "text"],
-                    TrackClassTextRun,
-                    "tracked-comment-text",
-                    "Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002."),
-                PreserveOnly(
-                    "resolve-comment",
-                    ["target"],
-                    "Comment resolution changes review metadata, not visible document text."),
-                PreserveOnly(
-                    "reopen-comment",
-                    ["target"],
-                    "Comment reopening changes review metadata, not visible document text."),
-                PreserveOnly(
-                    "delete-comment",
-                    ["target"],
-                    "Comment deletion removes review markup, not a separate generated tracked edit."),
-                PreserveOnly(
-                    "add-comment-reply",
-                    ["target", "text"],
-                    "Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit.",
-                    ["author", "initials", "date"]),
-                PreserveOnly(
-                    "delete-comment-reply",
-                    ["target"],
-                    "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit."),
-                PreserveOnly(
-                    "set-field-dirty",
-                    ["target or all", "dirty"],
-                    "Field dirty flags are field metadata and have no useful generated visible revision representation."),
-                PreserveOnly(
-                    "set-field-lock",
-                    ["target or all", "locked"],
-                    "Field lock flags are field metadata and have no useful generated visible revision representation."),
-                PreserveOnly(
-                    "set-field-code",
-                    ["target", "code"],
-                    "Field codes are instruction metadata; generated revisions for field instructions are not modeled yet.",
-                    ["expect-code"]),
-                Tracked(
-                    "set-field-result",
-                    ["target", "text"],
-                    TrackClassTextRun,
-                    "tracked-field-result",
-                    "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; direct mode also supports simple same-paragraph complex field result runs. Complex-field tracked output or unsafe topologies warn with W4002 or fail with E6002/E4313.",
-                    ["expect-result"]),
-                PreserveOnly(
-                    "refresh-field-result",
-                    ["target"],
-                    "Field refresh updates cached result text from modeled document state for REF/PAGEREF/NOTEREF bookmark fields and QUOTE literal fields; unsupported refresh types return categorized E4313 diagnostics. Generated revision markup for the refresh is not modeled yet.",
-                    ["expect-code", "expect-result"]),
-                PreserveOnly(
-                    "set-hyperlink-target",
-                    ["target plus uri or anchor"],
-                    "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
-                    ["tooltip", "target-frame", "history"]),
-                Tracked(
-                    "set-hyperlink-text",
-                    ["target", "text"],
-                    TrackClassTextRun,
-                    "tracked-hyperlink-text",
-                    "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002."),
-                Tracked(
-                    "insert-hyperlink-after",
-                    ["target", "text plus uri or anchor"],
-                    TrackClassTextRun,
-                    "tracked-hyperlink-insert",
-                    "Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.",
-                    ["tooltip", "target-frame", "history"]),
-                PreserveOnly(
-                    "remove-hyperlink",
-                    ["target"],
-                    "Hyperlink removal changes wrapper and relationship metadata while preserving display text."),
-                Tracked(
-                    "set-cell",
-                    ["target", "text"],
-                    TrackClassTextRun,
-                    "tracked-cell-simple",
-                    "Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.",
-                    ["expect-text", "expect-row-count", "expect-column-count", "force"]),
-                Tracked(
-                    "set-cell-shading",
-                    ["target plus fill or clear true"],
-                    TrackClassCellProperty,
-                    "tracked-cell-shading",
-                    "Sets or clears w:tcPr/w:shd fill on a visual-grid cell ID or merge-group ID. Suggest/Require emit cell property revisions with w:tcPrChange while preserving previous cell properties; vertical-merge continuations fail with E4301.",
-                    ["expect-fill", "clear"]),
-                Tracked(
-                    "set-table-style",
-                    ["target", "style"],
-                    TrackClassTableProperty,
-                    "tracked-table-style",
-                    "Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.",
-                    ["expect-style"]),
-                PreserveOnly(
-                    "set-table-metadata",
-                    ["target plus caption or description"],
-                    "Table caption and description updates are table metadata, not visible document text.",
-                    ["expect-caption", "expect-description"]),
-                Tracked(
-                    "set-row-header",
-                    ["target", "header"],
-                    TrackClassRowProperty,
-                    "tracked-row-header",
-                    "Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.",
-                    ["expect-header"]),
-                Tracked(
-                    "append-row",
-                    ["target plus repeated cell"],
-                    TrackClassRowStructure,
-                    "tracked-row-insert",
-                    "Direct mode appends by cloning the last row shape when the table has a consistent visual grid and the last row does not contain vertical merge cells. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; visual-grid or other complex shapes warn with W4002 or fail with E6002.",
-                    ["expect-row-count", "expect-column-count"]),
-                Tracked(
-                    "insert-row-before",
-                    ["target plus repeated cell"],
-                    TrackClassRowStructure,
-                    "tracked-row-insert",
-                    "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
-                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                Tracked(
-                    "insert-row-after",
-                    ["target plus repeated cell"],
-                    TrackClassRowStructure,
-                    "tracked-row-insert",
-                    "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
-                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                Tracked(
-                    "delete-row",
-                    ["target"],
-                    TrackClassRowStructure,
-                    "tracked-row-delete",
-                    "Direct mode deletes rows in consistent visual-grid tables and promotes the next vertical-merge continuation when deleting a merge root. Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
-                    ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
-                Unsupported(
-                    "append-column",
-                    ["target plus repeated cell"],
-                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                    ["expect-row-count", "expect-column-count", "force"]),
-                Unsupported(
-                    "insert-column-before",
-                    ["target", "column plus repeated cell"],
-                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                Unsupported(
-                    "insert-column-after",
-                    ["target", "column plus repeated cell"],
-                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                    ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
-                Unsupported(
-                    "delete-column",
-                    ["target", "column"],
-                    "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                    ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
-                PreserveOnly(
-                    "replace-image",
-                    ["target", "asset"],
-                    "Image replacement updates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
-                    ["expect-content-type", "alt"]),
-                PreserveOnly(
-                    "insert-image-after",
-                    ["target", "asset"],
-                    "Image insertion creates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
-                    ["expect-content-type", "width", "height", "alt"]),
-                PreserveOnly(
-                    "set-image-alt",
-                    ["target", "alt"],
-                    "Image alt-text updates DrawingML metadata, not visible document text.",
-                    ["expect-content-type"]),
-                PreserveOnly(
-                    "set-image-metadata",
-                    ["target plus alt, title, or name"],
-                    "Image title/name/alt updates DrawingML metadata, not visible document text.",
-                    ["expect-content-type"]),
-                PreserveOnly(
-                    "set-image-size",
-                    ["target plus width or height"],
-                    "Image size updates DrawingML layout metadata, not visible document text.",
-                    ["expect-content-type"]),
-                PreserveOnly(
-                    "set-image-wrap",
-                    ["target plus mode or distance"],
-                    "Image wrapping updates DrawingML layout metadata, not visible document text.",
-                    ["expect-content-type"]),
-                PreserveOnly(
-                    "set-image-position",
-                    ["target plus relative, offset, or align"],
-                    "Image position updates DrawingML layout metadata, not visible document text.",
-                    ["expect-content-type"]),
-                PreserveOnly(
-                    "set-image-crop",
-                    ["target plus one crop percentage"],
-                    "Image crop updates DrawingML layout metadata, not visible document text.",
-                    ["expect-content-type"]),
-                PreserveOnly(
-                    "delete-image",
-                    ["target"],
-                    "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
-                    ["expect-content-type"]),
-                Tracked(
-                    "set-section-columns",
-                    ["target", "count"],
-                    TrackClassSectionProperty,
-                    "tracked-section-columns",
-                    "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous section properties and references; existing section property revisions fall back or fail instead of being replaced.",
-                    ["expect-columns", "expect-orientation"]),
-                Tracked(
-                    "set-section-orientation",
-                    ["target", "orientation"],
-                    TrackClassSectionProperty,
-                    "tracked-section-orientation",
-                    "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous page size, section properties, and references; existing section property revisions fall back or fail instead of being replaced.",
-                    ["expect-columns", "expect-orientation"])
-            ]
+            PatchOperations = DocxPatchEngine.CatalogOperations,
         };
     }
 }

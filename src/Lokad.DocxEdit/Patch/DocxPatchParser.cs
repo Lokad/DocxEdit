@@ -2,65 +2,8 @@ namespace Lokad.DocxEdit;
 
 internal static class DocxPatchParser
 {
-    private static readonly IReadOnlyDictionary<string, OperationDefinition> OperationDefinitions = new Dictionary<string, OperationDefinition>(StringComparer.Ordinal)
-    {
-        ["replace-text"] = new(["target", "expect-text", "find", "with", "preserve-runs", "occurrence"], ["preserve-runs"], ["occurrence"]),
-        ["replace-paragraph"] = new(["target", "expect-text", "style", "text"], [], []),
-        ["insert-before"] = new(["target", "style", "copy-paragraph-properties", "text"], ["copy-paragraph-properties"], []),
-        ["insert-after"] = new(["target", "style", "copy-paragraph-properties", "text"], ["copy-paragraph-properties"], []),
-        ["delete-block"] = new(["target", "expect-text"], [], []),
-        ["set-style"] = new(["target", "style"], [], []),
-        ["set-content-control-text"] = new(["target", "expect-text", "text"], [], []),
-        ["set-content-control-checkbox"] = new(["target", "checked"], [], []),
-        ["set-content-control-choice"] = new(["target", "value", "display-text"], [], []),
-        ["set-content-control-date"] = new(["target", "value", "display-text"], [], []),
-        ["add-repeating-section-item"] = new(["target", "source", "index", "text"], [], ["index"]),
-        ["delete-repeating-section-item"] = new(["target", "index"], [], ["index"]),
-        ["add-bookmark"] = new(["target", "expect-text", "name"], [], []),
-        ["replace-bookmark-text"] = new(["target", "text"], [], []),
-        ["rename-bookmark"] = new(["target", "name"], [], []),
-        ["delete-bookmark"] = new(["target"], [], []),
-        ["add-comment"] = new(["target", "expect-text", "anchor-text", "text", "author", "initials", "date", "occurrence"], [], ["occurrence"]),
-        ["set-comment-text"] = new(["target", "text"], [], []),
-        ["resolve-comment"] = new(["target"], [], []),
-        ["reopen-comment"] = new(["target"], [], []),
-        ["delete-comment"] = new(["target"], [], []),
-        ["add-comment-reply"] = new(["target", "text", "author", "initials", "date"], [], []),
-        ["delete-comment-reply"] = new(["target"], [], []),
-        ["set-field-dirty"] = new(["target", "dirty"], ["dirty"], []),
-        ["set-field-lock"] = new(["target", "locked"], ["locked"], []),
-        ["set-field-code"] = new(["target", "expect-code", "code"], [], []),
-        ["set-field-result"] = new(["target", "expect-result", "text"], [], []),
-        ["refresh-field-result"] = new(["target", "expect-code", "expect-result"], [], []),
-        ["set-hyperlink-target"] = new(["target", "uri", "anchor", "tooltip", "target-frame", "history"], ["history"], []),
-        ["set-hyperlink-text"] = new(["target", "text"], [], []),
-        ["insert-hyperlink-after"] = new(["target", "text", "uri", "anchor", "tooltip", "target-frame", "history"], ["history"], []),
-        ["remove-hyperlink"] = new(["target"], [], []),
-        ["set-cell"] = new(["target", "expect-text", "expect-row-count", "expect-column-count", "text", "force"], ["force"], ["expect-row-count", "expect-column-count"]),
-        ["set-cell-shading"] = new(["target", "expect-fill", "fill", "clear"], ["clear"], []),
-        ["set-table-style"] = new(["target", "expect-style", "style"], [], []),
-        ["set-table-metadata"] = new(["target", "expect-caption", "expect-description", "caption", "description"], [], []),
-        ["set-row-header"] = new(["target", "expect-header", "header"], ["expect-header", "header"], []),
-        ["append-row"] = new(["target", "expect-row-count", "expect-column-count", "cell"], [], ["expect-row-count", "expect-column-count"]),
-        ["insert-row-before"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
-        ["insert-row-after"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
-        ["delete-row"] = new(["target", "expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"], ["force"], ["expect-row-count", "expect-column-count", "expect-cell-count"]),
-        ["append-column"] = new(["target", "expect-row-count", "expect-column-count", "cell", "force"], ["force"], ["expect-row-count", "expect-column-count"]),
-        ["insert-column-before"] = new(["target", "column", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["column", "expect-row-count", "expect-column-count", "expect-cell-count"]),
-        ["insert-column-after"] = new(["target", "column", "expect-row-count", "expect-column-count", "expect-cell-count", "cell", "force"], ["force"], ["column", "expect-row-count", "expect-column-count", "expect-cell-count"]),
-        ["delete-column"] = new(["target", "column", "expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"], ["force"], ["column", "expect-row-count", "expect-column-count", "expect-cell-count"]),
-        ["replace-image"] = new(["target", "asset", "expect-content-type", "alt"], [], []),
-        ["insert-image-after"] = new(["target", "asset", "expect-content-type", "width", "height", "alt"], [], []),
-        ["set-image-alt"] = new(["target", "expect-content-type", "alt"], [], []),
-        ["set-image-metadata"] = new(["target", "expect-content-type", "alt", "title", "name"], [], []),
-        ["set-image-size"] = new(["target", "expect-content-type", "width", "height"], [], []),
-        ["set-image-wrap"] = new(["target", "expect-content-type", "mode", "dist-top", "dist-bottom", "dist-left", "dist-right"], [], []),
-        ["set-image-position"] = new(["target", "expect-content-type", "horizontal-relative", "horizontal-offset", "horizontal-align", "vertical-relative", "vertical-offset", "vertical-align"], [], []),
-        ["set-image-crop"] = new(["target", "expect-content-type", "left-percent", "top-percent", "right-percent", "bottom-percent"], [], []),
-        ["delete-image"] = new(["target", "expect-content-type"], [], []),
-        ["set-section-columns"] = new(["target", "expect-columns", "expect-orientation", "count", "space"], [], ["expect-columns", "count"]),
-        ["set-section-orientation"] = new(["target", "expect-columns", "expect-orientation", "orientation"], [], ["expect-columns"])
-    };
+    private static readonly IReadOnlyDictionary<string, OperationDefinition> OperationDefinitions = DocxPatchEngine.AllOperations
+        .ToDictionary(registration => registration.Name, registration => new OperationDefinition(registration.AllowedFields, registration.BooleanFields, registration.IntegerFields), StringComparer.Ordinal);
 
     public static DocxPatch Parse(string text)
     {

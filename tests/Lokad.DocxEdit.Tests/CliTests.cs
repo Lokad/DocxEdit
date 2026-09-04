@@ -806,6 +806,26 @@ public static class CliTests
         return reader.ReadToEnd();
     }
 
+    [Fact]
+    public static void CliCatalogJsonPrintsMachineReadableSurface()
+    {
+        CliResult result = RunCli("catalog", "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"replace-text\"", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"tracked-simple\"", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliCatalogTextPrintsSupportTable()
+    {
+        CliResult result = RunCli("catalog");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("operation | support class", result.Output, StringComparison.Ordinal);
+        Assert.Contains("replace-text", result.Output, StringComparison.Ordinal);
+    }
+
     private sealed record CliResult(int ExitCode, string Output, string Error);
 
     private sealed class TempDirectory : IDisposable

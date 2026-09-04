@@ -7,7 +7,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-internal static class DocxPatchEngine
+internal static partial class DocxPatchEngine
 {
     private const string SettingsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
     private const string CommentsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml";
@@ -112,62 +112,15 @@ internal static class DocxPatchEngine
                         "direct-edit-preserve-existing-revisions"));
                 }
 
-                operationDiagnostics.AddRange(operation.OperationName switch
+                IReadOnlyList<DocxDiagnostic>? executed = TryExecuteOperation(package, operation, options, apply, generatedRevisionIds, cancellationToken);
+                if (executed is not null)
                 {
-                    "replace-text" => ExecuteReplaceText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "replace-paragraph" => ExecuteReplaceParagraph(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "insert-before" => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, generatedRevisionIds, cancellationToken),
-                    "insert-after" => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, generatedRevisionIds, cancellationToken),
-                    "delete-block" => ExecuteDeleteBlock(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-style" => ExecuteSetStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-content-control-text" => ExecuteSetContentControlText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-content-control-checkbox" => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken),
-                    "set-content-control-choice" => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken),
-                    "set-content-control-date" => ExecuteSetContentControlDate(package, operation, apply, cancellationToken),
-                    "add-repeating-section-item" or "delete-repeating-section-item" => ExecuteUnsupportedRepeatingSectionOperation(operation),
-                    "add-bookmark" => ExecuteAddBookmark(package, operation, apply, cancellationToken),
-                    "replace-bookmark-text" => ExecuteReplaceBookmarkText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "rename-bookmark" => ExecuteRenameBookmark(package, operation, apply, cancellationToken),
-                    "delete-bookmark" => ExecuteDeleteBookmark(package, operation, apply, cancellationToken),
-                    "add-comment" => ExecuteAddComment(package, operation, options, apply, cancellationToken),
-                    "set-comment-text" => ExecuteSetCommentText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "resolve-comment" => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken),
-                    "reopen-comment" => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken),
-                    "delete-comment" => ExecuteDeleteComment(package, operation, apply, cancellationToken),
-                    "add-comment-reply" => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken),
-                    "delete-comment-reply" => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken),
-                    "set-field-dirty" => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken),
-                    "set-field-lock" => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken),
-                    "set-field-code" => ExecuteSetFieldCode(package, operation, apply, cancellationToken),
-                    "set-field-result" => ExecuteSetFieldResult(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "refresh-field-result" => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken),
-                    "set-hyperlink-target" => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken),
-                    "set-hyperlink-text" => ExecuteSetHyperlinkText(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "insert-hyperlink-after" => ExecuteInsertHyperlinkAfter(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "remove-hyperlink" => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken),
-                    "set-cell" => ExecuteSetCell(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-cell-shading" => ExecuteSetCellShading(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-table-style" => ExecuteSetTableStyle(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-table-metadata" => ExecuteSetTableMetadata(package, operation, apply, cancellationToken),
-                    "set-row-header" => ExecuteSetRowHeader(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "append-row" => ExecuteAppendRow(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "insert-row-before" => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, generatedRevisionIds, cancellationToken),
-                    "insert-row-after" => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, generatedRevisionIds, cancellationToken),
-                    "delete-row" => ExecuteDeleteRow(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "append-column" or "insert-column-before" or "insert-column-after" or "delete-column" => ExecuteUnsupportedColumnOperation(operation),
-                    "replace-image" => ExecuteReplaceImage(package, operation, options, apply, cancellationToken),
-                    "insert-image-after" => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken),
-                    "set-image-alt" => ExecuteSetImageAlt(package, operation, apply, cancellationToken),
-                    "set-image-metadata" => ExecuteSetImageMetadata(package, operation, apply, cancellationToken),
-                    "set-image-size" => ExecuteSetImageSize(package, operation, apply, cancellationToken),
-                    "set-image-wrap" => ExecuteSetImageWrap(package, operation, apply, cancellationToken),
-                    "set-image-position" => ExecuteSetImagePosition(package, operation, apply, cancellationToken),
-                    "set-image-crop" => ExecuteSetImageCrop(package, operation, apply, cancellationToken),
-                    "delete-image" => ExecuteDeleteImage(package, operation, apply, cancellationToken),
-                    "set-section-columns" => ExecuteSetSectionColumns(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    "set-section-orientation" => ExecuteSetSectionOrientation(package, operation, options, apply, generatedRevisionIds, cancellationToken),
-                    _ => [Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation)]
-                });
+                    operationDiagnostics.AddRange(executed);
+                }
+                else
+                {
+                    operationDiagnostics.Add(Diagnostic(DocxSeverity.Error, "E4201", $"Unsupported operation '{operation.OperationName}'.", operation));
+                }
             }
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
             diagnostics.AddRange(operationDiagnostics);
@@ -186,7 +139,7 @@ internal static class DocxPatchEngine
         bool shouldMarkFieldsDirty = apply &&
             options.MarkFieldsDirtyWhenEditing &&
             patch.Operations.Count != 0 &&
-            patch.Operations.Any(operation => ShouldMarkFieldsDirtyAfterOperation(operation.OperationName)) &&
+            patch.Operations.Any(operation => MarksFieldsDirtyAfterEdit(operation.OperationName)) &&
             diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
         bool containsFieldsBeforeRefresh = shouldMarkFieldsDirty && PackageContainsFieldMarkup(package, cancellationToken);
         if (shouldMarkFieldsDirty)
@@ -211,18 +164,10 @@ internal static class DocxPatchEngine
         return new PatchExecutionResult(diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error), diagnostics, reports);
     }
 
-    private static bool SupportsTrackedChangeOutput(string operationName)
-    {
-        return DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operation) &&
-            operation.GeneratesTrackedChanges;
-    }
-
     private static string BuildUnsupportedTrackedOperationMessage(TrackChangesMode mode, DocxPatchOperation operation)
     {
         string operationName = operation.OperationName;
-        string support = DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operationInfo)
-            ? operationInfo.TrackChangesSupport
-            : "unclassified";
+        string support = TrackChangesSupportValue(operationName);
 
         return mode switch
         {
@@ -235,10 +180,6 @@ internal static class DocxPatchEngine
         };
     }
 
-    private static bool ShouldMarkFieldsDirtyAfterOperation(string operationName)
-    {
-        return operationName is not "set-field-result" and not "refresh-field-result";
-    }
 
     private static bool PackageContainsFieldMarkup(OoxmlPackage package, CancellationToken cancellationToken)
     {
@@ -5363,9 +5304,7 @@ internal static class DocxPatchEngine
         string reason)
     {
         string operationName = operation.OperationName;
-        string support = DocxHelp.TryGetPatchOperation(operationName, out DocxPatchOperationInfo operationInfo)
-            ? operationInfo.TrackChangesSupport
-            : "unclassified";
+        string support = TrackChangesSupportValue(operationName);
 
         return mode switch
         {

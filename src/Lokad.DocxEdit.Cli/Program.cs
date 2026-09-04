@@ -51,6 +51,7 @@ internal static class ProgramMain
                 "changes" => RunChanges(options),
                 "check" => RunCheck(options),
                 "apply" => RunApply(options),
+                "catalog" => RunCatalog(options),
                 _ => InvalidUsage($"Unknown command '{options.Command}'.")
             };
         }
@@ -355,6 +356,26 @@ internal static class ProgramMain
         return ExitCode(result.Success, result.Diagnostics, options.Strict);
     }
 
+    private static int RunCatalog(ParsedOptions options)
+    {
+        if (options.Positionals.Count != 0)
+        {
+            return InvalidUsage("Usage: docxedit catalog [--json]");
+        }
+
+        if (options.Json)
+        {
+            WriteJson(DocxHelp.Catalog);
+        }
+        else
+        {
+            Console.Write(DocxHelp.RenderOverview());
+            Console.WriteLine();
+            Console.Write(DocxHelp.RenderPatchTrackChangesSupportTable());
+        }
+
+        return 0;
+    }
     private static void WriteDiagnostics(string? path, IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         if (path is null)

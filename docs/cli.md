@@ -79,6 +79,7 @@ agent or human needs compact context.
 | `check` | Dry-run patch validation | Validate selectors, guards, assets, and track-change constraints |
 | `apply` | Patch application | Write a new edited `.docx`; the input is not modified |
 | `help` | Built-in command guidance | Show command-specific or patch-operation help |
+| `catalog` | Machine-readable surface | Commands, options, output fields, and patch operations as text or `--json` |
 
 ## Common Options
 
@@ -311,6 +312,7 @@ docxedit help changes
 docxedit help validate
 docxedit help check
 docxedit help apply
+docxedit help catalog
 docxedit help patch
 ```
 
