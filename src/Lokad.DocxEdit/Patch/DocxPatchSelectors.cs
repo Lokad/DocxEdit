@@ -813,7 +813,9 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (!TryParseMainSectionTarget(target, out int sectionOrdinal) || sectionOrdinal < 1)
+        if (!TryParseTargetId(target, out DocxTargetId sectionId) ||
+            sectionId is not { Story: 'M', Kind: DocxTargetKind.Section } ||
+            sectionId.Primary < 1)
         {
             return null;
         }
@@ -834,7 +836,7 @@ internal static partial class DocxPatchEngine
             }
 
             currentOrdinal++;
-            if (currentOrdinal == sectionOrdinal)
+            if (currentOrdinal == sectionId.Primary)
             {
                 return new SectionTarget(document, element);
             }
@@ -988,26 +990,18 @@ internal static partial class DocxPatchEngine
 
     private static bool IsSupportedTableTargetShape(string target)
     {
-        return TryParseMainTableTarget(target, out _) ||
-            TryParseStoryTableTarget(target, 'H', out _, out _) ||
-            TryParseStoryTableTarget(target, 'F', out _, out _);
+        return TryParseTargetId(target, out DocxTargetId tableId) && tableId.Kind == DocxTargetKind.Table;
     }
 
     private static bool IsSupportedRowTargetShape(string target)
     {
-        return TryParseMainRowTarget(target, out _, out _) ||
-            TryParseStoryRowTarget(target, 'H', out _, out _, out _) ||
-            TryParseStoryRowTarget(target, 'F', out _, out _, out _);
+        return TryParseTargetId(target, out DocxTargetId rowId) && rowId.Kind == DocxTargetKind.Row;
     }
 
     private static bool IsSupportedCellTargetShape(string target)
     {
-        return TryParseMainCellTarget(target, out _, out _, out _) ||
-            TryParseMainMergeGroupTarget(target, out _, out _) ||
-            TryParseStoryCellTarget(target, 'H', out _, out _, out _, out _) ||
-            TryParseStoryCellTarget(target, 'F', out _, out _, out _, out _) ||
-            TryParseStoryMergeGroupTarget(target, 'H', out _, out _, out _) ||
-            TryParseStoryMergeGroupTarget(target, 'F', out _, out _, out _);
+        return TryParseTargetId(target, out DocxTargetId cellId)
+            && cellId.Kind is (DocxTargetKind.Cell or DocxTargetKind.MergeGroup);
     }
 
     private static TableTarget? ResolveTableTarget(
@@ -1015,23 +1009,32 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (TryParseMainTableTarget(target, out int mainTableOrdinal))
+        if (!TryParseTargetId(target, out DocxTargetId tableId) || tableId.Kind != DocxTargetKind.Table)
+        {
+            return null;
+        }
+
+        return ResolveTableTarget(package, tableId, cancellationToken);
+    }
+
+    private static TableTarget? ResolveTableTarget(
+        OoxmlPackage package,
+        DocxTargetId tableId,
+        CancellationToken cancellationToken)
+    {
+        if (tableId.Story == 'M')
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? table = FindTable(body, mainTableOrdinal);
+            XElement? table = FindTable(body, tableId.Primary);
             return table is null
                 ? null
                 : new TableTarget(package.MainDocumentPartName, document, table);
         }
 
-        if (TryParseStoryTableTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal))
+        if (tableId.Story is 'H' or 'F')
         {
-            return ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerTableOrdinal, cancellationToken);
-        }
-
-        if (TryParseStoryTableTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal))
-        {
-            return ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerTableOrdinal, cancellationToken);
+            string relationshipType = tableId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            return ResolveRelatedStoryTableTarget(package, relationshipType, tableId.StoryPart, tableId.Primary, cancellationToken);
         }
 
         return null;
@@ -1042,26 +1045,21 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        TableTarget? tableTarget;
-        int rowOrdinal;
-        if (TryParseMainRowTarget(target, out int mainTableOrdinal, out rowOrdinal))
-        {
-            tableTarget = ResolveTableTarget(package, $"M.T{mainTableOrdinal:0000}", cancellationToken);
-        }
-        else if (TryParseStoryRowTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal, out rowOrdinal))
-        {
-            tableTarget = ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerTableOrdinal, cancellationToken);
-        }
-        else if (TryParseStoryRowTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal, out rowOrdinal))
-        {
-            tableTarget = ResolveRelatedStoryTableTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerTableOrdinal, cancellationToken);
-        }
-        else
+        if (!TryParseTargetId(target, out DocxTargetId rowId) || rowId.Kind != DocxTargetKind.Row)
         {
             return null;
         }
 
-        XElement? row = tableTarget?.Table.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(rowOrdinal - 1);
+        return ResolveRowTarget(package, rowId, cancellationToken);
+    }
+
+    private static RowTarget? ResolveRowTarget(
+        OoxmlPackage package,
+        DocxTargetId rowId,
+        CancellationToken cancellationToken)
+    {
+        TableTarget? tableTarget = ResolveTableTarget(package, rowId.TableId, cancellationToken);
+        XElement? row = tableTarget?.Table.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(rowId.Secondary - 1);
         return tableTarget is null || row is null
             ? null
             : new RowTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row);
@@ -1072,49 +1070,23 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        RowTarget? rowTarget;
-        int rowOrdinal;
-        int cellOrdinal;
-        int visualColumnIndex;
-        if (TryParseMainCellTarget(target, out int mainTableOrdinal, out rowOrdinal, out cellOrdinal))
-        {
-            rowTarget = ResolveRowTarget(package, $"M.T{mainTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
-            visualColumnIndex = cellOrdinal;
-        }
-        else if (TryParseStoryCellTarget(target, 'H', out int headerOrdinal, out int headerTableOrdinal, out rowOrdinal, out cellOrdinal))
-        {
-            rowTarget = ResolveRowTarget(package, $"H{headerOrdinal:000}.T{headerTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
-            visualColumnIndex = cellOrdinal;
-        }
-        else if (TryParseStoryCellTarget(target, 'F', out int footerOrdinal, out int footerTableOrdinal, out rowOrdinal, out cellOrdinal))
-        {
-            rowTarget = ResolveRowTarget(package, $"F{footerOrdinal:000}.T{footerTableOrdinal:0000}.R{rowOrdinal:00}", cancellationToken);
-            visualColumnIndex = cellOrdinal;
-        }
-        else if (TryParseMainMergeGroupTarget(target, out int mergeMainTableOrdinal, out int mainMergeGroupOrdinal))
-        {
-            TableTarget? tableTarget = ResolveTableTarget(package, $"M.T{mergeMainTableOrdinal:0000}", cancellationToken);
-            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, mainMergeGroupOrdinal);
-        }
-        else if (TryParseStoryMergeGroupTarget(target, 'H', out int mergeHeaderOrdinal, out int mergeHeaderTableOrdinal, out int headerMergeGroupOrdinal))
-        {
-            TableTarget? tableTarget = ResolveTableTarget(package, $"H{mergeHeaderOrdinal:000}.T{mergeHeaderTableOrdinal:0000}", cancellationToken);
-            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, headerMergeGroupOrdinal);
-        }
-        else if (TryParseStoryMergeGroupTarget(target, 'F', out int mergeFooterOrdinal, out int mergeFooterTableOrdinal, out int footerMergeGroupOrdinal))
-        {
-            TableTarget? tableTarget = ResolveTableTarget(package, $"F{mergeFooterOrdinal:000}.T{mergeFooterTableOrdinal:0000}", cancellationToken);
-            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, footerMergeGroupOrdinal);
-        }
-        else
+        if (!TryParseTargetId(target, out DocxTargetId cellId) ||
+            cellId.Kind is not (DocxTargetKind.Cell or DocxTargetKind.MergeGroup))
         {
             return null;
         }
 
-        XElement? cell = rowTarget is null ? null : FindCellByVisualColumn(rowTarget.Row, visualColumnIndex);
+        if (cellId.Kind == DocxTargetKind.MergeGroup)
+        {
+            TableTarget? tableTarget = ResolveTableTarget(package, cellId.TableId, cancellationToken);
+            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, cellId.Secondary);
+        }
+
+        RowTarget? rowTarget = ResolveRowTarget(package, cellId.RowId, cancellationToken);
+        XElement? cell = rowTarget is null ? null : FindCellByVisualColumn(rowTarget.Row, cellId.Tertiary);
         return rowTarget is null || cell is null
             ? null
-            : new CellTarget(rowTarget.PartName, rowTarget.Document, rowTarget.Table, rowTarget.Row, cell, visualColumnIndex);
+            : new CellTarget(rowTarget.PartName, rowTarget.Document, rowTarget.Table, rowTarget.Row, cell, cellId.Tertiary);
     }
 
     private static XElement? FindCellByVisualColumn(XElement row, int visualColumnIndex)
@@ -1262,37 +1234,27 @@ internal static partial class DocxPatchEngine
 
     private static bool IsSupportedImageTargetShape(string target)
     {
-        return TryParseMainImageTarget(target, out _) ||
-            TryParseStoryImageTarget(target, 'H', out _, out _) ||
-            TryParseStoryImageTarget(target, 'F', out _, out _);
+        return TryParseTargetId(target, out DocxTargetId imageId) && imageId.Kind == DocxTargetKind.Image;
     }
 
     private static bool IsSupportedHyperlinkTargetShape(string target)
     {
-        return TryParseMainHyperlinkTarget(target, out _) ||
-            TryParseStoryHyperlinkTarget(target, 'H', out _, out _) ||
-            TryParseStoryHyperlinkTarget(target, 'F', out _, out _);
+        return TryParseTargetId(target, out DocxTargetId hyperlinkId) && hyperlinkId.Kind == DocxTargetKind.Hyperlink;
     }
 
     private static bool IsSupportedContentControlTargetShape(string target)
     {
-        return TryParseMainContentControlTarget(target, out _) ||
-            TryParseStoryContentControlTarget(target, 'H', out _, out _) ||
-            TryParseStoryContentControlTarget(target, 'F', out _, out _);
+        return TryParseTargetId(target, out DocxTargetId contentcontrolId) && contentcontrolId.Kind == DocxTargetKind.ContentControl;
     }
 
     private static bool IsSupportedFieldTargetShape(string target)
     {
-        return TryParseMainFieldTarget(target, out _) ||
-            TryParseStoryFieldTarget(target, 'H', out _, out _) ||
-            TryParseStoryFieldTarget(target, 'F', out _, out _);
+        return TryParseTargetId(target, out DocxTargetId fieldId) && fieldId.Kind == DocxTargetKind.Field;
     }
 
     private static bool IsSupportedBookmarkTargetShape(string target)
     {
-        return TryParseMainBookmarkTarget(target, out _) ||
-            TryParseStoryBookmarkTarget(target, 'H', out _, out _) ||
-            TryParseStoryBookmarkTarget(target, 'F', out _, out _);
+        return TryParseTargetId(target, out DocxTargetId bookmarkId) && bookmarkId.Kind == DocxTargetKind.Bookmark;
     }
 
     private static ContentControlTarget? ResolveContentControlTarget(
@@ -1300,21 +1262,21 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (TryParseMainContentControlTarget(target, out int mainControlOrdinal))
+        if (!TryParseTargetId(target, out DocxTargetId controlId) || controlId.Kind != DocxTargetKind.ContentControl)
         {
-            return FindContentControlTarget(package, package.MainDocumentPartName, mainControlOrdinal, cancellationToken);
+            return null;
         }
 
-        if (TryParseStoryContentControlTarget(target, 'H', out int headerOrdinal, out int headerControlOrdinal))
+        if (controlId.Story == 'M')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
-            return partName is null ? null : FindContentControlTarget(package, partName, headerControlOrdinal, cancellationToken);
+            return FindContentControlTarget(package, package.MainDocumentPartName, controlId.Primary, cancellationToken);
         }
 
-        if (TryParseStoryContentControlTarget(target, 'F', out int footerOrdinal, out int footerControlOrdinal))
+        if (controlId.Story is 'H' or 'F')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
-            return partName is null ? null : FindContentControlTarget(package, partName, footerControlOrdinal, cancellationToken);
+            string relationshipType = controlId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, controlId.StoryPart, cancellationToken);
+            return partName is null ? null : FindContentControlTarget(package, partName, controlId.Primary, cancellationToken);
         }
 
         return null;
@@ -1325,25 +1287,25 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (TryParseMainFieldTarget(target, out int mainFieldOrdinal))
+        if (!TryParseTargetId(target, out DocxTargetId fieldId) || fieldId.Kind != DocxTargetKind.Field)
+        {
+            return null;
+        }
+
+        if (fieldId.Story == 'M')
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? field = FindField(body, mainFieldOrdinal);
+            XElement? field = FindField(body, fieldId.Primary);
             return field is null
                 ? null
                 : new FieldTarget(package.MainDocumentPartName, document, field);
         }
 
-        if (TryParseStoryFieldTarget(target, 'H', out int headerOrdinal, out int headerFieldOrdinal))
+        if (fieldId.Story is 'H' or 'F')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
-            return partName is null ? null : FindFieldTarget(package, partName, headerFieldOrdinal, cancellationToken);
-        }
-
-        if (TryParseStoryFieldTarget(target, 'F', out int footerOrdinal, out int footerFieldOrdinal))
-        {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
-            return partName is null ? null : FindFieldTarget(package, partName, footerFieldOrdinal, cancellationToken);
+            string relationshipType = fieldId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, fieldId.StoryPart, cancellationToken);
+            return partName is null ? null : FindFieldTarget(package, partName, fieldId.Primary, cancellationToken);
         }
 
         return null;
@@ -1454,21 +1416,21 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (TryParseMainBookmarkTarget(target, out int mainBookmarkOrdinal))
+        if (!TryParseTargetId(target, out DocxTargetId bookmarkId) || bookmarkId.Kind != DocxTargetKind.Bookmark)
         {
-            return FindBookmarkTarget(package, package.MainDocumentPartName, mainBookmarkOrdinal, cancellationToken);
+            return null;
         }
 
-        if (TryParseStoryBookmarkTarget(target, 'H', out int headerOrdinal, out int headerBookmarkOrdinal))
+        if (bookmarkId.Story == 'M')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
-            return partName is null ? null : FindBookmarkTarget(package, partName, headerBookmarkOrdinal, cancellationToken);
+            return FindBookmarkTarget(package, package.MainDocumentPartName, bookmarkId.Primary, cancellationToken);
         }
 
-        if (TryParseStoryBookmarkTarget(target, 'F', out int footerOrdinal, out int footerBookmarkOrdinal))
+        if (bookmarkId.Story is 'H' or 'F')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
-            return partName is null ? null : FindBookmarkTarget(package, partName, footerBookmarkOrdinal, cancellationToken);
+            string relationshipType = bookmarkId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, bookmarkId.StoryPart, cancellationToken);
+            return partName is null ? null : FindBookmarkTarget(package, partName, bookmarkId.Primary, cancellationToken);
         }
 
         return null;
@@ -1503,21 +1465,21 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (TryParseMainHyperlinkTarget(target, out int mainHyperlinkOrdinal))
+        if (!TryParseTargetId(target, out DocxTargetId hyperlinkId) || hyperlinkId.Kind != DocxTargetKind.Hyperlink)
         {
-            return FindHyperlinkTarget(package, package.MainDocumentPartName, mainHyperlinkOrdinal, cancellationToken);
+            return null;
         }
 
-        if (TryParseStoryHyperlinkTarget(target, 'H', out int headerOrdinal, out int headerHyperlinkOrdinal))
+        if (hyperlinkId.Story == 'M')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
-            return partName is null ? null : FindHyperlinkTarget(package, partName, headerHyperlinkOrdinal, cancellationToken);
+            return FindHyperlinkTarget(package, package.MainDocumentPartName, hyperlinkId.Primary, cancellationToken);
         }
 
-        if (TryParseStoryHyperlinkTarget(target, 'F', out int footerOrdinal, out int footerHyperlinkOrdinal))
+        if (hyperlinkId.Story is 'H' or 'F')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
-            return partName is null ? null : FindHyperlinkTarget(package, partName, footerHyperlinkOrdinal, cancellationToken);
+            string relationshipType = hyperlinkId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, hyperlinkId.StoryPart, cancellationToken);
+            return partName is null ? null : FindHyperlinkTarget(package, partName, hyperlinkId.Primary, cancellationToken);
         }
 
         return null;
@@ -1546,21 +1508,21 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        if (TryParseMainImageTarget(target, out int mainImageOrdinal))
+        if (!TryParseTargetId(target, out DocxTargetId imageId) || imageId.Kind != DocxTargetKind.Image)
         {
-            return FindImageBlipTarget(package, package.MainDocumentPartName, mainImageOrdinal, cancellationToken);
+            return null;
         }
 
-        if (TryParseStoryImageTarget(target, 'H', out int headerOrdinal, out int headerImageOrdinal))
+        if (imageId.Story == 'M')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Header, headerOrdinal, cancellationToken);
-            return partName is null ? null : FindImageBlipTarget(package, partName, headerImageOrdinal, cancellationToken);
+            return FindImageBlipTarget(package, package.MainDocumentPartName, imageId.Primary, cancellationToken);
         }
 
-        if (TryParseStoryImageTarget(target, 'F', out int footerOrdinal, out int footerImageOrdinal))
+        if (imageId.Story is 'H' or 'F')
         {
-            string? partName = ResolveRelatedStoryPartName(package, OoxmlRelTypes.Footer, footerOrdinal, cancellationToken);
-            return partName is null ? null : FindImageBlipTarget(package, partName, footerImageOrdinal, cancellationToken);
+            string relationshipType = imageId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, imageId.StoryPart, cancellationToken);
+            return partName is null ? null : FindImageBlipTarget(package, partName, imageId.Primary, cancellationToken);
         }
 
         return null;

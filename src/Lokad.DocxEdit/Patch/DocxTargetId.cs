@@ -52,6 +52,16 @@ internal readonly record struct DocxTargetId(
     /// sign-carrying ordinals) do not necessarily reproduce their input.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Containing-table ID for <c>Row</c>, <c>Cell</c>, and <c>MergeGroup</c>; meaningless otherwise.
+    /// </summary>
+    public DocxTargetId TableId => new DocxTargetId(Story, StoryPart, DocxTargetKind.Table, Primary, 0, 0);
+
+    /// <summary>
+    /// Containing-row ID for <c>Cell</c>; meaningless otherwise.
+    /// </summary>
+    public DocxTargetId RowId => new DocxTargetId(Story, StoryPart, DocxTargetKind.Row, Primary, Secondary, 0);
+
     public string ToWireValue()
     {
         string head = Story == 'M' ? "M" : $"{Story}{StoryPart:D3}";
