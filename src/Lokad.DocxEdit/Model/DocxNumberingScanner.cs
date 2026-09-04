@@ -95,7 +95,7 @@ internal sealed class DocxNumberingCatalog
                     continue;
                 }
 
-                int? startOverride = TryReadInt((string?)overrideElement
+                int? startOverride = XmlValues.TryReadInt((string?)overrideElement
                     .Element(OoxmlNs.W + "startOverride")
                     ?.Attribute(OoxmlNs.W + "val"));
                 XElement? overrideLevel = overrideElement.Element(OoxmlNs.W + "lvl");
@@ -150,16 +150,13 @@ internal sealed class DocxNumberingCatalog
             (string?)level.Element(OoxmlNs.W + "numFmt")?.Attribute(OoxmlNs.W + "val"),
             (string?)level.Element(OoxmlNs.W + "lvlText")?.Attribute(OoxmlNs.W + "val"),
             (string?)level.Element(OoxmlNs.W + "pStyle")?.Attribute(OoxmlNs.W + "val"),
-            TryReadInt((string?)level.Element(OoxmlNs.W + "start")?.Attribute(OoxmlNs.W + "val")),
+            XmlValues.TryReadInt((string?)level.Element(OoxmlNs.W + "start")?.Attribute(OoxmlNs.W + "val")),
             (string?)level.Element(OoxmlNs.W + "suff")?.Attribute(OoxmlNs.W + "val"),
+            // isLgl is element-presence, not an on/off attribute value, so WmlBoolean does not apply here.
             level.Element(OoxmlNs.W + "isLgl") is not null,
-            TryReadInt((string?)level.Element(OoxmlNs.W + "lvlRestart")?.Attribute(OoxmlNs.W + "val")));
+            XmlValues.TryReadInt((string?)level.Element(OoxmlNs.W + "lvlRestart")?.Attribute(OoxmlNs.W + "val")));
     }
 
-    private static int? TryReadInt(string? value)
-    {
-        return int.TryParse(value, out int parsed) ? parsed : null;
-    }
 
     private sealed record NumberingLevelDefinition(
         string? Format,

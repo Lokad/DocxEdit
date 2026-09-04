@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
@@ -30,7 +31,7 @@ public static class DocxTextRenderer
                      .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
             builder.Append("story=\"")
-                .Append(EscapeText(group.Key))
+                .Append(XmlValues.EscapeText(group.Key))
                 .Append("\" paragraphs=")
                 .Append(group.Count())
                 .AppendLine();
@@ -79,17 +80,17 @@ public static class DocxTextRenderer
                      .ThenBy(style => style.StyleId, StringComparer.Ordinal))
         {
             string defaultText = style.IsDefault ? " default=true" : string.Empty;
-            string basedOn = style.BasedOnStyleId is null ? string.Empty : $" based-on={EscapeText(style.BasedOnStyleId)}";
-            string next = style.NextStyleId is null ? string.Empty : $" next={EscapeText(style.NextStyleId)}";
-            string linked = style.LinkedStyleId is null ? string.Empty : $" linked={EscapeText(style.LinkedStyleId)}";
+            string basedOn = style.BasedOnStyleId is null ? string.Empty : $" based-on={XmlValues.EscapeText(style.BasedOnStyleId)}";
+            string next = style.NextStyleId is null ? string.Empty : $" next={XmlValues.EscapeText(style.NextStyleId)}";
+            string linked = style.LinkedStyleId is null ? string.Empty : $" linked={XmlValues.EscapeText(style.LinkedStyleId)}";
             string numbering = style.NumberingId is null
                 ? string.Empty
-                : $" numbering numId={EscapeText(style.NumberingId)} level={style.NumberingLevel ?? 0}";
+                : $" numbering numId={XmlValues.EscapeText(style.NumberingId)} level={style.NumberingLevel ?? 0}";
             builder.Append(style.Type)
                 .Append(" styleId=")
                 .Append(style.StyleId)
                 .Append(" name=\"")
-                .Append(EscapeText(style.Name))
+                .Append(XmlValues.EscapeText(style.Name))
                 .Append('"')
                 .Append(defaultText)
                 .Append(basedOn)
@@ -108,17 +109,17 @@ public static class DocxTextRenderer
         var builder = new StringBuilder();
         foreach (DocxImageInfo image in result.Images)
         {
-            string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={EscapeText(image.RelationshipId)}";
+            string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(image.RelationshipId)}";
             string target = image.ContainingTargetId is null ? " target=unknown" : $" target={image.ContainingTargetId}";
             string size = image.WidthEmu is null || image.HeightEmu is null ? string.Empty : $" size-emu={image.WidthEmu}x{image.HeightEmu}";
-            string description = image.Description is null ? string.Empty : $" description=\"{EscapeText(image.Description)}\"";
-            string wrap = image.WrapMode is null ? string.Empty : $" wrap={EscapeText(image.WrapMode)}";
+            string description = image.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(image.Description)}\"";
+            string wrap = image.WrapMode is null ? string.Empty : $" wrap={XmlValues.EscapeText(image.WrapMode)}";
             string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
             string layoutMetadata = RenderImageLayoutMetadata(image);
             string crop = RenderCrop(image);
             builder.Append(image.Id)
                 .Append(" image layout=")
-                .Append(EscapeText(image.LayoutKind))
+                .Append(XmlValues.EscapeText(image.LayoutKind))
                 .Append(" part=")
                 .Append(image.PartName)
                 .Append(" content-type=")
@@ -183,7 +184,7 @@ public static class DocxTextRenderer
 
     private static string RenderString(string name, string? value)
     {
-        return value is null ? string.Empty : $" {name}={EscapeText(value)}";
+        return value is null ? string.Empty : $" {name}={XmlValues.EscapeText(value)}";
     }
 
     public static string RenderValidate(DocxValidateResult result)
@@ -222,7 +223,7 @@ public static class DocxTextRenderer
             builder.Append("summary group=")
                 .Append(summary.Group)
                 .Append(" key=\"")
-                .Append(EscapeText(summary.Key))
+                .Append(XmlValues.EscapeText(summary.Key))
                 .Append("\" type=")
                 .Append(summary.Type)
                 .Append(" count=")
@@ -237,7 +238,7 @@ public static class DocxTextRenderer
                 .Append(" count=")
                 .Append(summary.Count)
                 .Append(" types=\"")
-                .Append(EscapeText(FormatTypeSummary(summary.Summary)))
+                .Append(XmlValues.EscapeText(FormatTypeSummary(summary.Summary)))
                 .AppendLine("\"");
         }
 
@@ -245,22 +246,22 @@ public static class DocxTextRenderer
         {
             string anchorTarget = summary.AnchorTargetId is null ? "anchor-target=unknown" : $"anchor-target={summary.AnchorTargetId}";
             string referenceTarget = summary.ReferenceTargetId is null ? string.Empty : $" reference-target={summary.ReferenceTargetId}";
-            string anchorStory = summary.AnchorStory is null ? string.Empty : $" anchor-story=\"{EscapeText(summary.AnchorStory)}\"";
+            string anchorStory = summary.AnchorStory is null ? string.Empty : $" anchor-story=\"{XmlValues.EscapeText(summary.AnchorStory)}\"";
             string anchorPart = summary.AnchorPartName is null ? string.Empty : $" anchor-part={summary.AnchorPartName}";
-            string author = summary.Author is null ? string.Empty : $" author=\"{EscapeText(summary.Author)}\"";
+            string author = summary.Author is null ? string.Empty : $" author=\"{XmlValues.EscapeText(summary.Author)}\"";
             string timestamp = summary.TimestampUtc is null ? string.Empty : $" timestamp-utc={summary.TimestampUtc:O}";
-            string initials = summary.Initials is null ? string.Empty : $" initials=\"{EscapeText(summary.Initials)}\"";
-            string paraId = summary.ParaId is null ? string.Empty : $" para-id={EscapeText(summary.ParaId)}";
-            string parentParaId = summary.ParentParaId is null ? string.Empty : $" parent-para-id={EscapeText(summary.ParentParaId)}";
-            string rootParaId = summary.RootParaId is null ? string.Empty : $" root-para-id={EscapeText(summary.RootParaId)}";
-            string durableId = summary.DurableId is null ? string.Empty : $" durable-id={EscapeText(summary.DurableId)}";
+            string initials = summary.Initials is null ? string.Empty : $" initials=\"{XmlValues.EscapeText(summary.Initials)}\"";
+            string paraId = summary.ParaId is null ? string.Empty : $" para-id={XmlValues.EscapeText(summary.ParaId)}";
+            string parentParaId = summary.ParentParaId is null ? string.Empty : $" parent-para-id={XmlValues.EscapeText(summary.ParentParaId)}";
+            string rootParaId = summary.RootParaId is null ? string.Empty : $" root-para-id={XmlValues.EscapeText(summary.RootParaId)}";
+            string durableId = summary.DurableId is null ? string.Empty : $" durable-id={XmlValues.EscapeText(summary.DurableId)}";
             string isReply = summary.IsReply is null ? string.Empty : $" is-reply={summary.IsReply.Value.ToString().ToLowerInvariant()}";
             string resolved = summary.Resolved is null ? string.Empty : $" resolved={summary.Resolved.Value.ToString().ToLowerInvariant()}";
             string textLength = summary.TextLength is null ? string.Empty : $" comment-text-length={summary.TextLength}";
-            string textSnippet = summary.TextSnippet is null ? string.Empty : $" comment-text=\"{EscapeText(summary.TextSnippet)}\"";
+            string textSnippet = summary.TextSnippet is null ? string.Empty : $" comment-text=\"{XmlValues.EscapeText(summary.TextSnippet)}\"";
             string textTruncated = summary.TextTruncated ? " comment-text-truncated=true" : string.Empty;
             builder.Append("comment-summary comment-id=")
-                .Append(EscapeText(summary.CommentId))
+                .Append(XmlValues.EscapeText(summary.CommentId))
                 .Append(' ')
                 .Append(anchorTarget)
                 .Append(referenceTarget)
@@ -281,7 +282,7 @@ public static class DocxTextRenderer
                 .Append(" count=")
                 .Append(summary.Count)
                 .Append(" types=\"")
-                .Append(EscapeText(FormatTypeSummary(summary.Summary)))
+                .Append(XmlValues.EscapeText(FormatTypeSummary(summary.Summary)))
                 .AppendLine("\"");
         }
 
@@ -291,37 +292,37 @@ public static class DocxTextRenderer
             string targetSource = $" target-source={change.TargetSource}";
             string targetReason = change.TargetReason is null ? string.Empty : $" target-reason={change.TargetReason}";
             string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
-            string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{EscapeText(change.TargetNote)}\"";
+            string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{XmlValues.EscapeText(change.TargetNote)}\"";
             string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
             string operationIndex = change.OperationIndex is null ? string.Empty : $" operation-index={change.OperationIndex}";
-            string operationName = change.OperationName is null ? string.Empty : $" operation-name={EscapeText(change.OperationName)}";
+            string operationName = change.OperationName is null ? string.Empty : $" operation-name={XmlValues.EscapeText(change.OperationName)}";
             string operationTarget = change.OperationTarget is null ? string.Empty : $" operation-target={change.OperationTarget}";
-            string parentType = change.ParentType is null ? string.Empty : $" parent={EscapeText(change.ParentType)}";
-            string revision = change.RevisionId is null ? string.Empty : $" revision-id={EscapeText(change.RevisionId)}";
-            string author = change.Author is null ? string.Empty : $" author=\"{EscapeText(change.Author)}\"";
+            string parentType = change.ParentType is null ? string.Empty : $" parent={XmlValues.EscapeText(change.ParentType)}";
+            string revision = change.RevisionId is null ? string.Empty : $" revision-id={XmlValues.EscapeText(change.RevisionId)}";
+            string author = change.Author is null ? string.Empty : $" author=\"{XmlValues.EscapeText(change.Author)}\"";
             string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
-            string commentId = change.CommentId is null ? string.Empty : $" comment-id={EscapeText(change.CommentId)}";
-            string commentAuthor = change.CommentAuthor is null ? string.Empty : $" comment-author=\"{EscapeText(change.CommentAuthor)}\"";
+            string commentId = change.CommentId is null ? string.Empty : $" comment-id={XmlValues.EscapeText(change.CommentId)}";
+            string commentAuthor = change.CommentAuthor is null ? string.Empty : $" comment-author=\"{XmlValues.EscapeText(change.CommentAuthor)}\"";
             string commentTimestamp = change.CommentTimestampUtc is null ? string.Empty : $" comment-timestamp-utc={change.CommentTimestampUtc:O}";
-            string commentInitials = change.CommentInitials is null ? string.Empty : $" comment-initials=\"{EscapeText(change.CommentInitials)}\"";
-            string commentParaId = change.CommentParaId is null ? string.Empty : $" comment-para-id={EscapeText(change.CommentParaId)}";
-            string commentParentParaId = change.CommentParentParaId is null ? string.Empty : $" comment-parent-para-id={EscapeText(change.CommentParentParaId)}";
-            string commentRootParaId = change.CommentRootParaId is null ? string.Empty : $" comment-root-para-id={EscapeText(change.CommentRootParaId)}";
-            string commentDurableId = change.CommentDurableId is null ? string.Empty : $" comment-durable-id={EscapeText(change.CommentDurableId)}";
+            string commentInitials = change.CommentInitials is null ? string.Empty : $" comment-initials=\"{XmlValues.EscapeText(change.CommentInitials)}\"";
+            string commentParaId = change.CommentParaId is null ? string.Empty : $" comment-para-id={XmlValues.EscapeText(change.CommentParaId)}";
+            string commentParentParaId = change.CommentParentParaId is null ? string.Empty : $" comment-parent-para-id={XmlValues.EscapeText(change.CommentParentParaId)}";
+            string commentRootParaId = change.CommentRootParaId is null ? string.Empty : $" comment-root-para-id={XmlValues.EscapeText(change.CommentRootParaId)}";
+            string commentDurableId = change.CommentDurableId is null ? string.Empty : $" comment-durable-id={XmlValues.EscapeText(change.CommentDurableId)}";
             string commentIsReply = change.CommentIsReply is null ? string.Empty : $" comment-is-reply={change.CommentIsReply.Value.ToString().ToLowerInvariant()}";
             string commentResolved = change.CommentResolved is null ? string.Empty : $" comment-resolved={change.CommentResolved.Value.ToString().ToLowerInvariant()}";
             string commentAnchorTarget = change.CommentAnchorTargetId is null ? string.Empty : $" comment-anchor-target={change.CommentAnchorTargetId}";
             string commentReferenceTarget = change.CommentReferenceTargetId is null ? string.Empty : $" comment-reference-target={change.CommentReferenceTargetId}";
-            string commentAnchorStory = change.CommentAnchorStory is null ? string.Empty : $" comment-anchor-story=\"{EscapeText(change.CommentAnchorStory)}\"";
+            string commentAnchorStory = change.CommentAnchorStory is null ? string.Empty : $" comment-anchor-story=\"{XmlValues.EscapeText(change.CommentAnchorStory)}\"";
             string commentAnchorPart = change.CommentAnchorPartName is null ? string.Empty : $" comment-anchor-part={change.CommentAnchorPartName}";
             string commentTextLength = change.CommentTextLength is null ? string.Empty : $" comment-text-length={change.CommentTextLength}";
-            string commentTextSnippet = change.CommentTextSnippet is null ? string.Empty : $" comment-text=\"{EscapeText(change.CommentTextSnippet)}\"";
+            string commentTextSnippet = change.CommentTextSnippet is null ? string.Empty : $" comment-text=\"{XmlValues.EscapeText(change.CommentTextSnippet)}\"";
             string commentTextTruncated = change.CommentTextTruncated ? " comment-text-truncated=true" : string.Empty;
             builder.Append(change.Id)
                 .Append(' ')
                 .Append(change.Type)
                 .Append(" story=\"")
-                .Append(EscapeText(change.Story))
+                .Append(XmlValues.EscapeText(change.Story))
                 .Append("\" part=")
                 .Append(change.PartName)
                 .Append(parentType)
@@ -376,7 +377,7 @@ public static class DocxTextRenderer
             string target = operation.Target is null ? "target=unknown" : $"target={operation.Target}";
             string revisionIds = operation.GeneratedRevisionIds.Count == 0
                 ? string.Empty
-                : $" generated-revision-ids={EscapeText(string.Join(",", operation.GeneratedRevisionIds))}";
+                : $" generated-revision-ids={XmlValues.EscapeText(string.Join(",", operation.GeneratedRevisionIds))}";
             builder.Append("operation index=")
                 .Append(operation.Index)
                 .Append(" name=")
@@ -442,13 +443,4 @@ public static class DocxTextRenderer
         return string.Join(",", summaries.Select(summary => $"{summary.Type}:{summary.Count}"));
     }
 
-    private static string EscapeText(string text)
-    {
-        return text
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal)
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal)
-            .Replace("\t", "\\t", StringComparison.Ordinal);
-    }
 }

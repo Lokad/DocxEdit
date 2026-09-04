@@ -44,14 +44,19 @@ public static class OoxmlUtilityTests
     }
 
     [Theory]
-    [InlineData(null, true)]
-    [InlineData("1", true)]
-    [InlineData("true", true)]
-    [InlineData("on", true)]
-    [InlineData("0", false)]
-    [InlineData("false", false)]
-    public static void WmlBooleanParsesCommonWordprocessingValues(string? value, bool expected)
+    [InlineData(null, false, false)]
+    [InlineData(null, true, true)]
+    [InlineData("1", false, true)]
+    [InlineData("true", false, true)]
+    [InlineData("TRUE", true, true)]
+    [InlineData("on", false, true)]
+    [InlineData("ON", true, true)]
+    [InlineData("0", false, false)]
+    [InlineData("false", false, false)]
+    [InlineData("off", true, false)]
+    [InlineData("", false, false)]
+    public static void WmlBooleanParsesCommonWordprocessingValues(string? value, bool valueWhenMissing, bool expected)
     {
-        Assert.Equal(expected, WmlBoolean.IsTrue(value));
+        Assert.Equal(expected, WmlBoolean.IsTrue(value, valueWhenMissing));
     }
 }

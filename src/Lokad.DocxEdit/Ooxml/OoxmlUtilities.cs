@@ -105,14 +105,3 @@ internal static class OoxmlMediaParts
         }
     }
 }
-
-internal static class WmlBoolean
-{
-    public static bool IsTrue(string? value)
-    {
-        return value is null ||
-            value == "1" ||
-            value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-            value.Equals("on", StringComparison.OrdinalIgnoreCase);
-    }
-}

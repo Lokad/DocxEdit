@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Lokad.DocxEdit.Model;
+using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit.Rendering;
 
@@ -19,26 +20,26 @@ internal static class TextRenderers
             string kind = paragraph.HeadingLevel is null ? "paragraph" : $"heading level={paragraph.HeadingLevel}";
             string style = paragraph.StyleId is null
                 ? string.Empty
-                : $" styleId={Escape(paragraph.StyleId)}";
+                : $" styleId={XmlValues.EscapeText(paragraph.StyleId)}";
             string list = paragraph.List is null
                 ? string.Empty
                 : RenderList(paragraph.List);
-            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(style).Append(list).Append(" text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
+            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(style).Append(list).Append(" text=\"").Append(XmlValues.EscapeText(Truncate(paragraph.Text, maxText))).AppendLine("\"");
         }
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
-            string ooxmlId = bookmark.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(bookmark.OoxmlId)}";
+            string ooxmlId = bookmark.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(bookmark.OoxmlId)}";
             string start = bookmark.StartTargetId is null ? " start=unknown" : $" start={bookmark.StartTargetId}";
             string end = bookmark.EndTargetId is null ? " end=unknown" : $" end={bookmark.EndTargetId}";
-            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{Escape(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
+            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
             builder.Append(bookmark.Id)
                 .Append(" bookmark name=\"")
-                .Append(Escape(bookmark.Name))
+                .Append(XmlValues.EscapeText(bookmark.Name))
                 .Append('"')
                 .Append(ooxmlId)
                 .Append(" story=\"")
-                .Append(Escape(bookmark.Story))
+                .Append(XmlValues.EscapeText(bookmark.Story))
                 .Append("\" part=")
                 .Append(bookmark.PartName)
                 .Append(start)
@@ -52,36 +53,36 @@ internal static class TextRenderers
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
             string target = control.TargetId is null ? " target=unknown" : $" target={control.TargetId}";
-            string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={Escape(control.OoxmlId)}";
-            string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
-            string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
-            string placeholder = control.PlaceholderDocPart is null ? string.Empty : $" placeholder-doc-part=\"{Escape(control.PlaceholderDocPart)}\"";
+            string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(control.OoxmlId)}";
+            string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
+            string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
+            string placeholder = control.PlaceholderDocPart is null ? string.Empty : $" placeholder-doc-part=\"{XmlValues.EscapeText(control.PlaceholderDocPart)}\"";
             string showingPlaceholder = control.IsShowingPlaceholderText ? " showing-placeholder=true" : string.Empty;
-            string dataBindingXPath = control.DataBindingXPath is null ? string.Empty : $" data-binding-xpath=\"{Escape(control.DataBindingXPath)}\"";
-            string dataBindingStore = control.DataBindingStoreItemId is null ? string.Empty : $" data-binding-store-item-id=\"{Escape(control.DataBindingStoreItemId)}\"";
-            string dataBindingPrefixes = control.DataBindingPrefixMappings is null ? string.Empty : $" data-binding-prefixes=\"{Escape(control.DataBindingPrefixMappings)}\"";
-            string repeatingSectionTitle = control.RepeatingSectionTitle is null ? string.Empty : $" repeating-section-title=\"{Escape(control.RepeatingSectionTitle)}\"";
+            string dataBindingXPath = control.DataBindingXPath is null ? string.Empty : $" data-binding-xpath=\"{XmlValues.EscapeText(control.DataBindingXPath)}\"";
+            string dataBindingStore = control.DataBindingStoreItemId is null ? string.Empty : $" data-binding-store-item-id=\"{XmlValues.EscapeText(control.DataBindingStoreItemId)}\"";
+            string dataBindingPrefixes = control.DataBindingPrefixMappings is null ? string.Empty : $" data-binding-prefixes=\"{XmlValues.EscapeText(control.DataBindingPrefixMappings)}\"";
+            string repeatingSectionTitle = control.RepeatingSectionTitle is null ? string.Empty : $" repeating-section-title=\"{XmlValues.EscapeText(control.RepeatingSectionTitle)}\"";
             string repeatingSectionItems = control.RepeatingSectionItemCount is null ? string.Empty : $" repeating-section-items={control.RepeatingSectionItemCount.Value}";
             string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
-            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{Escape(string.Join(",", control.ChildContentControlIds))}\"";
-            string safeEdit = $" safe-edit={Escape(control.SafeEditStatus)}";
-            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{Escape(control.SafeEditReason)}\"";
-            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
-            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
-            string locked = control.Lock is null ? string.Empty : $" lock={Escape(control.Lock)}";
+            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
+            string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
+            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
+            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
+            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
+            string locked = control.Lock is null ? string.Empty : $" lock={XmlValues.EscapeText(control.Lock)}";
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
-            string checkedSymbol = control.CheckedSymbol is null ? string.Empty : $" checked-symbol=\"{Escape(control.CheckedSymbol)}\"";
-            string uncheckedSymbol = control.UncheckedSymbol is null ? string.Empty : $" unchecked-symbol=\"{Escape(control.UncheckedSymbol)}\"";
+            string checkedSymbol = control.CheckedSymbol is null ? string.Empty : $" checked-symbol=\"{XmlValues.EscapeText(control.CheckedSymbol)}\"";
+            string uncheckedSymbol = control.UncheckedSymbol is null ? string.Empty : $" unchecked-symbol=\"{XmlValues.EscapeText(control.UncheckedSymbol)}\"";
             string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            string dateFormat = control.DateFormat is null ? string.Empty : $" date-format=\"{Escape(control.DateFormat)}\"";
-            string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={Escape(control.DateLanguage)}";
-            string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={Escape(control.DateCalendar)}";
-            string dateValue = control.DateValue is null ? string.Empty : $" date-value=\"{Escape(control.DateValue)}\"";
+            string dateFormat = control.DateFormat is null ? string.Empty : $" date-format=\"{XmlValues.EscapeText(control.DateFormat)}\"";
+            string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={XmlValues.EscapeText(control.DateLanguage)}";
+            string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={XmlValues.EscapeText(control.DateCalendar)}";
+            string dateValue = control.DateValue is null ? string.Empty : $" date-value=\"{XmlValues.EscapeText(control.DateValue)}\"";
             builder.Append(control.Id)
                 .Append(" content-control kind=")
-                .Append(Escape(control.Kind))
+                .Append(XmlValues.EscapeText(control.Kind))
                 .Append(" story=\"")
-                .Append(Escape(control.Story))
+                .Append(XmlValues.EscapeText(control.Story))
                 .Append("\" part=")
                 .Append(control.PartName)
                 .Append(target)
@@ -118,28 +119,28 @@ internal static class TextRenderers
         foreach (DocxFieldInfo field in model.Fields)
         {
             string target = field.TargetId is null ? " target=unknown" : $" target={field.TargetId}";
-            string fieldType = field.FieldType is null ? string.Empty : $" type={Escape(field.FieldType)}";
-            string arguments = field.Arguments.Count == 0 ? string.Empty : $" arguments=\"{Escape(string.Join(",", field.Arguments))}\"";
-            string switches = field.Switches.Count == 0 ? string.Empty : $" switches=\"{Escape(string.Join(",", field.Switches))}\"";
-            string bookmarkDependencies = field.BookmarkDependencies.Count == 0 ? string.Empty : $" bookmark-dependencies=\"{Escape(string.Join(",", field.BookmarkDependencies))}\"";
-            string hyperlinkDependencies = field.HyperlinkDependencies.Count == 0 ? string.Empty : $" hyperlink-dependencies=\"{Escape(string.Join(",", field.HyperlinkDependencies))}\"";
-            string refreshReason = field.RefreshReason is null ? string.Empty : $" refresh-reason=\"{Escape(field.RefreshReason)}\"";
-            string safeEdit = $" safe-edit={Escape(field.SafeEditStatus)}";
+            string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
+            string arguments = field.Arguments.Count == 0 ? string.Empty : $" arguments=\"{XmlValues.EscapeText(string.Join(",", field.Arguments))}\"";
+            string switches = field.Switches.Count == 0 ? string.Empty : $" switches=\"{XmlValues.EscapeText(string.Join(",", field.Switches))}\"";
+            string bookmarkDependencies = field.BookmarkDependencies.Count == 0 ? string.Empty : $" bookmark-dependencies=\"{XmlValues.EscapeText(string.Join(",", field.BookmarkDependencies))}\"";
+            string hyperlinkDependencies = field.HyperlinkDependencies.Count == 0 ? string.Empty : $" hyperlink-dependencies=\"{XmlValues.EscapeText(string.Join(",", field.HyperlinkDependencies))}\"";
+            string refreshReason = field.RefreshReason is null ? string.Empty : $" refresh-reason=\"{XmlValues.EscapeText(field.RefreshReason)}\"";
+            string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
             string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
             string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
             builder.Append(field.Id)
                 .Append(" field kind=")
-                .Append(Escape(field.Kind))
+                .Append(XmlValues.EscapeText(field.Kind))
                 .Append(fieldType)
                 .Append(" story=\"")
-                .Append(Escape(field.Story))
+                .Append(XmlValues.EscapeText(field.Story))
                 .Append("\" part=")
                 .Append(field.PartName)
                 .Append(target)
                 .Append(" code=\"")
-                .Append(Escape(field.Code))
+                .Append(XmlValues.EscapeText(field.Code))
                 .Append("\" cached-result=\"")
-                .Append(Escape(field.CachedResultText))
+                .Append(XmlValues.EscapeText(field.CachedResultText))
                 .Append("\" result-text-length=")
                 .Append(field.ResultTextLength)
                 .Append(" nesting-depth=")
@@ -149,7 +150,7 @@ internal static class TextRenderers
                 .Append(bookmarkDependencies)
                 .Append(hyperlinkDependencies)
                 .Append(" refresh-policy=")
-                .Append(Escape(field.RefreshPolicy))
+                .Append(XmlValues.EscapeText(field.RefreshPolicy))
                 .Append(" deterministic-refresh=")
                 .Append(field.CanRefreshDeterministically.ToString().ToLowerInvariant())
                 .Append(refreshReason)
@@ -164,23 +165,23 @@ internal static class TextRenderers
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
             string target = hyperlink.TargetId is null ? " target=unknown" : $" target={hyperlink.TargetId}";
-            string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={Escape(hyperlink.RelationshipId)}";
+            string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(hyperlink.RelationshipId)}";
             string relationshipPart = hyperlink.RelationshipPartName is null ? string.Empty : $" relationship-part={hyperlink.RelationshipPartName}";
-            string relationshipTargetMode = hyperlink.RelationshipTargetMode is null ? string.Empty : $" target-mode={Escape(hyperlink.RelationshipTargetMode)}";
-            string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{Escape(hyperlink.Uri)}\"";
-            string uriScheme = hyperlink.UriScheme is null ? string.Empty : $" uri-scheme={Escape(hyperlink.UriScheme)}";
+            string relationshipTargetMode = hyperlink.RelationshipTargetMode is null ? string.Empty : $" target-mode={XmlValues.EscapeText(hyperlink.RelationshipTargetMode)}";
+            string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{XmlValues.EscapeText(hyperlink.Uri)}\"";
+            string uriScheme = hyperlink.UriScheme is null ? string.Empty : $" uri-scheme={XmlValues.EscapeText(hyperlink.UriScheme)}";
             string uriValid = hyperlink.IsUriValid is null ? string.Empty : $" uri-valid={hyperlink.IsUriValid.Value.ToString().ToLowerInvariant()}";
-            string uriReason = hyperlink.UriValidationReason is null ? string.Empty : $" uri-reason={Escape(hyperlink.UriValidationReason)}";
-            string anchor = hyperlink.Anchor is null ? string.Empty : $" anchor=\"{Escape(hyperlink.Anchor)}\"";
+            string uriReason = hyperlink.UriValidationReason is null ? string.Empty : $" uri-reason={XmlValues.EscapeText(hyperlink.UriValidationReason)}";
+            string anchor = hyperlink.Anchor is null ? string.Empty : $" anchor=\"{XmlValues.EscapeText(hyperlink.Anchor)}\"";
             string anchorMissing = hyperlink.IsAnchorMissing is null ? string.Empty : $" anchor-missing={hyperlink.IsAnchorMissing.Value.ToString().ToLowerInvariant()}";
             string anchorDuplicate = hyperlink.IsAnchorDuplicate is null ? string.Empty : $" anchor-duplicate={hyperlink.IsAnchorDuplicate.Value.ToString().ToLowerInvariant()}";
-            string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{Escape(hyperlink.Tooltip)}\"";
-            string targetFrame = hyperlink.TargetFrame is null ? string.Empty : $" target-frame=\"{Escape(hyperlink.TargetFrame)}\"";
+            string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{XmlValues.EscapeText(hyperlink.Tooltip)}\"";
+            string targetFrame = hyperlink.TargetFrame is null ? string.Empty : $" target-frame=\"{XmlValues.EscapeText(hyperlink.TargetFrame)}\"";
             string history = hyperlink.History is null ? string.Empty : $" history={hyperlink.History.Value.ToString().ToLowerInvariant()}";
             string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
             builder.Append(hyperlink.Id)
                 .Append(" hyperlink story=\"")
-                .Append(Escape(hyperlink.Story))
+                .Append(XmlValues.EscapeText(hyperlink.Story))
                 .Append("\" part=")
                 .Append(hyperlink.PartName)
                 .Append(target)
@@ -231,9 +232,9 @@ internal static class TextRenderers
             {
                 string columnSpan = cell.ColumnSpan == 1 ? string.Empty : $" column-span={cell.ColumnSpan}";
                 string visualColumnEnd = cell.VisualColumnEndIndex <= cell.ColumnIndex ? string.Empty : $" visual-column-end={cell.VisualColumnEndIndex}";
-                string mergeGroup = cell.MergeGroupId is null ? string.Empty : $" merge-group={Escape(cell.MergeGroupId)}";
+                string mergeGroup = cell.MergeGroupId is null ? string.Empty : $" merge-group={XmlValues.EscapeText(cell.MergeGroupId)}";
                 string verticalMerge = cell.VerticalMerge is null ? string.Empty : $" vertical-merge={cell.VerticalMerge}";
-                string verticalMergeRoot = cell.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={Escape(cell.VerticalMergeRootCellId)}";
+                string verticalMergeRoot = cell.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={XmlValues.EscapeText(cell.VerticalMergeRootCellId)}";
                 string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
                 string physicalColumn = cell.PhysicalColumnIndex == 0 ? string.Empty : $" physical-column={cell.PhysicalColumnIndex}";
                 builder.Append("  ")
@@ -246,7 +247,7 @@ internal static class TextRenderers
                     .Append(verticalMergeRoot)
                     .Append(nestedTable)
                     .Append(" text=\"")
-                    .Append(Escape(Truncate(cell.Text, maxText)))
+                    .Append(XmlValues.EscapeText(Truncate(cell.Text, maxText)))
                     .AppendLine("\"");
             }
         }
@@ -265,7 +266,7 @@ internal static class TextRenderers
         foreach (DocxParagraphInfo paragraph in model.Paragraphs.Where(paragraph => paragraph.HeadingLevel is not null))
         {
             string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
-            lines.Add($"{paragraph.Id} heading level={paragraph.HeadingLevel}{list} text=\"{Escape(paragraph.Text)}\"");
+            lines.Add($"{paragraph.Id} heading level={paragraph.HeadingLevel}{list} text=\"{XmlValues.EscapeText(paragraph.Text)}\"");
         }
 
         foreach (DocxTableInfo table in model.Tables)
@@ -281,46 +282,46 @@ internal static class TextRenderers
         foreach (DocxImageInfo image in model.Images)
         {
             string target = image.ContainingTargetId is null ? "target=unknown" : $"target={image.ContainingTargetId}";
-            lines.Add($"{image.Id} image layout={Escape(image.LayoutKind)} {target} part={image.PartName}");
+            lines.Add($"{image.Id} image layout={XmlValues.EscapeText(image.LayoutKind)} {target} part={image.PartName}");
         }
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
             string start = bookmark.StartTargetId is null ? "unknown" : bookmark.StartTargetId;
             string end = bookmark.EndTargetId is null ? "unknown" : bookmark.EndTargetId;
-            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{Escape(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
-            lines.Add($"{bookmark.Id} bookmark name=\"{Escape(bookmark.Name)}\" start={start} end={end}{duplicateName}");
+            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
+            lines.Add($"{bookmark.Id} bookmark name=\"{XmlValues.EscapeText(bookmark.Name)}\" start={start} end={end}{duplicateName}");
         }
 
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
             string target = control.TargetId is null ? "unknown" : control.TargetId;
-            string tag = control.Tag is null ? string.Empty : $" tag=\"{Escape(control.Tag)}\"";
-            string alias = control.Alias is null ? string.Empty : $" alias=\"{Escape(control.Alias)}\"";
+            string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
+            string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
             string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
-            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{Escape(string.Join(",", control.ChildContentControlIds))}\"";
-            string safeEdit = $" safe-edit={Escape(control.SafeEditStatus)}";
-            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{Escape(control.SafeEditReason)}\"";
-            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{Escape(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
-            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{Escape(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
+            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
+            string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
+            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
+            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
+            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
             string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            lines.Add($"{control.Id} content-control kind={Escape(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
+            lines.Add($"{control.Id} content-control kind={XmlValues.EscapeText(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
         }
 
         foreach (DocxFieldInfo field in model.Fields)
         {
             string target = field.TargetId is null ? "unknown" : field.TargetId;
-            string fieldType = field.FieldType is null ? string.Empty : $" type={Escape(field.FieldType)}";
-            string safeEdit = $" safe-edit={Escape(field.SafeEditStatus)}";
-            lines.Add($"{field.Id} field kind={Escape(field.Kind)}{fieldType} target={target} code=\"{Escape(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={Escape(field.RefreshPolicy)} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
+            string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
+            string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
+            lines.Add($"{field.Id} field kind={XmlValues.EscapeText(field.Kind)}{fieldType} target={target} code=\"{XmlValues.EscapeText(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={XmlValues.EscapeText(field.RefreshPolicy)} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
             string target = hyperlink.TargetId is null ? "unknown" : hyperlink.TargetId;
             string destination = hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName ?? "unknown";
-            lines.Add($"{hyperlink.Id} hyperlink target={target} destination=\"{Escape(destination)}\" broken={hyperlink.IsBroken}");
+            lines.Add($"{hyperlink.Id} hyperlink target={target} destination=\"{XmlValues.EscapeText(destination)}\" broken={hyperlink.IsBroken}");
         }
 
         return lines;
@@ -334,7 +335,7 @@ internal static class TextRenderers
             if (paragraph.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
-                matches.Add($"{paragraph.Id}{list} text=\"{Escape(Truncate(paragraph.Text, maxText))}\"");
+                matches.Add($"{paragraph.Id}{list} text=\"{XmlValues.EscapeText(Truncate(paragraph.Text, maxText))}\"");
             }
         }
 
@@ -344,7 +345,7 @@ internal static class TextRenderers
             {
                 if (cell.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
                 {
-                    matches.Add($"{cell.Id} text=\"{Escape(Truncate(cell.Text, maxText))}\"");
+                    matches.Add($"{cell.Id} text=\"{XmlValues.EscapeText(Truncate(cell.Text, maxText))}\"");
                 }
             }
         }
@@ -363,18 +364,18 @@ internal static class TextRenderers
             }
 
             var builder = new StringBuilder();
-            builder.Append("text=\"").Append(Escape(Truncate(paragraph.Text, maxText))).AppendLine("\"");
+            builder.Append("text=\"").Append(XmlValues.EscapeText(Truncate(paragraph.Text, maxText))).AppendLine("\"");
             builder.AppendLine("runs:");
             for (int i = 0; i < paragraph.Runs.Count; i++)
             {
                 DocxRunInfo run = paragraph.Runs[i];
                 string markup = run.MarkupType is null ? string.Empty : $" markup={run.MarkupType}";
-                string revisionId = run.RevisionId is null ? string.Empty : $" revision-id={Escape(run.RevisionId)}";
-                string author = run.Author is null ? string.Empty : $" author=\"{Escape(run.Author)}\"";
+                string revisionId = run.RevisionId is null ? string.Empty : $" revision-id={XmlValues.EscapeText(run.RevisionId)}";
+                string author = run.Author is null ? string.Empty : $" author=\"{XmlValues.EscapeText(run.Author)}\"";
                 string timestamp = run.TimestampUtc is null ? string.Empty : $" timestamp-utc={run.TimestampUtc:O}";
-                string commentId = run.CommentId is null ? string.Empty : $" comment-id={Escape(run.CommentId)}";
-                string hyperlinkRelationshipId = run.HyperlinkRelationshipId is null ? string.Empty : $" hyperlink-relationship-id={Escape(run.HyperlinkRelationshipId)}";
-                string hyperlinkAnchor = run.HyperlinkAnchor is null ? string.Empty : $" hyperlink-anchor=\"{Escape(run.HyperlinkAnchor)}\"";
+                string commentId = run.CommentId is null ? string.Empty : $" comment-id={XmlValues.EscapeText(run.CommentId)}";
+                string hyperlinkRelationshipId = run.HyperlinkRelationshipId is null ? string.Empty : $" hyperlink-relationship-id={XmlValues.EscapeText(run.HyperlinkRelationshipId)}";
+                string hyperlinkAnchor = run.HyperlinkAnchor is null ? string.Empty : $" hyperlink-anchor=\"{XmlValues.EscapeText(run.HyperlinkAnchor)}\"";
                 builder.Append("  ")
                     .Append(paragraph.Id)
                     .Append(".R")
@@ -387,7 +388,7 @@ internal static class TextRenderers
                     .Append(hyperlinkRelationshipId)
                     .Append(hyperlinkAnchor)
                     .Append(" text=\"")
-                    .Append(Escape(Truncate(run.Text, maxText)))
+                    .Append(XmlValues.EscapeText(Truncate(run.Text, maxText)))
                     .AppendLine("\"");
             }
 
@@ -455,17 +456,17 @@ internal static class TextRenderers
         builder.AppendLine("changes:");
         foreach (DocxChangeInfo change in targetChanges)
         {
-            string parent = change.ParentType is null ? string.Empty : $" parent={Escape(change.ParentType)}";
-            string revisionId = change.RevisionId is null ? string.Empty : $" revision-id={Escape(change.RevisionId)}";
-            string author = change.Author is null ? string.Empty : $" author=\"{Escape(change.Author)}\"";
+            string parent = change.ParentType is null ? string.Empty : $" parent={XmlValues.EscapeText(change.ParentType)}";
+            string revisionId = change.RevisionId is null ? string.Empty : $" revision-id={XmlValues.EscapeText(change.RevisionId)}";
+            string author = change.Author is null ? string.Empty : $" author=\"{XmlValues.EscapeText(change.Author)}\"";
             string timestamp = change.TimestampUtc is null ? string.Empty : $" timestamp-utc={change.TimestampUtc:O}";
             string operationIndex = change.OperationIndex is null ? string.Empty : $" operation-index={change.OperationIndex}";
-            string operationName = change.OperationName is null ? string.Empty : $" operation-name={Escape(change.OperationName)}";
+            string operationName = change.OperationName is null ? string.Empty : $" operation-name={XmlValues.EscapeText(change.OperationName)}";
             string operationTarget = change.OperationTarget is null ? string.Empty : $" operation-target={change.OperationTarget}";
             builder.Append("  ")
                 .Append(change.Id)
                 .Append(" type=")
-                .Append(Escape(change.Type))
+                .Append(XmlValues.EscapeText(change.Type))
                 .Append(parent)
                 .Append(revisionId)
                 .Append(author)
@@ -581,43 +582,43 @@ internal static class TextRenderers
         var builder = new StringBuilder();
         foreach (DocxContextItem item in items)
         {
-            string story = string.IsNullOrWhiteSpace(item.Story) ? string.Empty : $" story=\"{Escape(item.Story)}\"";
+            string story = string.IsNullOrWhiteSpace(item.Story) ? string.Empty : $" story=\"{XmlValues.EscapeText(item.Story)}\"";
             string parent = item.ParentId is null ? string.Empty : $" parent={item.ParentId}";
             string heading = item.HeadingLevel is null ? string.Empty : $" heading-level={item.HeadingLevel}";
-            string style = item.StyleId is null ? string.Empty : $" styleId={Escape(item.StyleId)}";
+            string style = item.StyleId is null ? string.Empty : $" styleId={XmlValues.EscapeText(item.StyleId)}";
             string list = item.List is null ? string.Empty : RenderList(item.List);
-            string bookmarks = item.BookmarkNames.Count == 0 ? string.Empty : $" bookmark-names=\"{Escape(string.Join(",", item.BookmarkNames))}\"";
-            string contentControlIds = item.ContentControlIds.Count == 0 ? string.Empty : $" content-controls=\"{Escape(string.Join(",", item.ContentControlIds))}\"";
-            string contentControlTags = item.ContentControlTags.Count == 0 ? string.Empty : $" content-control-tags=\"{Escape(string.Join(",", item.ContentControlTags))}\"";
-            string contentControlAliases = item.ContentControlAliases.Count == 0 ? string.Empty : $" content-control-aliases=\"{Escape(string.Join(",", item.ContentControlAliases))}\"";
-            string fieldIds = item.FieldIds.Count == 0 ? string.Empty : $" fields=\"{Escape(string.Join(",", item.FieldIds))}\"";
-            string fieldCodes = item.FieldCodes.Count == 0 ? string.Empty : $" field-codes=\"{Escape(string.Join(",", item.FieldCodes))}\"";
-            string fieldKinds = item.FieldKinds.Count == 0 ? string.Empty : $" field-kinds=\"{Escape(string.Join(",", item.FieldKinds))}\"";
-            string fieldTypes = item.FieldTypes.Count == 0 ? string.Empty : $" field-types=\"{Escape(string.Join(",", item.FieldTypes))}\"";
-            string hyperlinkIds = item.HyperlinkIds.Count == 0 ? string.Empty : $" hyperlinks=\"{Escape(string.Join(",", item.HyperlinkIds))}\"";
-            string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{Escape(string.Join(",", item.HyperlinkTargets))}\"";
-            string commentIds = item.CommentIds.Count == 0 ? string.Empty : $" comments=\"{Escape(string.Join(",", item.CommentIds))}\"";
-            string commentBodyIds = item.CommentBodyIds.Count == 0 ? string.Empty : $" comment-bodies=\"{Escape(string.Join(",", item.CommentBodyIds))}\"";
-            string commentParaIds = item.CommentParaIds.Count == 0 ? string.Empty : $" comment-para-ids=\"{Escape(string.Join(",", item.CommentParaIds))}\"";
-            string commentParentParaIds = item.CommentParentParaIds.Count == 0 ? string.Empty : $" comment-parent-para-ids=\"{Escape(string.Join(",", item.CommentParentParaIds))}\"";
-            string commentRootParaIds = item.CommentRootParaIds.Count == 0 ? string.Empty : $" comment-root-para-ids=\"{Escape(string.Join(",", item.CommentRootParaIds))}\"";
-            string commentDurableIds = item.CommentDurableIds.Count == 0 ? string.Empty : $" comment-durable-ids=\"{Escape(string.Join(",", item.CommentDurableIds))}\"";
-            string commentReplyIds = item.CommentReplyIds.Count == 0 ? string.Empty : $" comment-reply-ids=\"{Escape(string.Join(",", item.CommentReplyIds))}\"";
-            string commentResolvedIds = item.CommentResolvedIds.Count == 0 ? string.Empty : $" comment-resolved-ids=\"{Escape(string.Join(",", item.CommentResolvedIds))}\"";
-            string caption = item.Caption is null ? string.Empty : $" caption=\"{Escape(item.Caption)}\"";
-            string description = item.Description is null ? string.Empty : $" description=\"{Escape(item.Description)}\"";
+            string bookmarks = item.BookmarkNames.Count == 0 ? string.Empty : $" bookmark-names=\"{XmlValues.EscapeText(string.Join(",", item.BookmarkNames))}\"";
+            string contentControlIds = item.ContentControlIds.Count == 0 ? string.Empty : $" content-controls=\"{XmlValues.EscapeText(string.Join(",", item.ContentControlIds))}\"";
+            string contentControlTags = item.ContentControlTags.Count == 0 ? string.Empty : $" content-control-tags=\"{XmlValues.EscapeText(string.Join(",", item.ContentControlTags))}\"";
+            string contentControlAliases = item.ContentControlAliases.Count == 0 ? string.Empty : $" content-control-aliases=\"{XmlValues.EscapeText(string.Join(",", item.ContentControlAliases))}\"";
+            string fieldIds = item.FieldIds.Count == 0 ? string.Empty : $" fields=\"{XmlValues.EscapeText(string.Join(",", item.FieldIds))}\"";
+            string fieldCodes = item.FieldCodes.Count == 0 ? string.Empty : $" field-codes=\"{XmlValues.EscapeText(string.Join(",", item.FieldCodes))}\"";
+            string fieldKinds = item.FieldKinds.Count == 0 ? string.Empty : $" field-kinds=\"{XmlValues.EscapeText(string.Join(",", item.FieldKinds))}\"";
+            string fieldTypes = item.FieldTypes.Count == 0 ? string.Empty : $" field-types=\"{XmlValues.EscapeText(string.Join(",", item.FieldTypes))}\"";
+            string hyperlinkIds = item.HyperlinkIds.Count == 0 ? string.Empty : $" hyperlinks=\"{XmlValues.EscapeText(string.Join(",", item.HyperlinkIds))}\"";
+            string hyperlinkTargets = item.HyperlinkTargets.Count == 0 ? string.Empty : $" hyperlink-targets=\"{XmlValues.EscapeText(string.Join(",", item.HyperlinkTargets))}\"";
+            string commentIds = item.CommentIds.Count == 0 ? string.Empty : $" comments=\"{XmlValues.EscapeText(string.Join(",", item.CommentIds))}\"";
+            string commentBodyIds = item.CommentBodyIds.Count == 0 ? string.Empty : $" comment-bodies=\"{XmlValues.EscapeText(string.Join(",", item.CommentBodyIds))}\"";
+            string commentParaIds = item.CommentParaIds.Count == 0 ? string.Empty : $" comment-para-ids=\"{XmlValues.EscapeText(string.Join(",", item.CommentParaIds))}\"";
+            string commentParentParaIds = item.CommentParentParaIds.Count == 0 ? string.Empty : $" comment-parent-para-ids=\"{XmlValues.EscapeText(string.Join(",", item.CommentParentParaIds))}\"";
+            string commentRootParaIds = item.CommentRootParaIds.Count == 0 ? string.Empty : $" comment-root-para-ids=\"{XmlValues.EscapeText(string.Join(",", item.CommentRootParaIds))}\"";
+            string commentDurableIds = item.CommentDurableIds.Count == 0 ? string.Empty : $" comment-durable-ids=\"{XmlValues.EscapeText(string.Join(",", item.CommentDurableIds))}\"";
+            string commentReplyIds = item.CommentReplyIds.Count == 0 ? string.Empty : $" comment-reply-ids=\"{XmlValues.EscapeText(string.Join(",", item.CommentReplyIds))}\"";
+            string commentResolvedIds = item.CommentResolvedIds.Count == 0 ? string.Empty : $" comment-resolved-ids=\"{XmlValues.EscapeText(string.Join(",", item.CommentResolvedIds))}\"";
+            string caption = item.Caption is null ? string.Empty : $" caption=\"{XmlValues.EscapeText(item.Caption)}\"";
+            string description = item.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(item.Description)}\"";
             string rowCount = item.RowCount is null ? string.Empty : $" rows={item.RowCount}";
             string columnCount = item.ColumnCount is null ? string.Empty : $" columns={item.ColumnCount}";
             string row = item.RowIndex is null ? string.Empty : $" row={item.RowIndex}";
             string column = item.ColumnIndex is null ? string.Empty : $" column={item.ColumnIndex}";
             string columnSpan = item.ColumnSpan is null or 1 ? string.Empty : $" column-span={item.ColumnSpan}";
             string visualColumnEnd = item.VisualColumnEndIndex is null ? string.Empty : $" visual-column-end={item.VisualColumnEndIndex}";
-            string mergeGroup = item.MergeGroupId is null ? string.Empty : $" merge-group={Escape(item.MergeGroupId)}";
+            string mergeGroup = item.MergeGroupId is null ? string.Empty : $" merge-group={XmlValues.EscapeText(item.MergeGroupId)}";
             string verticalMerge = item.VerticalMerge is null ? string.Empty : $" vertical-merge={item.VerticalMerge}";
-            string verticalMergeRoot = item.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={Escape(item.VerticalMergeRootCellId)}";
+            string verticalMergeRoot = item.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={XmlValues.EscapeText(item.VerticalMergeRootCellId)}";
             string nestedTable = item.HasNestedTable ? " nested-table=true" : string.Empty;
             string text = item.Kind is "paragraph" or "cell"
-                ? $" text=\"{Escape(item.Text)}\""
+                ? $" text=\"{XmlValues.EscapeText(item.Text)}\""
                 : string.Empty;
             builder.Append(item.Relation)
                 .Append(' ')
@@ -674,56 +675,56 @@ internal static class TextRenderers
             .Select(style =>
             {
                 string defaultText = style.IsDefault ? " default=true" : string.Empty;
-                string basedOn = style.BasedOnStyleId is null ? string.Empty : $" based-on={Escape(style.BasedOnStyleId)}";
-                string next = style.NextStyleId is null ? string.Empty : $" next={Escape(style.NextStyleId)}";
-                string linked = style.LinkedStyleId is null ? string.Empty : $" linked={Escape(style.LinkedStyleId)}";
+                string basedOn = style.BasedOnStyleId is null ? string.Empty : $" based-on={XmlValues.EscapeText(style.BasedOnStyleId)}";
+                string next = style.NextStyleId is null ? string.Empty : $" next={XmlValues.EscapeText(style.NextStyleId)}";
+                string linked = style.LinkedStyleId is null ? string.Empty : $" linked={XmlValues.EscapeText(style.LinkedStyleId)}";
                 string numbering = style.NumberingId is null
                     ? string.Empty
-                    : $" numbering numId={Escape(style.NumberingId)} level={style.NumberingLevel ?? 0}";
-                return $"{style.Type} styleId={style.StyleId} name=\"{Escape(style.Name)}\"{defaultText}{basedOn}{next}{linked}{numbering}";
+                    : $" numbering numId={XmlValues.EscapeText(style.NumberingId)} level={style.NumberingLevel ?? 0}";
+                return $"{style.Type} styleId={style.StyleId} name=\"{XmlValues.EscapeText(style.Name)}\"{defaultText}{basedOn}{next}{linked}{numbering}";
             })
             .ToArray();
     }
 
     private static string RenderList(DocxListInfo list)
     {
-        string abstractId = list.AbstractNumberingId is null ? string.Empty : $" abstractNumId={Escape(list.AbstractNumberingId)}";
-        string format = list.Format is null ? string.Empty : $" format={Escape(list.Format)}";
-        string levelText = list.LevelText is null ? string.Empty : $" level-text=\"{Escape(list.LevelText)}\"";
-        string label = list.LabelText is null ? string.Empty : $" label=\"{Escape(list.LabelText)}\"";
+        string abstractId = list.AbstractNumberingId is null ? string.Empty : $" abstractNumId={XmlValues.EscapeText(list.AbstractNumberingId)}";
+        string format = list.Format is null ? string.Empty : $" format={XmlValues.EscapeText(list.Format)}";
+        string levelText = list.LevelText is null ? string.Empty : $" level-text=\"{XmlValues.EscapeText(list.LevelText)}\"";
+        string label = list.LabelText is null ? string.Empty : $" label=\"{XmlValues.EscapeText(list.LabelText)}\"";
         string labelStatus = string.Equals(list.LabelStatus, "resolved", StringComparison.Ordinal)
             ? string.Empty
-            : $" label-status={Escape(list.LabelStatus)}";
+            : $" label-status={XmlValues.EscapeText(list.LabelStatus)}";
         string labelWarnings = list.LabelWarnings.Count == 0
             ? string.Empty
-            : $" label-warnings=\"{Escape(string.Join(",", list.LabelWarnings))}\"";
+            : $" label-warnings=\"{XmlValues.EscapeText(string.Join(",", list.LabelWarnings))}\"";
         string labelComponents = list.LabelComponents.Count == 0
             ? string.Empty
-            : $" label-components=\"{Escape(string.Join(",", list.LabelComponents.Select(component => $"{component.Level}:{component.Value}:{component.Format}:{component.Text}")))}\"";
+            : $" label-components=\"{XmlValues.EscapeText(string.Join(",", list.LabelComponents.Select(component => $"{component.Level}:{component.Value}:{component.Format}:{component.Text}")))}\"";
         string start = list.StartValue is null ? string.Empty : $" start={list.StartValue}";
-        string suffix = list.Suffix is null ? string.Empty : $" suffix={Escape(list.Suffix)}";
+        string suffix = list.Suffix is null ? string.Empty : $" suffix={XmlValues.EscapeText(list.Suffix)}";
         string legal = list.IsLegal ? " legal=true" : string.Empty;
         string restart = list.RestartAfterLevel is null ? string.Empty : $" restart-after-level={list.RestartAfterLevel}";
-        string paragraphStyle = list.ParagraphStyleId is null ? string.Empty : $" paragraph-style={Escape(list.ParagraphStyleId)}";
+        string paragraphStyle = list.ParagraphStyleId is null ? string.Empty : $" paragraph-style={XmlValues.EscapeText(list.ParagraphStyleId)}";
         string source = string.Equals(list.Source, "direct", StringComparison.Ordinal)
             ? string.Empty
-            : $" source={Escape(list.Source)}";
-        return $" list numId={Escape(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{labelComponents}{start}{suffix}{legal}{restart}";
+            : $" source={XmlValues.EscapeText(list.Source)}";
+        return $" list numId={XmlValues.EscapeText(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{labelComponents}{start}{suffix}{legal}{restart}";
     }
 
     private static string RenderImage(DocxImageInfo image)
     {
-        string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={Escape(image.RelationshipId)}";
+        string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(image.RelationshipId)}";
         string target = image.ContainingTargetId is null ? " target=unknown" : $" target={image.ContainingTargetId}";
         string size = image.WidthEmu is null || image.HeightEmu is null ? string.Empty : $" size-emu={image.WidthEmu}x{image.HeightEmu}";
-        string name = image.Name is null ? string.Empty : $" name=\"{Escape(image.Name)}\"";
-        string description = image.Description is null ? string.Empty : $" description=\"{Escape(image.Description)}\"";
-        string title = image.Title is null ? string.Empty : $" title=\"{Escape(image.Title)}\"";
-        string wrap = image.WrapMode is null ? string.Empty : $" wrap={Escape(image.WrapMode)}";
+        string name = image.Name is null ? string.Empty : $" name=\"{XmlValues.EscapeText(image.Name)}\"";
+        string description = image.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(image.Description)}\"";
+        string title = image.Title is null ? string.Empty : $" title=\"{XmlValues.EscapeText(image.Title)}\"";
+        string wrap = image.WrapMode is null ? string.Empty : $" wrap={XmlValues.EscapeText(image.WrapMode)}";
         string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
         string layoutMetadata = RenderImageLayoutMetadata(image);
         string crop = RenderCrop(image);
-        return $"{image.Id} image layout={Escape(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}{layoutMetadata}{crop}";
+        return $"{image.Id} image layout={XmlValues.EscapeText(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}{layoutMetadata}{crop}";
     }
 
     private static string RenderImageLayoutMetadata(DocxImageInfo image)
@@ -770,14 +771,14 @@ internal static class TextRenderers
 
     private static string RenderString(string name, string? value)
     {
-        return value is null ? string.Empty : $" {name}={Escape(value)}";
+        return value is null ? string.Empty : $" {name}={XmlValues.EscapeText(value)}";
     }
 
     private static string RenderTable(DocxTableInfo table)
     {
-        string style = table.StyleId is null ? string.Empty : $" styleId={Escape(table.StyleId)}";
-        string caption = table.Caption is null ? string.Empty : $" caption=\"{Escape(table.Caption)}\"";
-        string description = table.Description is null ? string.Empty : $" description=\"{Escape(table.Description)}\"";
+        string style = table.StyleId is null ? string.Empty : $" styleId={XmlValues.EscapeText(table.StyleId)}";
+        string caption = table.Caption is null ? string.Empty : $" caption=\"{XmlValues.EscapeText(table.Caption)}\"";
+        string description = table.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(table.Description)}\"";
         string grid = table.GridColumnCount is null ? string.Empty : $" grid-columns={table.GridColumnCount}";
         string header = table.HasHeaderRow ? " header-row=true" : string.Empty;
         string merged = table.HasMergedCells ? " merged=true" : string.Empty;
@@ -1123,21 +1124,17 @@ internal static class TextRenderers
 
     private static string RenderCommentDump(DocxChangeInfo comment)
     {
-        string commentId = comment.CommentId is null ? string.Empty : $" comment-id={Escape(comment.CommentId)}";
-        string story = string.IsNullOrWhiteSpace(comment.Story) ? string.Empty : $" story=\"{Escape(comment.Story)}\"";
+        string commentId = comment.CommentId is null ? string.Empty : $" comment-id={XmlValues.EscapeText(comment.CommentId)}";
+        string story = string.IsNullOrWhiteSpace(comment.Story) ? string.Empty : $" story=\"{XmlValues.EscapeText(comment.Story)}\"";
         string part = string.IsNullOrWhiteSpace(comment.PartName) ? string.Empty : $" part={comment.PartName}";
         string anchor = comment.CommentAnchorTargetId is null ? string.Empty : $" anchor-target={comment.CommentAnchorTargetId}";
         string reference = comment.CommentReferenceTargetId is null ? string.Empty : $" reference-target={comment.CommentReferenceTargetId}";
-        string author = comment.CommentAuthor is null ? string.Empty : $" comment-author=\"{Escape(comment.CommentAuthor)}\"";
-        string initials = comment.CommentInitials is null ? string.Empty : $" comment-initials=\"{Escape(comment.CommentInitials)}\"";
+        string author = comment.CommentAuthor is null ? string.Empty : $" comment-author=\"{XmlValues.EscapeText(comment.CommentAuthor)}\"";
+        string initials = comment.CommentInitials is null ? string.Empty : $" comment-initials=\"{XmlValues.EscapeText(comment.CommentInitials)}\"";
         string timestamp = comment.CommentTimestampUtc is null ? string.Empty : $" comment-timestamp-utc={comment.CommentTimestampUtc:O}";
         return $"comment{commentId}{story}{part}{anchor}{reference}{author}{initials}{timestamp} text-length={comment.TextLength}";
     }
 
-    private static string Escape(string text)
-    {
-        return text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal).Replace("\t", "\\t", StringComparison.Ordinal);
-    }
 
     private static string Truncate(string text, int maxText)
     {

@@ -54,14 +54,14 @@ internal static class DocxStyleScanner
 
             string name = (string?)style.Element(OoxmlNs.W + "name")?.Attribute(OoxmlNs.W + "val")
                 ?? styleId;
-            bool isDefault = IsTrue((string?)style.Attribute(OoxmlNs.W + "default"));
+            bool isDefault = WmlBoolean.IsTrue((string?)style.Attribute(OoxmlNs.W + "default"), valueWhenMissing: false);
             XElement? numberingProperties = style
                 .Element(OoxmlNs.W + "pPr")
                 ?.Element(OoxmlNs.W + "numPr");
             string? numberingId = (string?)numberingProperties
                 ?.Element(OoxmlNs.W + "numId")
                 ?.Attribute(OoxmlNs.W + "val");
-            int? numberingLevel = TryReadInt((string?)numberingProperties
+            int? numberingLevel = XmlValues.TryReadInt((string?)numberingProperties
                 ?.Element(OoxmlNs.W + "ilvl")
                 ?.Attribute(OoxmlNs.W + "val"));
             styles.Add(new DocxStyleInfo(styleId, name, type, isDefault)
@@ -75,15 +75,5 @@ internal static class DocxStyleScanner
         }
 
         return styles;
-    }
-
-    private static int? TryReadInt(string? value)
-    {
-        return int.TryParse(value, out int parsed) ? parsed : null;
-    }
-
-    private static bool IsTrue(string? value)
-    {
-        return value is "1" || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
     }
 }

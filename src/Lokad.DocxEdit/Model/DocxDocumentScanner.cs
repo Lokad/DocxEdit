@@ -1154,13 +1154,10 @@ internal static class DocxDocumentScanner
 
     private static bool? ReadOnOffAttribute(XElement element, string localName)
     {
+        // Nullable wrapper around WmlBoolean: a missing attribute reads as unknown
+        // (field/history flags are tri-state), not as false.
         string? value = (string?)element.Attribute(OoxmlNs.W + localName);
-        if (value is null)
-        {
-            return null;
-        }
-
-        return value is "1" or "true" or "on";
+        return value is null ? null : WmlBoolean.IsTrue(value, valueWhenMissing: false);
     }
 
     private static string ReadContentControlKind(XElement? properties)
@@ -1530,8 +1527,7 @@ internal static class DocxDocumentScanner
         XElement? lockProperties = layout?.Descendants(OoxmlNs.A + "graphicFrameLocks").FirstOrDefault() ??
             layout?.Descendants(OoxmlNs.A + "picLocks").FirstOrDefault();
         string? wrapMode = layout?.Elements().FirstOrDefault(element => element.Name.LocalName.StartsWith("wrap", StringComparison.Ordinal))?.Name.LocalName;
-        bool behindDoc = string.Equals((string?)layout?.Attribute("behindDoc"), "1", StringComparison.Ordinal) ||
-            string.Equals((string?)layout?.Attribute("behindDoc"), "true", StringComparison.OrdinalIgnoreCase);
+        bool behindDoc = WmlBoolean.IsTrue((string?)layout?.Attribute("behindDoc"), valueWhenMissing: false);
 
         foreach (XElement blip in drawing.Descendants(OoxmlNs.A + "blip"))
         {
