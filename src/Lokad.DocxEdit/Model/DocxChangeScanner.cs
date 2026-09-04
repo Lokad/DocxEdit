@@ -36,9 +36,9 @@ internal static class DocxChangeScanner
 
     public static IReadOnlyList<DocxChangeInfo> Scan(
         OoxmlPackage package,
-        bool includeCommentText = false,
-        int maxCommentText = 240,
-        CancellationToken cancellationToken = default)
+        bool includeCommentText,
+        int maxCommentText,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var changes = new List<DocxChangeInfo>();
@@ -52,8 +52,8 @@ internal static class DocxChangeScanner
             cancellationToken.ThrowIfCancellationRequested();
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
-            string story = GetStory(package, part.Name, fallbackPartIndex);
-            string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex);
+            string story = GetStory(package, part.Name, fallbackPartIndex, cancellationToken);
+            string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex, cancellationToken);
             IReadOnlyDictionary<XElement, string> targets = BuildTargetMap(document, prefix);
 
             int index = 1;
@@ -290,7 +290,7 @@ internal static class DocxChangeScanner
             ChangeTypes.ContainsKey(element.Name.LocalName);
     }
 
-    private static string GetStory(OoxmlPackage package, string partName, int fallbackPartIndex)
+    private static string GetStory(OoxmlPackage package, string partName, int fallbackPartIndex, CancellationToken cancellationToken)
     {
         if (string.Equals(partName, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
         {
@@ -299,7 +299,7 @@ internal static class DocxChangeScanner
 
         if (package.MainDocumentPartName is not null)
         {
-            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName);
+            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
             int commentsIndex = 1;
             foreach (OoxmlRelationship relationship in relationships
                 .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
@@ -343,7 +343,7 @@ internal static class DocxChangeScanner
         return $"part[{fallbackPartIndex}]";
     }
 
-    private static string GetIdPrefix(OoxmlPackage package, string partName, ref int fallbackPartIndex)
+    private static string GetIdPrefix(OoxmlPackage package, string partName, ref int fallbackPartIndex, CancellationToken cancellationToken)
     {
         if (string.Equals(partName, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
         {
@@ -352,7 +352,7 @@ internal static class DocxChangeScanner
 
         if (package.MainDocumentPartName is not null)
         {
-            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName);
+            IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(package.MainDocumentPartName, cancellationToken);
             int commentsIndex = 1;
             foreach (OoxmlRelationship relationship in relationships
                 .Where(relationship => !relationship.IsExternal && relationship.Type == OoxmlRelTypes.Comments && relationship.ResolvedTarget is not null)
@@ -848,14 +848,14 @@ internal static class DocxChangeScanner
         var anchors = new Dictionary<string, CommentAnchorBuilder>(StringComparer.Ordinal);
         int fallbackPartIndex = 1;
         foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => IsWordXmlPart(part) && !IsCommentsPart(package, part.Name))
+            .Where(part => IsWordXmlPart(part) && !IsCommentsPart(package, part.Name, cancellationToken))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
-            string story = GetStory(package, part.Name, fallbackPartIndex);
-            string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex);
+            string story = GetStory(package, part.Name, fallbackPartIndex, cancellationToken);
+            string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex, cancellationToken);
             IReadOnlyDictionary<XElement, string> targets = BuildTargetMap(document, prefix);
 
             foreach (XElement element in document.Descendants().Where(IsCommentElement))
@@ -900,14 +900,14 @@ internal static class DocxChangeScanner
             StringComparer.Ordinal);
     }
 
-    private static bool IsCommentsPart(OoxmlPackage package, string partName)
+    private static bool IsCommentsPart(OoxmlPackage package, string partName, CancellationToken cancellationToken)
     {
         if (package.MainDocumentPartName is null)
         {
             return false;
         }
 
-        return package.GetRelationships(package.MainDocumentPartName)
+        return package.GetRelationships(package.MainDocumentPartName, cancellationToken)
             .Any(relationship => !relationship.IsExternal &&
                 relationship.Type == OoxmlRelTypes.Comments &&
                 relationship.ResolvedTarget is not null &&

@@ -12,7 +12,7 @@ internal static class DocxStyleScanner
         "table"
     };
 
-    public static IReadOnlyList<DocxStyleInfo> Scan(OoxmlPackage package, CancellationToken cancellationToken = default)
+    public static IReadOnlyList<DocxStyleInfo> Scan(OoxmlPackage package, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (package.MainDocumentPartName is null)

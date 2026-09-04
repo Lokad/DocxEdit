@@ -15,7 +15,7 @@ internal sealed class OoxmlContentTypes
         this.overrides = overrides;
     }
 
-    public static OoxmlContentTypes Parse(Stream stream, CancellationToken cancellationToken = default)
+    public static OoxmlContentTypes Parse(Stream stream, CancellationToken cancellationToken)
     {
         XDocument document = SafeXml.Load(stream, cancellationToken);
         var defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

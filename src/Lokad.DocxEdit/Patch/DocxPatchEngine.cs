@@ -51,7 +51,7 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         DocxPatch patch,
         DocxEditOptions options,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         return Execute(package, patch, options, apply: false, cancellationToken);
     }
@@ -60,7 +60,7 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         DocxPatch patch,
         DocxEditOptions options,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         return Execute(package, patch, options, apply: true, cancellationToken);
     }
@@ -2771,7 +2771,7 @@ internal static partial class DocxPatchEngine
         }
         else
         {
-            SetInternalHyperlinkAnchor(package, hyperlinkTarget, anchor!);
+            SetInternalHyperlinkAnchor(package, hyperlinkTarget, anchor!, cancellationToken);
         }
 
         if (operation.Fields.TryGetValue("tooltip", out string? tooltip))
@@ -2915,7 +2915,7 @@ internal static partial class DocxPatchEngine
         if (uri is not null)
         {
             relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(blockTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
-            package.AddRelationship(blockTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External");
+            package.AddRelationship(blockTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External", cancellationToken);
         }
 
         XElement paragraph = CreateHyperlinkParagraph(
@@ -2972,7 +2972,7 @@ internal static partial class DocxPatchEngine
         if (!string.IsNullOrWhiteSpace(relationshipId) &&
             !UsesHyperlinkRelationship(hyperlinkTarget.Document, relationshipId!))
         {
-            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId!);
+            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId!, cancellationToken);
         }
 
         SaveDocumentPart(package, hyperlinkTarget.PartName, hyperlinkTarget.Document);
@@ -3090,10 +3090,10 @@ internal static partial class DocxPatchEngine
             : OoxmlIds.AllocateRelationshipId(package.GetRelationships(hyperlinkTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
         if (canReuseRelationship)
         {
-            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId);
+            package.RemoveRelationship(hyperlinkTarget.PartName, relationshipId, cancellationToken);
         }
 
-        package.AddRelationship(hyperlinkTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External");
+        package.AddRelationship(hyperlinkTarget.PartName, relationshipId, OoxmlRelTypes.Hyperlink, uri, "External", cancellationToken);
         hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.R + "id", relationshipId);
         hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.W + "anchor", null);
     }
@@ -3101,7 +3101,8 @@ internal static partial class DocxPatchEngine
     private static void SetInternalHyperlinkAnchor(
         OoxmlPackage package,
         HyperlinkTarget hyperlinkTarget,
-        string anchor)
+        string anchor,
+        CancellationToken cancellationToken)
     {
         string? oldRelationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
         hyperlinkTarget.Hyperlink.SetAttributeValue(OoxmlNs.R + "id", null);
@@ -3109,7 +3110,7 @@ internal static partial class DocxPatchEngine
         if (!string.IsNullOrWhiteSpace(oldRelationshipId) &&
             !UsesHyperlinkRelationship(hyperlinkTarget.Document, oldRelationshipId!))
         {
-            package.RemoveRelationship(hyperlinkTarget.PartName, oldRelationshipId!);
+            package.RemoveRelationship(hyperlinkTarget.PartName, oldRelationshipId!, cancellationToken);
         }
     }
 
@@ -3370,7 +3371,7 @@ internal static partial class DocxPatchEngine
         content.RemoveNodes();
         if (blockLevel)
         {
-            content.Add(CreateSimpleParagraph(text));
+            content.Add(CreateSimpleParagraph(text, style: null, paragraphProperties: null));
         }
         else
         {
@@ -3627,7 +3628,7 @@ internal static partial class DocxPatchEngine
 
         for (int i = 1; i < paragraphs.Length - 1; i++)
         {
-            endParagraph.AddBeforeSelf(CreateSimpleParagraph(paragraphs[i]));
+            endParagraph.AddBeforeSelf(CreateSimpleParagraph(paragraphs[i], style: null, paragraphProperties: null));
         }
 
         foreach (XNode node in endParagraph.Nodes().TakeWhile(node => node != end).ToArray())
@@ -4129,13 +4130,13 @@ internal static partial class DocxPatchEngine
                     <?xml version="1.0" encoding="utf-8"?>
                     <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
                     """);
-                package.AddPart(commentsPartName, CommentsContentType, bytes);
+                package.AddPart(commentsPartName, CommentsContentType, bytes, cancellationToken);
             }
 
             string relationshipId = OoxmlIds.AllocateRelationshipId(package
                 .GetRelationships(package.MainDocumentPartName!, cancellationToken)
                 .Select(relationship => relationship.Id));
-            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Comments, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsPartName));
+            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Comments, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsPartName), targetMode: null, cancellationToken);
         }
         else if (package.GetPart(commentsPartName) is null)
         {
@@ -4143,7 +4144,7 @@ internal static partial class DocxPatchEngine
                 <?xml version="1.0" encoding="utf-8"?>
                 <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
                 """);
-            package.AddPart(commentsPartName, CommentsContentType, bytes);
+            package.AddPart(commentsPartName, CommentsContentType, bytes, cancellationToken);
         }
 
         XDocument document = LoadDocumentPart(package, commentsPartName, cancellationToken, out XElement root);
@@ -4305,13 +4306,13 @@ internal static partial class DocxPatchEngine
                     <?xml version="1.0" encoding="utf-8"?>
                     <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" />
                     """);
-                package.AddPart(commentsExtendedPartName, CommentsExtendedContentType, bytes);
+                package.AddPart(commentsExtendedPartName, CommentsExtendedContentType, bytes, cancellationToken);
             }
 
             string relationshipId = OoxmlIds.AllocateRelationshipId(package
                 .GetRelationships(package.MainDocumentPartName!, cancellationToken)
                 .Select(relationship => relationship.Id));
-            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsExtended, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsExtendedPartName));
+            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsExtended, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsExtendedPartName), targetMode: null, cancellationToken);
         }
         else if (package.GetPart(commentsExtendedPartName) is null)
         {
@@ -4319,7 +4320,7 @@ internal static partial class DocxPatchEngine
                 <?xml version="1.0" encoding="utf-8"?>
                 <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" />
                 """);
-            package.AddPart(commentsExtendedPartName, CommentsExtendedContentType, bytes);
+            package.AddPart(commentsExtendedPartName, CommentsExtendedContentType, bytes, cancellationToken);
         }
 
         XDocument document = LoadDocumentPart(package, commentsExtendedPartName, cancellationToken, out XElement root);
@@ -4344,13 +4345,13 @@ internal static partial class DocxPatchEngine
                     <?xml version="1.0" encoding="utf-8"?>
                     <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid" />
                     """);
-                package.AddPart(commentsIdsPartName, CommentsIdsContentType, bytes);
+                package.AddPart(commentsIdsPartName, CommentsIdsContentType, bytes, cancellationToken);
             }
 
             string relationshipId = OoxmlIds.AllocateRelationshipId(package
                 .GetRelationships(package.MainDocumentPartName!, cancellationToken)
                 .Select(relationship => relationship.Id));
-            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsIds, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsIdsPartName));
+            package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.CommentsIds, GetRelativeRelationshipTarget(package.MainDocumentPartName!, commentsIdsPartName), targetMode: null, cancellationToken);
         }
         else if (package.GetPart(commentsIdsPartName) is null)
         {
@@ -4358,7 +4359,7 @@ internal static partial class DocxPatchEngine
                 <?xml version="1.0" encoding="utf-8"?>
                 <w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid" />
                 """);
-            package.AddPart(commentsIdsPartName, CommentsIdsContentType, bytes);
+            package.AddPart(commentsIdsPartName, CommentsIdsContentType, bytes, cancellationToken);
         }
 
         XDocument document = LoadDocumentPart(package, commentsIdsPartName, cancellationToken, out XElement root);
@@ -4497,7 +4498,7 @@ internal static partial class DocxPatchEngine
     private static void ReplaceCommentText(XElement comment, string text)
     {
         comment.RemoveNodes();
-        comment.Add(CreateSimpleParagraph(text));
+        comment.Add(CreateSimpleParagraph(text, style: null, paragraphProperties: null));
     }
 
     private static XElement CreateComment(
@@ -4518,7 +4519,7 @@ internal static partial class DocxPatchEngine
             comment.SetAttributeValue(OoxmlNs.W + "initials", initials);
         }
 
-        XElement paragraph = CreateSimpleParagraph(text);
+        XElement paragraph = CreateSimpleParagraph(text, style: null, paragraphProperties: null);
         if (!string.IsNullOrWhiteSpace(paraId))
         {
             paragraph.SetAttributeValue(OoxmlNs.W15 + "paraId", paraId);
@@ -4910,8 +4911,8 @@ internal static partial class DocxPatchEngine
 
         string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType!);
         string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(paragraphTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
-        package.AddPart(imagePartName, contentType!, bytes);
-        package.AddRelationship(paragraphTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(paragraphTarget.PartName, imagePartName));
+        package.AddPart(imagePartName, contentType!, bytes, cancellationToken);
+        package.AddRelationship(paragraphTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(paragraphTarget.PartName, imagePartName), targetMode: null, cancellationToken);
         int docPrId = AllocateDrawingDocPrId(paragraphTarget.Document);
         XElement imageParagraph = CreateInlineImageParagraph(relationshipId, docPrId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
         paragraphTarget.Paragraph.AddAfterSelf(imageParagraph);
@@ -6958,10 +6959,10 @@ internal static partial class DocxPatchEngine
         drawing.Remove();
         if (!UsesRelationship(imageTarget.Document, imageTarget.RelationshipId))
         {
-            package.RemoveRelationship(imageTarget.PartName, imageTarget.RelationshipId);
+            package.RemoveRelationship(imageTarget.PartName, imageTarget.RelationshipId, cancellationToken);
             if (!AnyRelationshipTargetsPart(package, imageTarget.Part.Name, cancellationToken))
             {
-                package.RemovePart(imageTarget.Part.Name);
+                package.RemovePart(imageTarget.Part.Name, cancellationToken);
             }
         }
 
@@ -9917,7 +9918,7 @@ internal static partial class DocxPatchEngine
             cell.Add(new XElement(cellProperties));
         }
 
-        cell.Add(CreateSimpleParagraph(text, paragraphProperties: paragraphProperties));
+        cell.Add(CreateSimpleParagraph(text, style: null, paragraphProperties: paragraphProperties));
     }
 
     private static XElement CreateRowFromTemplate(XElement templateRow, IReadOnlyList<string> cellTexts)
@@ -9943,14 +9944,14 @@ internal static partial class DocxPatchEngine
                 .Elements(OoxmlNs.W + "p")
                 .Elements(OoxmlNs.W + "pPr")
                 .FirstOrDefault();
-            cell.Add(CreateSimpleParagraph(cellTexts[i], paragraphProperties: paragraphProperties));
+            cell.Add(CreateSimpleParagraph(cellTexts[i], style: null, paragraphProperties: paragraphProperties));
             row.Add(cell);
         }
 
         return row;
     }
 
-    private static XElement CreateSimpleParagraph(string text, string? style = null, XElement? paragraphProperties = null)
+    private static XElement CreateSimpleParagraph(string text, string? style, XElement? paragraphProperties)
     {
         var paragraph = new XElement(OoxmlNs.W + "p");
         if (paragraphProperties is not null)
@@ -10734,13 +10735,13 @@ internal static partial class DocxPatchEngine
                 <?xml version="1.0" encoding="utf-8"?>
                 <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />
                 """);
-            package.AddPart(settingsPartName, SettingsContentType, bytes);
+            package.AddPart(settingsPartName, SettingsContentType, bytes, cancellationToken);
         }
 
         string relationshipId = OoxmlIds.AllocateRelationshipId(package
             .GetRelationships(package.MainDocumentPartName!, cancellationToken)
             .Select(relationship => relationship.Id));
-        package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Settings, GetRelativeRelationshipTarget(package.MainDocumentPartName!, settingsPartName));
+        package.AddRelationship(package.MainDocumentPartName!, relationshipId, OoxmlRelTypes.Settings, GetRelativeRelationshipTarget(package.MainDocumentPartName!, settingsPartName), targetMode: null, cancellationToken);
         return settingsPartName;
     }
 

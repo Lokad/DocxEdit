@@ -8,7 +8,7 @@ internal static class DocxPackageValidator
     public static IReadOnlyList<DocxDiagnostic> Validate(
         OoxmlPackage package,
         DocxValidationProfile profile,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
         IReadOnlyDictionary<string, string> storyPrefixes = profile == DocxValidationProfile.Structural

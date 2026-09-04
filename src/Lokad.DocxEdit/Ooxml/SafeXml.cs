@@ -16,7 +16,7 @@ internal static class SafeXml
         };
     }
 
-    public static XDocument Load(Stream stream, CancellationToken cancellationToken = default)
+    public static XDocument Load(Stream stream, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using XmlReader reader = XmlReader.Create(stream, CreateReaderSettings());

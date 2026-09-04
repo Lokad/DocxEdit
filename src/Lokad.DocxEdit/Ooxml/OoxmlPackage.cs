@@ -22,7 +22,7 @@ internal sealed class OoxmlPackage
     public static OoxmlPackage Load(
         Stream input,
         OoxmlPackageOptions options,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(options);
@@ -143,7 +143,7 @@ internal sealed class OoxmlPackage
 
     public IReadOnlyList<OoxmlRelationship> GetRelationships(
         string sourcePartName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string relationshipPartName = OoxmlPath.GetRelationshipPartName(sourcePartName);
@@ -157,7 +157,7 @@ internal sealed class OoxmlPackage
         return ParseRelationships(stream, sourcePartName, cancellationToken);
     }
 
-    public void Save(Stream output, CancellationToken cancellationToken = default)
+    public void Save(Stream output, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(output);
         if (!output.CanWrite)
@@ -190,7 +190,7 @@ internal sealed class OoxmlPackage
         touchedPartNames.Add(normalized);
     }
 
-    internal void AddPart(string partName, string contentType, byte[] bytes)
+    internal void AddPart(string partName, string contentType, byte[] bytes, CancellationToken cancellationToken)
     {
         string normalized = OoxmlPath.NormalizePartName(partName);
         if (parts.ContainsKey(normalized))
@@ -200,17 +200,17 @@ internal sealed class OoxmlPackage
 
         parts[normalized] = new OoxmlPart(normalized, normalized.TrimStart('/'), contentType, bytes);
         touchedPartNames.Add(normalized);
-        AddContentTypeOverride(normalized, contentType);
+        AddContentTypeOverride(normalized, contentType, cancellationToken);
     }
 
-    internal void AddRelationship(string sourcePartName, string relationshipId, string relationshipType, string target, string? targetMode = null)
+    internal void AddRelationship(string sourcePartName, string relationshipId, string relationshipType, string target, string? targetMode, CancellationToken cancellationToken)
     {
         string relationshipPartName = OoxmlPath.GetRelationshipPartName(sourcePartName);
         XDocument document;
         if (parts.TryGetValue(relationshipPartName, out OoxmlPart? relationshipPart))
         {
             using Stream stream = relationshipPart.OpenRead();
-            document = SafeXml.Load(stream);
+            document = SafeXml.Load(stream, cancellationToken);
         }
         else
         {
@@ -241,7 +241,7 @@ internal sealed class OoxmlPackage
         ReplacePartBytes(relationshipPartName, output.ToArray());
     }
 
-    internal void RemoveRelationship(string sourcePartName, string relationshipId)
+    internal void RemoveRelationship(string sourcePartName, string relationshipId, CancellationToken cancellationToken)
     {
         string relationshipPartName = OoxmlPath.GetRelationshipPartName(sourcePartName);
         if (!parts.TryGetValue(relationshipPartName, out OoxmlPart? relationshipPart))
@@ -250,7 +250,7 @@ internal sealed class OoxmlPackage
         }
 
         using Stream stream = relationshipPart.OpenRead();
-        XDocument document = SafeXml.Load(stream);
+        XDocument document = SafeXml.Load(stream, cancellationToken);
         foreach (XElement relationship in document.Root?.Elements(OoxmlNs.Rel + "Relationship")
             .Where(element => string.Equals((string?)element.Attribute("Id"), relationshipId, StringComparison.Ordinal))
             .ToArray() ?? [])
@@ -263,7 +263,7 @@ internal sealed class OoxmlPackage
         ReplacePartBytes(relationshipPartName, output.ToArray());
     }
 
-    internal void RemovePart(string partName)
+    internal void RemovePart(string partName, CancellationToken cancellationToken)
     {
         string normalized = OoxmlPath.NormalizePartName(partName);
         if (!parts.Remove(normalized))
@@ -272,13 +272,13 @@ internal sealed class OoxmlPackage
         }
 
         touchedPartNames.Remove(normalized);
-        RemoveContentTypeOverride(normalized);
+        RemoveContentTypeOverride(normalized, cancellationToken);
     }
 
-    private void AddContentTypeOverride(string partName, string contentType)
+    private void AddContentTypeOverride(string partName, string contentType, CancellationToken cancellationToken)
     {
         using Stream stream = ContentTypesPart.OpenRead();
-        XDocument document = SafeXml.Load(stream);
+        XDocument document = SafeXml.Load(stream, cancellationToken);
         XElement root = document.Root
             ?? throw new InvalidDataException("Content types part has no XML root.");
         bool exists = root
@@ -297,10 +297,10 @@ internal sealed class OoxmlPackage
         ReplacePartBytes("/[Content_Types].xml", output.ToArray());
     }
 
-    private void RemoveContentTypeOverride(string partName)
+    private void RemoveContentTypeOverride(string partName, CancellationToken cancellationToken)
     {
         using Stream stream = ContentTypesPart.OpenRead();
-        XDocument document = SafeXml.Load(stream);
+        XDocument document = SafeXml.Load(stream, cancellationToken);
         XElement root = document.Root
             ?? throw new InvalidDataException("Content types part has no XML root.");
         foreach (XElement element in root
@@ -319,7 +319,7 @@ internal sealed class OoxmlPackage
     internal static IReadOnlyList<OoxmlRelationship> ParseRelationships(
         Stream stream,
         string sourcePartName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         XDocument document = SafeXml.Load(stream, cancellationToken);
         var relationships = new List<OoxmlRelationship>();

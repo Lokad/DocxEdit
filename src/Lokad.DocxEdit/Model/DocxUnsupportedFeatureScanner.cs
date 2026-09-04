@@ -44,7 +44,7 @@ internal static class DocxUnsupportedFeatureScanner
     public static IReadOnlyList<DocxDiagnostic> Scan(
         OoxmlPackage package,
         bool includeHeadersFooters,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (package.MainDocumentPartName is null)

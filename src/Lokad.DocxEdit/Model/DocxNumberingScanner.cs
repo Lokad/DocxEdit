@@ -24,7 +24,7 @@ internal sealed class DocxNumberingCatalog
         _overrides = overrides;
     }
 
-    public static DocxNumberingCatalog Scan(OoxmlPackage package, CancellationToken cancellationToken = default)
+    public static DocxNumberingCatalog Scan(OoxmlPackage package, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (package.MainDocumentPartName is null)

@@ -8,9 +8,9 @@ internal static class DocxDocumentScanner
 {
     public static DocxDocumentModel Scan(
         OoxmlPackage package,
-        bool includeHeadersFooters = false,
-        DocxTextView textView = DocxTextView.Final,
-        CancellationToken cancellationToken = default)
+        bool includeHeadersFooters,
+        DocxTextView textView,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (package.MainDocumentPartName is null)

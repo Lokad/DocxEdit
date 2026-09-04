@@ -11,7 +11,7 @@ public static class OoxmlPackageTests
     {
         using MemoryStream stream = CreateMinimalDocx();
 
-        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions());
+        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
 
         Assert.Equal("/word/document.xml", package.MainDocumentPartName);
         Assert.NotNull(package.GetPart("/word/document.xml"));
@@ -28,7 +28,7 @@ public static class OoxmlPackageTests
         });
 
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
         Assert.Contains("Unsafe OOXML", ex.Message, StringComparison.Ordinal);
     }
 
@@ -45,7 +45,7 @@ public static class OoxmlPackageTests
         });
 
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
         Assert.Contains("duplicate part", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -60,7 +60,7 @@ public static class OoxmlPackageTests
         });
 
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
         Assert.Contains("/_rels/.rels", ex.Message, StringComparison.Ordinal);
     }
 
@@ -70,7 +70,7 @@ public static class OoxmlPackageTests
         using MemoryStream stream = CreateMinimalDocx(archive =>
             AddEntry(archive, "custom/data.bin", "opaque"));
 
-        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions());
+        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
 
         OoxmlPart? part = package.GetPart("/custom/data.bin");
         Assert.NotNull(part);
@@ -91,7 +91,7 @@ public static class OoxmlPackageTests
                 """);
         });
 
-        Assert.ThrowsAny<Exception>(() => OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+        Assert.ThrowsAny<Exception>(() => OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
     }
 
     [Fact]
@@ -174,9 +174,9 @@ public static class OoxmlPackageTests
     public static void GetRelationshipsResolvesRelativeAndExternalTargets()
     {
         using MemoryStream stream = CreateMinimalDocx();
-        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions());
+        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
 
-        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships("/word/document.xml");
+        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships("/word/document.xml", CancellationToken.None);
 
         Assert.Contains(relationships, relationship => relationship.Id == "rImage" && relationship.ResolvedTarget == "/word/media/image1.png");
         Assert.Contains(relationships, relationship => relationship.Id == "rExternal" && relationship.IsExternal && relationship.ResolvedTarget is null);
@@ -194,7 +194,7 @@ public static class OoxmlPackageTests
         });
 
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
         Assert.Contains("escapes", ex.Message, StringComparison.Ordinal);
     }
 
@@ -210,7 +210,7 @@ public static class OoxmlPackageTests
         });
 
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
 
         Assert.Contains("targets missing part", ex.Message, StringComparison.Ordinal);
     }
@@ -218,10 +218,10 @@ public static class OoxmlPackageTests
     [Fact]
     public static void LoadRejectsMacroEnabledDocumentByDefault()
     {
-        using MemoryStream stream = CreateMinimalDocx(macroEnabled: true);
+        using MemoryStream stream = CreateMinimalDocx(extra: null, macroEnabled: true);
 
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            OoxmlPackage.Load(stream, new OoxmlPackageOptions()));
+            OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None));
 
         Assert.Contains("Macro-enabled", ex.Message, StringComparison.Ordinal);
     }
@@ -229,9 +229,9 @@ public static class OoxmlPackageTests
     [Fact]
     public static void LoadAllowsMacroEnabledDocumentWhenExplicitlyConfigured()
     {
-        using MemoryStream stream = CreateMinimalDocx(macroEnabled: true);
+        using MemoryStream stream = CreateMinimalDocx(extra: null, macroEnabled: true);
 
-        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions(AllowMacroEnabledDocuments: true));
+        OoxmlPackage package = OoxmlPackage.Load(stream, MacroPackageOptions(), CancellationToken.None);
 
         Assert.Equal("/word/document.xml", package.MainDocumentPartName);
     }
@@ -240,7 +240,7 @@ public static class OoxmlPackageTests
     public static void ApplyValidatesTouchedDocumentPartsBeforeSave()
     {
         using MemoryStream stream = CreateMinimalDocx();
-        OoxmlPackage package = OoxmlPackage.Load(stream, new OoxmlPackageOptions());
+        OoxmlPackage package = OoxmlPackage.Load(stream, PackageOptions(), CancellationToken.None);
         package.ReplacePartBytes(
             "/word/document.xml",
             Encoding.UTF8.GetBytes("""
@@ -248,7 +248,7 @@ public static class OoxmlPackageTests
                 """));
         var patch = new DocxPatch(true, 1, [], []);
 
-        PatchExecutionResult result = DocxPatchEngine.Apply(package, patch, new DocxEditOptions());
+        PatchExecutionResult result = DocxPatchEngine.Apply(package, patch, new DocxEditOptions(), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Contains(package.TouchedPartNames, partName => partName == "/word/document.xml");
@@ -290,7 +290,17 @@ public static class OoxmlPackageTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E0001" && diagnostic.Message.Contains("WordprocessingML", StringComparison.Ordinal));
     }
 
-    private static MemoryStream CreateMinimalDocx(Action<ZipArchive>? extra = null, bool macroEnabled = false)
+    private static MemoryStream CreateMinimalDocx()
+    {
+        return CreateMinimalDocx(extra: null, macroEnabled: false);
+    }
+
+    private static MemoryStream CreateMinimalDocx(Action<ZipArchive>? extra)
+    {
+        return CreateMinimalDocx(extra, macroEnabled: false);
+    }
+
+    private static MemoryStream CreateMinimalDocx(Action<ZipArchive>? extra, bool macroEnabled)
     {
         return CreatePackage(archive =>
         {
@@ -301,6 +311,18 @@ public static class OoxmlPackageTests
             AddEntry(archive, "word/media/image1.png", "png");
             extra?.Invoke(archive);
         });
+    }
+
+    private static OoxmlPackageOptions PackageOptions()
+    {
+        DocxPackageLimits limits = DocxPackageLimits.Default;
+        return new OoxmlPackageOptions(limits.LeaveInputOpen, limits.MaxZipEntries, limits.MaxUncompressedBytes, limits.MaxSinglePartBytes, AllowMacroEnabledDocuments: false);
+    }
+
+    private static OoxmlPackageOptions MacroPackageOptions()
+    {
+        DocxPackageLimits limits = DocxPackageLimits.Default;
+        return new OoxmlPackageOptions(limits.LeaveInputOpen, limits.MaxZipEntries, limits.MaxUncompressedBytes, limits.MaxSinglePartBytes, AllowMacroEnabledDocuments: true);
     }
 
     private static MemoryStream CreatePackage(Action<ZipArchive> configure)
@@ -323,7 +345,12 @@ public static class OoxmlPackageTests
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    private static string ContentTypesXml(bool macroEnabled = false)
+    private static string ContentTypesXml()
+    {
+        return ContentTypesXml(macroEnabled: false);
+    }
+
+    private static string ContentTypesXml(bool macroEnabled)
     {
         string mainDocumentContentType = macroEnabled
             ? "application/vnd.ms-word.document.macroEnabled.main+xml"
@@ -348,7 +375,12 @@ public static class OoxmlPackageTests
             """;
     }
 
-    private static string RelationshipsXml(string imageTarget = "media/image1.png")
+    private static string RelationshipsXml()
+    {
+        return RelationshipsXml("media/image1.png");
+    }
+
+    private static string RelationshipsXml(string imageTarget)
     {
         return $$"""
             <?xml version="1.0" encoding="utf-8"?>
