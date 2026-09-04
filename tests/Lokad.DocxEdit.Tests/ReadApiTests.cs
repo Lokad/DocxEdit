@@ -1996,8 +1996,8 @@ public static class ReadApiTests
         Assert.Equal("/word/document.xml", insertion.PartName);
         Assert.Equal("paragraph", insertion.ParentType);
         Assert.Equal("M.P0001", insertion.TargetId);
-        Assert.Equal("targeted", insertion.TargetStatus);
-        Assert.Equal("ancestor", insertion.TargetSource);
+        Assert.Equal(DocxTargetStatus.Targeted, insertion.TargetStatus);
+        Assert.Equal(DocxTargetSource.Ancestor, insertion.TargetSource);
         Assert.Null(insertion.TargetNote);
         Assert.Equal("Alice", insertion.Author);
         Assert.Equal("9", insertion.RevisionId);
@@ -2010,8 +2010,8 @@ public static class ReadApiTests
 
         DocxChangeInfo customRangeStart = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-start");
         DocxChangeInfo customRangeEnd = Assert.Single(result.Changes, change => change.Type == "custom-xml-delete-range-end");
-        Assert.Equal("adjacent-range", customRangeStart.TargetSource);
-        Assert.Equal("range-boundary", customRangeStart.TargetReason);
+        Assert.Equal(DocxTargetSource.AdjacentRange, customRangeStart.TargetSource);
+        Assert.True(customRangeStart.TargetReason == DocxTargetReason.RangeBoundary);
         Assert.Equal(customRangeEnd.Id, customRangeStart.PairedChangeId);
         Assert.Equal(customRangeStart.Id, customRangeEnd.PairedChangeId);
 
@@ -2051,7 +2051,7 @@ public static class ReadApiTests
 
         DocxChangeInfo commentStart = Assert.Single(result.Changes, change => change.Type == "comment-range-start");
         Assert.Equal("M.P0001", commentStart.TargetId);
-        Assert.Equal("ancestor", commentStart.TargetSource);
+        Assert.Equal(DocxTargetSource.Ancestor, commentStart.TargetSource);
         Assert.Null(commentStart.RevisionId);
         Assert.Equal("3", commentStart.CommentId);
         Assert.Equal("M.P0001", commentStart.CommentAnchorTargetId);
@@ -2255,9 +2255,9 @@ public static class ReadApiTests
         DocxChangeInfo deletion = Assert.Single(result.Changes);
         Assert.Equal("deleted-run", deletion.Type);
         Assert.Null(deletion.TargetId);
-        Assert.Equal("targetless", deletion.TargetStatus);
-        Assert.Equal("none", deletion.TargetSource);
-        Assert.Equal("body-level-markup", deletion.TargetReason);
+        Assert.Equal(DocxTargetStatus.Targetless, deletion.TargetStatus);
+        Assert.Equal(DocxTargetSource.None, deletion.TargetSource);
+        Assert.True(deletion.TargetReason == DocxTargetReason.BodyLevelMarkup);
         Assert.Equal("M.P0001", deletion.NearestTargetId);
         Assert.Contains("direct child of the document body", deletion.TargetNote, StringComparison.Ordinal);
         Assert.Contains("nearest-target=M.P0001", deletion.TargetNote, StringComparison.Ordinal);
@@ -2600,7 +2600,7 @@ public static class ReadApiTests
         Assert.Empty(simple.Switches);
         Assert.Empty(simple.BookmarkDependencies);
         Assert.Empty(simple.HyperlinkDependencies);
-        Assert.Equal("date-time", simple.RefreshPolicy);
+        Assert.Equal(DocxRefreshPolicy.DateTimeEvaluation, simple.RefreshPolicy);
         Assert.False(simple.CanRefreshDeterministically);
         Assert.Contains("date/time", simple.RefreshReason, StringComparison.Ordinal);
         Assert.Equal("locked", simple.SafeEditStatus);
@@ -2621,7 +2621,7 @@ public static class ReadApiTests
         Assert.Equal(new[] { "\\H" }, complex.Switches);
         Assert.Equal(new[] { "ClientName" }, complex.BookmarkDependencies);
         Assert.Empty(complex.HyperlinkDependencies);
-        Assert.Equal("same-part-bookmark", complex.RefreshPolicy);
+        Assert.Equal(DocxRefreshPolicy.SamePartBookmark, complex.RefreshPolicy);
         Assert.True(complex.CanRefreshDeterministically);
         Assert.Equal("flags-only", complex.SafeEditStatus);
         Assert.True(complex.IsDirty);
@@ -3236,8 +3236,8 @@ public static class ReadApiTests
         Assert.Equal("M.P0001", moveEnd.TargetId);
         Assert.Equal("M.T0001", customStart.TargetId);
         Assert.Equal("M.T0001", customEnd.TargetId);
-        Assert.Equal("adjacent-range", moveStart.TargetSource);
-        Assert.Equal("adjacent-range", moveEnd.TargetSource);
+        Assert.Equal(DocxTargetSource.AdjacentRange, moveStart.TargetSource);
+        Assert.Equal(DocxTargetSource.AdjacentRange, moveEnd.TargetSource);
         Assert.Equal(moveEnd.Id, moveStart.PairedChangeId);
         Assert.Equal(moveStart.Id, moveEnd.PairedChangeId);
         Assert.Equal(customEnd.Id, customStart.PairedChangeId);

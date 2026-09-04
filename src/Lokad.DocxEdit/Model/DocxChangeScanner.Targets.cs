@@ -71,7 +71,7 @@ internal static partial class DocxChangeScanner
         string? ancestorTargetId = FindAncestorTarget(element, targets);
         if (ancestorTargetId is not null)
         {
-            return new TargetMetadata(ancestorTargetId, "targeted", "ancestor", null, null, null);
+            return new TargetMetadata(ancestorTargetId, DocxTargetStatus.Targeted, DocxTargetSource.Ancestor, null, null, null);
         }
 
         string? adjacentRangeTargetId = FindAdjacentRangeTarget(element, targets);
@@ -79,9 +79,9 @@ internal static partial class DocxChangeScanner
         {
             return new TargetMetadata(
                 adjacentRangeTargetId,
-                "targeted",
-                "adjacent-range",
-                "range-boundary",
+                DocxTargetStatus.Targeted,
+                DocxTargetSource.AdjacentRange,
+                DocxTargetReason.RangeBoundary,
                 null,
                 "Range boundary is outside a modeled block; target is the nearest adjacent modeled block and should be treated as context.");
         }
@@ -90,19 +90,19 @@ internal static partial class DocxChangeScanner
         {
             return new TargetMetadata(
                 null,
-                "comment-anchor",
-                "comment-anchor",
+                DocxTargetStatus.CommentAnchor,
+                DocxTargetSource.CommentAnchor,
                 null,
                 null,
                 "Linked through matching comment anchor metadata.");
         }
 
         string? nearestTargetId = FindNearestSurroundingTarget(element, targets);
-        string reason = GetTargetlessReason(element);
+        DocxTargetReason reason = GetTargetlessReason(element);
         return new TargetMetadata(
             null,
-            "targetless",
-            "none",
+            DocxTargetStatus.Targetless,
+            DocxTargetSource.None,
             reason,
             nearestTargetId,
             GetTargetlessNote(reason, nearestTargetId));
@@ -155,39 +155,39 @@ internal static partial class DocxChangeScanner
         return bestTargetId;
     }
 
-    private static string GetTargetlessReason(XElement element)
+    private static DocxTargetReason GetTargetlessReason(XElement element)
     {
         if (IsRangeBoundaryElement(element))
         {
-            return "range-boundary-no-adjacent-target";
+            return DocxTargetReason.RangeBoundaryNoAdjacentTarget;
         }
 
         if (element.Parent?.Name == OoxmlNs.W + "body")
         {
-            return "body-level-markup";
+            return DocxTargetReason.BodyLevelMarkup;
         }
 
         if (element.Ancestors(OoxmlNs.W + "comments").Any())
         {
-            return "comment-story";
+            return DocxTargetReason.CommentStory;
         }
 
         if (element.Ancestors(OoxmlNs.W + "body").Any())
         {
-            return "unmodeled-body-structure";
+            return DocxTargetReason.UnmodeledBodyStructure;
         }
 
-        return "unmodeled-word-part";
+        return DocxTargetReason.UnmodeledWordPart;
     }
 
-    private static string GetTargetlessNote(string reason, string? nearestTargetId)
+    private static string GetTargetlessNote(DocxTargetReason reason, string? nearestTargetId)
     {
         string note = reason switch
         {
-            "range-boundary-no-adjacent-target" => "Range boundary is outside a modeled block and no adjacent modeled block was found.",
-            "body-level-markup" => "Markup is a direct child of the document body rather than a modeled paragraph, table, cell, or section.",
-            "comment-story" => "Markup is in a comment story without a modeled comment or main-story anchor target.",
-            "unmodeled-body-structure" => "Markup is inside a body structure that DocxEdit does not model as an edit target.",
+            DocxTargetReason.RangeBoundaryNoAdjacentTarget => "Range boundary is outside a modeled block and no adjacent modeled block was found.",
+            DocxTargetReason.BodyLevelMarkup => "Markup is a direct child of the document body rather than a modeled paragraph, table, cell, or section.",
+            DocxTargetReason.CommentStory => "Markup is in a comment story without a modeled comment or main-story anchor target.",
+            DocxTargetReason.UnmodeledBodyStructure => "Markup is inside a body structure that DocxEdit does not model as an edit target.",
             _ => "Markup is in a Word XML part but outside the currently modeled edit-target structures."
         };
 

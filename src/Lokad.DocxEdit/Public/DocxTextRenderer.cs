@@ -289,8 +289,8 @@ public static class DocxTextRenderer
         foreach (DocxChangeInfo change in result.Changes)
         {
             string target = change.TargetId is null ? "target=unknown" : $"target={change.TargetId}";
-            string targetSource = $" target-source={change.TargetSource}";
-            string targetReason = change.TargetReason is null ? string.Empty : $" target-reason={change.TargetReason}";
+            string targetSource = $" target-source={change.TargetSource.ToWireValue()}";
+            string targetReason = change.TargetReason is { } reason ? $" target-reason={reason.ToWireValue()}" : string.Empty;
             string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
             string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{XmlValues.EscapeText(change.TargetNote)}\"";
             string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
@@ -329,7 +329,7 @@ public static class DocxTextRenderer
                 .Append(' ')
                 .Append(target)
                 .Append(" target-status=")
-                .Append(change.TargetStatus)
+                .Append(change.TargetStatus.ToWireValue())
                 .Append(targetSource)
                 .Append(targetReason)
                 .Append(nearestTarget)

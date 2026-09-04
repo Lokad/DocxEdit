@@ -700,11 +700,11 @@ internal static partial class DocxDocumentScanner
         IReadOnlyList<string> Switches,
         IReadOnlyList<string> BookmarkDependencies,
         IReadOnlyList<string> HyperlinkDependencies,
-        string RefreshPolicy,
+        DocxRefreshPolicy RefreshPolicy,
         string? RefreshReason,
         bool CanRefreshDeterministically);
 
-    private sealed record FieldRefreshProfile(string Policy, string? Reason, bool CanRefreshDeterministically);
+    private sealed record FieldRefreshProfile(DocxRefreshPolicy Policy, string? Reason, bool CanRefreshDeterministically);
 
     private sealed class ComplexFieldBuilder(XElement startElement, string? targetId, int nestingDepth)
     {

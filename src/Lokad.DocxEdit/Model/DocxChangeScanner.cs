@@ -462,9 +462,9 @@ internal sealed record CommentAnchorMetadata(
 
 internal sealed record TargetMetadata(
     string? TargetId,
-    string Status,
-    string Source,
-    string? Reason,
+    DocxTargetStatus Status,
+    DocxTargetSource Source,
+    DocxTargetReason? Reason,
     string? NearestTargetId,
     string? Note);
 

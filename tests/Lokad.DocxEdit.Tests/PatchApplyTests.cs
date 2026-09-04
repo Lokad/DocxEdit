@@ -539,7 +539,7 @@ public static class PatchApplyTests
         DocxFieldInfo field = Assert.Single(new DocxEditor().Read(output).Fields);
         Assert.Equal("QUOTE", field.FieldType);
         Assert.Equal(new[] { "Acme Corp" }, field.Arguments);
-        Assert.Equal("literal", field.RefreshPolicy);
+        Assert.Equal(DocxRefreshPolicy.Literal, field.RefreshPolicy);
         Assert.True(field.CanRefreshDeterministically);
         Assert.Equal("Acme Corp", field.CachedResultText);
         Assert.Null(field.IsDirty);

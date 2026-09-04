@@ -462,6 +462,36 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliChangesJsonEmitsLowercaseTargetAnnotation()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "changes.docx");
+        CreateDocxWithTrackedChanges(input);
+
+        CliResult result = RunCli("changes", input, "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"TargetStatus\": \"targeted\"", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"TargetSource\": \"ancestor\"", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"TargetStatus\": 1", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"TargetSource\": 1", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliReadJsonEmitsLowercaseRefreshPolicy()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocxWithDateField(input);
+
+        CliResult result = RunCli("read", input, "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"RefreshPolicy\": \"date-time\"", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"RefreshPolicy\": 8", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliReadSupportsOriginalTrackedChangeView()
     {
         using TempDirectory temp = TempDirectory.Create();
@@ -829,6 +859,39 @@ public static class CliTests
                   <w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>
                   <w:cols w:num="2"/>
                 </w:sectPr>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void CreateDocxWithDateField(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p>
+                  <w:r><w:t>Today: </w:t></w:r>
+                  <w:fldSimple w:instr=" DATE ">
+                    <w:r><w:t>2026-09-04</w:t></w:r>
+                  </w:fldSimple>
+                </w:p>
               </w:body>
             </w:document>
             """);

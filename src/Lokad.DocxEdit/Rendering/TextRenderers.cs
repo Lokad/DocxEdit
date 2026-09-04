@@ -150,7 +150,7 @@ internal static class TextRenderers
                 .Append(bookmarkDependencies)
                 .Append(hyperlinkDependencies)
                 .Append(" refresh-policy=")
-                .Append(XmlValues.EscapeText(field.RefreshPolicy))
+                .Append(field.RefreshPolicy.ToWireValue())
                 .Append(" deterministic-refresh=")
                 .Append(field.CanRefreshDeterministically.ToString().ToLowerInvariant())
                 .Append(refreshReason)
@@ -314,7 +314,7 @@ internal static class TextRenderers
             string target = field.TargetId is null ? "unknown" : field.TargetId;
             string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
             string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
-            lines.Add($"{field.Id} field kind={XmlValues.EscapeText(field.Kind)}{fieldType} target={target} code=\"{XmlValues.EscapeText(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={XmlValues.EscapeText(field.RefreshPolicy)} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
+            lines.Add($"{field.Id} field kind={XmlValues.EscapeText(field.Kind)}{fieldType} target={target} code=\"{XmlValues.EscapeText(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={field.RefreshPolicy.ToWireValue()} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)

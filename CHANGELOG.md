@@ -11,3 +11,4 @@
 - Added no-content private validation tooling for ignored local `.docx` cases.
 - Added initial documentation for CLI usage, patch syntax, diagnostics, validation, and architecture.
 - Changed `DocxSectionInfo.Orientation` from `string` to the `DocxOrientation` enum (`Portrait`/`Landscape`); text, JSON, and patch wire values stay lowercase strings.
+- Changed change-target annotation (`TargetStatus`/`TargetSource`/`TargetReason`) and field `RefreshPolicy` from `string` to enums (`DocxTargetStatus`, `DocxTargetSource`, `DocxTargetReason`, `DocxRefreshPolicy`); text and JSON wire values stay lowercase strings.

@@ -222,9 +222,9 @@ public sealed record DocxChangeInfo
     public int? CommentTextLength { get; init; }
     public string? CommentTextSnippet { get; init; }
     public bool CommentTextTruncated { get; init; }
-    public string TargetStatus { get; init; } = "targetless";
-    public string TargetSource { get; init; } = "none";
-    public string? TargetReason { get; init; }
+    public DocxTargetStatus TargetStatus { get; init; } = DocxTargetStatus.Targetless;
+    public DocxTargetSource TargetSource { get; init; } = DocxTargetSource.None;
+    public DocxTargetReason? TargetReason { get; init; }
     public string? NearestTargetId { get; init; }
     public string? TargetNote { get; init; }
     public string? PairedChangeId { get; init; }
@@ -435,7 +435,7 @@ public sealed record DocxFieldInfo
     public int NestingDepth { get; init; }
     public IReadOnlyList<string> BookmarkDependencies { get; init; } = [];
     public IReadOnlyList<string> HyperlinkDependencies { get; init; } = [];
-    public string RefreshPolicy { get; init; } = "unsupported";
+    public DocxRefreshPolicy RefreshPolicy { get; init; } = DocxRefreshPolicy.Unsupported;
     public string? RefreshReason { get; init; }
     public bool CanRefreshDeterministically { get; init; }
     public string SafeEditStatus { get; init; } = "unknown";

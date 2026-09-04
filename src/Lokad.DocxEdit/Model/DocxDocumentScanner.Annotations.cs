@@ -434,7 +434,7 @@ internal static partial class DocxDocumentScanner
         string[] tokens = TokenizeFieldCode(code);
         if (tokens.Length == 0)
         {
-            return new FieldCodeMetadata(null, [], [], [], [], "unsupported", "field code is empty", false);
+            return new FieldCodeMetadata(null, [], [], [], [], DocxRefreshPolicy.Unsupported, "field code is empty", false);
         }
 
         string fieldType = NormalizeFieldType(tokens[0]);
@@ -527,16 +527,16 @@ internal static partial class DocxDocumentScanner
     {
         return fieldType switch
         {
-            "REF" or "PAGEREF" or "NOTEREF" => new("same-part-bookmark", "refreshes from an unambiguous same-part bookmark", true),
-            "QUOTE" => new("literal", "refreshes from literal field-code arguments", true),
-            "TOC" or "PAGE" or "NUMPAGES" or "SECTIONPAGES" => new("word-layout", "requires Word layout or pagination state", false),
-            "DOCPROPERTY" or "DOCVARIABLE" or "AUTHOR" or "TITLE" or "SUBJECT" or "KEYWORDS" => new("document-property", "requires document property state", false),
-            "MERGEFIELD" or "MERGEREC" or "MERGESEQ" or "NEXT" or "NEXTIF" or "SKIPIF" => new("mail-merge-data", "requires mail merge data or mail merge state", false),
-            "FORMULA" => new("formula", "requires Word formula evaluation", false),
-            "IF" => new("conditional", "requires Word conditional field evaluation", false),
-            "DATE" or "TIME" or "CREATEDATE" or "SAVEDATE" or "PRINTDATE" => new("date-time", "requires Word date/time evaluation", false),
-            "HYPERLINK" or "INCLUDETEXT" or "INCLUDEPICTURE" or "LINK" => new("external", "requires hyperlink or external target state", false),
-            _ => new("unsupported", "field type is not modeled for deterministic refresh", false)
+            "REF" or "PAGEREF" or "NOTEREF" => new(DocxRefreshPolicy.SamePartBookmark, "refreshes from an unambiguous same-part bookmark", true),
+            "QUOTE" => new(DocxRefreshPolicy.Literal, "refreshes from literal field-code arguments", true),
+            "TOC" or "PAGE" or "NUMPAGES" or "SECTIONPAGES" => new(DocxRefreshPolicy.WordLayout, "requires Word layout or pagination state", false),
+            "DOCPROPERTY" or "DOCVARIABLE" or "AUTHOR" or "TITLE" or "SUBJECT" or "KEYWORDS" => new(DocxRefreshPolicy.DocumentProperty, "requires document property state", false),
+            "MERGEFIELD" or "MERGEREC" or "MERGESEQ" or "NEXT" or "NEXTIF" or "SKIPIF" => new(DocxRefreshPolicy.MailMergeData, "requires mail merge data or mail merge state", false),
+            "FORMULA" => new(DocxRefreshPolicy.Formula, "requires Word formula evaluation", false),
+            "IF" => new(DocxRefreshPolicy.Conditional, "requires Word conditional field evaluation", false),
+            "DATE" or "TIME" or "CREATEDATE" or "SAVEDATE" or "PRINTDATE" => new(DocxRefreshPolicy.DateTimeEvaluation, "requires Word date/time evaluation", false),
+            "HYPERLINK" or "INCLUDETEXT" or "INCLUDEPICTURE" or "LINK" => new(DocxRefreshPolicy.External, "requires hyperlink or external target state", false),
+            _ => new(DocxRefreshPolicy.Unsupported, "field type is not modeled for deterministic refresh", false)
         };
     }
 
