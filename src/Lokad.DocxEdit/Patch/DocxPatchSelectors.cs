@@ -266,22 +266,27 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        if (selector is ExplicitIdTargetSelector)
+        if (selector is not ExplicitIdTargetSelector explicitId)
         {
-            if (TryParseMainParagraphTarget(target, out int paragraphOrdinal))
-            {
-                return FindParagraph(body, paragraphOrdinal);
-            }
+            return ResolveMainParagraphElementBySelector(body, selector, operation, out diagnostics);
+        }
 
-            if (TryParseMainTableTarget(target, out int tableOrdinal))
-            {
-                return FindTable(body, tableOrdinal);
-            }
-
+        if (explicitId.TargetId is not { } blockId)
+        {
             return null;
         }
 
-        return ResolveMainParagraphElementBySelector(body, selector, operation, out diagnostics);
+        if (blockId is { Story: 'M', Kind: DocxTargetKind.Paragraph })
+        {
+            return FindParagraph(body, blockId.Primary);
+        }
+
+        if (blockId is { Story: 'M', Kind: DocxTargetKind.Table })
+        {
+            return FindTable(body, blockId.Primary);
+        }
+
+        return null;
     }
 
     private static BlockTarget? ResolveBlockTarget(
@@ -308,42 +313,34 @@ internal static partial class DocxPatchEngine
                 : new BlockTarget(package.MainDocumentPartName, mainDocument, selectedBlock);
         }
 
-        if (TryParseMainParagraphTarget(target, out int mainParagraphOrdinal))
+        if (selector is ExplicitIdTargetSelector { TargetId: { } blockId })
         {
-            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
-            return paragraph is null
-                ? null
-                : new BlockTarget(package.MainDocumentPartName, document, paragraph);
-        }
+            if (blockId is { Story: 'M', Kind: DocxTargetKind.Paragraph })
+            {
+                XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+                XElement? paragraph = FindParagraph(body, blockId.Primary);
+                return paragraph is null
+                    ? null
+                    : new BlockTarget(package.MainDocumentPartName, document, paragraph);
+            }
 
-        if (TryParseMainTableTarget(target, out int mainTableOrdinal))
-        {
-            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? table = FindTable(body, mainTableOrdinal);
-            return table is null
-                ? null
-                : new BlockTarget(package.MainDocumentPartName, document, table);
-        }
+            if (blockId is { Story: 'M', Kind: DocxTargetKind.Table })
+            {
+                XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+                XElement? table = FindTable(body, blockId.Primary);
+                return table is null
+                    ? null
+                    : new BlockTarget(package.MainDocumentPartName, document, table);
+            }
 
-        if (TryParseStoryParagraphTarget(target, 'H', out int headerOrdinal, out int headerParagraphOrdinal))
-        {
-            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Header, headerOrdinal, OoxmlNs.W + "p", headerParagraphOrdinal, cancellationToken);
-        }
-
-        if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
-        {
-            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Footer, footerOrdinal, OoxmlNs.W + "p", footerParagraphOrdinal, cancellationToken);
-        }
-
-        if (TryParseStoryTableTarget(target, 'H', out headerOrdinal, out int headerTableOrdinal))
-        {
-            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Header, headerOrdinal, OoxmlNs.W + "tbl", headerTableOrdinal, cancellationToken);
-        }
-
-        if (TryParseStoryTableTarget(target, 'F', out footerOrdinal, out int footerTableOrdinal))
-        {
-            return ResolveRelatedStoryBlockTarget(package, OoxmlRelTypes.Footer, footerOrdinal, OoxmlNs.W + "tbl", footerTableOrdinal, cancellationToken);
+            bool isStoryBlock = blockId is { Kind: DocxTargetKind.Paragraph, Story: 'H' or 'F' }
+                or { Kind: DocxTargetKind.Table, Story: 'H' or 'F' };
+            if (isStoryBlock)
+            {
+                string relationshipType = blockId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+                XName blockName = blockId.Kind == DocxTargetKind.Paragraph ? OoxmlNs.W + "p" : OoxmlNs.W + "tbl";
+                return ResolveRelatedStoryBlockTarget(package, relationshipType, blockId.StoryPart, blockName, blockId.Primary, cancellationToken);
+            }
         }
 
         return null;
@@ -363,25 +360,22 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        if (selector is ExplicitIdTargetSelector)
+        if (selector is ExplicitIdTargetSelector { TargetId: { } paragraphId })
         {
-            if (TryParseMainParagraphTarget(target, out int mainParagraphOrdinal))
+            if (paragraphId is { Story: 'M', Kind: DocxTargetKind.Paragraph })
             {
                 XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-                XElement? paragraph = FindParagraph(body, mainParagraphOrdinal);
+                XElement? paragraph = FindParagraph(body, paragraphId.Primary);
                 return paragraph is null
                     ? null
                     : new ParagraphTarget(package.MainDocumentPartName, document, paragraph);
             }
 
-            if (TryParseStoryParagraphTarget(target, 'H', out int headerOrdinal, out int headerParagraphOrdinal))
+            bool isStoryParagraph = paragraphId is { Kind: DocxTargetKind.Paragraph, Story: 'H' or 'F' };
+            if (isStoryParagraph)
             {
-                return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Header, headerOrdinal, headerParagraphOrdinal, cancellationToken);
-            }
-
-            if (TryParseStoryParagraphTarget(target, 'F', out int footerOrdinal, out int footerParagraphOrdinal))
-            {
-                return ResolveRelatedStoryParagraphTarget(package, OoxmlRelTypes.Footer, footerOrdinal, footerParagraphOrdinal, cancellationToken);
+                string relationshipType = paragraphId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+                return ResolveRelatedStoryParagraphTarget(package, relationshipType, paragraphId.StoryPart, paragraphId.Primary, cancellationToken);
             }
 
             return null;
@@ -393,6 +387,146 @@ internal static partial class DocxPatchEngine
         return selectedParagraph is null
             ? null
             : new ParagraphTarget(package.MainDocumentPartName, mainDocument, selectedParagraph);
+    }
+
+    internal static bool TryParseTargetId(string? target, out DocxTargetId targetId)
+    {
+        targetId = default;
+        if (string.IsNullOrEmpty(target))
+        {
+            return false;
+        }
+
+        if (TryParseMainParagraphTarget(target, out int paragraphOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Paragraph, paragraphOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainTableTarget(target, out int tableOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Table, tableOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainCellTarget(target, out int cellTableOrdinal, out int rowOrdinal, out int cellOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Cell, cellTableOrdinal, rowOrdinal, cellOrdinal);
+            return true;
+        }
+
+        if (TryParseMainMergeGroupTarget(target, out int mergeGroupTableOrdinal, out int mergeGroupOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.MergeGroup, mergeGroupTableOrdinal, mergeGroupOrdinal, 0);
+            return true;
+        }
+
+        if (TryParseMainRowTarget(target, out int rowTableOrdinal, out int mainRowOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Row, rowTableOrdinal, mainRowOrdinal, 0);
+            return true;
+        }
+
+        if (TryParseMainImageTarget(target, out int imageOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Image, imageOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainHyperlinkTarget(target, out int hyperlinkOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Hyperlink, hyperlinkOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainFieldTarget(target, out int fieldOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Field, fieldOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainBookmarkTarget(target, out int bookmarkOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainContentControlTarget(target, out int contentControlOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.ContentControl, contentControlOrdinal, 0, 0);
+            return true;
+        }
+
+        if (TryParseMainSectionTarget(target, out int sectionOrdinal))
+        {
+            targetId = new DocxTargetId('M', 0, DocxTargetKind.Section, sectionOrdinal, 0, 0);
+            return true;
+        }
+
+        foreach (char storyPrefix in new[] { 'H', 'F' })
+        {
+            if (TryParseStoryParagraphTarget(target, storyPrefix, out int storyOrdinal, out int storyParagraphOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Paragraph, storyParagraphOrdinal, 0, 0);
+                return true;
+            }
+
+            if (TryParseStoryTableTarget(target, storyPrefix, out storyOrdinal, out int storyTableOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Table, storyTableOrdinal, 0, 0);
+                return true;
+            }
+
+            if (TryParseStoryCellTarget(target, storyPrefix, out storyOrdinal, out int storyCellTableOrdinal, out int storyRowOrdinal, out int storyCellOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Cell, storyCellTableOrdinal, storyRowOrdinal, storyCellOrdinal);
+                return true;
+            }
+
+            if (TryParseStoryMergeGroupTarget(target, storyPrefix, out storyOrdinal, out int storyMergeGroupTableOrdinal, out int storyMergeGroupOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.MergeGroup, storyMergeGroupTableOrdinal, storyMergeGroupOrdinal, 0);
+                return true;
+            }
+
+            if (TryParseStoryRowTarget(target, storyPrefix, out storyOrdinal, out int storyRowTableOrdinal, out int storyRowRowOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Row, storyRowTableOrdinal, storyRowRowOrdinal, 0);
+                return true;
+            }
+
+            if (TryParseStoryImageTarget(target, storyPrefix, out storyOrdinal, out int storyImageOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Image, storyImageOrdinal, 0, 0);
+                return true;
+            }
+
+            if (TryParseStoryHyperlinkTarget(target, storyPrefix, out storyOrdinal, out int storyHyperlinkOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Hyperlink, storyHyperlinkOrdinal, 0, 0);
+                return true;
+            }
+
+            if (TryParseStoryFieldTarget(target, storyPrefix, out storyOrdinal, out int storyFieldOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Field, storyFieldOrdinal, 0, 0);
+                return true;
+            }
+
+            if (TryParseStoryBookmarkTarget(target, storyPrefix, out storyOrdinal, out int storyBookmarkOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Bookmark, storyBookmarkOrdinal, 0, 0);
+                return true;
+            }
+
+            if (TryParseStoryContentControlTarget(target, storyPrefix, out storyOrdinal, out int storyContentControlOrdinal))
+            {
+                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.ContentControl, storyContentControlOrdinal, 0, 0);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryParseTargetSelector(
@@ -469,7 +603,8 @@ internal static partial class DocxPatchEngine
             return true;
         }
 
-        selector = new ExplicitIdTargetSelector(target);
+        DocxTargetId? parsedTargetId = TryParseTargetId(target, out DocxTargetId parsedTargetIdValue) ? parsedTargetIdValue : null;
+        selector = new ExplicitIdTargetSelector(target, parsedTargetId);
         return true;
     }
 

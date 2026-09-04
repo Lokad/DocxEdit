@@ -114,7 +114,9 @@ internal abstract record TargetSelector(string Raw);
 /// Never handled by the predicate path — callers dispatch on ID shape instead
 /// (<c>TryParseMainParagraphTarget</c>, <c>TryParseStoryTableTarget</c>, …).
 /// </summary>
-internal sealed record ExplicitIdTargetSelector(string Raw) : TargetSelector(Raw);
+/// <c>TargetId</c> carries the parsed structure when <c>Raw</c> matches the explicit-ID
+/// grammar, null otherwise; resolution choke points match on it instead of re-parsing <c>Raw</c>.
+internal sealed record ExplicitIdTargetSelector(string Raw, DocxTargetId? TargetId) : TargetSelector(Raw);
 
 /// <summary>
 /// <c>heading:"Text"</c> or <c>heading:L:"Text"</c>: matches a main-story paragraph
