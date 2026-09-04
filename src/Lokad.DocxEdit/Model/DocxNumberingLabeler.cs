@@ -32,8 +32,8 @@ internal sealed class DocxNumberingLabeler
             LabelText = label,
             LabelComponents = components.ToArray(),
             LabelStatus = label is null
-                ? "unsupported"
-                : warnings.Count == 0 ? "resolved" : "partial",
+                ? DocxLabelStatus.Unsupported
+                : warnings.Count == 0 ? DocxLabelStatus.Resolved : DocxLabelStatus.Partial,
             LabelWarnings = warnings.ToArray()
         };
     }

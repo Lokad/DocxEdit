@@ -882,14 +882,14 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     public string? LevelText { get; init; }
     public string? LabelText { get; init; }
     public IReadOnlyList<DocxListLabelComponent> LabelComponents { get; init; } = [];
-    public string LabelStatus { get; init; } = "not-resolved";
+    public DocxLabelStatus LabelStatus { get; init; } = DocxLabelStatus.NotResolved;
     public IReadOnlyList<string> LabelWarnings { get; init; } = [];
     public int? StartValue { get; init; }
     public string? Suffix { get; init; }
     public bool IsLegal { get; init; }
     public int? RestartAfterLevel { get; init; }
     public string? ParagraphStyleId { get; init; }
-    public string Source { get; init; } = "direct";
+    public DocxLabelSource Source { get; init; } = DocxLabelSource.Direct;
 }
 
 public sealed record DocxListLabelComponent(int Level, int Value, string Text, string Format);

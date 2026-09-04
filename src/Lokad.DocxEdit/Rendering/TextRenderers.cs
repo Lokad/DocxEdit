@@ -692,9 +692,9 @@ internal static class TextRenderers
         string format = list.Format is null ? string.Empty : $" format={XmlValues.EscapeText(list.Format)}";
         string levelText = list.LevelText is null ? string.Empty : $" level-text=\"{XmlValues.EscapeText(list.LevelText)}\"";
         string label = list.LabelText is null ? string.Empty : $" label=\"{XmlValues.EscapeText(list.LabelText)}\"";
-        string labelStatus = string.Equals(list.LabelStatus, "resolved", StringComparison.Ordinal)
+        string labelStatus = list.LabelStatus == DocxLabelStatus.Resolved
             ? string.Empty
-            : $" label-status={XmlValues.EscapeText(list.LabelStatus)}";
+            : $" label-status={list.LabelStatus.ToWireValue()}";
         string labelWarnings = list.LabelWarnings.Count == 0
             ? string.Empty
             : $" label-warnings=\"{XmlValues.EscapeText(string.Join(",", list.LabelWarnings))}\"";
@@ -706,9 +706,9 @@ internal static class TextRenderers
         string legal = list.IsLegal ? " legal=true" : string.Empty;
         string restart = list.RestartAfterLevel is null ? string.Empty : $" restart-after-level={list.RestartAfterLevel}";
         string paragraphStyle = list.ParagraphStyleId is null ? string.Empty : $" paragraph-style={XmlValues.EscapeText(list.ParagraphStyleId)}";
-        string source = string.Equals(list.Source, "direct", StringComparison.Ordinal)
+        string source = list.Source == DocxLabelSource.Direct
             ? string.Empty
-            : $" source={XmlValues.EscapeText(list.Source)}";
+            : $" source={list.Source.ToWireValue()}";
         return $" list numId={XmlValues.EscapeText(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{labelComponents}{start}{suffix}{legal}{restart}";
     }
 

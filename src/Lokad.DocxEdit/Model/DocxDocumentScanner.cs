@@ -471,7 +471,7 @@ internal static partial class DocxDocumentScanner
             int level = int.TryParse(levelText, out int parsedLevel) && parsedLevel >= 0
                 ? parsedLevel
                 : ResolveStyleNumbering(styleId, stylesById)?.Level ?? 0;
-            return numbering.Resolve(numberingId, level, "direct");
+            return numbering.Resolve(numberingId, level, DocxLabelSource.Direct);
         }
 
         StyleNumbering? styleNumbering = ResolveStyleNumbering(styleId, stylesById);
@@ -504,7 +504,7 @@ internal static partial class DocxDocumentScanner
                 return new StyleNumbering(
                     style.NumberingId,
                     style.NumberingLevel ?? 0,
-                    inherited ? "style-inherited" : "style");
+                    inherited ? DocxLabelSource.StyleInherited : DocxLabelSource.Style);
             }
 
             current = style.BasedOnStyleId;
@@ -683,7 +683,7 @@ internal static partial class DocxDocumentScanner
             HyperlinkAnchor is null;
     }
 
-    private sealed record StyleNumbering(string NumberingId, int Level, string Source);
+    private sealed record StyleNumbering(string NumberingId, int Level, DocxLabelSource Source);
 
     private sealed record TableMergeState(string MergeGroupId, string? RootCellId);
 

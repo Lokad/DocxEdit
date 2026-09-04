@@ -578,6 +578,22 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliReadJsonEmitsLowercaseLabelAnnotation()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "numbered-headings.docx");
+        CreateDocxWithTrackedNumberedHeadings(input);
+
+        CliResult result = RunCli("read", input, "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"LabelStatus\": \"resolved\"", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex("\"LabelStatus\": [0-9]"), result.Output);
+        Assert.Contains("\"Source\": \"direct\"", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex("\"Source\": [0-9]"), result.Output);
+    }
+
+    [Fact]
     public static void CliReadSupportsOriginalTrackedChangeView()
     {
         using TempDirectory temp = TempDirectory.Create();

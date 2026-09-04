@@ -1139,9 +1139,9 @@ public static class ReadApiTests
         Assert.Equal("bullet", list.Format);
         Assert.Equal("o", list.LevelText);
         Assert.Equal("BulletStyle", list.ParagraphStyleId);
-        Assert.Equal("direct", list.Source);
+        Assert.Equal(DocxLabelSource.Direct, list.Source);
         Assert.Equal("o", list.LabelText);
-        Assert.Equal("resolved", list.LabelStatus);
+        Assert.Equal(DocxLabelStatus.Resolved, list.LabelStatus);
         Assert.Contains("list numId=9 level=1 abstractNumId=7 format=bullet level-text=\"o\" paragraph-style=BulletStyle", result.Text, StringComparison.Ordinal);
     }
 
@@ -1190,7 +1190,7 @@ public static class ReadApiTests
         Assert.Equal("ListParagraph", paragraph.StyleId);
         Assert.Equal("List Paragraph", paragraph.StyleName);
         Assert.NotNull(paragraph.List);
-        Assert.Equal("style", paragraph.List.Source);
+        Assert.Equal(DocxLabelSource.Style, paragraph.List.Source);
         Assert.Equal("decimal", paragraph.List.Format);
         Assert.Equal("1.", paragraph.List.LabelText);
         Assert.Contains("styleId=ListParagraph list numId=11 level=0 abstractNumId=2 format=decimal level-text=\"%1.\" source=style", result.Text, StringComparison.Ordinal);
@@ -1253,7 +1253,7 @@ public static class ReadApiTests
             .Select(paragraph => paragraph.List?.LabelText ?? string.Empty)
             .ToArray();
         Assert.Equal(["3.", "3.b)", "3.c)", "4.", "4.b)"], labels);
-        Assert.All(result.Paragraphs, paragraph => Assert.Equal("resolved", paragraph.List?.LabelStatus));
+        Assert.All(result.Paragraphs, paragraph => Assert.True(paragraph.List?.LabelStatus == DocxLabelStatus.Resolved));
         Assert.Equal(3, result.Paragraphs[0].List?.StartValue);
         Assert.Equal("space", result.Paragraphs[0].List?.Suffix);
         DocxListLabelComponent[] components = Assert.IsType<DocxListInfo>(result.Paragraphs[1].List).LabelComponents.ToArray();

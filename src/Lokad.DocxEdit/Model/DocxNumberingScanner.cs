@@ -107,7 +107,7 @@ internal sealed class DocxNumberingCatalog
         return new DocxNumberingCatalog(numberingToAbstract, levels, overrides);
     }
 
-    public DocxListInfo Resolve(string numberingId, int level, string source)
+    public DocxListInfo Resolve(string numberingId, int level, DocxLabelSource source)
     {
         string? abstractId = _numberingToAbstract.TryGetValue(numberingId, out string? resolvedAbstractId)
             ? resolvedAbstractId

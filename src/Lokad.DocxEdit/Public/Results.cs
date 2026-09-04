@@ -610,7 +610,7 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     /// <summary>Label components.</summary>
     public IReadOnlyList<DocxListLabelComponent> LabelComponents { get; init; } = [];
     /// <summary>Label resolution status.</summary>
-    public string LabelStatus { get; init; } = "not-resolved";
+    public DocxLabelStatus LabelStatus { get; init; } = DocxLabelStatus.NotResolved;
     /// <summary>Label warnings.</summary>
     public IReadOnlyList<string> LabelWarnings { get; init; } = [];
     /// <summary>Start value override, when set.</summary>
@@ -624,7 +624,7 @@ public sealed record DocxListInfo(string NumberingId, int Level)
     /// <summary>Paragraph style ID, when set.</summary>
     public string? ParagraphStyleId { get; init; }
     /// <summary>Label source.</summary>
-    public string Source { get; init; } = "direct";
+    public DocxLabelSource Source { get; init; } = DocxLabelSource.Direct;
 }
 
 /// <summary>
