@@ -216,7 +216,7 @@ public static class DocxHelp
         AppendCommandGroup(builder, "Patch", "patch");
         builder.AppendLine();
         builder.AppendLine("Help:");
-        builder.AppendLine("  help dump|context|changes|validate|check|apply|patch");
+        builder.Append("  help ").AppendLine(string.Join("|", Catalog.Commands.Select(command => command.Name).Concat(["patch"])));
         builder.AppendLine();
         builder.AppendLine("Examples:");
         foreach (string example in Catalog.Examples)

@@ -302,6 +302,21 @@ public static class PublicIntegrationSurfaceTests
         Assert.True(DocxPrivacyPresets.ChangesMarkupOnly.LeaveInputOpen);
     }
 
+    [Fact]
+    public static void HelpOverviewListsEveryHelpTopic()
+    {
+        string overview = DocxHelp.RenderOverview();
+        foreach (DocxCommandInfo command in DocxHelp.Catalog.Commands)
+        {
+            Assert.True(DocxHelp.TryRenderTopic(command.Name, out string text), command.Name);
+            Assert.NotEmpty(text);
+            Assert.Contains(command.Name, overview, StringComparison.Ordinal);
+        }
+
+        Assert.True(DocxHelp.TryRenderTopic("patch", out _));
+        Assert.Contains("patch", overview, StringComparison.Ordinal);
+    }
+
     private static string FindRepoRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

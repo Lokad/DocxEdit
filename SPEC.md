@@ -3795,7 +3795,7 @@ Patch:
   apply      Apply a .docxpatch file and write a new .docx
 
 Help:
-  help dump|context|changes|validate|check|apply|patch
+  help read|outline|find|dump|context|styles|media|validate|changes|catalog|version|check|apply|patch
 
 Examples:
   docxedit read report.docx [--view final|original|markup]
