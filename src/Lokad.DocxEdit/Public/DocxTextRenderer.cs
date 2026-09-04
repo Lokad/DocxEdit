@@ -138,53 +138,53 @@ public static class DocxTextRenderer
         }
 
         return builder.ToString();
-    }
 
-    private static string RenderImageLayoutMetadata(DocxImageInfo image)
-    {
-        return RenderLong("wrap-dist-top-emu", image.WrapDistanceTopEmu) +
-            RenderLong("wrap-dist-bottom-emu", image.WrapDistanceBottomEmu) +
-            RenderLong("wrap-dist-left-emu", image.WrapDistanceLeftEmu) +
-            RenderLong("wrap-dist-right-emu", image.WrapDistanceRightEmu) +
-            RenderLong("relative-height", image.RelativeHeight) +
-            RenderBool("allow-overlap", image.AllowOverlap) +
-            RenderBool("lock-aspect", image.LockAspectRatio) +
-            RenderString("position-h-relative", image.HorizontalPositionRelativeFrom) +
-            RenderLong("position-h-offset-emu", image.HorizontalPositionOffsetEmu) +
-            RenderString("position-h-align", image.HorizontalPositionAlign) +
-            RenderString("position-v-relative", image.VerticalPositionRelativeFrom) +
-            RenderLong("position-v-offset-emu", image.VerticalPositionOffsetEmu) +
-            RenderString("position-v-align", image.VerticalPositionAlign);
-    }
+        static string RenderImageLayoutMetadata(DocxImageInfo image)
+        {
+            return RenderLong("wrap-dist-top-emu", image.WrapDistanceTopEmu) +
+                RenderLong("wrap-dist-bottom-emu", image.WrapDistanceBottomEmu) +
+                RenderLong("wrap-dist-left-emu", image.WrapDistanceLeftEmu) +
+                RenderLong("wrap-dist-right-emu", image.WrapDistanceRightEmu) +
+                RenderLong("relative-height", image.RelativeHeight) +
+                RenderBool("allow-overlap", image.AllowOverlap) +
+                RenderBool("lock-aspect", image.LockAspectRatio) +
+                RenderString("position-h-relative", image.HorizontalPositionRelativeFrom) +
+                RenderLong("position-h-offset-emu", image.HorizontalPositionOffsetEmu) +
+                RenderString("position-h-align", image.HorizontalPositionAlign) +
+                RenderString("position-v-relative", image.VerticalPositionRelativeFrom) +
+                RenderLong("position-v-offset-emu", image.VerticalPositionOffsetEmu) +
+                RenderString("position-v-align", image.VerticalPositionAlign);
+        }
 
-    private static string RenderCrop(DocxImageInfo image)
-    {
-        return RenderPercent("crop-left-percent", image.CropLeftPercent) +
-            RenderPercent("crop-top-percent", image.CropTopPercent) +
-            RenderPercent("crop-right-percent", image.CropRightPercent) +
-            RenderPercent("crop-bottom-percent", image.CropBottomPercent);
-    }
+        static string RenderCrop(DocxImageInfo image)
+        {
+            return RenderPercent("crop-left-percent", image.CropLeftPercent) +
+                RenderPercent("crop-top-percent", image.CropTopPercent) +
+                RenderPercent("crop-right-percent", image.CropRightPercent) +
+                RenderPercent("crop-bottom-percent", image.CropBottomPercent);
+        }
 
-    private static string RenderPercent(string name, decimal? value)
-    {
-        return value is null
-            ? string.Empty
-            : $" {name}={value.Value.ToString("0.###", CultureInfo.InvariantCulture)}";
-    }
+        static string RenderPercent(string name, decimal? value)
+        {
+            return value is null
+                ? string.Empty
+                : $" {name}={value.Value.ToString("0.###", CultureInfo.InvariantCulture)}";
+        }
 
-    private static string RenderLong(string name, long? value)
-    {
-        return value is null ? string.Empty : $" {name}={value}";
-    }
+        static string RenderLong(string name, long? value)
+        {
+            return value is null ? string.Empty : $" {name}={value}";
+        }
 
-    private static string RenderBool(string name, bool? value)
-    {
-        return value is null ? string.Empty : $" {name}={value.Value.ToString().ToLowerInvariant()}";
-    }
+        static string RenderBool(string name, bool? value)
+        {
+            return value is null ? string.Empty : $" {name}={value.Value.ToString().ToLowerInvariant()}";
+        }
 
-    private static string RenderString(string name, string? value)
-    {
-        return value is null ? string.Empty : $" {name}={XmlValues.EscapeText(value)}";
+        static string RenderString(string name, string? value)
+        {
+            return value is null ? string.Empty : $" {name}={XmlValues.EscapeText(value)}";
+        }
     }
 
     public static string RenderValidate(DocxValidateResult result)
@@ -366,6 +366,11 @@ public static class DocxTextRenderer
         }
 
         return builder.ToString();
+
+        static string FormatTypeSummary(IReadOnlyList<DocxChangeSummary> summaries)
+        {
+            return string.Join(",", summaries.Select(summary => $"{summary.Type}:{summary.Count}"));
+        }
     }
 
     public static string RenderOperationSummary(IReadOnlyList<DocxPatchOperationReport> operations)
@@ -438,9 +443,5 @@ public static class DocxTextRenderer
         return builder.ToString();
     }
 
-    private static string FormatTypeSummary(IReadOnlyList<DocxChangeSummary> summaries)
-    {
-        return string.Join(",", summaries.Select(summary => $"{summary.Type}:{summary.Count}"));
-    }
 
 }

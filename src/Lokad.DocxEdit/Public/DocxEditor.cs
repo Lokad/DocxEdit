@@ -43,7 +43,7 @@ public sealed class DocxEditor
             {
                 Success = false,
                 Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
-                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                PartNames = SortedPartNames(package),
                 MainDocumentPartName = package.MainDocumentPartName
             };
         }
@@ -54,7 +54,7 @@ public sealed class DocxEditor
             Diagnostics = diagnostics
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken))
                 .ToArray(),
-            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
             Text = TextRenderers.RenderRead(model!, options.MaxText),
             Paragraphs = model!.Paragraphs,
@@ -100,7 +100,7 @@ public sealed class DocxEditor
             {
                 Success = false,
                 Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
-                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                PartNames = SortedPartNames(package),
                 MainDocumentPartName = package.MainDocumentPartName
             };
         }
@@ -111,7 +111,7 @@ public sealed class DocxEditor
             Diagnostics = diagnostics
                 .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
                 .ToArray(),
-            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
             Lines = TextRenderers.RenderOutline(model!)
         };
@@ -412,7 +412,7 @@ public sealed class DocxEditor
                 Success = false,
                 Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
                 Profile = options.Profile,
-                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                PartNames = SortedPartNames(package),
                 MainDocumentPartName = package.MainDocumentPartName
             };
         }
@@ -425,30 +425,30 @@ public sealed class DocxEditor
             Success = allDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error),
             Diagnostics = allDiagnostics,
             Profile = options.Profile,
-            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName
         };
-    }
 
-    private static IReadOnlyList<DocxDiagnostic> CapValidationDiagnostics(
-        IEnumerable<DocxDiagnostic> diagnostics,
-        int maxDiagnostics)
-    {
-        int cap = Math.Max(1, maxDiagnostics);
-        DocxDiagnostic[] allDiagnostics = diagnostics.ToArray();
-        if (allDiagnostics.Length <= cap)
+        static IReadOnlyList<DocxDiagnostic> CapValidationDiagnostics(
+            IEnumerable<DocxDiagnostic> diagnostics,
+            int maxDiagnostics)
         {
-            return allDiagnostics;
-        }
+            int cap = Math.Max(1, maxDiagnostics);
+            DocxDiagnostic[] allDiagnostics = diagnostics.ToArray();
+            if (allDiagnostics.Length <= cap)
+            {
+                return allDiagnostics;
+            }
 
-        DocxDiagnostic[] kept = allDiagnostics.Take(Math.Max(0, cap - 1)).ToArray();
-        DocxDiagnostic[] omitted = allDiagnostics.Skip(kept.Length).ToArray();
-        bool omittedErrors = omitted.Any(diagnostic => diagnostic.Severity == DocxSeverity.Error);
-        DocxDiagnostic truncationDiagnostic = new(
-            omittedErrors ? DocxSeverity.Error : DocxSeverity.Warning,
-            omittedErrors ? "E9199" : "W9199",
-            $"Validation diagnostics were capped at {cap}; omitted {omitted.Length} of {allDiagnostics.Length} diagnostic(s).");
-        return kept.Append(truncationDiagnostic).ToArray();
+            DocxDiagnostic[] kept = allDiagnostics.Take(Math.Max(0, cap - 1)).ToArray();
+            DocxDiagnostic[] omitted = allDiagnostics.Skip(kept.Length).ToArray();
+            bool omittedErrors = omitted.Any(diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            DocxDiagnostic truncationDiagnostic = new(
+                omittedErrors ? DocxSeverity.Error : DocxSeverity.Warning,
+                omittedErrors ? "E9199" : "W9199",
+                $"Validation diagnostics were capped at {cap}; omitted {omitted.Length} of {allDiagnostics.Length} diagnostic(s).");
+            return kept.Append(truncationDiagnostic).ToArray();
+        }
     }
 
     /// <summary>Lists tracked-change and comment markup. Uses default options and no cancellation.</summary>
@@ -483,7 +483,7 @@ public sealed class DocxEditor
             {
                 Success = false,
                 Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray(),
-                PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                PartNames = SortedPartNames(package),
                 MainDocumentPartName = package.MainDocumentPartName
             };
         }
@@ -494,7 +494,7 @@ public sealed class DocxEditor
         {
             Success = true,
             Diagnostics = diagnostics,
-            PartNames = package.Parts.Keys.Order(StringComparer.Ordinal).ToArray(),
+            PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
             Changes = annotatedChanges,
             Summary = DocxChangeScanner.Summarize(annotatedChanges),
@@ -502,50 +502,50 @@ public sealed class DocxEditor
             TargetSummary = DocxChangeScanner.SummarizeTargets(annotatedChanges),
             CommentSummary = DocxChangeScanner.SummarizeComments(annotatedChanges)
         };
-    }
 
-    private static IReadOnlyList<DocxChangeInfo> AnnotateOperationReports(
-        IReadOnlyList<DocxChangeInfo> changes,
-        IReadOnlyList<DocxPatchOperationReport> operationReports)
-    {
-        if (changes.Count == 0 || operationReports.Count == 0)
+        static IReadOnlyList<DocxChangeInfo> AnnotateOperationReports(
+            IReadOnlyList<DocxChangeInfo> changes,
+            IReadOnlyList<DocxPatchOperationReport> operationReports)
         {
-            return changes;
-        }
-
-        var operationsByRevisionId = new Dictionary<string, DocxPatchOperationReport>(StringComparer.Ordinal);
-        foreach (DocxPatchOperationReport operation in operationReports.Where(operation => operation.Success))
-        {
-            foreach (string revisionId in operation.GeneratedRevisionIds)
+            if (changes.Count == 0 || operationReports.Count == 0)
             {
-                if (!string.IsNullOrWhiteSpace(revisionId))
+                return changes;
+            }
+
+            var operationsByRevisionId = new Dictionary<string, DocxPatchOperationReport>(StringComparer.Ordinal);
+            foreach (DocxPatchOperationReport operation in operationReports.Where(operation => operation.Success))
+            {
+                foreach (string revisionId in operation.GeneratedRevisionIds)
                 {
-                    operationsByRevisionId.TryAdd(revisionId, operation);
+                    if (!string.IsNullOrWhiteSpace(revisionId))
+                    {
+                        operationsByRevisionId.TryAdd(revisionId, operation);
+                    }
                 }
             }
-        }
 
-        if (operationsByRevisionId.Count == 0)
-        {
-            return changes;
-        }
+            if (operationsByRevisionId.Count == 0)
+            {
+                return changes;
+            }
 
-        var annotated = new DocxChangeInfo[changes.Count];
-        for (int i = 0; i < changes.Count; i++)
-        {
-            DocxChangeInfo change = changes[i];
-            annotated[i] = change.RevisionId is not null &&
-                operationsByRevisionId.TryGetValue(change.RevisionId, out DocxPatchOperationReport? operation)
-                    ? change with
-                    {
-                        OperationIndex = operation.Index,
-                        OperationName = operation.OperationName,
-                        OperationTarget = operation.Target
-                    }
-                    : change;
-        }
+            var annotated = new DocxChangeInfo[changes.Count];
+            for (int i = 0; i < changes.Count; i++)
+            {
+                DocxChangeInfo change = changes[i];
+                annotated[i] = change.RevisionId is not null &&
+                    operationsByRevisionId.TryGetValue(change.RevisionId, out DocxPatchOperationReport? operation)
+                        ? change with
+                        {
+                            OperationIndex = operation.Index,
+                            OperationName = operation.OperationName,
+                            OperationTarget = operation.Target
+                        }
+                        : change;
+            }
 
-        return annotated;
+            return annotated;
+        }
     }
 
     /// <summary>Parses a patch. Uses default options and no cancellation.</summary>
@@ -703,6 +703,11 @@ public sealed class DocxEditor
             Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
             Operations = execution.Reports
         };
+    }
+
+    private static string[] SortedPartNames(OoxmlPackage package)
+    {
+        return package.Parts.Keys.Order(StringComparer.Ordinal).ToArray();
     }
 
     private static OoxmlPackage? TryLoad(

@@ -3143,7 +3143,6 @@ Options for `apply`:
 --diagnostics <path>
 --strict
 --json
---verbose
 ```
 
 Options for read/probe commands:

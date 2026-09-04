@@ -207,8 +207,7 @@ public static class CliTests
             "--author",
             "Agent",
             "--timestamp-utc",
-            "2026-01-02T03:04:05Z",
-            "--verbose");
+            "2026-01-02T03:04:05Z");
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("docxedit check: OK", result.Output, StringComparison.Ordinal);
@@ -825,6 +824,68 @@ public static class CliTests
         Assert.Contains("operation | support class", result.Output, StringComparison.Ordinal);
         Assert.Contains("replace-text", result.Output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public static void CliCheckFailurePrintsErrorDiagnosticsToStderr()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edits.docxpatch");
+        CreateDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + Environment.NewLine + "oops this is not a patch operation" + Environment.NewLine);
+
+        CliResult result = RunCli("check", input, patch);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("FAILED", result.Output, StringComparison.Ordinal);
+        Assert.Contains("Error E", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliApplyFailurePrintsErrorDiagnosticsToStderr()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edits.docxpatch");
+        string output = Path.Combine(temp.Path, "output.docx");
+        CreateDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + Environment.NewLine + "oops this is not a patch operation" + Environment.NewLine);
+
+        CliResult result = RunCli("apply", input, patch, "--output", output);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("FAILED", result.Output, StringComparison.Ordinal);
+        Assert.Contains("Error E", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliReadFailurePrintsErrorDiagnosticsToStderr()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        File.WriteAllText(input, "not a zip package");
+
+        CliResult result = RunCli("read", input);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("Error E0001", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliStrictWithWarningsReturnsThreeAndPrintsWarningsToStderr()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocxWithBookmark(input);
+
+        CliResult relaxed = RunCli("read", input);
+        CliResult strict = RunCli("read", input, "--strict");
+
+        Assert.Equal(0, relaxed.ExitCode);
+        Assert.Equal(3, strict.ExitCode);
+        Assert.Contains("W1005", strict.Error, StringComparison.Ordinal);
+    }
+
 
     private sealed record CliResult(int ExitCode, string Output, string Error);
 

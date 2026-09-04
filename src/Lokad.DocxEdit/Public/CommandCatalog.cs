@@ -150,6 +150,13 @@ public static class DocxHelp
             builder.Append("  ").AppendLine(example);
         }
 
+        builder.AppendLine("Exit codes:");
+        builder.AppendLine("  0 success (warnings allowed; inspect diagnostics)");
+        builder.AppendLine("  1 unsuccessful result; text mode prints error diagnostics to stderr");
+        builder.AppendLine("  2 invalid command-line usage");
+        builder.AppendLine("  3 successful result with warnings under --strict");
+        builder.AppendLine("  4 unhandled exception");
+
         return builder.ToString();
     }
 

@@ -294,10 +294,10 @@ Exit codes:
 - `0`: success.
 - `1`: operation failed.
 - `2`: invalid CLI usage.
-- `3`: strict mode saw warnings or errors.
+- `3`: `--strict` with a successful result that carries warnings (errors fail as `1`).
 - `4`: unexpected CLI exception.
 
-Diagnostics are documented in [diagnostics.md](diagnostics.md). Validation details
+In text mode, error diagnostics print to standard error (warnings too under `--strict`); `--json` carries diagnostics in the result object. Diagnostics are documented in [diagnostics.md](diagnostics.md). Validation details
 are documented in [validation.md](validation.md).
 
 ## Built-In Help

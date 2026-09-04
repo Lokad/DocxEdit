@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Lokad.DocxEdit;
 
@@ -62,62 +63,141 @@ internal static class ProgramMain
         }
     }
 
-    private static int RunRead(ParsedOptions options)
+    private static int RunInputCommand<T>(
+        ParsedOptions options,
+        string usage,
+        Func<Stream, T> execute,
+        Func<T, IReadOnlyList<DocxDiagnostic>> getDiagnostics,
+        Func<T, bool> getSuccess,
+        Action<T> writeText)
+        where T : notnull
     {
         if (options.Positionals.Count != 1)
         {
-            return InvalidUsage("Usage: docxedit read input.docx [--summary] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
+            return InvalidUsage(usage);
         }
 
         using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxReadResult result = new DocxEditor().Read(input, new DocxReadOptions
+        T result = execute(input);
+        return FinishCommand(options, result, getDiagnostics, getSuccess, writeText);
+    }
+
+    private static int RunPatchCommand<T>(
+        ParsedOptions options,
+        string usage,
+        Func<Stream, TextReader, T> execute,
+        Func<T, IReadOnlyList<DocxDiagnostic>> getDiagnostics,
+        Func<T, bool> getSuccess,
+        Action<T> writeText,
+        Action<T> writeReport)
+        where T : notnull
+    {
+        if (options.Positionals.Count != 2)
         {
-            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-            IncludeAllStories = options.Flags.Contains("--all-stories"),
-            TextView = options.TextView,
-            MaxText = options.MaxText ?? 4_000
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
+            return InvalidUsage(usage);
+        }
+
+        using Stream input = File.OpenRead(options.Positionals[0]);
+        using TextReader patch = File.OpenText(options.Positionals[1]);
+        T result = execute(input, patch);
+        writeReport(result);
+        return FinishCommand(options, result, getDiagnostics, getSuccess, writeText);
+    }
+
+    private static int FinishCommand<T>(
+        ParsedOptions options,
+        T result,
+        Func<T, IReadOnlyList<DocxDiagnostic>> getDiagnostics,
+        Func<T, bool> getSuccess,
+        Action<T> writeText)
+        where T : notnull
+    {
+        IReadOnlyList<DocxDiagnostic> diagnostics = getDiagnostics(result);
+        WriteDiagnostics(options.DiagnosticsPath, diagnostics);
+        if (!options.Json)
+        {
+            WriteErrorDiagnostics(diagnostics, options.Strict);
+        }
+
         if (options.Json)
         {
             WriteJson(result);
         }
-        else if (options.Flags.Contains("--summary"))
-        {
-            Console.Write(DocxTextRenderer.RenderReadSummary(result));
-        }
         else
         {
-            Console.Write(DocxTextRenderer.RenderRead(result));
+            writeText(result);
         }
 
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return ExitCode(getSuccess(result), diagnostics, options.Strict);
+    }
+
+    private static void WriteErrorDiagnostics(IReadOnlyList<DocxDiagnostic> diagnostics, bool strict)
+    {
+        foreach (DocxDiagnostic diagnostic in diagnostics)
+        {
+            bool show = diagnostic.Severity == DocxSeverity.Error ||
+                (strict && diagnostic.Severity == DocxSeverity.Warning);
+            if (!show)
+            {
+                continue;
+            }
+
+            var message = new StringBuilder();
+            message.Append(diagnostic.Severity).Append(' ').Append(diagnostic.Code).Append(": ").Append(diagnostic.Message);
+            if (diagnostic.TargetId is not null)
+            {
+                message.Append(" target=").Append(diagnostic.TargetId);
+            }
+
+            if (diagnostic.PartName is not null)
+            {
+                message.Append(" part=").Append(diagnostic.PartName);
+            }
+
+            Console.Error.WriteLine(message.ToString());
+        }
+    }
+
+    private static int RunRead(ParsedOptions options)
+    {
+        return RunInputCommand(
+            options,
+            "Usage: docxedit read input.docx [--summary] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Read(input, new DocxReadOptions
+            {
+                IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+                IncludeAllStories = options.Flags.Contains("--all-stories"),
+                TextView = options.TextView,
+                MaxText = options.MaxText ?? 4_000
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result =>
+            {
+                if (options.Flags.Contains("--summary"))
+                {
+                    Console.Write(DocxTextRenderer.RenderReadSummary(result));
+                }
+                else
+                {
+                    Console.Write(DocxTextRenderer.RenderRead(result));
+                }
+            });
     }
 
     private static int RunOutline(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1)
-        {
-            return InvalidUsage("Usage: docxedit outline input.docx [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]");
-        }
-
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxOutlineResult result = new DocxEditor().Outline(input, new DocxOutlineOptions
-        {
-            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-            TextView = options.TextView
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderOutline(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return RunInputCommand(
+            options,
+            "Usage: docxedit outline input.docx [--view final|original|markup] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Outline(input, new DocxOutlineOptions
+            {
+                IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+                TextView = options.TextView
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderOutline(result)));
     }
 
     private static int RunFind(ParsedOptions options)
@@ -127,24 +207,19 @@ internal static class ProgramMain
             return InvalidUsage("Usage: docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxFindResult result = new DocxEditor().Find(input, options.Positionals[1], new DocxFindOptions
-        {
-            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-            TextView = options.TextView,
-            MaxText = options.MaxText ?? 4_000
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderFind(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        string query = options.Positionals[1];
+        return RunInputCommand(
+            options,
+            "Usage: docxedit find input.docx \"text\" [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Find(input, query, new DocxFindOptions
+            {
+                IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+                TextView = options.TextView,
+                MaxText = options.MaxText ?? 4_000
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderFind(result)));
     }
 
     private static int RunDump(ParsedOptions options)
@@ -154,24 +229,19 @@ internal static class ProgramMain
             return InvalidUsage("Usage: docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxDumpResult result = new DocxEditor().Dump(input, options.Id, new DocxDumpOptions
-        {
-            IncludeRuns = options.Flags.Contains("--runs"),
-            TextView = options.TextView,
-            MaxText = options.MaxText ?? 4_000
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderDump(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        string id = options.Id;
+        return RunInputCommand(
+            options,
+            "Usage: docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Dump(input, id, new DocxDumpOptions
+            {
+                IncludeRuns = options.Flags.Contains("--runs"),
+                TextView = options.TextView,
+                MaxText = options.MaxText ?? 4_000
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderDump(result)));
     }
 
     private static int RunContext(ParsedOptions options)
@@ -181,47 +251,31 @@ internal static class ProgramMain
             return InvalidUsage("Usage: docxedit context input.docx --id M.P0001 [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]");
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxContextResult result = new DocxEditor().Context(input, options.Id, new DocxContextOptions
-        {
-            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-            TextView = options.TextView,
-            Radius = options.Radius ?? 1,
-            MaxText = options.MaxText ?? 0
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderContext(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        string id = options.Id;
+        return RunInputCommand(
+            options,
+            "Usage: docxedit context input.docx --id M.P0001 [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Context(input, id, new DocxContextOptions
+            {
+                IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+                TextView = options.TextView,
+                Radius = options.Radius ?? 1,
+                MaxText = options.MaxText ?? 0
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderContext(result)));
     }
 
     private static int RunStyles(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1)
-        {
-            return InvalidUsage("Usage: docxedit styles input.docx [--json] [--diagnostics <path>] [--strict]");
-        }
-
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxStylesResult result = new DocxEditor().Styles(input);
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderStyles(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return RunInputCommand(
+            options,
+            "Usage: docxedit styles input.docx [--json] [--diagnostics <path>] [--strict]",
+            static input => new DocxEditor().Styles(input),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderStyles(result)));
     }
 
     private static int RunMedia(ParsedOptions options)
@@ -234,126 +288,85 @@ internal static class ProgramMain
         string inputPath = options.Positionals[0];
         using Stream input = File.OpenRead(inputPath);
         DocxMediaResult result = new DocxEditor().Media(input);
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
         if (result.Success && options.ExtractPath is not null)
         {
             ExtractMedia(inputPath, result.Images, options.ExtractPath);
         }
 
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderMedia(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return FinishCommand(options, result, static r => r.Diagnostics, static r => r.Success, static r => Console.Write(DocxTextRenderer.RenderMedia(r)));
     }
 
     private static int RunValidate(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1)
-        {
-            return InvalidUsage("Usage: docxedit validate input.docx [--profile structural|package] [--max-diagnostics <count>] [--json] [--diagnostics <path>] [--strict]");
-        }
-
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxValidateResult result = new DocxEditor().Validate(input, new DocxValidateOptions
-        {
-            Profile = options.ValidationProfile,
-            MaxDiagnostics = options.MaxDiagnostics ?? 500
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderValidate(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return RunInputCommand(
+            options,
+            "Usage: docxedit validate input.docx [--profile structural|package] [--max-diagnostics <count>] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Validate(input, new DocxValidateOptions
+            {
+                Profile = options.ValidationProfile,
+                MaxDiagnostics = options.MaxDiagnostics ?? 500
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderValidate(result)));
     }
 
     private static int RunChanges(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1)
-        {
-            return InvalidUsage("Usage: docxedit changes input.docx [--operation-report <path>] [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]");
-        }
-
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        DocxChangesResult result = new DocxEditor().Changes(input, new DocxChangesOptions
-        {
-            IncludeCommentText = options.Flags.Contains("--include-comment-text"),
-            MaxCommentText = options.MaxCommentText ?? 240,
-            OperationReports = ReadOperationReports(options.OperationReportPath)
-        });
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.Write(DocxTextRenderer.RenderChanges(result));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return RunInputCommand(
+            options,
+            "Usage: docxedit changes input.docx [--operation-report <path>] [--include-comment-text] [--max-comment-text <chars>] [--json] [--diagnostics <path>] [--strict]",
+            input => new DocxEditor().Changes(input, new DocxChangesOptions
+            {
+                IncludeCommentText = options.Flags.Contains("--include-comment-text"),
+                MaxCommentText = options.MaxCommentText ?? 240,
+                OperationReports = ReadOperationReports(options.OperationReportPath)
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderChanges(result)));
     }
 
     private static int RunCheck(ParsedOptions options)
     {
-        if (options.Positionals.Count != 2)
-        {
-            return InvalidUsage("Usage: docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
-        }
-
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        using TextReader patch = File.OpenText(options.Positionals[1]);
-        DocxCheckResult result = new DocxEditor().Check(input, patch, ToEditOptions(options));
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        WriteReport(options.ReportPath, result);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.WriteLine(result.Success ? "docxedit check: OK" : "docxedit check: FAILED");
-            Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        return RunPatchCommand(
+            options,
+            "Usage: docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]",
+            (input, patch) => new DocxEditor().Check(input, patch, ToEditOptions(options)),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result =>
+            {
+                Console.WriteLine(result.Success ? "docxedit check: OK" : "docxedit check: FAILED");
+                Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
+            },
+            result => WriteReport(options.ReportPath, result));
     }
 
     private static int RunApply(ParsedOptions options)
     {
-        if (options.Positionals.Count != 2 || options.OutputPath is null)
+        if (options.OutputPath is null)
         {
             return InvalidUsage("Usage: docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]");
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        using TextReader patch = File.OpenText(options.Positionals[1]);
-        using Stream output = File.Create(options.OutputPath);
-        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, ToEditOptions(options));
-        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics);
-        WriteReport(options.ReportPath, result);
-        if (options.Json)
-        {
-            WriteJson(result);
-        }
-        else
-        {
-            Console.WriteLine(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED");
-            Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
-        }
-
-        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+        string outputPath = options.OutputPath;
+        return RunPatchCommand(
+            options,
+            "Usage: docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--report <path>] [--diagnostics <path>] [--strict]",
+            (input, patch) =>
+            {
+                using Stream output = File.Create(outputPath);
+                return new DocxEditor().Apply(input, patch, output, ToEditOptions(options));
+            },
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result =>
+            {
+                Console.WriteLine(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED");
+                Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
+            },
+            result => WriteReport(options.ReportPath, result));
     }
 
     private static int RunCatalog(ParsedOptions options)
@@ -376,6 +389,7 @@ internal static class ProgramMain
 
         return 0;
     }
+
     private static void WriteDiagnostics(string? path, IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         if (path is null)
@@ -513,30 +527,30 @@ internal static class ProgramMain
         return arg is "-h" or "--help" or "help";
     }
 
-    private sealed record ParsedOptions(
-        string Command,
-        IReadOnlyList<string> Positionals,
-        HashSet<string> Flags,
-        bool Json,
-        bool Strict,
-        bool Verbose,
-        string? DiagnosticsPath,
-        string? ReportPath,
-        string? OperationReportPath,
-        string? OutputPath,
-        string? Id,
-        string? ExtractPath,
-        int? MaxText,
-        int? MaxCommentText,
-        int? MaxDiagnostics,
-        int? Radius,
-        TrackChangesMode TrackChanges,
-        string? Author,
-        DateTimeOffset? TimestampUtc,
-        DocxTextView TextView,
-        DocxValidationProfile ValidationProfile,
-        string? Error)
+    private sealed class ParsedOptions
     {
+        public required string Command { get; init; }
+        public required IReadOnlyList<string> Positionals { get; init; }
+        public required HashSet<string> Flags { get; init; }
+        public required bool Json { get; init; }
+        public required bool Strict { get; init; }
+        public required string? DiagnosticsPath { get; init; }
+        public required string? ReportPath { get; init; }
+        public required string? OperationReportPath { get; init; }
+        public required string? OutputPath { get; init; }
+        public required string? Id { get; init; }
+        public required string? ExtractPath { get; init; }
+        public required int? MaxText { get; init; }
+        public required int? MaxCommentText { get; init; }
+        public required int? MaxDiagnostics { get; init; }
+        public required int? Radius { get; init; }
+        public required TrackChangesMode TrackChanges { get; init; }
+        public required string? Author { get; init; }
+        public required DateTimeOffset? TimestampUtc { get; init; }
+        public required DocxTextView TextView { get; init; }
+        public required DocxValidationProfile ValidationProfile { get; init; }
+        public required string? Error { get; init; }
+
         public static ParsedOptions Parse(string[] args)
         {
             string command = args[0];
@@ -544,7 +558,6 @@ internal static class ProgramMain
             var flags = new HashSet<string>(StringComparer.Ordinal);
             bool json = false;
             bool strict = false;
-            bool verbose = false;
             string? diagnosticsPath = null;
             string? reportPath = null;
             string? operationReportPath = null;
@@ -571,9 +584,6 @@ internal static class ProgramMain
                         break;
                     case "--strict":
                         strict = true;
-                        break;
-                    case "--verbose":
-                        verbose = true;
                         break;
                     case "--runs":
                     case "--headers-footers":
@@ -744,7 +754,30 @@ internal static class ProgramMain
                 }
             }
 
-            return new ParsedOptions(command, positionals, flags, json, strict, verbose, diagnosticsPath, reportPath, operationReportPath, outputPath, id, extractPath, maxText, maxCommentText, maxDiagnostics, radius, trackChanges, author, timestampUtc, textView, validationProfile, null);
+            return new ParsedOptions
+            {
+                Command = command,
+                Positionals = positionals,
+                Flags = flags,
+                Json = json,
+                Strict = strict,
+                DiagnosticsPath = diagnosticsPath,
+                ReportPath = reportPath,
+                OperationReportPath = operationReportPath,
+                OutputPath = outputPath,
+                Id = id,
+                ExtractPath = extractPath,
+                MaxText = maxText,
+                MaxCommentText = maxCommentText,
+                MaxDiagnostics = maxDiagnostics,
+                Radius = radius,
+                TrackChanges = trackChanges,
+                Author = author,
+                TimestampUtc = timestampUtc,
+                TextView = textView,
+                ValidationProfile = validationProfile,
+                Error = null
+            };
         }
 
         private static bool TryReadValue(string[] args, ref int index, out string? value)
@@ -761,7 +794,30 @@ internal static class ProgramMain
 
         private static ParsedOptions WithError(string command, string message)
         {
-            return new ParsedOptions(command, [], new HashSet<string>(StringComparer.Ordinal), false, false, false, null, null, null, null, null, null, null, null, null, null, TrackChangesMode.Off, null, null, DocxTextView.Final, DocxValidationProfile.Structural, message);
+            return new ParsedOptions
+            {
+                Command = command,
+                Positionals = [],
+                Flags = new HashSet<string>(StringComparer.Ordinal),
+                Json = false,
+                Strict = false,
+                DiagnosticsPath = null,
+                ReportPath = null,
+                OperationReportPath = null,
+                OutputPath = null,
+                Id = null,
+                ExtractPath = null,
+                MaxText = null,
+                MaxCommentText = null,
+                MaxDiagnostics = null,
+                Radius = null,
+                TrackChanges = TrackChangesMode.Off,
+                Author = null,
+                TimestampUtc = null,
+                TextView = DocxTextView.Final,
+                ValidationProfile = DocxValidationProfile.Structural,
+                Error = message
+            };
         }
 
         private static bool TryParseTrackChangesMode(string value, out TrackChangesMode mode)
