@@ -20,6 +20,12 @@ internal sealed class OoxmlPackage
     /// <summary>Main document part name. Never null: <see cref="Load"/> throws when the package has no main document.</summary>
     public string MainDocumentPartName { get; }
 
+    // Ownership: for seekable input the archive reads `input` directly and the
+    // ZipArchive owns it unless LeaveInputOpen is set. For non-seekable input a
+    // seekable copy is made; the archive wraps the copy (never the input), the copy
+    // is always disposed here, and `input` is disposed only when LeaveInputOpen
+    // is false. Every part is buffered to memory, so nothing borrows the streams
+    // after Load returns.
     public static OoxmlPackage Load(
         Stream input,
         OoxmlPackageOptions options,

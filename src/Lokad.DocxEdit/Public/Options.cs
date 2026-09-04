@@ -38,15 +38,15 @@ public sealed class DocxReadOptions : IHasPackageLimits
     public bool IncludeAllStories { get; init; }
     /// <summary>Which text view to read.</summary>
     public DocxTextView TextView { get; init; } = DocxTextView.Final;
-    /// <summary>Maximum text characters per item; 0 drops text.</summary>
+    /// <summary>Maximum text characters per item; 0 drops text. Raising it increases peak output size.</summary>
     public int MaxText { get; init; } = 4_000;
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -57,13 +57,13 @@ public sealed class DocxOutlineOptions : IHasPackageLimits
     public bool IncludeHeadersFooters { get; init; }
     /// <summary>Which text view to read.</summary>
     public DocxTextView TextView { get; init; } = DocxTextView.Final;
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -74,15 +74,15 @@ public sealed class DocxFindOptions : IHasPackageLimits
     public bool IncludeHeadersFooters { get; init; }
     /// <summary>Which text view to read.</summary>
     public DocxTextView TextView { get; init; } = DocxTextView.Final;
-    /// <summary>Maximum text characters per item; 0 drops text.</summary>
+    /// <summary>Maximum text characters per item; 0 drops text. Raising it increases peak output size.</summary>
     public int MaxText { get; init; } = 4_000;
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -93,15 +93,15 @@ public sealed class DocxDumpOptions : IHasPackageLimits
     public bool IncludeRuns { get; init; }
     /// <summary>Which text view to read.</summary>
     public DocxTextView TextView { get; init; } = DocxTextView.Final;
-    /// <summary>Maximum text characters per item; 0 drops text.</summary>
+    /// <summary>Maximum text characters per item; 0 drops text. Raising it increases peak output size.</summary>
     public int MaxText { get; init; } = 4_000;
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -112,43 +112,43 @@ public sealed class DocxContextOptions : IHasPackageLimits
     public bool IncludeHeadersFooters { get; init; }
     /// <summary>Which text view to read.</summary>
     public DocxTextView TextView { get; init; } = DocxTextView.Final;
-    /// <summary>Neighboring targets shown on each side (clamped at 0).</summary>
+    /// <summary>Neighboring targets shown on each side (clamped at 0). Raising it widens context output.</summary>
     public int Radius { get; init; } = 1;
-    /// <summary>Maximum text characters per item; 0 drops text.</summary>
+    /// <summary>Maximum text characters per item; 0 drops text. Raising it increases peak output size.</summary>
     public int MaxText { get; init; }
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
 /// <summary>Options for the style inventory.</summary>
 public sealed class DocxStylesOptions : IHasPackageLimits
 {
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
 /// <summary>Options for the image inventory.</summary>
 public sealed class DocxMediaOptions : IHasPackageLimits
 {
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -157,15 +157,15 @@ public sealed class DocxValidateOptions : IHasPackageLimits
 {
     /// <summary>Validation profile.</summary>
     public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
-    /// <summary>Maximum diagnostics returned; excess is capped with a warning.</summary>
+    /// <summary>Maximum diagnostics returned; lowering it hides findings behind the cap markers sooner.</summary>
     public int MaxDiagnostics { get; init; } = 500;
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -174,17 +174,17 @@ public sealed class DocxChangesOptions : IHasPackageLimits
 {
     /// <summary>Whether to include comment text.</summary>
     public bool IncludeCommentText { get; init; }
-    /// <summary>Maximum comment text characters.</summary>
+    /// <summary>Maximum comment text characters; snippets truncate beyond it.</summary>
     public int MaxCommentText { get; init; } = 240;
     /// <summary>Prior operation reports used to annotate changes.</summary>
     public IReadOnlyList<DocxPatchOperationReport> OperationReports { get; init; } = [];
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
 }
 
@@ -206,16 +206,16 @@ public sealed class DocxEditOptions : IHasPackageLimits
     /// <summary>Resolves image asset references for image operations.</summary>
     public IDocxAssetProvider? AssetProvider { get; init; }
 
-    /// <summary>Whether to leave the input stream open.</summary>
+    /// <summary>Whether to leave the input stream open; when false the input is disposed.</summary>
     public bool LeaveInputOpen { get; init; } = DocxPackageLimits.Default.LeaveInputOpen;
-    /// <summary>Whether to leave the output stream open.</summary>
+    /// <summary>Whether to leave the output stream open; when false the output is disposed.</summary>
     public bool LeaveOutputOpen { get; init; } = true;
 
-    /// <summary>Maximum ZIP entries accepted.</summary>
+    /// <summary>Maximum ZIP entries accepted; lowering it rejects large but legitimate documents.</summary>
     public int MaxZipEntries { get; init; } = DocxPackageLimits.Default.MaxZipEntries;
-    /// <summary>Maximum total uncompressed bytes accepted.</summary>
+    /// <summary>Maximum total uncompressed bytes accepted; the primary zip-bomb guard.</summary>
     public long MaxUncompressedBytes { get; init; } = DocxPackageLimits.Default.MaxUncompressedBytes;
-    /// <summary>Maximum single-part bytes accepted.</summary>
+    /// <summary>Maximum single-part bytes accepted; lowering it rejects documents with large embedded media.</summary>
     public long MaxSinglePartBytes { get; init; } = DocxPackageLimits.Default.MaxSinglePartBytes;
 
     /// <summary>Whether macro-enabled documents load instead of failing.</summary>

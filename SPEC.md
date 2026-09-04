@@ -2390,6 +2390,12 @@ column 2
 cell New row 1 value
 end
 
+op insert-column-after
+target M.T0001
+column 2
+cell New row 1 value
+end
+
 op delete-column
 target M.T0001
 column 2
@@ -2604,7 +2610,7 @@ Rules:
 * Remove orphaned image relationship and media part only if no other relationship references it.
 * Preserve containing paragraph; if paragraph becomes empty, leave an empty paragraph.
 
-### 11.16 `set-section-columns`
+### 11.21 `set-section-columns`
 
 ```text
 op set-section-columns
@@ -2628,7 +2634,7 @@ Rules:
   property revision markup is not replaced.
 * Do not attempt to move content between columns.
 
-### 11.17 `set-section-orientation`
+### 11.22 `set-section-orientation`
 
 ```text
 op set-section-orientation

@@ -1,5 +1,10 @@
 namespace Lokad.DocxEdit.Model;
 
+/// <summary>
+/// Applies deterministic list labels with per-numbering-ID counters. Single-scan use only:
+/// the counters accumulate across calls, so the scanner creates one labeler per scan.
+/// Not thread-safe.
+/// </summary>
 internal sealed class DocxNumberingLabeler
 {
     private readonly DocxNumberingCatalog _numbering;

@@ -20,7 +20,7 @@ The parser produces structured operation blocks. The engine resolves selectors, 
 
 ## Compatibility
 
-DocxEdit is pre-1.0. Public result models prefer init-only properties over long
-positional records so future metadata can be added as optional properties instead of
-changing constructor and deconstruction shapes. Breaking public API changes may still
+DocxEdit is pre-1.0. Public result models carry required data as positional record
+components with optional metadata as init-only extras, so future metadata extends without
+changing constructor shapes. Breaking public API changes may still
 occur before 1.0 when they make the supported surface clearer or safer.
