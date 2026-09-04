@@ -149,4 +149,6 @@ dotnet test Lokad.DocxEdit.slnx
 dotnet pack src/Lokad.DocxEdit/Lokad.DocxEdit.csproj -c Release
 ```
 
-Generated packages are written under ignored `artifacts/nuget/`.
+Release packs generate both `.nupkg` and `.snupkg` files under ignored
+`artifacts/nuget/`. Non-Release packs are rejected unless
+`/p:AllowNonReleasePackage=true` is supplied for troubleshooting.

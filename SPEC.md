@@ -85,6 +85,7 @@ Lokad.DocxEdit.slnx
 Directory.Build.props
 Directory.Build.rsp
 Directory.Packages.props                # optional; no production package refs
+Directory.Build.targets                 # package-reference allowlist
 README.md
 CHANGELOG.md
 LICENSE.txt
@@ -135,28 +136,53 @@ Production project:
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Deterministic>true</Deterministic>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>Lokad.DocxEdit</PackageId>
+    <Title>Lokad.DocxEdit</Title>
     <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <FileVersion>0.1.0</FileVersion>
     <Authors>Lokad</Authors>
     <Company>Lokad</Company>
     <Description>Stream-first .docx reader and patch editor for coding agents.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>0.1.0 introduces the stream-first DocxEditor library, the docxedit CLI workflow, deterministic patch operations, package validation, and private-text-safe document inspection surfaces.</PackageReleaseNotes>
+    <PackageTags>docx;word;openxml;documents;editing;agents</PackageTags>
+    <PackageProjectUrl>https://github.com/Lokad/DocxEdit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Lokad/DocxEdit.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <DebugType>portable</DebugType>
     <PackageOutputPath>..\..\artifacts\nuget\</PackageOutputPath>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
     <None Include="..\..\CHANGELOG.md" Pack="true" PackagePath="\" Visible="false" />
     <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+  <Target Name="EnforceReleasePackageConfiguration" BeforeTargets="GenerateNuspec"
+          Condition="'$(Configuration)' != 'Release' and '$(AllowNonReleasePackage)' != 'true'">
+    <Error Text="NuGet packages must be produced with -c Release. Pass /p:AllowNonReleasePackage=true only for troubleshooting." />
+  </Target>
 </Project>
 ```
 
-The `DocxEdit` project must contain **no `PackageReference` entries**.
+The produced `Lokad.DocxEdit` package must contain **no consumer dependency
+entries**. The only production project `PackageReference` allowed is the
+build-only `Microsoft.SourceLink.GitHub` reference with `PrivateAssets="All"`.
+`Directory.Build.targets` must reject unapproved package references so new
+consumer dependencies are intentional.
 
 `Directory.Build.props` should centralize:
 
@@ -180,6 +206,28 @@ The `DocxEdit` project must contain **no `PackageReference` entries**.
 
 This keeps command-line builds on stable console logging for automation and coding agents.
 
+`Directory.Build.targets` should enforce the package-reference allowlist:
+
+```xml
+<Project>
+  <ItemGroup>
+    <AllowedPackageReference Include="Microsoft.SourceLink.GitHub" />
+    <AllowedPackageReference Include="Microsoft.NET.Test.Sdk" />
+    <AllowedPackageReference Include="xunit" />
+    <AllowedPackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <Target Name="EnforcePackageAllowlist" BeforeTargets="CollectPackageReferences">
+    <ItemGroup>
+      <DisallowedPackageReference Include="@(PackageReference)" Exclude="@(AllowedPackageReference)" />
+    </ItemGroup>
+    <Error
+      Condition="'@(DisallowedPackageReference)' != ''"
+      Text="PackageReference(s) not in allowlist: @(DisallowedPackageReference). Update Directory.Packages.props intentionally." />
+  </Target>
+</Project>
+```
+
 `.gitignore` must ignore:
 
 ```text
@@ -190,6 +238,11 @@ obj/
 ```
 
 Test projects may reference xUnit and the minimal runner/test SDK needed to execute xUnit tests. Those dependencies must remain test-only and must not become transitive dependencies of the `Lokad.DocxEdit` NuGet package.
+
+NuGet artifacts are release outputs only when produced by an explicit Release
+pack. A Release pack must emit both `.nupkg` and `.snupkg` files under ignored
+`artifacts/nuget/`. Non-Release packs must fail unless
+`/p:AllowNonReleasePackage=true` is passed for troubleshooting.
 
 The CLI project is not packaged with the `Lokad.DocxEdit` NuGet package. It may reference only `DocxEdit` and system libraries.
 
@@ -3838,7 +3891,7 @@ Rules:
 
 The implementation is acceptable when all of the following are true:
 
-1. `DocxEdit` production project has no NuGet dependencies.
+1. The produced `Lokad.DocxEdit` package has no consumer NuGet dependencies; any production project package reference is private build tooling only.
 2. All public APIs operate on streams.
 3. Public operations observe cancellation tokens.
 4. CLI can read, outline, find, dump, context, styles, media, validate, changes, check, and apply.

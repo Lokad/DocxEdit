@@ -2,19 +2,31 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>Lokad.DocxEdit</PackageId>
+    <Title>Lokad.DocxEdit</Title>
     <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <FileVersion>0.1.0</FileVersion>
     <Authors>Lokad</Authors>
     <Company>Lokad</Company>
     <Description>Stream-first .docx reader and patch editor for coding agents.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>0.1.0 introduces the stream-first DocxEditor library, the docxedit CLI workflow, deterministic patch operations, package validation, and private-text-safe document inspection surfaces.</PackageReleaseNotes>
+    <PackageTags>docx;word;openxml;documents;editing;agents</PackageTags>
+    <PackageProjectUrl>https://github.com/Lokad/DocxEdit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Lokad/DocxEdit.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <DebugType>portable</DebugType>
     <PackageOutputPath>..\..\artifacts\nuget\</PackageOutputPath>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
@@ -24,5 +36,14 @@
     <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
     <None Include="..\..\icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+  <Target Name="EnforceReleasePackageConfiguration" BeforeTargets="GenerateNuspec"
+          Condition="'$(Configuration)' != 'Release' and '$(AllowNonReleasePackage)' != 'true'">
+    <Error Text="NuGet packages must be produced with -c Release. Pass /p:AllowNonReleasePackage=true only for troubleshooting." />
+  </Target>
 
 </Project>
