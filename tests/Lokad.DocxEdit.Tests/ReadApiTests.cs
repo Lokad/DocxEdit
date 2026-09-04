@@ -801,7 +801,7 @@ public static class ReadApiTests
         Assert.Equal(2, wide.ColumnSpan);
         Assert.Equal(2, wide.VisualColumnEndIndex);
         Assert.Equal("M.T0001.MG0001", wide.MergeGroupId);
-        Assert.Equal("restart", wide.VerticalMerge);
+        Assert.Equal(DocxVerticalMerge.Restart, wide.VerticalMerge);
         Assert.Equal("M.T0001.R01.C01", wide.VerticalMergeRootCellId);
         Assert.False(wide.HasNestedTable);
         DocxTableCellInfo east = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C03");
@@ -809,7 +809,7 @@ public static class ReadApiTests
         DocxTableCellInfo continued = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C01");
         Assert.Equal(1, continued.VisualColumnEndIndex);
         Assert.Equal("M.T0001.MG0001", continued.MergeGroupId);
-        Assert.Equal("continue", continued.VerticalMerge);
+        Assert.Equal(DocxVerticalMerge.Continue, continued.VerticalMerge);
         Assert.Equal("M.T0001.R01.C01", continued.VerticalMergeRootCellId);
         DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C02");
         Assert.True(nested.HasNestedTable);

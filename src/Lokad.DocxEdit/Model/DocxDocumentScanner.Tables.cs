@@ -52,10 +52,10 @@ internal static partial class DocxDocumentScanner
             {
                 int columnSpan = ReadCellColumnSpan(cell);
                 string cellId = $"{id}.R{rowIndex:00}.C{columnIndex:00}";
-                string? verticalMerge = ReadCellVerticalMerge(cell);
+                DocxVerticalMerge? verticalMerge = ReadCellVerticalMerge(cell);
                 string? mergeGroupId = null;
                 string? verticalMergeRootCellId = null;
-                if (string.Equals(verticalMerge, "restart", StringComparison.Ordinal))
+                if (verticalMerge == DocxVerticalMerge.Restart)
                 {
                     mergeGroupId = AllocateMergeGroupId(id, ref mergeGroupIndex);
                     verticalMergeRootCellId = cellId;

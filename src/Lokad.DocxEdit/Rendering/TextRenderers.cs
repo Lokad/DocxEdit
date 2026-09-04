@@ -233,7 +233,7 @@ internal static class TextRenderers
                 string columnSpan = cell.ColumnSpan == 1 ? string.Empty : $" column-span={cell.ColumnSpan}";
                 string visualColumnEnd = cell.VisualColumnEndIndex <= cell.ColumnIndex ? string.Empty : $" visual-column-end={cell.VisualColumnEndIndex}";
                 string mergeGroup = cell.MergeGroupId is null ? string.Empty : $" merge-group={XmlValues.EscapeText(cell.MergeGroupId)}";
-                string verticalMerge = cell.VerticalMerge is null ? string.Empty : $" vertical-merge={cell.VerticalMerge}";
+        string verticalMerge = cell.VerticalMerge is { } cellMerge ? $" vertical-merge={cellMerge.ToWireValue()}" : string.Empty;
                 string verticalMergeRoot = cell.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={XmlValues.EscapeText(cell.VerticalMergeRootCellId)}";
                 string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
                 string physicalColumn = cell.PhysicalColumnIndex == 0 ? string.Empty : $" physical-column={cell.PhysicalColumnIndex}";
@@ -614,7 +614,7 @@ internal static class TextRenderers
             string columnSpan = item.ColumnSpan is null or 1 ? string.Empty : $" column-span={item.ColumnSpan}";
             string visualColumnEnd = item.VisualColumnEndIndex is null ? string.Empty : $" visual-column-end={item.VisualColumnEndIndex}";
             string mergeGroup = item.MergeGroupId is null ? string.Empty : $" merge-group={XmlValues.EscapeText(item.MergeGroupId)}";
-            string verticalMerge = item.VerticalMerge is null ? string.Empty : $" vertical-merge={item.VerticalMerge}";
+        string verticalMerge = item.VerticalMerge is { } itemMerge ? $" vertical-merge={itemMerge.ToWireValue()}" : string.Empty;
             string verticalMergeRoot = item.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={XmlValues.EscapeText(item.VerticalMergeRootCellId)}";
             string nestedTable = item.HasNestedTable ? " nested-table=true" : string.Empty;
             string text = item.Kind is "paragraph" or "cell"

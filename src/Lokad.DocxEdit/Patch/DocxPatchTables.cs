@@ -110,9 +110,9 @@ internal static partial class DocxPatchEngine
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
                 int columnSpan = ReadTableCellColumnSpan(cell);
-                string? verticalMerge = ReadTableCellVerticalMerge(cell);
+                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(cell);
                 string? mergeGroupId = null;
-                if (string.Equals(verticalMerge, "restart", StringComparison.Ordinal))
+                if (verticalMerge == DocxVerticalMerge.Restart)
                 {
                     mergeGroupId = AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
                     SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
@@ -1194,13 +1194,13 @@ internal static partial class DocxPatchEngine
 
         foreach (TableCellGridSlot deletedSlot in EnumerateTableRowCells(row))
         {
-            if (!string.Equals(ReadTableCellVerticalMerge(deletedSlot.Cell), "restart", StringComparison.Ordinal))
+            if (ReadTableCellVerticalMerge(deletedSlot.Cell) != DocxVerticalMerge.Restart)
             {
                 continue;
             }
 
             XElement? nextCell = FindCellByVisualColumn(nextRow, deletedSlot.ColumnIndex);
-            if (nextCell is null || !string.Equals(ReadTableCellVerticalMerge(nextCell), "continue", StringComparison.Ordinal))
+            if (nextCell is null || ReadTableCellVerticalMerge(nextCell) != DocxVerticalMerge.Continue)
             {
                 continue;
             }
@@ -1225,7 +1225,7 @@ internal static partial class DocxPatchEngine
 
         return rows[boundaryBeforeRowIndex]
             .Elements(OoxmlNs.W + "tc")
-            .Any(cell => string.Equals(ReadTableCellVerticalMerge(cell), "continue", StringComparison.Ordinal));
+            .Any(cell => ReadTableCellVerticalMerge(cell) == DocxVerticalMerge.Continue);
     }
 
     private static bool RowHasVerticalMerge(XElement row)
@@ -1250,20 +1250,20 @@ internal static partial class DocxPatchEngine
         XElement nextRow = rows[rowIndex + 1];
         foreach (TableCellGridSlot deletedSlot in EnumerateTableRowCells(row))
         {
-            if (!string.Equals(ReadTableCellVerticalMerge(deletedSlot.Cell), "restart", StringComparison.Ordinal))
+            if (ReadTableCellVerticalMerge(deletedSlot.Cell) != DocxVerticalMerge.Restart)
             {
                 continue;
             }
 
             XElement? nextCell = FindCellByVisualColumn(nextRow, deletedSlot.ColumnIndex);
-            if (nextCell is not null && string.Equals(ReadTableCellVerticalMerge(nextCell), "continue", StringComparison.Ordinal))
+            if (nextCell is not null && ReadTableCellVerticalMerge(nextCell) == DocxVerticalMerge.Continue)
             {
-                SetTableCellVerticalMerge(nextCell, "restart");
+                SetTableCellVerticalMerge(nextCell, DocxVerticalMerge.Restart);
             }
         }
     }
 
-    private static void SetTableCellVerticalMerge(XElement cell, string value)
+    private static void SetTableCellVerticalMerge(XElement cell, DocxVerticalMerge value)
     {
         XElement? cellProperties = cell.Element(OoxmlNs.W + "tcPr");
         if (cellProperties is null)
@@ -1279,7 +1279,7 @@ internal static partial class DocxPatchEngine
             cellProperties.Add(verticalMerge);
         }
 
-        verticalMerge.SetAttributeValue(OoxmlNs.W + "val", value);
+        verticalMerge.SetAttributeValue(OoxmlNs.W + "val", value.ToWireValue());
     }
 
     private static bool TryGetConsistentVisualColumnCount(XElement table, out int columnCount)
@@ -1401,7 +1401,7 @@ internal static partial class DocxPatchEngine
         return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
     }
 
-    private static string? ReadTableCellVerticalMerge(XElement cell)
+    private static DocxVerticalMerge? ReadTableCellVerticalMerge(XElement cell)
     {
         XElement? verticalMerge = cell
             .Element(OoxmlNs.W + "tcPr")
@@ -1411,7 +1411,8 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        return (string?)verticalMerge.Attribute(OoxmlNs.W + "val") ?? "continue";
+        string? value = (string?)verticalMerge.Attribute(OoxmlNs.W + "val");
+        return string.Equals(value, "restart", StringComparison.Ordinal) ? DocxVerticalMerge.Restart : DocxVerticalMerge.Continue;
     }
 
     private static string? ReadTableStyleId(XElement table)

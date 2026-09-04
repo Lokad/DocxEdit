@@ -986,7 +986,7 @@ public sealed record DocxTableCellInfo(
     int ColumnIndex,
     string Text,
     int ColumnSpan,
-    string? VerticalMerge,
+    DocxVerticalMerge? VerticalMerge,
     bool HasNestedTable)
 {
     public int PhysicalColumnIndex { get; init; }
@@ -1364,7 +1364,7 @@ public sealed record DocxContextItem
     public int? ColumnSpan { get; init; }
     public int? VisualColumnEndIndex { get; init; }
     public string? MergeGroupId { get; init; }
-    public string? VerticalMerge { get; init; }
+    public DocxVerticalMerge? VerticalMerge { get; init; }
     public string? VerticalMergeRootCellId { get; init; }
     public bool HasNestedTable { get; init; }
 }

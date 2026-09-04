@@ -12,7 +12,7 @@ internal static class ProgramMain
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter() }
+        Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter() }
     };
 
     public static int Run(string[] args)
@@ -601,6 +601,25 @@ internal static class ProgramMain
         }
 
         public override void Write(Utf8JsonWriter writer, DocxLabelSource value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.ToWireValue());
+        }
+    }
+
+    private sealed class DocxVerticalMergeJsonConverter : JsonConverter<DocxVerticalMerge>
+    {
+        public override DocxVerticalMerge Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            string? value = reader.GetString();
+            if (DocxVerticalMergeExtensions.TryParseWireValue(value, out DocxVerticalMerge parsed))
+            {
+                return parsed;
+            }
+
+            throw new JsonException("Unsupported vertical merge value.");
+        }
+
+        public override void Write(Utf8JsonWriter writer, DocxVerticalMerge value, JsonSerializerOptions options)
         {
             writer.WriteStringValue(value.ToWireValue());
         }

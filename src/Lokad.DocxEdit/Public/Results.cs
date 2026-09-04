@@ -562,7 +562,7 @@ public sealed record DocxContextItem
     /// <summary>Merge-group ID, when merged.</summary>
     public string? MergeGroupId { get; init; }
     /// <summary>Vertical-merge marker, when merged.</summary>
-    public string? VerticalMerge { get; init; }
+    public DocxVerticalMerge? VerticalMerge { get; init; }
     /// <summary>Merge-root cell ID, when merged.</summary>
     public string? VerticalMergeRootCellId { get; init; }
     /// <summary>Whether a nested table is present.</summary>
@@ -933,7 +933,7 @@ public sealed record DocxTableCellInfo(
     int ColumnIndex,
     string Text,
     int ColumnSpan,
-    string? VerticalMerge,
+    DocxVerticalMerge? VerticalMerge,
     bool HasNestedTable)
 {
     /// <summary>1-based physical column ordinal.</summary>

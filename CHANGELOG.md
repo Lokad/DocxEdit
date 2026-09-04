@@ -15,3 +15,4 @@
 - Documented the full public API surface (missing-docs warning enforced by the build) and cataloged every diagnostic code in `docs/diagnostics.md`.
 - Added `docxedit version`, catalog-sourced usage errors with help pointers, and unknown-command guidance.
 - Changed numbering label `LabelStatus`/`Source` from `string` to enums (`DocxLabelStatus`, `DocxLabelSource`); text and JSON wire values stay lowercase strings.
+- Changed table `VerticalMerge` from `string` to the `DocxVerticalMerge` enum (`Restart`/`Continue`, null when unmerged); text and JSON wire values stay lowercase strings.

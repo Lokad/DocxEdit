@@ -594,6 +594,21 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliReadJsonEmitsLowercaseVerticalMerge()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "merged-table.docx");
+        CreateDocxWithVerticalMerge(input);
+
+        CliResult result = RunCli("read", input, "--json");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("VerticalMerge", result.Output, StringComparison.Ordinal);
+        Assert.Contains("restart", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex("VerticalMerge.: [0-9]"), result.Output);
+    }
+
+    [Fact]
     public static void CliReadSupportsOriginalTrackedChangeView()
     {
         using TempDirectory temp = TempDirectory.Create();
@@ -994,6 +1009,43 @@ public static class CliTests
                     <w:r><w:t>2026-09-04</w:t></w:r>
                   </w:fldSimple>
                 </w:p>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void CreateDocxWithVerticalMerge(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:tbl>
+                  <w:tr>
+                    <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                    <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                  </w:tr>
+                  <w:tr>
+                    <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                    <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                  </w:tr>
+                </w:tbl>
               </w:body>
             </w:document>
             """);

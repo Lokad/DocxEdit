@@ -397,7 +397,7 @@ internal static partial class DocxDocumentScanner
         return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
     }
 
-    private static string? ReadCellVerticalMerge(XElement cell)
+    private static DocxVerticalMerge? ReadCellVerticalMerge(XElement cell)
     {
         XElement? verticalMerge = cell
             .Element(OoxmlNs.W + "tcPr")
@@ -407,7 +407,8 @@ internal static partial class DocxDocumentScanner
             return null;
         }
 
-        return (string?)verticalMerge.Attribute(OoxmlNs.W + "val") ?? "continue";
+        string? value = (string?)verticalMerge.Attribute(OoxmlNs.W + "val");
+        return string.Equals(value, "restart", StringComparison.Ordinal) ? DocxVerticalMerge.Restart : DocxVerticalMerge.Continue;
     }
 
     private static bool IsInsideDeletedRevision(XElement element)

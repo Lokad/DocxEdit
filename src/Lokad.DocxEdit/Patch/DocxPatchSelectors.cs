@@ -670,8 +670,8 @@ internal static partial class DocxPatchEngine
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
                 int columnSpan = ReadTableCellColumnSpan(cell);
-                string? verticalMerge = ReadTableCellVerticalMerge(cell);
-                if (string.Equals(verticalMerge, "restart", StringComparison.Ordinal))
+                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(cell);
+                if (verticalMerge == DocxVerticalMerge.Restart)
                 {
                     int currentMergeGroup = mergeGroupIndex++;
                     SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(row, cell, columnIndex));

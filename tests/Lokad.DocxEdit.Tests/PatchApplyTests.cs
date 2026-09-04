@@ -8601,7 +8601,7 @@ public static class PatchApplyTests
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
         Assert.Equal(2, table.RowCount);
         DocxTableCellInfo promoted = table.Cells.Single(cell => cell.RowIndex == 1 && cell.ColumnIndex == 1);
-        Assert.Equal("restart", promoted.VerticalMerge);
+        Assert.Equal(DocxVerticalMerge.Restart, promoted.VerticalMerge);
         Assert.Equal("M.T0001.R01.C01", promoted.VerticalMergeRootCellId);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
