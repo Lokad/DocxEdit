@@ -157,7 +157,7 @@ internal static partial class DocxPatchEngine
         return snapshots;
     }
 
-    private static IReadOnlyList<TableCellSnapshot> CreateFallbackCellSnapshots(string tableId, int? rowIndex, int cellCount)
+    private static IReadOnlyList<TableCellSnapshot> CreateFallbackCellSnapshots(int cellCount)
     {
         var snapshots = new List<TableCellSnapshot>(capacity: Math.Max(cellCount, 0));
         for (int column = 1; column <= cellCount; column++)
@@ -165,8 +165,6 @@ internal static partial class DocxPatchEngine
             snapshots.Add(new TableCellSnapshot(column, column, MergeGroupId: null, NestedTablePath: null));
         }
 
-        _ = tableId;
-        _ = rowIndex;
         return snapshots;
     }
 
@@ -266,7 +264,7 @@ internal static partial class DocxPatchEngine
     {
         DocxTargetId tableId = before.ResolvedTarget.TableId;
         IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
-            ? CreateFallbackCellSnapshots(tableId.ToWireValue(), before.RowIndex, requestedCellCount == 0 ? before.ColumnCount : requestedCellCount)
+            ? CreateFallbackCellSnapshots(requestedCellCount == 0 ? before.ColumnCount : requestedCellCount)
             : before.Cells;
         int cellCount = requestedCellCount == 0 ? cells.Count : requestedCellCount;
         DocxTargetId rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = insertedRowIndex };
@@ -306,7 +304,7 @@ internal static partial class DocxPatchEngine
     {
         int rowIndex = before.RowIndex ?? 1;
         IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
-            ? CreateFallbackCellSnapshots(before.ResolvedTarget.TableId.ToWireValue(), rowIndex, before.CellCount ?? before.ColumnCount)
+            ? CreateFallbackCellSnapshots(before.CellCount ?? before.ColumnCount)
             : before.Cells;
         int cellCount = before.CellCount ?? cells.Count;
         var affected = new List<DocxPatchAffectedTarget>

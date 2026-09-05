@@ -68,6 +68,14 @@ function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments) {
     }
 }
 
+function Get-FileHashSha256([string] $Path) {
+    if ($null -eq (Get-Command Get-FileHash -ErrorAction SilentlyContinue)) {
+        throw "File hashing needs the Get-FileHash cmdlet (pwsh 7+ or a full Windows PowerShell 5.1 install); refusing to continue with an unverified copy."
+    }
+
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+}
+
 function Get-ObjectProperty([object] $Object, [string] $Name) {
     if ($null -eq $Object) {
         return $null

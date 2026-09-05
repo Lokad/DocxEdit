@@ -523,8 +523,8 @@ New-Item -ItemType Directory -Force -Path $runDirectory | Out-Null
 
 $inputCopy = Join-Path $runDirectory "input.docx"
 Copy-Item -LiteralPath $privatePath -Destination $inputCopy
-$inputHashBefore = (Get-FileHash -LiteralPath $inputCopy -Algorithm SHA256).Hash
-$privateHash = (Get-FileHash -LiteralPath $privatePath -Algorithm SHA256).Hash
+$inputHashBefore = Get-FileHashSha256 $inputCopy
+$privateHash = Get-FileHashSha256 $privatePath
 
 $wrapperPath = New-DocxEditWrapper $runDirectory
 $prompt = New-ChallengePrompt $manifest $runDirectory $inputCopy $useOutputSchema
@@ -576,7 +576,7 @@ Set-Content -LiteralPath $eventsPath -Value $run.StdOut -Encoding UTF8
 Set-Content -LiteralPath $stderrPath -Value $run.StdErr -Encoding UTF8
 
 $trackedStatusAfter = @(& git -C $RepoRoot status --short --untracked-files=no)
-$inputHashAfter = (Get-FileHash -LiteralPath $inputCopy -Algorithm SHA256).Hash
+$inputHashAfter = Get-FileHashSha256 $inputCopy
 $events = Read-CodexEvents $eventsPath
 $postChecks = Invoke-PostChecks $runDirectory
 
