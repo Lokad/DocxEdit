@@ -2,7 +2,7 @@ namespace Lokad.DocxEdit.Tests;
 
 public static class DocxTargetIdTests
 {
-    // kindValue follows DocxTargetKind declaration order (that enum stays internal to the library).
+    // kindValue follows DocxTargetKind declaration order.
     [Theory]
     [InlineData("M.P0001", 'M', 0, 0, 1, 0, 0)]
     [InlineData("M.T0001", 'M', 0, 1, 1, 0, 0)]

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 using Lokad.DocxEdit.Ooxml;
 
@@ -54,6 +55,8 @@ internal static partial class DocxChangeScanner
             XDocument document = SafeXml.Load(stream, cancellationToken);
             string story = GetStory(package, part.Name, fallbackPartIndex, cancellationToken);
             string prefix = GetIdPrefix(package, part.Name, ref fallbackPartIndex, cancellationToken);
+            char changeStory = prefix[0];
+            int changeStoryPart = prefix.Length == 1 ? 0 : int.Parse(prefix[1..], CultureInfo.InvariantCulture);
             IReadOnlyDictionary<XElement, string> targets = BuildTargetMap(document, prefix);
 
             int index = 1;
@@ -67,7 +70,7 @@ internal static partial class DocxChangeScanner
                 bool isCommentBody = element.Name.LocalName == "comment";
                 changes.Add(new DocxChangeInfo
                 {
-                    Id = $"{prefix}.CH{index++:0000}",
+                    Id = new DocxChangeId(changeStory, changeStoryPart, index++).ToWireValue(),
                     Type = ReadChangeType(element),
                     Story = story,
                     PartName = part.Name,

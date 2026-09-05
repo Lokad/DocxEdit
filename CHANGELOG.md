@@ -16,3 +16,4 @@
 - Added `docxedit version`, catalog-sourced usage errors with help pointers, and unknown-command guidance.
 - Changed numbering label `LabelStatus`/`Source` from `string` to enums (`DocxLabelStatus`, `DocxLabelSource`); text and JSON wire values stay lowercase strings.
 - Changed table `VerticalMerge` from `string` to the `DocxVerticalMerge` enum (`Restart`/`Continue`, null when unmerged); text and JSON wire values stay lowercase strings.
+- Added the public `DocxChangeId` struct for change-record IDs (`M.CH0001`, `H001.CH0002`, comments `C001.CH0001`); change-record text and JSON shapes are unchanged.
