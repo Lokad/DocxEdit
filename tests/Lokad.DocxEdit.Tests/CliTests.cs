@@ -6,6 +6,8 @@ using System.Text;
 
 namespace Lokad.DocxEdit.Tests;
 
+// Serializes with EditCaseTests: both redirect the process-wide Console.
+[Collection("ConsoleCli")]
 public static class CliTests
 {
     [Fact]
@@ -804,7 +806,7 @@ public static class CliTests
         Assert.Contains("label=\"3.\"", markup.Output, StringComparison.Ordinal);
     }
 
-    private static CliResult RunCli(params string[] args)
+    internal static CliResult RunCli(params string[] args)
     {
         return RunInProcess(null, args);
     }
@@ -1382,9 +1384,9 @@ public static class CliTests
     }
 
 
-    private sealed record CliResult(int ExitCode, string Output, string Error);
+    internal sealed record CliResult(int ExitCode, string Output, string Error);
 
-    private sealed class TempDirectory : IDisposable
+    internal sealed class TempDirectory : IDisposable
     {
         private TempDirectory(string path)
         {

@@ -102,22 +102,16 @@ Supported manifest extras include:
   `diagnosticCodes`, and `diagnosticMessagesContain`.
 
 The CLI resolves image operation assets from local file paths. Relative paths are
-resolved from the current working directory; public manifests use harness-generated
-absolute asset paths.
+resolved against the patch file directory first, then the invoking working directory.
 
-Run one case:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/CheckDocxCase.ps1 -Case basic-replace
-```
-
-Run every public case:
+Run the edit cases (plus every tracked-change family variant) in-process:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/ValidateDocxCases.ps1
+dotnet test tests/Lokad.DocxEdit.Tests/Lokad.DocxEdit.Tests.csproj -c Release --filter "FullyQualifiedName~EditCaseTests"
 ```
 
-Artifacts are written under ignored `artifacts/edit-cases/`.
+Cases run in-process through the CLI entry point with per-case temp directories; no
+artifacts are kept. (`tools/CheckPrivateCase.ps1` remains for local-only private documents.)
 
 ## Office Compatibility
 

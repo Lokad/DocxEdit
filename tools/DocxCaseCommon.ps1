@@ -1,5 +1,5 @@
 # Shared helpers for the DocxEdit PowerShell tooling.
-# Dot-sourced by CheckDocxCase.ps1, CheckPrivateCase.ps1, and RunAgentChallenge.ps1.
+# Dot-sourced by CheckPrivateCase.ps1 and RunAgentChallenge.ps1.
 # Assert-PrivatePath requires the caller to define $PrivateRoot; the other helpers need no globals.
 # RunAgentChallenge.ps1 keeps its own Invoke-ProcessCapture (timeouts and stdin).
 

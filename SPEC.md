@@ -111,9 +111,9 @@ tests/
     Lokad.DocxEdit.OfficeTests.csproj
     OfficeInterop/
 tools/
-  CheckDocxCase.ps1
   CheckPrivateCase.ps1
-  ValidateDocxCases.ps1
+  DocxCaseCommon.ps1
+  RunAgentChallenge.ps1
 edit-cases/
   cases/
   families/
@@ -3695,61 +3695,29 @@ Run Office automation tests in STA threads. Always close documents and quit Word
 
 ### 23.5 Edit case validation harness
 
-In addition to unit and golden tests, provide a lightweight case catalog for end-to-end edit workflows.
+In addition to unit tests, a JSON case catalog covers end-to-end edit workflows.
 
 Public case layout:
 
 ```text
 edit-cases/
   cases/
-    basic-replace/
-      case.json
-      input.docx
-      edits.docxpatch
-      expected.read.txt
+    basic-replace.json
   families/
-    text.json
-    tables.json
-    media.json
+    tracked-change-matrix.json
+  fixtures/
+    word-smoke.docx
 ```
 
-Example case manifest:
+Case manifests (`docs/validation.md`) define synthetic WordprocessingML body XML
+(or a fixture), a `.docxpatch` payload, apply options, assets, and expected
+readback values. The `tracked-change-matrix.json` family lists the tracked-change
+coverage slice and the `TrackChangesMode` variants run for each case.
 
-```json
-{
-  "id": "basic-replace",
-  "kind": "docx",
-  "input": "./input.docx",
-  "patch": "./edits.docxpatch",
-  "tags": ["text", "smoke"],
-  "expected": {
-    "checkMustSucceed": true,
-    "applyMustSucceed": true,
-    "wordRoundtripMustSucceed": false,
-    "diagnosticCodes": []
-  }
-}
-```
-
-`tools/ValidateDocxCases.ps1` must validate:
-
-* normalized kebab-case case and family IDs;
-* each case directory has a `case.json`;
-* manifest `id` matches directory name;
-* input and patch paths exist and stay inside the case directory unless explicitly allowed;
-* every public case belongs to exactly one family unless the tool is run with an uncovered-case override;
-* tags are normalized kebab-case;
-* expected diagnostic codes use known prefixes.
-
-`tools/CheckDocxCase.ps1` must:
-
-1. Build the CLI.
-2. Run `docxedit check`.
-3. Run `docxedit apply`.
-4. Run `docxedit read` on the output and compare expected golden output when present.
-5. Write timestamped artifacts under `artifacts/edit-cases/<case-id>/<run-id>/`.
-
-Generated artifacts are ignored by git.
+`EditCaseTests` in the test project runs every public case plus every family
+variant data-driven from those manifests: it builds inputs, applies patches
+through the CLI entry point in-process, and asserts exit codes, diagnostics,
+readback values, and change summaries.
 
 ### 23.6 Private validation
 
