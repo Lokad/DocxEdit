@@ -343,7 +343,7 @@ internal static class ProgramMain
             static result => result.Success,
             result =>
             {
-                Console.WriteLine(result.Success ? "docxedit check: OK" : "docxedit check: FAILED");
+                Console.WriteLine($"{(result.Success ? "docxedit check: OK" : "docxedit check: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O})");
                 Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
             },
             result => WriteReport(options.ReportPath, result));
@@ -369,7 +369,7 @@ internal static class ProgramMain
             static result => result.Success,
             result =>
             {
-                Console.WriteLine(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED");
+                Console.WriteLine($"{(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O})");
                 Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
             },
             result => WriteReport(options.ReportPath, result));

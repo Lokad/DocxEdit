@@ -152,6 +152,15 @@ public sealed record DocxCheckResult : DocxOperationResult
 {
     /// <summary>Per-operation reports.</summary>
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
+
+    /// <summary>Effective author recorded on generated revisions.</summary>
+    public string Author { get; init; } = "docxedit";
+
+    /// <summary>Effective UTC timestamp used for generated revisions.</summary>
+    public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Version of the producing Lokad.DocxEdit assembly.</summary>
+    public string ToolVersion { get; init; } = typeof(DocxOperationResult).Assembly.GetName().Version?.ToString() ?? "unknown";
 }
 
 /// <summary>Patch application. <see cref="DocxOperationResult.Success"/> means the patch parsed, every operation reported success, and the output was written. No output is written on failure.</summary>
@@ -159,6 +168,15 @@ public sealed record DocxApplyResult : DocxOperationResult
 {
     /// <summary>Per-operation reports.</summary>
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
+
+    /// <summary>Effective author recorded on generated revisions.</summary>
+    public string Author { get; init; } = "docxedit";
+
+    /// <summary>Effective UTC timestamp used for generated revisions.</summary>
+    public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Version of the producing Lokad.DocxEdit assembly.</summary>
+    public string ToolVersion { get; init; } = typeof(DocxOperationResult).Assembly.GetName().Version?.ToString() ?? "unknown";
 }
 
 /// <summary>

@@ -36,6 +36,36 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckAndApplyEchoEffectiveProvenance()
+    {
+        var options = new DocxEditOptions
+        {
+            Author = "Agent",
+            TimestampUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        string expectedVersion = typeof(DocxEditor).Assembly.GetName().Version?.ToString() ?? "unknown";
+
+        using MemoryStream checkInput = CreateDocx("Revenue increased by 8.4%.");
+        using var checkPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind 8.4%\nwith 9.1%\nend\n");
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, options);
+
+        Assert.True(check.Success);
+        Assert.Equal("Agent", check.Author);
+        Assert.Equal(options.TimestampUtc, check.TimestampUtc);
+        Assert.Equal(expectedVersion, check.ToolVersion);
+
+        using MemoryStream applyInput = CreateDocx("Revenue increased by 8.4%.");
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind 8.4%\nwith 9.1%\nend\n");
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, options);
+
+        Assert.True(apply.Success);
+        Assert.Equal("Agent", apply.Author);
+        Assert.Equal(options.TimestampUtc, apply.TimestampUtc);
+        Assert.Equal(expectedVersion, apply.ToolVersion);
+    }
+
+    [Fact]
     public static void CheckReplaceTextFailsWhenGuardDoesNotMatch()
     {
         using MemoryStream input = CreateDocx("Revenue increased by 9.1%.");

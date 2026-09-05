@@ -616,7 +616,7 @@ public sealed class DocxEditor
         DocxPatch patch = ParsePatch(patchReader, new DocxPatchParseOptions(), cancellationToken);
         if (!patch.Success)
         {
-            return new DocxCheckResult { Success = false, Diagnostics = patch.Diagnostics };
+            return new DocxCheckResult { Success = false, Diagnostics = patch.Diagnostics, Author = options.Author, TimestampUtc = options.TimestampUtc };
         }
 
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
@@ -625,7 +625,9 @@ public sealed class DocxEditor
             return new DocxCheckResult
             {
                 Success = false,
-                Diagnostics = diagnostics
+                Diagnostics = diagnostics,
+                Author = options.Author,
+                TimestampUtc = options.TimestampUtc
             };
         }
 
@@ -634,7 +636,9 @@ public sealed class DocxEditor
             return new DocxCheckResult
             {
                 Success = false,
-                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray()
+                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
+                Author = options.Author,
+                TimestampUtc = options.TimestampUtc
             };
         }
 
@@ -642,7 +646,9 @@ public sealed class DocxEditor
         {
             Success = execution.Success,
             Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
-            Operations = execution.Reports
+            Operations = execution.Reports,
+                Author = options.Author,
+                TimestampUtc = options.TimestampUtc
         };
     }
 
@@ -679,13 +685,13 @@ public sealed class DocxEditor
         DocxPatch patch = ParsePatch(patchReader, new DocxPatchParseOptions(), cancellationToken);
         if (!patch.Success)
         {
-            return new DocxApplyResult { Success = false, Diagnostics = patch.Diagnostics };
+            return new DocxApplyResult { Success = false, Diagnostics = patch.Diagnostics, Author = options.Author, TimestampUtc = options.TimestampUtc };
         }
 
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
-            return new DocxApplyResult { Success = false, Diagnostics = diagnostics };
+            return new DocxApplyResult { Success = false, Diagnostics = diagnostics, Author = options.Author, TimestampUtc = options.TimestampUtc };
         }
 
         if (!TryDocumentOperation(() => DocxPatchEngine.Apply(package, patch, options, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
@@ -693,7 +699,9 @@ public sealed class DocxEditor
             return new DocxApplyResult
             {
                 Success = false,
-                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray()
+                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
+                Author = options.Author,
+                TimestampUtc = options.TimestampUtc
             };
         }
 
@@ -703,7 +711,9 @@ public sealed class DocxEditor
             {
                 Success = false,
                 Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
-                Operations = execution.Reports
+                Operations = execution.Reports,
+                Author = options.Author,
+                TimestampUtc = options.TimestampUtc
             };
         }
 
@@ -717,7 +727,9 @@ public sealed class DocxEditor
         {
             Success = diagnostics.All(d => d.Severity != DocxSeverity.Error),
             Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
-            Operations = execution.Reports
+            Operations = execution.Reports,
+                Author = options.Author,
+                TimestampUtc = options.TimestampUtc
         };
     }
 

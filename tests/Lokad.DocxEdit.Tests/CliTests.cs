@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using System.Text;
 
 namespace Lokad.DocxEdit.Tests;
@@ -553,6 +554,28 @@ public static class CliTests
         CliResult result = RunCli("check", input, patch, "--timestamp-utc", "2026-01-01");
 
         Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public static void CliCheckTextAndReportCarryProvenance()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        string report = Path.Combine(temp.Path, "check-report.json");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCli("check", input, patch, "--author", "Agent", "--timestamp-utc", "2026-01-01T00:00:00Z", "--report", report);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("author=Agent", result.Output, StringComparison.Ordinal);
+        Assert.Contains("timestamp=2026-01-01T00:00:00", result.Output, StringComparison.Ordinal);
+        string reportJson = File.ReadAllText(report);
+        using JsonDocument reportDocument = JsonDocument.Parse(reportJson);
+        Assert.Equal("Agent", reportDocument.RootElement.GetProperty("Author").GetString());
+        Assert.StartsWith("2026-01-01", reportDocument.RootElement.GetProperty("TimestampUtc").GetString(), StringComparison.Ordinal);
+        Assert.False(string.IsNullOrEmpty(reportDocument.RootElement.GetProperty("ToolVersion").GetString()));
     }
 
     [Fact]

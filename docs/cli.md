@@ -243,6 +243,8 @@ omitted-column offsets, merge groups, and nested-table paths when relevant. Use
 Generated revision IDs from the report can be correlated with
 `changes --operation-report`.
 
+Both commands echo the effective `--author`, `--timestamp-utc`, and producing-library version in the text summary line and the JSON report, so a run can be replayed and attributed from its report alone. Agent workflows should always pass explicit `--author` and `--timestamp-utc` for reproducible outputs; omitting them records the `docxedit` default author and the current UTC time.
+
 Track-change modes:
 
 | Mode | Behavior |
