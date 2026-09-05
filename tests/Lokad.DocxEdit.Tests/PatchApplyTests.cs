@@ -7976,6 +7976,31 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckRejectsImageAssetWithMismatchedExtensionAndContent()
+    {
+        byte[] jpegBytes = [0xFF, 0xD8, 0xFF, 0x00];
+        var assets = new MemoryAssetProvider("chart.png", jpegBytes, null, "chart.png");
+        using MemoryStream input = CreateDocx("Intro");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            width 1in
+            height 1in
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { AssetProvider = assets });
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E5203", diagnostic.Code);
+        Assert.Contains("chart.png", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ApplyInsertImageRejectsEmptyImageAssetDuringPostEditValidation()
     {
         using MemoryStream input = CreateDocx("Intro");

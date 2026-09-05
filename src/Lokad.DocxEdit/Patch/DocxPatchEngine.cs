@@ -276,6 +276,15 @@ internal static partial class DocxPatchEngine
             return false;
         }
 
+        if (contentTypeHint is null &&
+            DetectImageExtensionContentType(fileNameHint ?? asset) is { } extensionType &&
+            DetectImageMagicContentType(bytes) is { } magicType &&
+            !string.Equals(extensionType, magicType, StringComparison.Ordinal))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' file extension suggests '{extensionType}' but the content is '{magicType}'.", operation, target);
+            return false;
+        }
+
         return true;
     }
 
@@ -324,17 +333,21 @@ internal static partial class DocxPatchEngine
             return normalizedHint;
         }
 
-        string extension = Path.GetExtension(fileNameHint ?? string.Empty).ToLowerInvariant();
-        if (extension is ".png")
-        {
-            return "image/png";
-        }
+        return DetectImageExtensionContentType(fileNameHint) ?? DetectImageMagicContentType(bytes);
+    }
 
-        if (extension is ".jpg" or ".jpeg")
+    private static string? DetectImageExtensionContentType(string? fileNameHint)
+    {
+        return Path.GetExtension(fileNameHint ?? string.Empty).ToLowerInvariant() switch
         {
-            return "image/jpeg";
-        }
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => null
+        };
+    }
 
+    private static string? DetectImageMagicContentType(byte[] bytes)
+    {
         if (bytes.Length >= 8 &&
             bytes[0] == 0x89 &&
             bytes[1] == 0x50 &&

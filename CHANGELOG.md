@@ -22,3 +22,4 @@
 - Changed patch affected-target `Id`/`ParentId` from `string` to the `DocxTargetId` struct, threading the resolved target through table snapshots (string-surgery `ExtractTableId` plus two dead fallbacks deleted); report text and JSON shapes are unchanged.
 - Changed merge-group and merge-root-cell IDs from `string` to the `DocxTargetId` struct across scanners, snapshots, and DTOs, sharing one internal allocator (twin helpers deleted); text and JSON wire values are unchanged.
 - Fixed quoted single-line patch values being treated verbatim: surrounding quotes are stripped and the documented escapes decode, so quoted styles match and escaped newlines insert real line breaks; heredoc content stays raw.
+- Fixed image assets whose file extension disagrees with the magic bytes being embedded under the wrong content type: extension/content mismatches now fail with `E5203`.
