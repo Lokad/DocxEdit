@@ -1097,6 +1097,21 @@ public static class ProgramMain
                 return allowed.Contains(flag);
             }
 
+            if (diagnosticsPath == "-")
+            {
+                return WithError(command, "--diagnostics does not accept '-'; diagnostics output is file-only.");
+            }
+
+            if (reportPath == "-")
+            {
+                return WithError(command, "--report does not accept '-'; reports are file-only.");
+            }
+
+            if (operationReportPath == "-")
+            {
+                return WithError(command, "--operation-report does not accept '-'; operation reports are file-only.");
+            }
+
             return new ParsedOptions
             {
                 Command = command,

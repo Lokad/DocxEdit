@@ -653,6 +653,45 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliReportPathsRejectDashAsFileOnly()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult report = RunCli("check", input, patch, "--report", "-");
+        CliResult diagnostics = RunCli("check", input, patch, "--diagnostics", "-");
+        CliResult operationReport = RunCli("check", input, patch, "--operation-report", "-");
+
+        Assert.Equal(2, report.ExitCode);
+        Assert.Contains("--report", report.Error, StringComparison.Ordinal);
+        Assert.Contains("Usage:", report.Error, StringComparison.Ordinal);
+        Assert.Equal(2, diagnostics.ExitCode);
+        Assert.Contains("--diagnostics", diagnostics.Error, StringComparison.Ordinal);
+        Assert.Equal(2, operationReport.ExitCode);
+        Assert.Contains("--operation-report", operationReport.Error, StringComparison.Ordinal);
+        Assert.False(File.Exists("-"));
+    }
+
+    [Fact]
+    public static void CliCheckWithReportFileStillWorks()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        string report = Path.Combine(temp.Path, "check.json");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCli("check", input, patch, "--report", report);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(report));
+    }
+
+    [Fact]
     public static void CliApplyWritesDocxToStdout()
     {
         using TempDirectory temp = TempDirectory.Create();
