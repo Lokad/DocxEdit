@@ -84,7 +84,7 @@ public sealed record DocxFindResult : DocxOperationResult
 /// <summary>Target-scoped dump. <see cref="DocxOperationResult.Success"/> reports only that the document scanned: an unknown target yields success with null <c>Text</c> and empty <c>Runs</c>. Check the payload, not just success.</summary>
 public sealed record DocxDumpResult : DocxOperationResult
 {
-    /// <summary>Associated target ID, when known.</summary>
+    /// <summary>Requested target, echoed byte-identical (explicit ID, comment-body ID, or comment reference); never parsed here.</summary>
     public string TargetId { get; init; } = string.Empty;
     /// <summary>Dumped target text; null when the target was not found.</summary>
     public string? Text { get; init; }
@@ -95,7 +95,7 @@ public sealed record DocxDumpResult : DocxOperationResult
 /// <summary>Target neighborhood. Unlike dump, an unknown target fails with <c>E2001</c>; <see cref="DocxOperationResult.Success"/> is equivalent to "target found".</summary>
 public sealed record DocxContextResult : DocxOperationResult
 {
-    /// <summary>Associated target ID, when known.</summary>
+    /// <summary>Requested target, echoed byte-identical (explicit ID, comment-body ID, or comment reference); never parsed here.</summary>
     public string TargetId { get; init; } = string.Empty;
     /// <summary>Target text.</summary>
     public string Text { get; init; } = string.Empty;
