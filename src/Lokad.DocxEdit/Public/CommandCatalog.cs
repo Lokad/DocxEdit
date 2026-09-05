@@ -743,7 +743,7 @@ public static class DocxHelp
                     [
                         new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
                         new("--author name", "Non-empty author used for generated revisions; defaults to docxedit"),
-                        new("--timestamp-utc instant", "Timestamp normalized to UTC for generated revisions"),
+                        new("--timestamp-utc instant", "Timestamp in ISO-8601 format normalized to UTC for generated revisions (e.g. 2026-01-01T00:00:00Z)"),
                         new("--json", "Print the result object as JSON"),
                         new("--report path", "Write operation report JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),
@@ -767,7 +767,7 @@ public static class DocxHelp
                         new("--output path, -o path", "Output .docx path"),
                         new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
                         new("--author name", "Non-empty author used for generated revisions; defaults to docxedit"),
-                        new("--timestamp-utc instant", "Timestamp normalized to UTC for generated revisions"),
+                        new("--timestamp-utc instant", "Timestamp in ISO-8601 format normalized to UTC for generated revisions (e.g. 2026-01-01T00:00:00Z)"),
                         new("--json", "Print the result object as JSON"),
                         new("--report path", "Write operation report JSON"),
                         new("--diagnostics path", "Write diagnostics JSON"),

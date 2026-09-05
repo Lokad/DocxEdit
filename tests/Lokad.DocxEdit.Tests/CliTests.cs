@@ -533,6 +533,29 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliCheckRejectsUnparseableTimestampUtc()
+    {
+        CliResult result = RunCli("check", "input.docx", "edit.docxpatch", "--timestamp-utc", "yesterday");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("2026-01-01T00:00:00Z", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliCheckAcceptsDateOnlyTimestampUtc()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCli("check", input, patch, "--timestamp-utc", "2026-01-01");
+
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
     public static void CliDumpJsonIncludesStructuredRuns()
     {
         using TempDirectory temp = TempDirectory.Create();

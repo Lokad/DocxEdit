@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -784,6 +785,19 @@ internal static class ProgramMain
             DocxTextView textView = DocxTextView.Final;
             DocxValidationProfile validationProfile = DocxValidationProfile.Structural;
 
+            static bool TryParseTimestampUtc(string value, out DateTimeOffset timestamp)
+            {
+                string[] formats = ["O", "yyyy-MM-ddTHH:mm:ss.FFFFFFFK", "yyyy-MM-ddTHH:mm:ssK", "yyyy-MM-dd"];
+                if (DateTimeOffset.TryParseExact(value, formats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out timestamp))
+                {
+                    timestamp = timestamp.ToUniversalTime();
+                    return true;
+                }
+
+                timestamp = default;
+                return false;
+            }
+
             for (int i = 1; i < args.Length; i++)
             {
                 string arg = args[i];
@@ -931,12 +945,12 @@ internal static class ProgramMain
                             return WithError(command, "Missing value for --timestamp-utc.");
                         }
 
-                        if (!DateTimeOffset.TryParse(timestampValue, out DateTimeOffset parsedTimestamp))
+                        if (!TryParseTimestampUtc(timestampValue, out DateTimeOffset parsedTimestamp))
                         {
-                            return WithError(command, "Invalid value for --timestamp-utc.");
+                            return WithError(command, $"Invalid value for --timestamp-utc '{timestampValue}'. Expected ISO-8601 UTC, e.g. 2026-01-01T00:00:00Z.");
                         }
 
-                        timestampUtc = parsedTimestamp.ToUniversalTime();
+                        timestampUtc = parsedTimestamp;
                         break;
                     case "-o":
                     case "--output":
