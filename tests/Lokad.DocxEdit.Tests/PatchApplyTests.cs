@@ -9094,6 +9094,31 @@ public static class PatchApplyTests
         Assert.False(Assert.Single(result.Operations).Success);
     }
 
+    [Fact]
+    public static void ApplyReplaceTextWithEscapedSelectorMatchesLineBreak()
+    {
+        using MemoryStream input = CreateDocxWithBody(
+            """
+            <w:p><w:r><w:t>AAA</w:t></w:r><w:r><w:br/></w:r><w:r><w:t>BBB</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"AAA\nBBB"
+            find BBB
+            with CCC
+            end
+            """);
+        using var output = new MemoryStream();
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        DocxParagraphInfo paragraph = Assert.Single(new DocxEditor().Read(output).Paragraphs);
+        Assert.Equal("AAA\nCCC", paragraph.Text);
+    }
+
     private static MemoryStream CreateDocx(string paragraphText)
     {
         return CreateDocxWithRuns(paragraphText);

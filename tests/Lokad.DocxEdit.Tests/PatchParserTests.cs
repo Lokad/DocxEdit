@@ -83,6 +83,68 @@ public static class PatchParserTests
     }
 
     [Fact]
+    public static void ParsePatchDecodesQuotedFieldValueEscapes()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find A
+            with "x\ny\tz\\w\"v"
+            end
+            """));
+
+        Assert.True(patch.Success);
+        Assert.Equal("M.P0001", patch.Operations[0].Fields["target"]);
+        Assert.Equal("x\ny\tz\\w\"v", patch.Operations[0].Fields["with"]);
+    }
+
+    [Fact]
+    public static void ParsePatchLeavesBareAndUnbalancedValuesVerbatim()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch bare = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find A
+            with C:\new
+            end
+            """));
+        Assert.True(bare.Success);
+        Assert.Equal(@"C:\new", bare.Operations[0].Fields["with"]);
+
+        DocxPatch unbalanced = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find A
+            with "abc
+            end
+            """));
+        Assert.True(unbalanced.Success);
+        Assert.Equal("\"abc", unbalanced.Operations[0].Fields["with"]);
+
+        DocxPatch empty = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find A
+            with ""
+            end
+            """));
+        Assert.True(empty.Success);
+        Assert.Equal("", empty.Operations[0].Fields["with"]);
+    }
+
+    [Fact]
     public static void ParsePatchPreservesRepeatedFieldsInOrder()
     {
         var editor = new DocxEditor();

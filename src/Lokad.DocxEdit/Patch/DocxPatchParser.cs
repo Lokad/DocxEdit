@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Lokad.DocxEdit;
 
 internal static class DocxPatchParser
@@ -88,13 +90,14 @@ internal static class DocxPatchParser
                 }
 
                 string key = fieldLine[..separator].Trim();
-                string value = fieldLine[(separator + 1)..].Trim();
+                string rawValue = fieldLine[(separator + 1)..].Trim();
                 int keyColumn = leadingWhitespace + 1;
                 if (!operationDefinition.AllowedFields.Contains(key))
                 {
                     return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", i + 1, keyColumn);
                 }
 
+                string value = rawValue;
                 if (value == "<<<")
                 {
                     int startLine = i + 2;
@@ -111,6 +114,10 @@ internal static class DocxPatchParser
                     }
 
                     value = string.Join('\n', heredoc);
+                }
+                else
+                {
+                    value = DecodeFieldValue(value);
                 }
 
                 if (operationDefinition.BooleanFields.Contains(key) && !IsBooleanLiteral(value))
@@ -158,6 +165,47 @@ internal static class DocxPatchParser
             return string.Equals(value, "true", StringComparison.Ordinal) ||
                 string.Equals(value, "false", StringComparison.Ordinal);
         }
+
+        static string DecodeFieldValue(string fieldValue)
+        {
+            if (fieldValue.Length >= 2 && fieldValue[0] == '"' && fieldValue[^1] == '"')
+            {
+                return UnescapePatchValue(fieldValue[1..^1]);
+            }
+
+            return fieldValue;
+        }
+    }
+
+    internal static string UnescapePatchValue(string value)
+    {
+        if (value.IndexOf('\\') < 0)
+        {
+            return value;
+        }
+
+        StringBuilder decoded = new(value.Length);
+        for (int index = 0; index < value.Length; index++)
+        {
+            if (value[index] == '\\' && index + 1 < value.Length)
+            {
+                index++;
+                decoded.Append(value[index] switch
+                {
+                    '"' => "\"",
+                    '\\' => "\\",
+                    'n' => "\n",
+                    't' => "\t",
+                    _ => "\\" + value[index],
+                });
+            }
+            else
+            {
+                decoded.Append(value[index]);
+            }
+        }
+
+        return decoded.ToString();
     }
 
     private static DocxPatch Error(string code, string message, int line, int column)

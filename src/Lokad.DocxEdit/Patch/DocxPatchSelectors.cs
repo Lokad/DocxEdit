@@ -243,7 +243,7 @@ internal static partial class DocxPatchEngine
         selectorText = string.Empty;
         if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
         {
-            selectorText = value[1..^1];
+            selectorText = DocxPatchParser.UnescapePatchValue(value[1..^1]);
             return selectorText.Length != 0;
         }
 
