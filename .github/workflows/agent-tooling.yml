@@ -17,7 +17,23 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build solution
         run: dotnet build Lokad.DocxEdit.slnx -c Release --nologo -v q
+      # pwsh (not powershell): the runner hashes inputs with Get-FileHash, which is absent
+      # from some Windows PowerShell 5.1 installs; pwsh 7 ships on windows-latest.
       - name: List challenges
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -List
-      - name: Dry-run one challenge
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -DryRun
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -List
+      - name: Dry-run all challenges
+        run: |
+          $challenges = @((Get-ChildItem agent-challenges/challenges/*.json).BaseName)
+          foreach ($challenge in $challenges) {
+            pwsh -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge $challenge -DryRun | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Dry-run failed." }
+          }
+          Write-Host ("Dry-ran " + $challenges.Count + " challenges.")
+      # The privacy guard requires the case under ignored private-cases/, so CI stages the
+      # public smoke fixture as a stand-in: identical runner mechanics (copy, hash, wrapper,
+      # build, summary with hashes only), nothing private involved.
+      - name: Prepare one challenge with a fixture stand-in
+        run: |
+          New-Item -ItemType Directory -Force -Path private-cases | Out-Null
+          Copy-Item -LiteralPath edit-cases/fixtures/word-smoke.docx -Destination private-cases/ci-standin.docx
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -PrepareOnly
