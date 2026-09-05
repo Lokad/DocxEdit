@@ -28,6 +28,11 @@ internal static partial class DocxDocumentScanner
             .Element(OoxmlNs.W + "tblGrid")
             ?.Elements(OoxmlNs.W + "gridCol")
             .Count();
+        if (!DocxTargetId.TryParse(id, out DocxTargetId tableId) || tableId.Kind != DocxTargetKind.Table)
+        {
+            throw new InvalidDataException($"Scanner table ID '{id}' does not parse as a table target.");
+        }
+
         int rowIndex = 1;
         int mergeGroupIndex = 1;
         int maxColumns = 0;
@@ -57,14 +62,14 @@ internal static partial class DocxDocumentScanner
                 string? verticalMergeRootCellId = null;
                 if (verticalMerge == DocxVerticalMerge.Restart)
                 {
-                    mergeGroupId = AllocateMergeGroupId(id, ref mergeGroupIndex);
+                    mergeGroupId = AllocateMergeGroupId(tableId, ref mergeGroupIndex);
                     verticalMergeRootCellId = cellId;
                     SetActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan, new TableMergeState(mergeGroupId, cellId));
                 }
                 else if (verticalMerge is not null)
                 {
                     TableMergeState? activeMerge = FindActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan);
-                    mergeGroupId = activeMerge?.MergeGroupId ?? AllocateMergeGroupId(id, ref mergeGroupIndex);
+                    mergeGroupId = activeMerge?.MergeGroupId ?? AllocateMergeGroupId(tableId, ref mergeGroupIndex);
                     verticalMergeRootCellId = activeMerge?.RootCellId;
                     SetActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan, new TableMergeState(mergeGroupId, verticalMergeRootCellId));
                 }
@@ -73,7 +78,7 @@ internal static partial class DocxDocumentScanner
                     RemoveActiveVerticalMerges(activeVerticalMerges, columnIndex, columnSpan);
                     if (columnSpan > 1)
                     {
-                        mergeGroupId = AllocateMergeGroupId(id, ref mergeGroupIndex);
+                        mergeGroupId = AllocateMergeGroupId(tableId, ref mergeGroupIndex);
                     }
                 }
 
@@ -143,9 +148,9 @@ internal static partial class DocxDocumentScanner
         };
     }
 
-    private static string AllocateMergeGroupId(string tableId, ref int mergeGroupIndex)
+    private static string AllocateMergeGroupId(DocxTargetId tableId, ref int mergeGroupIndex)
     {
-        return $"{tableId}.MG{mergeGroupIndex++:0000}";
+        return new DocxTargetId(tableId.Story, tableId.StoryPart, DocxTargetKind.MergeGroup, tableId.Primary, mergeGroupIndex++, 0).ToWireValue();
     }
 
     private static void SetActiveVerticalMerge(
