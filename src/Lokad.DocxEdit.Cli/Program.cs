@@ -482,12 +482,14 @@ internal static class ProgramMain
 
     private static DocxEditOptions ToEditOptions(ParsedOptions options)
     {
+        string? patchDirectory = Path.GetDirectoryName(Path.GetFullPath(options.Positionals[1]));
+
         return new DocxEditOptions
         {
             TrackChanges = options.TrackChanges,
             Author = options.Author ?? "docxedit",
             TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow,
-            AssetProvider = FileSystemAssetProvider.Instance
+            AssetProvider = new FileSystemAssetProvider(patchDirectory)
         };
     }
 
@@ -645,7 +647,12 @@ internal static class ProgramMain
 
     private sealed class FileSystemAssetProvider : IDocxAssetProvider
     {
-        public static readonly FileSystemAssetProvider Instance = new();
+        private readonly string? _baseDirectory;
+
+        public FileSystemAssetProvider(string? baseDirectory)
+        {
+            _baseDirectory = baseDirectory;
+        }
 
         public bool TryOpen(
             string reference,
@@ -659,6 +666,17 @@ internal static class ProgramMain
 
             try
             {
+                if (_baseDirectory is not null && !Path.IsPathRooted(reference))
+                {
+                    string sibling = Path.GetFullPath(Path.Combine(_baseDirectory, reference));
+                    if (File.Exists(sibling))
+                    {
+                        stream = File.OpenRead(sibling);
+                        fileNameHint = Path.GetFileName(sibling);
+                        return true;
+                    }
+                }
+
                 string path = Path.GetFullPath(reference);
                 if (!File.Exists(path))
                 {

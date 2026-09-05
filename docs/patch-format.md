@@ -502,9 +502,11 @@ target shape has them.
 ## Assets
 
 Image operations read `asset` from the local filesystem. Relative paths are
-resolved from the current working directory of the CLI process. Use
-`expect-content-type` when replacing or deleting an image so accidental target
-mixups fail early.
+resolved against the patch file directory first, then the current working
+directory of the CLI process; absolute paths work unchanged. Keep assets next
+to the patch so the same patch resolves identically regardless of where the
+CLI is invoked from. Use `expect-content-type` when replacing or deleting
+an image so accidental target mixups fail early.
 
 ## Diagnostics
 

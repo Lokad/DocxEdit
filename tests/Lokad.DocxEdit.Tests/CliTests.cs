@@ -400,6 +400,32 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliApplyResolvesRelativeAssetsFromPatchDirectory()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string output = Path.Combine(temp.Path, "output.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateDocx(input);
+        File.WriteAllText(Path.Combine(temp.Path, "sibling-chart.png"), "new-png");
+        File.WriteAllText(patch, """
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset sibling-chart.png
+            alt Inserted chart
+            end
+            """);
+
+        CliResult result = RunCli("apply", input, patch, "-o", output);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(output));
+        Assert.Equal("new-png", ReadEntry(output, "word/media/image2.png"));
+    }
+
+    [Fact]
     public static void CliApplyCanReplaceBookmarkText()
     {
         using TempDirectory temp = TempDirectory.Create();

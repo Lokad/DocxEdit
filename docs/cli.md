@@ -237,6 +237,8 @@ docxedit check report.docx edits.docxpatch
 docxedit apply report.docx edits.docxpatch --output report.edited.docx
 ```
 
+Relative image `asset` paths in the patch resolve against the patch file directory first, then the invoking working directory (see [patch-format.md](patch-format.md)).
+
 Both commands report one operation line per patch operation. Table operations also
 report affected row/cell IDs with visual-grid metadata such as column spans,
 omitted-column offsets, merge groups, and nested-table paths when relevant. Use
