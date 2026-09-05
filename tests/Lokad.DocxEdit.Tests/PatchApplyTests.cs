@@ -6790,7 +6790,7 @@ public static class PatchApplyTests
 
         Assert.True(result.Success);
         DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
-        Assert.Equal("M.T0001.MG0001", affected.Id);
+        Assert.Equal("M.T0001.MG0001", affected.Id.ToWireValue());
         Assert.Equal(1, affected.ColumnIndex);
         output.Position = 0;
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
@@ -8878,13 +8878,13 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         DocxPatchOperationReport report = Assert.Single(result.Operations);
         DocxPatchAffectedTarget row = Assert.Single(report.AffectedTargets, target => target.Kind == "row");
-        Assert.Equal("M.T0001.R02", row.Id);
+        Assert.Equal("M.T0001.R02", row.Id.ToWireValue());
         Assert.Equal("append", row.Action);
         Assert.Equal(1, row.RowCountBefore);
         Assert.Equal(2, row.RowCountAfter);
         Assert.Equal(2, row.CellCount);
-        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C01" && target.Kind == "cell" && target.ColumnIndex == 1);
-        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C02" && target.Kind == "cell" && target.ColumnIndex == 2);
+        Assert.Contains(report.AffectedTargets, target => target.Id.ToWireValue() == "M.T0001.R02.C01" && target.Kind == "cell" && target.ColumnIndex == 1);
+        Assert.Contains(report.AffectedTargets, target => target.Id.ToWireValue() == "M.T0001.R02.C02" && target.Kind == "cell" && target.ColumnIndex == 2);
     }
 
     [Fact]
@@ -8919,7 +8919,7 @@ public static class PatchApplyTests
         Assert.Equal(1, row.GridBefore);
         Assert.Equal(0, row.GridAfter);
         DocxPatchAffectedTarget cell = Assert.Single(report.AffectedTargets, target => target.Kind == "cell");
-        Assert.Equal("M.T0001.R01.C02", cell.Id);
+        Assert.Equal("M.T0001.R01.C02", cell.Id.ToWireValue());
         Assert.Equal(2, cell.ColumnIndex);
         Assert.Equal(2, cell.VisualColumnEndIndex);
     }
@@ -8954,7 +8954,7 @@ public static class PatchApplyTests
 
         Assert.True(result.Success);
         DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
-        Assert.Equal("M.T0001.MG0001", affected.Id);
+        Assert.Equal("M.T0001.MG0001", affected.Id.ToWireValue());
         Assert.Equal(1, affected.ColumnIndex);
         Assert.Equal(2, affected.VisualColumnEndIndex);
         Assert.Equal("M.T0001.MG0001", affected.MergeGroupId);
@@ -8990,13 +8990,13 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         DocxPatchOperationReport report = Assert.Single(result.Operations);
         DocxPatchAffectedTarget row = Assert.Single(report.AffectedTargets, target => target.Kind == "row");
-        Assert.Equal("M.T0001.R02", row.Id);
+        Assert.Equal("M.T0001.R02", row.Id.ToWireValue());
         Assert.Equal("delete", row.Action);
         Assert.Equal(2, row.RowCountBefore);
         Assert.Equal(1, row.RowCountAfter);
         Assert.Equal(2, row.CellCount);
-        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C01" && target.Kind == "cell" && target.Action == "delete");
-        Assert.Contains(report.AffectedTargets, target => target.Id == "M.T0001.R02.C02" && target.Kind == "cell" && target.Action == "delete");
+        Assert.Contains(report.AffectedTargets, target => target.Id.ToWireValue() == "M.T0001.R02.C01" && target.Kind == "cell" && target.Action == "delete");
+        Assert.Contains(report.AffectedTargets, target => target.Id.ToWireValue() == "M.T0001.R02.C02" && target.Kind == "cell" && target.Action == "delete");
     }
 
     [Fact]
@@ -9008,18 +9008,18 @@ public static class PatchApplyTests
             {
                 AffectedTargets =
                 [
-                    new("M.T0001.R02", "row", "append")
+                    new(new DocxTargetId('M', 0, DocxTargetKind.Row, 1, 2, 0), "row", "append")
                     {
-                        ParentId = "M.T0001",
+                        ParentId = new DocxTargetId('M', 0, DocxTargetKind.Table, 1, 0, 0),
                         RowIndex = 2,
                         RowCountBefore = 1,
                         RowCountAfter = 2,
                         ColumnCount = 2,
                         CellCount = 2
                     },
-                    new("M.T0001.R02.C01", "cell", "append")
+                    new(new DocxTargetId('M', 0, DocxTargetKind.Cell, 1, 2, 1), "cell", "append")
                     {
-                        ParentId = "M.T0001.R02",
+                        ParentId = new DocxTargetId('M', 0, DocxTargetKind.Row, 1, 2, 0),
                         RowIndex = 2,
                         ColumnIndex = 1,
                         VisualColumnEndIndex = 2,

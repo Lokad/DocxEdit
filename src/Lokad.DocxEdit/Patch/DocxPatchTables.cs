@@ -78,21 +78,25 @@ internal static partial class DocxPatchEngine
         int? cellCount,
         XElement? row)
     {
+        if (!DocxTargetId.TryParse(target, out DocxTargetId resolved))
+        {
+            throw new InvalidDataException("Table snapshot requires the resolved explicit target.");
+        }
+
         int rowCount = table.Elements(OoxmlNs.W + "tr").Count();
         int columnCount = TryGetConsistentVisualColumnCount(table, out int visualColumnCount)
             ? visualColumnCount
             : table.Elements(OoxmlNs.W + "tr").Select(ReadTableRowVisualColumnCount).DefaultIfEmpty(0).Max();
-        string? tableId = ExtractTableId(target);
         int? gridBefore = row is null ? null : ReadTableRowGridOffset(row, "gridBefore");
         int? gridAfter = row is null ? null : ReadTableRowGridOffset(row, "gridAfter");
-        IReadOnlyList<TableCellSnapshot> cells = tableId is null || row is null
+        IReadOnlyList<TableCellSnapshot> cells = row is null
             ? []
-            : CreateTableCellSnapshots(tableId, table, row, rowIndex);
-        return new TableOperationSnapshot(target, tableId, rowIndex, columnIndex, rowCount, columnCount, cellCount, gridBefore, gridAfter, cells);
+            : CreateTableCellSnapshots(resolved.TableId, table, row, rowIndex);
+        return new TableOperationSnapshot(resolved, rowIndex, columnIndex, rowCount, columnCount, cellCount, gridBefore, gridAfter, cells);
     }
 
     private static IReadOnlyList<TableCellSnapshot> CreateTableCellSnapshots(
-        string tableId,
+        DocxTargetId tableId,
         XElement table,
         XElement targetRow,
         int? targetRowIndex)
@@ -114,12 +118,12 @@ internal static partial class DocxPatchEngine
                 string? mergeGroupId = null;
                 if (verticalMerge == DocxVerticalMerge.Restart)
                 {
-                    mergeGroupId = AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
+                    mergeGroupId = AllocateTableMergeGroupId(tableId.ToWireValue(), ref mergeGroupIndex);
                     SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
                 }
                 else if (verticalMerge is not null)
                 {
-                    mergeGroupId = FindActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan) ?? AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
+                    mergeGroupId = FindActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan) ?? AllocateTableMergeGroupId(tableId.ToWireValue(), ref mergeGroupIndex);
                     SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
                 }
                 else
@@ -127,18 +131,18 @@ internal static partial class DocxPatchEngine
                     RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, columnSpan);
                     if (columnSpan > 1)
                     {
-                        mergeGroupId = AllocateTableMergeGroupId(tableId, ref mergeGroupIndex);
+                        mergeGroupId = AllocateTableMergeGroupId(tableId.ToWireValue(), ref mergeGroupIndex);
                     }
                 }
 
                 if (ReferenceEquals(row, targetRow))
                 {
-                    string cellId = $"{tableId}.R{(targetRowIndex ?? rowIndex):00}.C{columnIndex:00}";
+                    DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = targetRowIndex ?? rowIndex, Tertiary = columnIndex };
                     snapshots.Add(new TableCellSnapshot(
                         columnIndex,
                         columnIndex + columnSpan - 1,
                         mergeGroupId,
-                        CreateNestedTablePath(cellId, cell)));
+                        CreateNestedTablePath(cellId.ToWireValue(), cell)));
                 }
 
                 columnIndex += columnSpan;
@@ -242,9 +246,9 @@ internal static partial class DocxPatchEngine
             before.ColumnIndex.Value <= cell.VisualColumnEndIndex);
         return
         [
-            new(before.TargetId, "cell", "update")
+            new(before.ResolvedTarget, "cell", "update")
             {
-                ParentId = before.TableId,
+                ParentId = before.ResolvedTarget.TableId,
                 RowIndex = before.RowIndex,
                 ColumnIndex = before.ColumnIndex,
                 VisualColumnEndIndex = cell?.VisualColumnEndIndex,
@@ -263,12 +267,12 @@ internal static partial class DocxPatchEngine
         int requestedCellCount,
         string action)
     {
-        string tableId = before.TableId ?? before.TargetId;
+        DocxTargetId tableId = before.ResolvedTarget.TableId;
         IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
-            ? CreateFallbackCellSnapshots(tableId, before.RowIndex, requestedCellCount == 0 ? before.ColumnCount : requestedCellCount)
+            ? CreateFallbackCellSnapshots(tableId.ToWireValue(), before.RowIndex, requestedCellCount == 0 ? before.ColumnCount : requestedCellCount)
             : before.Cells;
         int cellCount = requestedCellCount == 0 ? cells.Count : requestedCellCount;
-        string rowId = $"{tableId}.R{insertedRowIndex:00}";
+        DocxTargetId rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = insertedRowIndex };
         var affected = new List<DocxPatchAffectedTarget>
         {
             new(rowId, "row", action)
@@ -285,13 +289,13 @@ internal static partial class DocxPatchEngine
         };
         foreach (TableCellSnapshot cell in cells.Take(cellCount))
         {
-            affected.Add(new DocxPatchAffectedTarget($"{rowId}.C{cell.ColumnIndex:00}", "cell", action)
+            affected.Add(new DocxPatchAffectedTarget(rowId with { Kind = DocxTargetKind.Cell, Tertiary = cell.ColumnIndex }, "cell", action)
             {
                 ParentId = rowId,
                 RowIndex = insertedRowIndex,
                 ColumnIndex = cell.ColumnIndex,
                 VisualColumnEndIndex = cell.VisualColumnEndIndex,
-                NestedTablePath = cell.NestedTablePath is null ? null : $"{rowId}.C{cell.ColumnIndex:00}.T0001",
+                NestedTablePath = cell.NestedTablePath is null ? null : rowId.ToWireValue() + $".C{cell.ColumnIndex:00}.T0001",
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore + 1,
                 ColumnCount = before.ColumnCount
@@ -303,17 +307,16 @@ internal static partial class DocxPatchEngine
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildDeletedRowAffectedTargets(TableOperationSnapshot before)
     {
-        string tableId = before.TableId ?? ExtractTableId(before.TargetId) ?? before.TargetId;
         int rowIndex = before.RowIndex ?? 1;
         IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
-            ? CreateFallbackCellSnapshots(tableId, rowIndex, before.CellCount ?? before.ColumnCount)
+            ? CreateFallbackCellSnapshots(before.ResolvedTarget.TableId.ToWireValue(), rowIndex, before.CellCount ?? before.ColumnCount)
             : before.Cells;
         int cellCount = before.CellCount ?? cells.Count;
         var affected = new List<DocxPatchAffectedTarget>
         {
-            new(before.TargetId, "row", "delete")
+            new(before.ResolvedTarget, "row", "delete")
             {
-                ParentId = tableId,
+                ParentId = before.ResolvedTarget.TableId,
                 RowIndex = rowIndex,
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore - 1,
@@ -325,9 +328,9 @@ internal static partial class DocxPatchEngine
         };
         foreach (TableCellSnapshot cell in cells.Take(cellCount))
         {
-            affected.Add(new DocxPatchAffectedTarget($"{before.TargetId}.C{cell.ColumnIndex:00}", "cell", "delete")
+            affected.Add(new DocxPatchAffectedTarget(before.ResolvedTarget with { Kind = DocxTargetKind.Cell, Tertiary = cell.ColumnIndex }, "cell", "delete")
             {
-                ParentId = before.TargetId,
+                ParentId = before.ResolvedTarget,
                 RowIndex = rowIndex,
                 ColumnIndex = cell.ColumnIndex,
                 VisualColumnEndIndex = cell.VisualColumnEndIndex,
@@ -342,18 +345,6 @@ internal static partial class DocxPatchEngine
         return affected;
     }
 
-    private static string? ExtractTableId(string target)
-    {
-        int rowMarker = target.IndexOf(".R", StringComparison.Ordinal);
-        int mergeGroupMarker = target.IndexOf(".MG", StringComparison.Ordinal);
-        int marker = rowMarker switch
-        {
-            >= 0 when mergeGroupMarker >= 0 => Math.Min(rowMarker, mergeGroupMarker),
-            >= 0 => rowMarker,
-            _ => mergeGroupMarker
-        };
-        return marker < 0 ? target : target[..marker];
-    }
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCell(
         OoxmlPackage package,
         DocxPatchOperation operation,

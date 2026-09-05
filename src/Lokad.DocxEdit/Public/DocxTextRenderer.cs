@@ -452,7 +452,7 @@ public static class DocxTextRenderer
                 .AppendLine();
             foreach (DocxPatchAffectedTarget affected in operation.AffectedTargets)
             {
-                string parent = affected.ParentId is null ? string.Empty : $" parent={affected.ParentId}";
+                string parent = affected.ParentId is { } affectedParent ? $" parent={affectedParent.ToWireValue()}" : string.Empty;
                 string row = affected.RowIndex is null ? string.Empty : $" row={affected.RowIndex}";
                 string column = affected.ColumnIndex is null ? string.Empty : $" column={affected.ColumnIndex}";
                 string rowsBefore = affected.RowCountBefore is null ? string.Empty : $" rows-before={affected.RowCountBefore}";
@@ -465,7 +465,7 @@ public static class DocxTextRenderer
                 string mergeGroup = affected.MergeGroupId is null ? string.Empty : $" merge-group={affected.MergeGroupId}";
                 string nestedTablePath = affected.NestedTablePath is null ? string.Empty : $" nested-table-path={affected.NestedTablePath}";
                 builder.Append("  affected id=")
-                    .Append(affected.Id)
+                    .Append(affected.Id.ToWireValue())
                     .Append(" kind=")
                     .Append(affected.Kind)
                     .Append(" action=")

@@ -220,10 +220,10 @@ public sealed record DocxPatchOperationReport(
 /// <param name="Id">Affected target ID.</param>
 /// <param name="Kind">Affected target kind.</param>
 /// <param name="Action">What the operation did to the target.</param>
-public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Action)
+public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, string Action)
 {
     /// <summary>Containing target ID, when known.</summary>
-    public string? ParentId { get; init; }
+    public DocxTargetId? ParentId { get; init; }
     /// <summary>1-based row ordinal.</summary>
     public int? RowIndex { get; init; }
     /// <summary>1-based visual column ordinal.</summary>

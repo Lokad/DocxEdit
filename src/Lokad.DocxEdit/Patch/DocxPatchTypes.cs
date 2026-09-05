@@ -55,8 +55,7 @@ internal sealed record RowTarget(string PartName, XDocument Document, XElement T
 internal sealed record CellTarget(string PartName, XDocument Document, XElement Table, XElement Row, XElement Cell, int VisualColumnIndex);
 
 internal sealed record TableOperationSnapshot(
-    string TargetId,
-    string? TableId,
+    DocxTargetId ResolvedTarget,
     int? RowIndex,
     int? ColumnIndex,
     int RowCountBefore,
