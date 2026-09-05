@@ -9,7 +9,8 @@ using Lokad.DocxEdit;
 
 return ProgramMain.Run(args);
 
-internal static class ProgramMain
+/// <summary>Command-line harness entry point. Public for in-process testing; the published surface is the <c>docxedit</c> command line.</summary>
+public static class ProgramMain
 {
     private static readonly JsonSerializerOptions IndentedJsonOptions = CreateJsonOptions(writeIndented: true);
     private static readonly JsonSerializerOptions CompactJsonOptions = CreateJsonOptions(writeIndented: false);

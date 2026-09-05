@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lokad.DocxEdit\Lokad.DocxEdit.csproj" />
+    <ProjectReference Include="..\..\src\Lokad.DocxEdit.Cli\Lokad.DocxEdit.Cli.csproj" />
   </ItemGroup>
 
 </Project>

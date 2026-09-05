@@ -642,9 +642,9 @@ public static class CliTests
         using TempDirectory temp = TempDirectory.Create();
         string input = Path.Combine(temp.Path, "input.docx");
         CreateTextOnlyDocx(input);
-        byte[] patch = Encoding.UTF8.GetBytes("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+        string patch = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n";
 
-        CliResult result = RunCliWithInput(patch, "check", input, "-");
+        CliResult result = RunCliWithTextInput(patch, "check", input, "-");
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("docxedit check: OK", result.Output, StringComparison.Ordinal);
@@ -659,7 +659,7 @@ public static class CliTests
         CreateTextOnlyDocx(input);
         File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
 
-        CliResult result = RunCli("apply", input, patch, "-o", "-");
+        CliResult result = RunCliOutOfProcess("apply", input, patch, "-o", "-");
 
         Assert.Equal(0, result.ExitCode);
         Assert.StartsWith("PK", result.Output, StringComparison.Ordinal);
@@ -674,7 +674,7 @@ public static class CliTests
         CreateTextOnlyDocx(input);
         byte[] document = File.ReadAllBytes(input);
 
-        CliResult result = RunCliWithInput(document, "read", "-", "--summary");
+        CliResult result = RunCliOutOfProcessWithInput(document, "read", "-", "--summary");
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("paragraphs count=", result.Output, StringComparison.Ordinal);
@@ -806,15 +806,52 @@ public static class CliTests
 
     private static CliResult RunCli(params string[] args)
     {
-        return RunCliCore(null, args);
+        return RunInProcess(null, args);
     }
 
-    private static CliResult RunCliWithInput(byte[] standardInput, params string[] args)
+    private static CliResult RunCliWithTextInput(string standardInput, params string[] args)
     {
-        return RunCliCore(standardInput, args);
+        return RunInProcess(standardInput, args);
     }
 
-    private static CliResult RunCliCore(byte[]? standardInput, string[] args)
+    private static CliResult RunInProcess(string? standardInput, string[] args)
+    {
+        TextWriter savedOut = Console.Out;
+        TextWriter savedError = Console.Error;
+        TextReader savedIn = Console.In;
+        var output = new StringWriter();
+        var error = new StringWriter();
+        try
+        {
+            Console.SetOut(output);
+            Console.SetError(error);
+            if (standardInput is not null)
+            {
+                Console.SetIn(new StringReader(standardInput));
+            }
+
+            int exitCode = ProgramMain.Run(args);
+            return new CliResult(exitCode, output.ToString(), error.ToString());
+        }
+        finally
+        {
+            Console.SetOut(savedOut);
+            Console.SetError(savedError);
+            Console.SetIn(savedIn);
+        }
+    }
+
+    private static CliResult RunCliOutOfProcess(params string[] args)
+    {
+        return RunCliOutOfProcessCore(null, args);
+    }
+
+    private static CliResult RunCliOutOfProcessWithInput(byte[] standardInput, params string[] args)
+    {
+        return RunCliOutOfProcessCore(standardInput, args);
+    }
+
+    private static CliResult RunCliOutOfProcessCore(byte[]? standardInput, string[] args)
     {
         string repoRoot = FindRepoRoot();
         var startInfo = new ProcessStartInfo("dotnet")
