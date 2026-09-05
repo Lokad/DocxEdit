@@ -34,7 +34,7 @@ public sealed record DocxDiagnostic(
     string Code,
     string Message)
 {
-    /// <summary>Stable target ID when the finding is about one target.</summary>
+    /// <summary>Target ID when the finding is about one target: a wire ID when resolved, or raw patch-target text (selectors included) when echoing input; not guaranteed parseable.</summary>
     public string? TargetId { get; init; }
 
     /// <summary>Package part path when the finding is about one part.</summary>

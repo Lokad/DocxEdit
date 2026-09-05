@@ -494,7 +494,7 @@ public sealed record DocxCommentThreadSummary
 /// </summary>
 public sealed record DocxDumpRunInfo
 {
-    /// <summary>Stable ID.</summary>
+    /// <summary>Run ID: the owning paragraph wire ID plus a run ordinal (<c>M.P0001.R0001</c>); a composite key, not an addressable target.</summary>
     public string Id { get; init; } = string.Empty;
     /// <summary>Run text.</summary>
     public string Text { get; init; } = string.Empty;
@@ -519,7 +519,7 @@ public sealed record DocxDumpRunInfo
 /// </summary>
 public sealed record DocxContextItem
 {
-    /// <summary>Stable ID.</summary>
+    /// <summary>Item ID: a model or change wire ID, or a <c>comment:</c> composite for comment bodies; a composite key, not always addressable.</summary>
     public string Id { get; init; } = string.Empty;
     /// <summary>Item kind.</summary>
     public string Kind { get; init; } = string.Empty;
@@ -527,7 +527,7 @@ public sealed record DocxContextItem
     public string Relation { get; init; } = string.Empty;
     /// <summary>Story label.</summary>
     public string Story { get; init; } = string.Empty;
-    /// <summary>Containing target ID, when known.</summary>
+    /// <summary>Containing ID, when known: a table wire ID, a media part path, or a change-union member, depending on the item kind.</summary>
     public string? ParentId { get; init; }
     /// <summary>Item text.</summary>
     public string Text { get; init; } = string.Empty;
