@@ -622,7 +622,7 @@ internal static partial class DocxPatchEngine
 
     private static bool ContainsProtectedBookmarkReplacementNode(IEnumerable<XNode> nodes, out string? feature)
     {
-        foreach (XElement element in nodes.OfType<XElement>().SelectMany(ElementAndDescendants))
+        foreach (XElement element in nodes.OfType<XElement>().SelectMany(node => node.DescendantsAndSelf()))
         {
             if (ProtectedTextEditElements.TryGetValue(element.Name, out string? protectedFeature) &&
                 element.Name != OoxmlNs.W + "bookmarkStart" &&

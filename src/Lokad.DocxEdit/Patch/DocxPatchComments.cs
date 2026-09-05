@@ -1444,12 +1444,4 @@ internal static partial class DocxPatchEngine
         }
     }
 
-    private static IEnumerable<XElement> ElementAndDescendants(XElement element)
-    {
-        yield return element;
-        foreach (XElement descendant in element.Descendants())
-        {
-            yield return descendant;
-        }
-    }
 }
