@@ -1633,6 +1633,9 @@ Heredoc content:
 * normalizes internal line endings to `\n`
 * does not include the terminating `>>>` line
 
+Escape processing applies to quoted single-line values only: bare and unbalanced values
+stay verbatim, unknown backslash sequences stay literal, and heredoc content stays raw.
+
 ### 10.6 Selectors
 
 Supported selectors:
