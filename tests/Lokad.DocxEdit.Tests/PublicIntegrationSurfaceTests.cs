@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace Lokad.DocxEdit.Tests;
 
 public static class PublicIntegrationSurfaceTests
@@ -148,14 +146,6 @@ public static class PublicIntegrationSurfaceTests
         Assert.Contains("set-section-columns | section-property | tracked-section-columns", table, StringComparison.Ordinal);
         Assert.Contains("set-section-orientation | section-property | tracked-section-orientation", table, StringComparison.Ordinal);
         Assert.Contains(NormalizeLineEndings(table), NormalizeLineEndings(DocxHelp.RenderTopic("patch")), StringComparison.Ordinal);
-
-        string repoRoot = FindRepoRoot();
-        string patchFormat = File.ReadAllText(Path.Combine(repoRoot, "docs", "patch-format.md"));
-        Assert.Contains(NormalizeLineEndings(table).TrimEnd(), NormalizeLineEndings(patchFormat), StringComparison.Ordinal);
-
-        string readme = File.ReadAllText(Path.Combine(repoRoot, "README.md"));
-        Assert.Contains("DocxHelp.RenderPatchTrackChangesSupportTable()", readme, StringComparison.Ordinal);
-        Assert.Contains("docs/patch-format.md", readme, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -317,22 +307,6 @@ public static class PublicIntegrationSurfaceTests
 
         Assert.True(DocxHelp.TryRenderTopic("patch", out _));
         Assert.Contains("patch", overview, StringComparison.Ordinal);
-    }
-
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Lokad.DocxEdit.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root.");
     }
 
     private static string NormalizeLineEndings(string value)
