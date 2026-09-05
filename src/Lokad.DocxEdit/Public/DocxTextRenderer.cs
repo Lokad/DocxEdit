@@ -215,6 +215,27 @@ public static class DocxTextRenderer
     }
 
     /// <summary>
+    /// Renders extracted image files.
+    /// </summary>
+    public static string RenderMediaExtract(DocxMediaExtractResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var builder = new StringBuilder();
+        foreach (DocxMediaFile file in result.Files)
+        {
+            builder.Append("extracted image=")
+                .Append(file.ImageId)
+                .Append(" file=")
+                .Append(file.FileName)
+                .Append(" bytes=")
+                .Append(file.Content.Length)
+                .AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
     /// Renders validation diagnostics.
     /// </summary>
     public static string RenderValidate(DocxValidateResult result)

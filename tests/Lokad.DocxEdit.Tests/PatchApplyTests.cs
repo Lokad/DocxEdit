@@ -7481,6 +7481,21 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ExtractMediaReturnsInventoriedBytes()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+
+        DocxMediaExtractResult result = new DocxEditor().ExtractMedia(input);
+
+        Assert.True(result.Success);
+        DocxMediaFile file = Assert.Single(result.Files);
+        Assert.Equal("M.I0001", file.ImageId);
+        Assert.Equal("/word/media/image1.png", file.PartName);
+        Assert.Equal("M.I0001-image1.png", file.FileName);
+        Assert.Equal("old-png", Encoding.UTF8.GetString(file.Content));
+    }
+
+    [Fact]
     public static void ApplyReplaceImageUsesAssetProviderForPng()
     {
         using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");

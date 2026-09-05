@@ -305,13 +305,52 @@ internal static class ProgramMain
 
         string inputPath = options.Positionals[0];
         using Stream input = File.OpenRead(inputPath);
-        DocxMediaResult result = new DocxEditor().Media(input);
-        if (result.Success && options.ExtractPath is not null)
+        if (options.ExtractPath is string extractDirectory)
         {
-            ExtractMedia(inputPath, result.Images, options.ExtractPath);
+            return RunExtractMedia(options, input, extractDirectory);
         }
 
+        DocxMediaResult result = new DocxEditor().Media(input);
         return FinishCommand(options, result, static r => r.Diagnostics, static r => r.Success, static r => Console.Write(DocxTextRenderer.RenderMedia(r)));
+    }
+
+    private static int RunExtractMedia(ParsedOptions options, Stream input, string directory)
+    {
+        DocxMediaExtractResult result = new DocxEditor().ExtractMedia(input);
+        if (result.Success)
+        {
+            Directory.CreateDirectory(directory);
+            foreach (DocxMediaFile file in result.Files)
+            {
+                File.WriteAllBytes(Path.Combine(directory, file.FileName), file.Content);
+            }
+        }
+
+        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics, JsonOptionsFor(options));
+        if (options.Json)
+        {
+            WriteJson(
+                new
+                {
+                    result.Success,
+                    result.Diagnostics,
+                    Files = result.Files.Select(static file => new
+                    {
+                        file.ImageId,
+                        file.PartName,
+                        file.FileName,
+                        ByteLength = file.Content.Length
+                    }).ToArray()
+                },
+                JsonOptionsFor(options));
+        }
+        else
+        {
+            WriteErrorDiagnostics(result.Diagnostics, options.Strict);
+            Console.Write(DocxTextRenderer.RenderMediaExtract(result));
+        }
+
+        return ExitCode(result.Success, result.Diagnostics, options.Strict);
     }
 
     private static int RunValidate(ParsedOptions options)
@@ -694,27 +733,6 @@ internal static class ProgramMain
         }
     }
 
-    private static void ExtractMedia(string inputPath, IReadOnlyList<DocxImageInfo> images, string outputDirectory)
-    {
-        Directory.CreateDirectory(outputDirectory);
-        using FileStream input = File.OpenRead(inputPath);
-        using var archive = new System.IO.Compression.ZipArchive(input, System.IO.Compression.ZipArchiveMode.Read);
-        foreach (DocxImageInfo image in images)
-        {
-            string entryName = image.PartName.TrimStart('/');
-            System.IO.Compression.ZipArchiveEntry? entry = archive.GetEntry(entryName);
-            if (entry is null)
-            {
-                continue;
-            }
-
-            string fileName = $"{image.Id}-{Path.GetFileName(entryName)}";
-            string outputPath = Path.Combine(outputDirectory, fileName);
-            using Stream source = entry.Open();
-            using Stream destination = File.Create(outputPath);
-            source.CopyTo(destination);
-        }
-    }
 
     private static void EnsureParentDirectory(string path)
     {

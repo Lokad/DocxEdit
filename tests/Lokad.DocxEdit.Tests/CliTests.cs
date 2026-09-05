@@ -367,9 +367,18 @@ public static class CliTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("M.I0001", result.Output, StringComparison.Ordinal);
+        Assert.Contains("extracted image=M.I0001 file=M.I0001-image1.png bytes=8", result.Output, StringComparison.Ordinal);
         string extracted = Path.Combine(extract, "M.I0001-image1.png");
         Assert.True(File.Exists(extracted));
         Assert.Equal("fake-png", File.ReadAllText(extracted));
+
+        string extractJson = Path.Combine(temp.Path, "media-json");
+        CliResult json = RunCli("media", input, "--extract", extractJson, "--json");
+
+        Assert.Equal(0, json.ExitCode);
+        using JsonDocument manifest = JsonDocument.Parse(json.Output);
+        Assert.Equal("M.I0001-image1.png", manifest.RootElement.GetProperty("Files")[0].GetProperty("FileName").GetString());
+        Assert.True(File.Exists(Path.Combine(extractJson, "M.I0001-image1.png")));
     }
 
     [Fact]

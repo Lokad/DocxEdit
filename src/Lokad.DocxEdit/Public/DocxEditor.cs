@@ -390,6 +390,65 @@ public sealed class DocxEditor
         };
     }
 
+    /// <summary>Reads embedded image bytes. Uses default options and no cancellation.</summary>
+    public DocxMediaExtractResult ExtractMedia(
+        Stream input)
+    {
+        return ExtractMedia(input, new DocxMediaOptions(), CancellationToken.None);
+    }
+
+    /// <summary>Reads embedded image bytes. Uses no cancellation.</summary>
+    public DocxMediaExtractResult ExtractMedia(
+        Stream input, DocxMediaOptions options)
+    {
+        return ExtractMedia(input, options, CancellationToken.None);
+    }
+
+    /// <summary>Reads embedded image bytes with explicit options and cancellation.</summary>
+    public DocxMediaExtractResult ExtractMedia(
+        Stream input,
+        DocxMediaOptions options,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        if (package is null)
+        {
+            return new DocxMediaExtractResult { Success = false, Diagnostics = diagnostics };
+        }
+
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: false, textView: DocxTextView.Final, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        {
+            return new DocxMediaExtractResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(scanDiagnostics).ToArray()
+            };
+        }
+
+        var files = new List<DocxMediaFile>();
+        foreach (DocxImageInfo image in model.Images)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(image.PartName);
+            if (part is null)
+            {
+                throw new InvalidDataException($"Inventoried image part '{image.PartName}' does not exist.");
+            }
+
+            files.Add(new DocxMediaFile(image.Id, image.PartName, $"{image.Id}-{Path.GetFileName(image.PartName)}", part.Bytes.ToArray()));
+        }
+
+        return new DocxMediaExtractResult
+        {
+            Success = true,
+            Diagnostics = diagnostics
+                .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
+                .ToArray(),
+            Files = files
+        };
+    }
+
     /// <summary>Validates a document. Uses default options and no cancellation.</summary>
     public DocxValidateResult Validate(
         Stream input)

@@ -117,6 +117,20 @@ public sealed record DocxMediaResult : DocxOperationResult
     public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
 }
 
+/// <summary>Embedded image bytes. <see cref="DocxOperationResult.Success"/> means the package loaded, scanned, and every inventoried part resolved.</summary>
+public sealed record DocxMediaExtractResult : DocxOperationResult
+{
+    /// <summary>Extracted image files.</summary>
+    public IReadOnlyList<DocxMediaFile> Files { get; init; } = [];
+}
+
+/// <summary>One extracted image file.</summary>
+/// <param name="ImageId">Stable image ID.</param>
+/// <param name="PartName">Media part path.</param>
+/// <param name="FileName">Suggested file name (image ID plus the part file name).</param>
+/// <param name="Content">Media bytes.</param>
+public sealed record DocxMediaFile(string ImageId, string PartName, string FileName, byte[] Content);
+
 /// <summary>Validation outcome. <see cref="DocxOperationResult.Success"/> means no <see cref="DocxSeverity.Error"/> diagnostic was produced; warnings (including the <c>W9199</c>/<c>E9199</c> cap marker) do not fail validation by themselves.</summary>
 public sealed record DocxValidateResult : DocxOperationResult
 {
