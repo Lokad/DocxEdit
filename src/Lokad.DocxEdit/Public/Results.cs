@@ -695,8 +695,8 @@ public sealed record DocxRunInfo(string Text)
 /// </summary>
 public sealed record DocxBookmarkInfo
 {
-    /// <summary>Stable ID.</summary>
-    public string Id { get; init; } = string.Empty;
+    /// <summary>Stable bookmark ID.</summary>
+    public required DocxTargetId Id { get; init; }
     /// <summary>Bookmark name.</summary>
     public string Name { get; init; } = string.Empty;
     /// <summary>OOXML bookmark ID, when known.</summary>
@@ -706,9 +706,9 @@ public sealed record DocxBookmarkInfo
     /// <summary>Package part path.</summary>
     public string PartName { get; init; } = string.Empty;
     /// <summary>Range-start target ID, when resolved.</summary>
-    public string? StartTargetId { get; init; }
+    public DocxTargetId? StartTargetId { get; init; }
     /// <summary>Range-end target ID, when resolved.</summary>
-    public string? EndTargetId { get; init; }
+    public DocxTargetId? EndTargetId { get; init; }
     /// <summary>Whether the markup is complete.</summary>
     public bool IsComplete { get; init; }
     /// <summary>Whether the name is duplicated.</summary>
@@ -722,14 +722,14 @@ public sealed record DocxBookmarkInfo
 /// </summary>
 public sealed record DocxContentControlInfo
 {
-    /// <summary>Stable ID.</summary>
-    public string Id { get; init; } = string.Empty;
+    /// <summary>Stable content-control ID.</summary>
+    public required DocxTargetId Id { get; init; }
     /// <summary>Story label.</summary>
     public string Story { get; init; } = string.Empty;
     /// <summary>Package part path.</summary>
     public string PartName { get; init; } = string.Empty;
     /// <summary>Associated target ID, when known.</summary>
-    public string? TargetId { get; init; }
+    public DocxTargetId? TargetId { get; init; }
     /// <summary>Content-control kind.</summary>
     public string Kind { get; init; } = "unknown";
     /// <summary>OOXML bookmark ID, when known.</summary>
@@ -753,7 +753,7 @@ public sealed record DocxContentControlInfo
     /// <summary>Repeating-section item count, when set.</summary>
     public int? RepeatingSectionItemCount { get; init; }
     /// <summary>Parent content-control ID, when nested.</summary>
-    public string? ParentContentControlId { get; init; }
+    public DocxTargetId? ParentContentControlId { get; init; }
     /// <summary>Child content-control IDs.</summary>
     public IReadOnlyList<string> ChildContentControlIds { get; init; } = [];
     /// <summary>Direct-edit safety status.</summary>
@@ -802,14 +802,14 @@ public sealed record DocxContentControlListItemInfo(string? DisplayText, string?
 /// </summary>
 public sealed record DocxFieldInfo
 {
-    /// <summary>Stable ID.</summary>
-    public string Id { get; init; } = string.Empty;
+    /// <summary>Stable field ID.</summary>
+    public required DocxTargetId Id { get; init; }
     /// <summary>Story label.</summary>
     public string Story { get; init; } = string.Empty;
     /// <summary>Package part path.</summary>
     public string PartName { get; init; } = string.Empty;
     /// <summary>Associated target ID, when known.</summary>
-    public string? TargetId { get; init; }
+    public DocxTargetId? TargetId { get; init; }
     /// <summary>Field kind (simple or complex).</summary>
     public string Kind { get; init; } = "unknown";
     /// <summary>Field type code, when known.</summary>
@@ -851,14 +851,14 @@ public sealed record DocxFieldInfo
 /// </summary>
 public sealed record DocxHyperlinkInfo
 {
-    /// <summary>Stable ID.</summary>
-    public string Id { get; init; } = string.Empty;
+    /// <summary>Stable hyperlink ID.</summary>
+    public required DocxTargetId Id { get; init; }
     /// <summary>Story label.</summary>
     public string Story { get; init; } = string.Empty;
     /// <summary>Package part path.</summary>
     public string PartName { get; init; } = string.Empty;
     /// <summary>Associated target ID, when known.</summary>
-    public string? TargetId { get; init; }
+    public DocxTargetId? TargetId { get; init; }
     /// <summary>Package relationship ID, when known.</summary>
     public string? RelationshipId { get; init; }
     /// <summary>Relationship part path, when known.</summary>

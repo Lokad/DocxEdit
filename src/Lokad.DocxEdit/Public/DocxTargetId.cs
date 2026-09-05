@@ -1,3 +1,7 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Lokad.DocxEdit;
 
 /// <summary>
@@ -53,6 +57,7 @@ public enum DocxTargetKind
 /// is the 1-based header/footer part ordinal, 0 for the main story.
 /// </para>
 /// </remarks>
+[JsonConverter(typeof(DocxTargetIdJsonConverter))]
 public readonly record struct DocxTargetId(
     char Story,
     int StoryPart,
@@ -315,5 +320,38 @@ public readonly record struct DocxTargetId(
             DocxTargetKind.Section => $"{head}.S{Primary:D4}",
             _ => throw new ArgumentOutOfRangeException(nameof(Kind), $"Unsupported target kind '{Kind}'.")
         };
+    }
+
+    /// <summary>Splits a story ID prefix (<c>M</c>, <c>H001</c>) for producer emission.</summary>
+    internal static (char Story, int StoryPart) ParseStoryPrefix(string idPrefix)
+    {
+        char story = idPrefix[0];
+        int storyPart = idPrefix.Length == 1 ? 0 : int.Parse(idPrefix[1..], CultureInfo.InvariantCulture);
+        return (story, storyPart);
+    }
+}
+
+/// <summary>
+/// Converts <see cref="DocxTargetId"/> to and from its wire form, so JSON
+/// output stays string-shaped under both default and CLI options.
+/// </summary>
+public sealed class DocxTargetIdJsonConverter : JsonConverter<DocxTargetId>
+{
+    /// <summary>Reads one wire-form target ID string.</summary>
+    public override DocxTargetId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string? value = reader.GetString();
+        if (DocxTargetId.TryParse(value, out DocxTargetId targetId))
+        {
+            return targetId;
+        }
+
+        throw new JsonException($"Unsupported target ID '{value}'. Expected M.P0001 or H001.P0002 shape.");
+    }
+
+    /// <summary>Writes one wire-form target ID string.</summary>
+    public override void Write(Utf8JsonWriter writer, DocxTargetId value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToWireValue());
     }
 }

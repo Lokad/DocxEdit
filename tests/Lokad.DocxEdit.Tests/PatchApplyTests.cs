@@ -4554,8 +4554,8 @@ public static class PatchApplyTests
         DocxReadResult read = new DocxEditor().Read(output);
         DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
         Assert.Equal("ClientParagraph", bookmark.Name);
-        Assert.Equal("M.P0001", bookmark.StartTargetId);
-        Assert.Equal("M.P0001", bookmark.EndTargetId);
+        Assert.Equal("M.P0001", bookmark.StartTargetId?.ToWireValue());
+        Assert.Equal("M.P0001", bookmark.EndTargetId?.ToWireValue());
         Assert.Equal("Client paragraph", Assert.Single(read.Paragraphs).Text);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
@@ -4696,8 +4696,8 @@ public static class PatchApplyTests
         DocxReadResult read = new DocxEditor().Read(output);
         Assert.Equal(["New first", "New last"], read.Paragraphs.Select(paragraph => paragraph.Text).ToArray());
         DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
-        Assert.Equal("M.P0001", bookmark.StartTargetId);
-        Assert.Equal("M.P0002", bookmark.EndTargetId);
+        Assert.Equal("M.P0001", bookmark.StartTargetId?.ToWireValue());
+        Assert.Equal("M.P0002", bookmark.EndTargetId?.ToWireValue());
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"", xml, StringComparison.Ordinal);
@@ -4792,8 +4792,8 @@ public static class PatchApplyTests
         DocxTableInfo table = Assert.Single(read.Tables);
         Assert.Equal(["New A", "New B"], table.Cells.Select(cell => cell.Text).ToArray());
         DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
-        Assert.Equal("M.P0001", bookmark.StartTargetId);
-        Assert.Equal("M.P0002", bookmark.EndTargetId);
+        Assert.Equal("M.P0001", bookmark.StartTargetId?.ToWireValue());
+        Assert.Equal("M.P0002", bookmark.EndTargetId?.ToWireValue());
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("<w:tbl>", xml, StringComparison.Ordinal);

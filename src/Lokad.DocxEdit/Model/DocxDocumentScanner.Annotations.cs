@@ -20,6 +20,7 @@ internal static partial class DocxDocumentScanner
             .GroupBy(pair => pair.Key, pair => pair.Item, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
+        (char storyLetter, int storyPartNumber) = DocxTargetId.ParseStoryPrefix(idPrefix);
         int bookmarkIndex = 1;
         foreach (XElement start in document.Descendants(OoxmlNs.W + "bookmarkStart"))
         {
@@ -33,7 +34,7 @@ internal static partial class DocxDocumentScanner
             endsByOoxmlId.TryGetValue(ooxmlId ?? string.Empty, out XElement? end);
             bookmarks.Add(new DocxBookmarkInfo
             {
-                Id = $"{idPrefix}.B{bookmarkIndex++:0000}",
+                Id = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Bookmark, bookmarkIndex++, 0, 0),
                 Name = name,
                 OoxmlId = ooxmlId,
                 Story = story,
@@ -52,7 +53,7 @@ internal static partial class DocxDocumentScanner
         IReadOnlyDictionary<string, string[]> duplicateIdsByName = BuildDuplicateIds(
             bookmarks,
             bookmark => bookmark.Name,
-            bookmark => bookmark.Id);
+            bookmark => bookmark.Id.ToWireValue());
         return bookmarks
             .Select(bookmark => duplicateIdsByName.TryGetValue(bookmark.Name, out string[]? ids)
                 ? bookmark with { IsNameDuplicate = true, DuplicateNameBookmarkIds = ids }
@@ -69,6 +70,7 @@ internal static partial class DocxDocumentScanner
         IReadOnlyDictionary<XElement, string> targets)
     {
         var contentControls = new List<ContentControlScanEntry>();
+        (char storyLetter, int storyPartNumber) = DocxTargetId.ParseStoryPrefix(idPrefix);
         int controlIndex = 1;
         foreach (XElement control in document.Descendants(OoxmlNs.W + "sdt"))
         {
@@ -78,7 +80,7 @@ internal static partial class DocxDocumentScanner
             string? lockValue = ReadSdtLock(properties);
             contentControls.Add(new ContentControlScanEntry(control, new DocxContentControlInfo
             {
-                Id = $"{idPrefix}.CC{controlIndex++:0000}",
+                Id = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.ContentControl, controlIndex++, 0, 0),
                 Story = story,
                 PartName = partName,
                 TargetId = FindTargetId(control, targets),
@@ -118,11 +120,11 @@ internal static partial class DocxDocumentScanner
         IReadOnlyDictionary<string, string[]> duplicateIdsByTag = BuildDuplicateIds(
             contentControls,
             control => control.Tag,
-            control => control.Id);
+            control => control.Id.ToWireValue());
         IReadOnlyDictionary<string, string[]> duplicateIdsByAlias = BuildDuplicateIds(
             contentControls,
             control => control.Alias,
-            control => control.Id);
+            control => control.Id.ToWireValue());
         return contentControls
             .Select(control =>
             {
@@ -146,18 +148,18 @@ internal static partial class DocxDocumentScanner
         IReadOnlyList<DocxContentControlInfo> contentControls,
         IReadOnlyList<ContentControlScanEntry> entries)
     {
-        IReadOnlyDictionary<XElement, string> idsByElement = entries.ToDictionary(entry => entry.Element, entry => entry.Info.Id);
-        IReadOnlyDictionary<string, DocxContentControlInfo> controlsById = contentControls.ToDictionary(control => control.Id, StringComparer.Ordinal);
+        IReadOnlyDictionary<XElement, DocxTargetId> idsByElement = entries.ToDictionary(entry => entry.Element, entry => entry.Info.Id);
+        IReadOnlyDictionary<DocxTargetId, DocxContentControlInfo> controlsById = contentControls.ToDictionary(control => control.Id);
         return entries.Select(entry =>
         {
             DocxContentControlInfo info = controlsById[entry.Info.Id];
             XElement? parent = entry.Element.Ancestors(OoxmlNs.W + "sdt").FirstOrDefault(idsByElement.ContainsKey);
-            string? parentId = parent is null ? null : idsByElement[parent];
+            DocxTargetId? parentId = parent is null ? null : idsByElement[parent];
             string[] childIds = entry.Element
                 .Descendants(OoxmlNs.W + "sdt")
                 .Where(child => child.Ancestors(OoxmlNs.W + "sdt").FirstOrDefault() == entry.Element)
                 .Where(idsByElement.ContainsKey)
-                .Select(child => idsByElement[child])
+                .Select(child => idsByElement[child].ToWireValue())
                 .ToArray();
             return info with
             {
@@ -192,6 +194,7 @@ internal static partial class DocxDocumentScanner
     {
         var fields = new List<DocxFieldInfo>();
         var stack = new Stack<ComplexFieldBuilder>();
+        (char storyLetter, int storyPartNumber) = DocxTargetId.ParseStoryPrefix(idPrefix);
         int fieldIndex = 1;
         foreach (XElement element in document.Descendants())
         {
@@ -203,7 +206,7 @@ internal static partial class DocxDocumentScanner
                 string cachedResultText = ReadText(element, textView);
                 fields.Add(new DocxFieldInfo
                 {
-                    Id = $"{idPrefix}.F{fieldIndex++:0000}",
+                    Id = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Field, fieldIndex++, 0, 0),
                     Story = story,
                     PartName = partName,
                     TargetId = FindTargetId(element, targets),
@@ -249,7 +252,7 @@ internal static partial class DocxDocumentScanner
                 else if (string.Equals(fieldCharType, "end", StringComparison.Ordinal) && stack.Count > 0)
                 {
                     ComplexFieldBuilder builder = stack.Pop();
-                    fields.Add(builder.ToInfo($"{idPrefix}.F{fieldIndex++:0000}", story, partName, complete: true));
+                    fields.Add(builder.ToInfo(new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Field, fieldIndex++, 0, 0), story, partName, complete: true));
                 }
 
                 continue;
@@ -273,7 +276,7 @@ internal static partial class DocxDocumentScanner
 
         foreach (ComplexFieldBuilder builder in stack)
         {
-            fields.Add(builder.ToInfo($"{idPrefix}.F{fieldIndex++:0000}", story, partName, complete: false));
+            fields.Add(builder.ToInfo(new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Field, fieldIndex++, 0, 0), story, partName, complete: false));
         }
 
         return fields;
@@ -316,6 +319,7 @@ internal static partial class DocxDocumentScanner
             .OfType<string>()
             .GroupBy(name => name, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        (char storyLetter, int storyPartNumber) = DocxTargetId.ParseStoryPrefix(idPrefix);
         int hyperlinkIndex = 1;
         foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))
         {
@@ -329,7 +333,7 @@ internal static partial class DocxDocumentScanner
                 : 0;
             hyperlinks.Add(new DocxHyperlinkInfo
             {
-                Id = $"{idPrefix}.L{hyperlinkIndex++:0000}",
+                Id = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Hyperlink, hyperlinkIndex++, 0, 0),
                 Story = story,
                 PartName = partName,
                 TargetId = FindTargetId(hyperlink, targets),
@@ -381,13 +385,23 @@ internal static partial class DocxDocumentScanner
             valid ? null : "unsupported-uri-scheme");
     }
 
-    private static string? FindTargetId(XElement element, IReadOnlyDictionary<XElement, string> targets)
+    private static DocxTargetId? FindTargetId(XElement element, IReadOnlyDictionary<XElement, string> targets)
     {
+        static DocxTargetId ParseMapId(string id)
+        {
+            if (DocxTargetId.TryParse(id, out DocxTargetId targetId))
+            {
+                return targetId;
+            }
+
+            throw new InvalidDataException($"Scanner target-map ID '{id}' does not parse as a target.");
+        }
+
         foreach (XElement candidate in element.AncestorsAndSelf())
         {
             if (targets.TryGetValue(candidate, out string? id))
             {
-                return id;
+                return ParseMapId(id);
             }
         }
 
@@ -395,7 +409,7 @@ internal static partial class DocxDocumentScanner
         {
             if (targets.TryGetValue(descendant, out string? id))
             {
-                return id;
+                return ParseMapId(id);
             }
         }
 

@@ -2289,22 +2289,22 @@ public static class ReadApiTests
 
         Assert.True(result.Success);
         DocxBookmarkInfo bookmark = Assert.Single(result.Bookmarks);
-        Assert.Equal("M.B0001", bookmark.Id);
+        Assert.Equal("M.B0001", bookmark.Id.ToWireValue());
         Assert.Equal("ClientName", bookmark.Name);
         Assert.Equal("1", bookmark.OoxmlId);
         Assert.Equal("main", bookmark.Story);
         Assert.Equal("/word/document.xml", bookmark.PartName);
-        Assert.Equal("M.P0001", bookmark.StartTargetId);
-        Assert.Equal("M.P0001", bookmark.EndTargetId);
+        Assert.Equal("M.P0001", bookmark.StartTargetId?.ToWireValue());
+        Assert.Equal("M.P0001", bookmark.EndTargetId?.ToWireValue());
         Assert.True(bookmark.IsComplete);
 
         DocxContentControlInfo control = Assert.Single(result.ContentControls);
-        Assert.Equal("M.CC0001", control.Id);
+        Assert.Equal("M.CC0001", control.Id.ToWireValue());
         Assert.Equal("plain-text", control.Kind);
         Assert.Equal("77", control.OoxmlId);
         Assert.Equal("client_name", control.Tag);
         Assert.Equal("Client Name", control.Alias);
-        Assert.Equal("M.P0001", control.TargetId);
+        Assert.Equal("M.P0001", control.TargetId?.ToWireValue());
         Assert.Equal(4, control.TextLength);
 
         Assert.Contains("M.B0001 bookmark name=\"ClientName\"", result.Text, StringComparison.Ordinal);
@@ -2474,8 +2474,8 @@ public static class ReadApiTests
         Assert.Null(repeating.ParentContentControlId);
         Assert.Equal(new[] { "M.CC0005" }, repeating.ChildContentControlIds);
         Assert.Equal("unsupported-repeating-section", repeating.SafeEditStatus);
-        DocxContentControlInfo nested = result.ContentControls.Single(control => control.Id == "M.CC0006");
-        Assert.Equal("M.CC0005", nested.ParentContentControlId);
+        DocxContentControlInfo nested = result.ContentControls.Single(control => control.Id.ToWireValue() == "M.CC0006");
+        Assert.Equal("M.CC0005", nested.ParentContentControlId?.ToWireValue());
         Assert.Equal("locked", nested.SafeEditStatus);
         Assert.Contains("kind=checkbox", result.Text, StringComparison.Ordinal);
         Assert.Contains("checked=true", result.Text, StringComparison.Ordinal);
@@ -2588,11 +2588,11 @@ public static class ReadApiTests
         Assert.True(result.Success);
         Assert.Equal(2, result.Fields.Count);
         DocxFieldInfo simple = result.Fields[0];
-        Assert.Equal("M.F0001", simple.Id);
+        Assert.Equal("M.F0001", simple.Id.ToWireValue());
         Assert.Equal("simple", simple.Kind);
         Assert.Equal("DATE", simple.FieldType);
         Assert.Equal("DATE", simple.Code);
-        Assert.Equal("M.P0001", simple.TargetId);
+        Assert.Equal("M.P0001", simple.TargetId?.ToWireValue());
         Assert.Equal("June 12, 2026", simple.CachedResultText);
         Assert.Equal(13, simple.ResultTextLength);
         Assert.Equal(0, simple.NestingDepth);
@@ -2609,11 +2609,11 @@ public static class ReadApiTests
         Assert.True(simple.IsComplete);
 
         DocxFieldInfo complex = result.Fields[1];
-        Assert.Equal("M.F0002", complex.Id);
+        Assert.Equal("M.F0002", complex.Id.ToWireValue());
         Assert.Equal("complex", complex.Kind);
         Assert.Equal("REF", complex.FieldType);
         Assert.Equal(@"REF ClientName \h", complex.Code);
-        Assert.Equal("M.P0002", complex.TargetId);
+        Assert.Equal("M.P0002", complex.TargetId?.ToWireValue());
         Assert.Equal("Client result", complex.CachedResultText);
         Assert.Equal(13, complex.ResultTextLength);
         Assert.Equal(0, complex.NestingDepth);
@@ -2667,7 +2667,7 @@ public static class ReadApiTests
         DocxFieldInfo inner = Assert.Single(read.Fields, field => field.Code == "DATE");
         Assert.Equal("complex", inner.Kind);
         Assert.Equal("DATE", inner.FieldType);
-        Assert.Equal("M.P0001", inner.TargetId);
+        Assert.Equal("M.P0001", inner.TargetId?.ToWireValue());
         Assert.Equal("June 13", inner.CachedResultText);
         Assert.Equal(7, inner.ResultTextLength);
         Assert.Equal(1, inner.NestingDepth);
@@ -2676,7 +2676,7 @@ public static class ReadApiTests
         DocxFieldInfo outer = Assert.Single(read.Fields, field => field.Code == "IF");
         Assert.Equal("complex", outer.Kind);
         Assert.Equal("IF", outer.FieldType);
-        Assert.Equal("M.P0001", outer.TargetId);
+        Assert.Equal("M.P0001", outer.TargetId?.ToWireValue());
         Assert.Equal("Prefix June 13 Suffix", outer.CachedResultText);
         Assert.Equal(21, outer.ResultTextLength);
         Assert.Equal(0, outer.NestingDepth);
@@ -2773,8 +2773,8 @@ public static class ReadApiTests
         Assert.True(result.Success);
         Assert.Equal(3, result.Hyperlinks.Count);
         DocxHyperlinkInfo external = result.Hyperlinks[0];
-        Assert.Equal("M.L0001", external.Id);
-        Assert.Equal("M.P0001", external.TargetId);
+        Assert.Equal("M.L0001", external.Id.ToWireValue());
+        Assert.Equal("M.P0001", external.TargetId?.ToWireValue());
         Assert.Equal("rLink", external.RelationshipId);
         Assert.Equal("/word/_rels/document.xml.rels", external.RelationshipPartName);
         Assert.Equal("External", external.RelationshipTargetMode);

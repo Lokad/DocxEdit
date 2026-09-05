@@ -702,10 +702,10 @@ internal static partial class DocxDocumentScanner
 
     private sealed record FieldRefreshProfile(DocxRefreshPolicy Policy, string? Reason, bool CanRefreshDeterministically);
 
-    private sealed class ComplexFieldBuilder(XElement startElement, string? targetId, int nestingDepth)
+    private sealed class ComplexFieldBuilder(XElement startElement, DocxTargetId? targetId, int nestingDepth)
     {
         public XElement StartElement { get; } = startElement;
-        public string? TargetId { get; } = targetId;
+        public DocxTargetId? TargetId { get; } = targetId;
         public int NestingDepth { get; } = nestingDepth;
         public System.Text.StringBuilder Code { get; } = new();
         public System.Text.StringBuilder ResultText { get; } = new();
@@ -713,7 +713,7 @@ internal static partial class DocxDocumentScanner
         public bool? IsDirty { get; init; }
         public bool? IsLocked { get; init; }
 
-        public DocxFieldInfo ToInfo(string id, string story, string partName, bool complete)
+        public DocxFieldInfo ToInfo(DocxTargetId id, string story, string partName, bool complete)
         {
             _ = StartElement;
             string code = NormalizeFieldCode(Code.ToString());

@@ -30,10 +30,10 @@ internal static class TextRenderers
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
             string ooxmlId = bookmark.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(bookmark.OoxmlId)}";
-            string start = bookmark.StartTargetId is null ? " start=unknown" : $" start={bookmark.StartTargetId}";
-            string end = bookmark.EndTargetId is null ? " end=unknown" : $" end={bookmark.EndTargetId}";
+            string start = bookmark.StartTargetId is { } bookmarkStart ? $" start={bookmarkStart.ToWireValue()}" : " start=unknown";
+            string end = bookmark.EndTargetId is { } bookmarkEnd ? $" end={bookmarkEnd.ToWireValue()}" : " end=unknown";
             string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
-            builder.Append(bookmark.Id)
+            builder.Append(bookmark.Id.ToWireValue())
                 .Append(" bookmark name=\"")
                 .Append(XmlValues.EscapeText(bookmark.Name))
                 .Append('"')
@@ -52,7 +52,7 @@ internal static class TextRenderers
 
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
-            string target = control.TargetId is null ? " target=unknown" : $" target={control.TargetId}";
+            string target = control.TargetId is { } readControlTarget ? $" target={readControlTarget.ToWireValue()}" : " target=unknown";
             string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(control.OoxmlId)}";
             string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
@@ -63,7 +63,7 @@ internal static class TextRenderers
             string dataBindingPrefixes = control.DataBindingPrefixMappings is null ? string.Empty : $" data-binding-prefixes=\"{XmlValues.EscapeText(control.DataBindingPrefixMappings)}\"";
             string repeatingSectionTitle = control.RepeatingSectionTitle is null ? string.Empty : $" repeating-section-title=\"{XmlValues.EscapeText(control.RepeatingSectionTitle)}\"";
             string repeatingSectionItems = control.RepeatingSectionItemCount is null ? string.Empty : $" repeating-section-items={control.RepeatingSectionItemCount.Value}";
-            string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
+            string parentControl = control.ParentContentControlId is { } readParentControlId ? $" parent-control={readParentControlId.ToWireValue()}" : string.Empty;
             string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
             string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
             string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
@@ -78,7 +78,7 @@ internal static class TextRenderers
             string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={XmlValues.EscapeText(control.DateLanguage)}";
             string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={XmlValues.EscapeText(control.DateCalendar)}";
             string dateValue = control.DateValue is null ? string.Empty : $" date-value=\"{XmlValues.EscapeText(control.DateValue)}\"";
-            builder.Append(control.Id)
+            builder.Append(control.Id.ToWireValue())
                 .Append(" content-control kind=")
                 .Append(XmlValues.EscapeText(control.Kind))
                 .Append(" story=\"")
@@ -118,7 +118,7 @@ internal static class TextRenderers
 
         foreach (DocxFieldInfo field in model.Fields)
         {
-            string target = field.TargetId is null ? " target=unknown" : $" target={field.TargetId}";
+            string target = field.TargetId is { } readFieldTarget ? $" target={readFieldTarget.ToWireValue()}" : " target=unknown";
             string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
             string arguments = field.Arguments.Count == 0 ? string.Empty : $" arguments=\"{XmlValues.EscapeText(string.Join(",", field.Arguments))}\"";
             string switches = field.Switches.Count == 0 ? string.Empty : $" switches=\"{XmlValues.EscapeText(string.Join(",", field.Switches))}\"";
@@ -128,7 +128,7 @@ internal static class TextRenderers
             string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
             string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
             string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
-            builder.Append(field.Id)
+            builder.Append(field.Id.ToWireValue())
                 .Append(" field kind=")
                 .Append(XmlValues.EscapeText(field.Kind))
                 .Append(fieldType)
@@ -164,7 +164,7 @@ internal static class TextRenderers
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
-            string target = hyperlink.TargetId is null ? " target=unknown" : $" target={hyperlink.TargetId}";
+            string target = hyperlink.TargetId is { } readHyperlinkTarget ? $" target={readHyperlinkTarget.ToWireValue()}" : " target=unknown";
             string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(hyperlink.RelationshipId)}";
             string relationshipPart = hyperlink.RelationshipPartName is null ? string.Empty : $" relationship-part={hyperlink.RelationshipPartName}";
             string relationshipTargetMode = hyperlink.RelationshipTargetMode is null ? string.Empty : $" target-mode={XmlValues.EscapeText(hyperlink.RelationshipTargetMode)}";
@@ -179,7 +179,7 @@ internal static class TextRenderers
             string targetFrame = hyperlink.TargetFrame is null ? string.Empty : $" target-frame=\"{XmlValues.EscapeText(hyperlink.TargetFrame)}\"";
             string history = hyperlink.History is null ? string.Empty : $" history={hyperlink.History.Value.ToString().ToLowerInvariant()}";
             string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
-            builder.Append(hyperlink.Id)
+            builder.Append(hyperlink.Id.ToWireValue())
                 .Append(" hyperlink story=\"")
                 .Append(XmlValues.EscapeText(hyperlink.Story))
                 .Append("\" part=")
@@ -287,18 +287,18 @@ internal static class TextRenderers
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
-            string start = bookmark.StartTargetId is null ? "unknown" : bookmark.StartTargetId;
-            string end = bookmark.EndTargetId is null ? "unknown" : bookmark.EndTargetId;
+            string start = bookmark.StartTargetId is { } outlineStart ? outlineStart.ToWireValue() : "unknown";
+            string end = bookmark.EndTargetId is { } outlineEnd ? outlineEnd.ToWireValue() : "unknown";
             string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
-            lines.Add($"{bookmark.Id} bookmark name=\"{XmlValues.EscapeText(bookmark.Name)}\" start={start} end={end}{duplicateName}");
+            lines.Add($"{bookmark.Id.ToWireValue()} bookmark name=\"{XmlValues.EscapeText(bookmark.Name)}\" start={start} end={end}{duplicateName}");
         }
 
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
-            string target = control.TargetId is null ? "unknown" : control.TargetId;
+            string target = control.TargetId is { } controlTarget ? controlTarget.ToWireValue() : "unknown";
             string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
             string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
-            string parentControl = control.ParentContentControlId is null ? string.Empty : $" parent-control={control.ParentContentControlId}";
+            string parentControl = control.ParentContentControlId is { } outlineParentControlId ? $" parent-control={outlineParentControlId.ToWireValue()}" : string.Empty;
             string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
             string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
             string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
@@ -306,22 +306,22 @@ internal static class TextRenderers
             string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
             string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
             string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            lines.Add($"{control.Id} content-control kind={XmlValues.EscapeText(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
+            lines.Add($"{control.Id.ToWireValue()} content-control kind={XmlValues.EscapeText(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
         }
 
         foreach (DocxFieldInfo field in model.Fields)
         {
-            string target = field.TargetId is null ? "unknown" : field.TargetId;
+            string target = field.TargetId is { } fieldTarget ? fieldTarget.ToWireValue() : "unknown";
             string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
             string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
-            lines.Add($"{field.Id} field kind={XmlValues.EscapeText(field.Kind)}{fieldType} target={target} code=\"{XmlValues.EscapeText(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={field.RefreshPolicy.ToWireValue()} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
+            lines.Add($"{field.Id.ToWireValue()} field kind={XmlValues.EscapeText(field.Kind)}{fieldType} target={target} code=\"{XmlValues.EscapeText(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={field.RefreshPolicy.ToWireValue()} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
-            string target = hyperlink.TargetId is null ? "unknown" : hyperlink.TargetId;
+            string target = hyperlink.TargetId is { } hyperlinkTarget ? hyperlinkTarget.ToWireValue() : "unknown";
             string destination = hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName ?? "unknown";
-            lines.Add($"{hyperlink.Id} hyperlink target={target} destination=\"{XmlValues.EscapeText(destination)}\" broken={hyperlink.IsBroken}");
+            lines.Add($"{hyperlink.Id.ToWireValue()} hyperlink target={target} destination=\"{XmlValues.EscapeText(destination)}\" broken={hyperlink.IsBroken}");
         }
 
         return lines;
@@ -850,8 +850,8 @@ internal static class TextRenderers
         var bookmarkNames = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
-            AddAnnotation(bookmarkNames, bookmark.StartTargetId, bookmark.Name);
-            AddAnnotation(bookmarkNames, bookmark.EndTargetId, bookmark.Name);
+            AddAnnotation(bookmarkNames, bookmark.StartTargetId?.ToWireValue(), bookmark.Name);
+            AddAnnotation(bookmarkNames, bookmark.EndTargetId?.ToWireValue(), bookmark.Name);
         }
 
         var contentControlIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -873,23 +873,23 @@ internal static class TextRenderers
         var commentResolvedIds = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
-            AddAnnotation(contentControlIds, control.TargetId, control.Id);
-            AddAnnotation(contentControlTags, control.TargetId, control.Tag);
-            AddAnnotation(contentControlAliases, control.TargetId, control.Alias);
+            AddAnnotation(contentControlIds, control.TargetId?.ToWireValue(), control.Id.ToWireValue());
+            AddAnnotation(contentControlTags, control.TargetId?.ToWireValue(), control.Tag);
+            AddAnnotation(contentControlAliases, control.TargetId?.ToWireValue(), control.Alias);
         }
 
         foreach (DocxFieldInfo field in model.Fields)
         {
-            AddAnnotation(fieldIds, field.TargetId, field.Id);
-            AddAnnotation(fieldCodes, field.TargetId, field.Code);
-            AddAnnotation(fieldKinds, field.TargetId, field.Kind);
-            AddAnnotation(fieldTypes, field.TargetId, field.FieldType);
+            AddAnnotation(fieldIds, field.TargetId?.ToWireValue(), field.Id.ToWireValue());
+            AddAnnotation(fieldCodes, field.TargetId?.ToWireValue(), field.Code);
+            AddAnnotation(fieldKinds, field.TargetId?.ToWireValue(), field.Kind);
+            AddAnnotation(fieldTypes, field.TargetId?.ToWireValue(), field.FieldType);
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
-            AddAnnotation(hyperlinkIds, hyperlink.TargetId, hyperlink.Id);
-            AddAnnotation(hyperlinkTargets, hyperlink.TargetId, hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName);
+            AddAnnotation(hyperlinkIds, hyperlink.TargetId?.ToWireValue(), hyperlink.Id.ToWireValue());
+            AddAnnotation(hyperlinkTargets, hyperlink.TargetId?.ToWireValue(), hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName);
         }
 
         var commentBodyById = new Dictionary<string, string>(StringComparer.Ordinal);
