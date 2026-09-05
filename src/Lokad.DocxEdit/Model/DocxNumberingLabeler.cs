@@ -22,7 +22,7 @@ internal sealed class DocxNumberingLabeler
             return null;
         }
 
-        Dictionary<int, int> counters = GetCounters(list.NumberingId);
+        Dictionary<int, int> counters = GetCounters(_countersByNumberingId, list.NumberingId);
         int startValue = list.StartValue ?? 1;
         counters[list.Level] = counters.TryGetValue(list.Level, out int current)
             ? current + 1
@@ -41,24 +41,24 @@ internal sealed class DocxNumberingLabeler
                 : warnings.Count == 0 ? DocxLabelStatus.Resolved : DocxLabelStatus.Partial,
             LabelWarnings = warnings.ToArray()
         };
-    }
 
-    private Dictionary<int, int> GetCounters(string numberingId)
-    {
-        if (!_countersByNumberingId.TryGetValue(numberingId, out Dictionary<int, int>? counters))
+        static Dictionary<int, int> GetCounters(Dictionary<string, Dictionary<int, int>> countersByNumberingId, string numberingId)
         {
-            counters = [];
-            _countersByNumberingId[numberingId] = counters;
+            if (!countersByNumberingId.TryGetValue(numberingId, out Dictionary<int, int>? counters))
+            {
+                counters = [];
+                countersByNumberingId[numberingId] = counters;
+            }
+
+            return counters;
         }
 
-        return counters;
-    }
-
-    private static void ResetDeeperLevels(Dictionary<int, int> counters, int level)
-    {
-        foreach (int key in counters.Keys.Where(key => key > level).ToArray())
+        static void ResetDeeperLevels(Dictionary<int, int> levelCounters, int level)
         {
-            counters.Remove(key);
+            foreach (int key in levelCounters.Keys.Where(key => key > level).ToArray())
+            {
+                levelCounters.Remove(key);
+            }
         }
     }
 
