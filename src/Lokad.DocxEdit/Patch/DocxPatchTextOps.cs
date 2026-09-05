@@ -169,12 +169,10 @@ internal static partial class DocxPatchEngine
         if (useTrackedChanges &&
             !TryValidateTrackedWholeParagraphReplacement(paragraphTarget.Paragraph, current, text, style, out string? trackedUnsupportedReason))
         {
-            if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+            if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
             {
                 return diagnostics;
             }
-
-            useTrackedChanges = false;
         }
 
         if (!apply)
@@ -242,12 +240,10 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text))
         {
-            if (!TrackUnsupportedShape(options, operation, target, "inserted paragraph text contains tabs or line breaks", diagnostics))
+            if (!TryFallbackToDirectEdit(options, operation, target, "inserted paragraph text contains tabs or line breaks", diagnostics, ref useTrackedChanges))
             {
                 return diagnostics;
             }
-
-            useTrackedChanges = false;
         }
 
         if (!apply)
@@ -328,39 +324,31 @@ internal static partial class DocxPatchEngine
         {
             if (blockTarget.Block.Name != OoxmlNs.W + "p")
             {
-                if (!TrackUnsupportedShape(options, operation, target, "tracked block deletion is supported only for paragraph targets", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, "tracked block deletion is supported only for paragraph targets", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (ParagraphHasSectionProperties(blockTarget.Block))
             {
-                if (!TrackUnsupportedShape(options, operation, target, "paragraph contains section properties", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, "paragraph contains section properties", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (TryGetProtectedTextEditFeature(blockTarget.Block, out string protectedFeature))
             {
-                if (!TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (TextContainsTrackedUnsupportedCharacters(current))
             {
-                if (!TrackUnsupportedShape(options, operation, target, "deleted paragraph text contains tabs or line breaks", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, "deleted paragraph text contains tabs or line breaks", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
         }
 

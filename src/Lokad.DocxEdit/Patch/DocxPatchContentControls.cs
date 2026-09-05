@@ -90,22 +90,18 @@ internal static partial class DocxPatchEngine
             {
                 if (!TryGetTrackedRichTextContentControlParagraphs(content, text, out trackedParagraphs, out string? trackedUnsupportedReason))
                 {
-                    if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                    if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                     {
                         return diagnostics;
                     }
-
-                    useTrackedChanges = false;
                 }
             }
             else if (!TryGetTrackedContentControlTextContainer(content, text, out trackedContainer, out trackedCurrent, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
         }
 

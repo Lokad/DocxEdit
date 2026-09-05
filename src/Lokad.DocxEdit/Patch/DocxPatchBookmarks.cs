@@ -98,26 +98,17 @@ internal static partial class DocxPatchEngine
         {
             if (!sameParagraph)
             {
-                if (!TrackUnsupportedShape(
-                    options,
-                    operation,
-                    target,
-                    "tracked replace-bookmark-text supports only simple same-paragraph bookmark ranges",
-                    diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, "tracked replace-bookmark-text supports only simple same-paragraph bookmark ranges", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (!TryBuildTrackedBookmarkReplacement(nodes, text, out trackedReplacement, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
         }
 

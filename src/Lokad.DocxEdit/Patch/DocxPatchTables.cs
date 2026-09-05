@@ -413,21 +413,17 @@ internal static partial class DocxPatchEngine
         {
             if (force)
             {
-                if (!TrackUnsupportedShape(options, operation, target, "tracked set-cell does not support force true replacement", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, "tracked set-cell does not support force true replacement", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (!TryGetTrackedSetCellParagraphs(cellTarget.Cell, text, out trackedParagraphs, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
         }
 

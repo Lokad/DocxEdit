@@ -177,30 +177,24 @@ internal static partial class DocxPatchEngine
         {
             if (!simpleField)
             {
-                if (!TrackUnsupportedShape(options, operation, target, "tracked complex-field result replacement is not modeled", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, "tracked complex-field result replacement is not modeled", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (TryGetProtectedTextEditFeature(fieldTarget.Element, out string protectedFeature))
             {
-                if (!TrackUnsupportedShape(options, operation, target, $"field result contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, $"field result contains protected OOXML boundary '{protectedFeature}'", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (!TryValidateTrackedWholeParagraphReplacement(fieldTarget.Element, current, text, style: null, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
         }
 

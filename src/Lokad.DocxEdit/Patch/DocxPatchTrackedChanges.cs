@@ -340,6 +340,24 @@ internal static partial class DocxPatchEngine
         return true;
     }
 
+    /// <summary>Records an unsupported tracked shape and falls back to a direct edit. Returns false when the caller must return immediately.</summary>
+    private static bool TryFallbackToDirectEdit(
+        DocxEditOptions options,
+        DocxPatchOperation operation,
+        string target,
+        string reason,
+        List<DocxDiagnostic> diagnostics,
+        ref bool useTrackedChanges)
+    {
+        if (!TrackUnsupportedShape(options, operation, target, reason, diagnostics))
+        {
+            return false;
+        }
+
+        useTrackedChanges = false;
+        return true;
+    }
+
     private static string BuildUnsupportedTrackedShapeMessage(
         TrackChangesMode mode,
         DocxPatchOperation operation,

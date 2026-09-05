@@ -176,12 +176,10 @@ internal static partial class DocxPatchEngine
         if (useTrackedChanges &&
             !TryGetTrackedCommentParagraphs(commentTarget.Comment, text, out trackedParagraphs, out string? trackedUnsupportedReason))
         {
-            if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+            if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
             {
                 return diagnostics;
             }
-
-            useTrackedChanges = false;
         }
 
         if (!apply)

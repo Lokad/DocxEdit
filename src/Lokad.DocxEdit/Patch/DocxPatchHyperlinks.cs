@@ -106,21 +106,17 @@ internal static partial class DocxPatchEngine
         {
             if (TryGetProtectedTextEditFeature(hyperlinkTarget.Hyperlink, out string protectedFeature))
             {
-                if (!TrackUnsupportedShape(options, operation, target, $"hyperlink contains protected OOXML boundary '{protectedFeature}'", diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, $"hyperlink contains protected OOXML boundary '{protectedFeature}'", diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
             else if (!TryValidateTrackedWholeParagraphReplacement(hyperlinkTarget.Hyperlink, current, text, style: null, out string? trackedUnsupportedReason))
             {
-                if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
                     return diagnostics;
                 }
-
-                useTrackedChanges = false;
             }
         }
 
@@ -178,12 +174,10 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text))
         {
-            if (!TrackUnsupportedShape(options, operation, target, "inserted hyperlink text contains tabs or line breaks", diagnostics))
+            if (!TryFallbackToDirectEdit(options, operation, target, "inserted hyperlink text contains tabs or line breaks", diagnostics, ref useTrackedChanges))
             {
                 return diagnostics;
             }
-
-            useTrackedChanges = false;
         }
 
         if (!apply)

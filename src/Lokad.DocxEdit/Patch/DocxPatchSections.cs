@@ -44,12 +44,10 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges && sectionTarget.SectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any())
         {
-            if (!TrackUnsupportedShape(options, operation, target, "section already contains tracked section property revision markup", diagnostics))
+            if (!TryFallbackToDirectEdit(options, operation, target, "section already contains tracked section property revision markup", diagnostics, ref useTrackedChanges))
             {
                 return diagnostics;
             }
-
-            useTrackedChanges = false;
         }
 
         if (!apply)
@@ -111,12 +109,10 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges && sectionTarget.SectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any())
         {
-            if (!TrackUnsupportedShape(options, operation, target, "section already contains tracked section property revision markup", diagnostics))
+            if (!TryFallbackToDirectEdit(options, operation, target, "section already contains tracked section property revision markup", diagnostics, ref useTrackedChanges))
             {
                 return diagnostics;
             }
-
-            useTrackedChanges = false;
         }
 
         if (!apply)
