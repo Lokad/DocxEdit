@@ -3750,19 +3750,21 @@ Usage:
   docxedit <command> [options]
 
 Read / explore:
-  read       Produce an agent-friendly structural view of a .docx
-  outline    Show headings, tables, images, sections, headers, footers
-  find       Find text and print stable edit targets
-  dump       Dump one target in detail
-  context    Show nearby structure around one target without broad text
-  styles     List paragraph, character, and table styles
-  media      List embedded images
-  validate   Validate package and WordprocessingML invariants
-  changes    List tracked-change and comment markup without printing private text
+  read      Produce an agent-friendly structural view of a .docx
+  outline   Show headings, tables, images, sections, headers, footers
+  find      Find text and print stable edit targets
+  dump      Dump one target in detail
+  context   Show nearby structure around one target without broad text
+  styles    List paragraph, character, and table styles
+  media     List embedded images
+  validate  Validate package and WordprocessingML invariants
+  changes   List tracked-change and comment markup; comment text is opt-in
+  catalog   Print the machine-readable command and patch-operation catalog
+  version   Print the docxedit version
 
 Patch:
-  check      Validate a .docxpatch file without writing output
-  apply      Apply a .docxpatch file and write a new .docx
+  check     Validate a .docxpatch file without writing output
+  apply     Apply a .docxpatch file and write a new .docx
 
 Help:
   help read|outline|find|dump|context|styles|media|validate|changes|catalog|version|check|apply|patch
@@ -3778,6 +3780,15 @@ Examples:
   docxedit changes report.docx
   docxedit check report.docx edits.docxpatch
   docxedit apply report.docx edits.docxpatch --output report.edited.docx
+Pipes:
+  - stands for stdin/stdout: the input .docx, the patch file, and --output accept -
+
+Exit codes:
+  0 success (warnings allowed; inspect diagnostics)
+  1 unsuccessful result; text mode prints error diagnostics to stderr
+  2 invalid command-line usage
+  3 successful result with warnings under --strict
+  4 unhandled exception
 ```
 
 Command-specific help must exist for:
