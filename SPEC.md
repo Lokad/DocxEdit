@@ -3477,7 +3477,7 @@ with <<<Internal>>>
 end
 ```
 
-v0.1 does not need to understand first-page/even-page/default header semantics beyond reporting them in `outline`.
+v0.1 does not model first-page/even-page/default header semantics; targets resolve by relationship within each header or footer part.
 
 ---
 
