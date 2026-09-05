@@ -1053,6 +1053,15 @@ internal static partial class DocxPatchEngine
         }
 
         return true;
+
+        static bool RowHasTrackedRowRevision(XElement row)
+        {
+            XElement? rowProperties = row.Element(OoxmlNs.W + "trPr");
+            return rowProperties is not null &&
+                (rowProperties.Elements(OoxmlNs.W + "ins").Any() ||
+                    rowProperties.Elements(OoxmlNs.W + "del").Any() ||
+                    rowProperties.Elements(OoxmlNs.W + "trPrChange").Any());
+        }
     }
 
     private static void AddTrackedRowStructureUnsupported(
@@ -1074,14 +1083,6 @@ internal static partial class DocxPatchEngine
             .Any();
     }
 
-    private static bool RowHasTrackedRowRevision(XElement row)
-    {
-        XElement? rowProperties = row.Element(OoxmlNs.W + "trPr");
-        return rowProperties is not null &&
-            (rowProperties.Elements(OoxmlNs.W + "ins").Any() ||
-                rowProperties.Elements(OoxmlNs.W + "del").Any() ||
-                rowProperties.Elements(OoxmlNs.W + "trPrChange").Any());
-    }
     private static bool IsSimpleEditableCell(XElement cell)
     {
         XElement[] paragraphs = cell.Elements(OoxmlNs.W + "p").ToArray();

@@ -139,30 +139,30 @@ internal static class DocxPatchParser
         }
 
         return new DocxPatch(true, majorVersion, operations, []);
+
+        static int FindLine(string[] parserLines, string prefix)
+        {
+            for (int i = 0; i < parserLines.Length; i++)
+            {
+                if (parserLines[i].TrimStart().StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    return i + 1;
+                }
+            }
+
+            return 1;
+        }
+
+        static bool IsBooleanLiteral(string value)
+        {
+            return string.Equals(value, "true", StringComparison.Ordinal) ||
+                string.Equals(value, "false", StringComparison.Ordinal);
+        }
     }
 
     private static DocxPatch Error(string code, string message, int line, int column)
     {
         return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message) with { Line = line, Column = column }]);
-    }
-
-    private static int FindLine(string[] lines, string prefix)
-    {
-        for (int i = 0; i < lines.Length; i++)
-        {
-            if (lines[i].TrimStart().StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return i + 1;
-            }
-        }
-
-        return 1;
-    }
-
-    private static bool IsBooleanLiteral(string value)
-    {
-        return string.Equals(value, "true", StringComparison.Ordinal) ||
-            string.Equals(value, "false", StringComparison.Ordinal);
     }
 
     private sealed record OperationDefinition(

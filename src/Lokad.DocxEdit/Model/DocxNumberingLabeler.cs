@@ -150,22 +150,22 @@ internal sealed class DocxNumberingLabeler
         }
 
         return builder.ToString();
-    }
 
-    private static string? FormatCounter(int value, string? format)
-    {
-        return format switch
+        static string? FormatCounter(int counterValue, string? counterFormat)
         {
-            "decimal" => value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "decimalZero" => value is >= 0 and < 10
-                ? "0" + value.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                : value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "lowerLetter" => ToLetters(value, upperCase: false),
-            "upperLetter" => ToLetters(value, upperCase: true),
-            "lowerRoman" => ToRoman(value)?.ToLowerInvariant(),
-            "upperRoman" => ToRoman(value),
-            _ => null
-        };
+            return counterFormat switch
+            {
+                "decimal" => counterValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "decimalZero" => counterValue is >= 0 and < 10
+                    ? "0" + counterValue.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : counterValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "lowerLetter" => ToLetters(counterValue, upperCase: false),
+                "upperLetter" => ToLetters(counterValue, upperCase: true),
+                "lowerRoman" => ToRoman(counterValue)?.ToLowerInvariant(),
+                "upperRoman" => ToRoman(counterValue),
+                _ => null
+            };
+        }
     }
 
     private static string? ToLetters(int value, bool upperCase)

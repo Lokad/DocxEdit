@@ -464,6 +464,32 @@ internal static partial class DocxPatchEngine
         SaveDocumentPart(package, replyTarget.PartName, replyTarget.Document);
         RemoveCommentAnchors(package, replyCommentId, cancellationToken);
         return [];
+
+        static bool HasChildCommentReplies(
+            OoxmlPackage package,
+            string paraId,
+            CancellationToken cancellationToken)
+        {
+            foreach (string partName in GetCommentsExtendedPartNames(package, cancellationToken))
+            {
+                OoxmlPart? part = package.GetPart(partName);
+                if (part is null)
+                {
+                    continue;
+                }
+
+                using Stream stream = part.OpenRead();
+                XDocument document = SafeXml.Load(stream, cancellationToken);
+                if (document
+                    .Descendants(OoxmlNs.W15 + "commentEx")
+                    .Any(element => string.Equals((string?)element.Attribute(OoxmlNs.W15 + "paraIdParent"), paraId, StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
     private static CommentTarget? ResolveCommentTarget(
         OoxmlPackage package,
@@ -618,32 +644,6 @@ internal static partial class DocxPatchEngine
         }
 
         return null;
-    }
-
-    private static bool HasChildCommentReplies(
-        OoxmlPackage package,
-        string paraId,
-        CancellationToken cancellationToken)
-    {
-        foreach (string partName in GetCommentsExtendedPartNames(package, cancellationToken))
-        {
-            OoxmlPart? part = package.GetPart(partName);
-            if (part is null)
-            {
-                continue;
-            }
-
-            using Stream stream = part.OpenRead();
-            XDocument document = SafeXml.Load(stream, cancellationToken);
-            if (document
-                .Descendants(OoxmlNs.W15 + "commentEx")
-                .Any(element => string.Equals((string?)element.Attribute(OoxmlNs.W15 + "paraIdParent"), paraId, StringComparison.Ordinal)))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static bool TryParseCommentBodyTarget(string target, out int storyOrdinal, out int commentOrdinal)
@@ -887,44 +887,6 @@ internal static partial class DocxPatchEngine
         return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id) && id >= 0
             ? id
             : fallback;
-    }
-
-    private static CommentExtensionTarget? ResolveCommentExtensionTarget(
-        OoxmlPackage package,
-        XElement comment,
-        DocxPatchOperation operation,
-        string target,
-        CancellationToken cancellationToken,
-        out DocxDiagnostic? diagnostic)
-    {
-        diagnostic = null;
-        string? paraId = ReadCommentParaId(comment);
-        if (string.IsNullOrWhiteSpace(paraId))
-        {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no w15:paraId, so resolution state cannot be edited safely.", operation, target);
-            return null;
-        }
-
-        IReadOnlyList<string> partNames = GetCommentsExtendedPartNames(package, cancellationToken);
-        if (partNames.Count == 0)
-        {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E4312", $"Comment '{target}' has no commentsExtended part, so resolution state cannot be edited safely.", operation, target);
-            return null;
-        }
-
-        foreach (string partName in partNames)
-        {
-            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
-            XElement? commentExtension = document
-                .Descendants(OoxmlNs.W15 + "commentEx")
-                .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W15 + "paraId"), paraId, StringComparison.Ordinal));
-            if (commentExtension is not null)
-            {
-                return new CommentExtensionTarget(partName, document, commentExtension);
-            }
-        }
-
-        return null;
     }
 
     private static CommentExtensionTarget? ResolveOrCreateCommentExtensionTarget(

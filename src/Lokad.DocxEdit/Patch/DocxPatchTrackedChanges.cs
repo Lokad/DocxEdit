@@ -471,23 +471,23 @@ internal static partial class DocxPatchEngine
         {
             builder.Append(childSignature);
         }
-    }
 
-    private static string CanonicalNodeSignature(XNode node)
-    {
-        if (node is XElement element)
+        static string CanonicalNodeSignature(XNode node)
         {
-            var builder = new StringBuilder();
-            AppendCanonicalElement(builder, element);
-            return builder.ToString();
-        }
+            if (node is XElement child)
+            {
+                var childBuilder = new StringBuilder();
+                AppendCanonicalElement(childBuilder, child);
+                return childBuilder.ToString();
+            }
 
-        if (node is XText text && !string.IsNullOrWhiteSpace(text.Value))
-        {
-            return text.Value;
-        }
+            if (node is XText text && !string.IsNullOrWhiteSpace(text.Value))
+            {
+                return text.Value;
+            }
 
-        return string.Empty;
+            return string.Empty;
+        }
     }
 
     private static bool RunHasVisibleText(XElement run)

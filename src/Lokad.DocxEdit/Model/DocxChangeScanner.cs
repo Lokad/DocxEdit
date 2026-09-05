@@ -106,6 +106,12 @@ internal static partial class DocxChangeScanner
         }
 
         return PairRangeBoundaries(changes);
+
+        static bool IsChangeElement(XElement element)
+        {
+            return element.Name.Namespace == OoxmlNs.W &&
+                ChangeTypes.ContainsKey(element.Name.LocalName);
+        }
     }
 
     private static bool IsWordXmlPart(OoxmlPart part)
@@ -113,12 +119,6 @@ internal static partial class DocxChangeScanner
         return part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
             part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
             !part.Name.Contains("/_rels/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsChangeElement(XElement element)
-    {
-        return element.Name.Namespace == OoxmlNs.W &&
-            ChangeTypes.ContainsKey(element.Name.LocalName);
     }
 
     private static string GetStory(OoxmlPackage package, string partName, int fallbackPartIndex, CancellationToken cancellationToken)
