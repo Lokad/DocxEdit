@@ -12,43 +12,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "DocxCaseCommon.ps1")
+
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $CaseRoot = Join-Path $RepoRoot "edit-cases/cases"
 $ArtifactRoot = Join-Path $RepoRoot "artifacts/edit-cases"
 $CliProject = Join-Path $RepoRoot "src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj"
-
-function ConvertTo-ProcessArgument([string] $Argument) {
-    if ([string]::IsNullOrEmpty($Argument)) {
-        return '""'
-    }
-
-    if ($Argument -notmatch '[\s"]') {
-        return $Argument
-    }
-
-    return '"' + $Argument.Replace('"', '\"') + '"'
-}
-
-function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments) {
-    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $FileName
-    $startInfo.WorkingDirectory = $RepoRoot
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.UseShellExecute = $false
-    $startInfo.Arguments = (($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
-
-    $process = [System.Diagnostics.Process]::Start($startInfo)
-    $stdout = $process.StandardOutput.ReadToEnd()
-    $stderr = $process.StandardError.ReadToEnd()
-    $process.WaitForExit()
-
-    [pscustomobject]@{
-        ExitCode = $process.ExitCode
-        StdOut = $stdout
-        StdErr = $stderr
-    }
-}
 
 function Resolve-CasePath([string] $CaseValue) {
     if ([System.IO.Path]::IsPathRooted($CaseValue) -or (Test-Path -LiteralPath $CaseValue)) {
@@ -86,19 +55,6 @@ function Get-ManifestText($Value) {
     }
 
     return [string] $Value
-}
-
-function Get-ObjectProperty([object] $Object, [string] $Name) {
-    if ($null -eq $Object) {
-        return $null
-    }
-
-    $property = $Object.PSObject.Properties[$Name]
-    if ($null -eq $property) {
-        return $null
-    }
-
-    return $property.Value
 }
 
 function Add-ZipEntry([System.IO.Compression.ZipArchive] $Archive, [string] $Name, [string] $Text) {
