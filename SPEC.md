@@ -3053,57 +3053,20 @@ These warnings do not mean the library may corrupt the document. They mean the f
 Examples:
 
 ```text
-E1201 selector matched 0 targets:
-  target heading:"Executive summary"
+E1201 selector matched 0 targets: heading:"Executive summary". Nearby headings: M.P0003 heading level=1, M.P0041 heading level=1.
+```
 
-Closest headings:
-  M.P0003 heading level=1 text="Executive Summary"
-  M.P0041 heading level=1 text="Financial Summary"
+Suggestions are the first three headings in document order. Non-heading selectors suggest `Nearby paragraphs:` instead, or `No nearby paragraph targets are available.` when the body has none.
 
-Try:
-  docxedit outline input.docx
-  docxedit dump input.docx --id M.P0003
+```text
+E1202 selector matched 3 targets: M.P0004, M.T0001.R02.C01, M.P0044. Use a more specific selector or an explicit ID.
 ```
 
 ```text
-E1202 selector matched 3 targets:
-  target paragraph containing "Revenue"
-
-Matches:
-  M.P0004 text="Revenue increased by 8.4%..."
-  M.T0001.R02.C01 text="Revenue"
-  M.P0044 text="Revenue by region..."
-
-Use a more specific target ID from docxedit read or docxedit find.
+E3201 guard failed for M.P0004. Expected text does not match current text.
 ```
 
-```text
-E3201 guard failed for M.P0004.
-
-Expected:
-  "Revenue increased by 8.4% compared with the prior quarter."
-
-Current:
-  "Revenue increased by 9.1% compared with the prior quarter."
-
-Refresh the target with:
-  docxedit dump input.docx --id M.P0004 --runs
-```
-
-```text
-E4207 replacement crosses a hyperlink boundary in M.P0018.
-
-Matched text:
-  "see Appendix B"
-
-Reason:
-  "Appendix B" is inside a hyperlink run.
-
-Options:
-  - target the full paragraph with replace-paragraph
-  - inspect runs with:
-    docxedit dump input.docx --id M.P0018 --runs
-```
+Text guards report the mismatch without echoing either text.
 
 ---
 
