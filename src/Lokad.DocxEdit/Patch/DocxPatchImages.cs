@@ -132,6 +132,24 @@ internal static partial class DocxPatchEngine
         return [];
     }
 
+    private static bool TryParseImageDimension(
+        DocxPatchOperation operation,
+        string fieldName,
+        string text,
+        bool requirePositive,
+        out long emus,
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic)
+    {
+        diagnostic = null;
+        if (!OoxmlUnits.TryParseDimension(text, out emus) || (requirePositive && emus <= 0))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image {fieldName} '{text}'.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
+        }
+
+        return true;
+    }
+
     private static bool TryReadImageExtent(
         DocxPatchOperation operation,
         byte[] bytes,
@@ -146,15 +164,13 @@ internal static partial class DocxPatchEngine
         bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
         bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
         bool hasPixelSize = TryReadImagePixelSize(bytes, contentType, out int pixelWidth, out int pixelHeight);
-        if (width is not null && !OoxmlUnits.TryParseDimension(width, out widthEmus))
+        if (width is not null && !TryParseImageDimension(operation, "width", width, requirePositive: false, out widthEmus, out diagnostic))
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
         }
 
-        if (height is not null && !OoxmlUnits.TryParseDimension(height, out heightEmus))
+        if (height is not null && !TryParseImageDimension(operation, "height", height, requirePositive: false, out heightEmus, out diagnostic))
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image height '{height}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
         }
 
@@ -831,15 +847,13 @@ internal static partial class DocxPatchEngine
         diagnostic = null;
         bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
         bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
-        if (width is not null && (!OoxmlUnits.TryParseDimension(width, out widthEmus) || widthEmus <= 0))
+        if (width is not null && !TryParseImageDimension(operation, "width", width, requirePositive: true, out widthEmus, out diagnostic))
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image width '{width}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
         }
 
-        if (height is not null && (!OoxmlUnits.TryParseDimension(height, out heightEmus) || heightEmus <= 0))
+        if (height is not null && !TryParseImageDimension(operation, "height", height, requirePositive: true, out heightEmus, out diagnostic))
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", $"Invalid image height '{height}'.", operation, operation.Fields.GetValueOrDefault("target"));
             return false;
         }
 
