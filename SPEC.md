@@ -97,19 +97,14 @@ src/
     Model/
     Patch/
     Rendering/
-    Validation/
   Lokad.DocxEdit.Cli/
     Lokad.DocxEdit.Cli.csproj
     Program.cs
 tests/
   Lokad.DocxEdit.Tests/
     Lokad.DocxEdit.Tests.csproj
-    Fixtures/
-    Unit/
-    Golden/
   Lokad.DocxEdit.OfficeTests/
     Lokad.DocxEdit.OfficeTests.csproj
-    OfficeInterop/
 tools/
   CheckPrivateCase.ps1
   DocxCaseCommon.ps1
@@ -125,6 +120,7 @@ docs/
   architecture.md
   diagnostics.md
   validation.md
+  status.md
 ```
 
 Production project:
