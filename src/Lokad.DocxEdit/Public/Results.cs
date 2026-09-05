@@ -349,7 +349,7 @@ public sealed record DocxChangeInfo
     public string PartName { get; init; } = string.Empty;
     /// <summary>Parent markup type, when nested.</summary>
     public string? ParentType { get; init; }
-    /// <summary>Associated target ID, when known.</summary>
+    /// <summary>Associated target ID, when known: an explicit target ID (<c>M.P0001</c>) or a comment-body ID (<c>C001.C0001</c>); null when targetless. Never a patch selector.</summary>
     public string? TargetId { get; init; }
     /// <summary>Revision author, when tracked.</summary>
     public string? Author { get; init; }
@@ -381,9 +381,9 @@ public sealed record DocxChangeInfo
     public bool? CommentIsReply { get; init; }
     /// <summary>Whether the comment is resolved.</summary>
     public bool? CommentResolved { get; init; }
-    /// <summary>Comment anchor target ID, when resolved.</summary>
+    /// <summary>Comment anchor target ID, when resolved (same ID families as target IDs).</summary>
     public string? CommentAnchorTargetId { get; init; }
-    /// <summary>Comment reference target ID, when resolved.</summary>
+    /// <summary>Comment reference target ID, when resolved (same ID families as target IDs).</summary>
     public string? CommentReferenceTargetId { get; init; }
     /// <summary>Comment anchor story, when resolved.</summary>
     public string? CommentAnchorStory { get; init; }
@@ -401,7 +401,7 @@ public sealed record DocxChangeInfo
     public DocxTargetSource TargetSource { get; init; } = DocxTargetSource.None;
     /// <summary>Why there is no modeled target, when targetless.</summary>
     public DocxTargetReason? TargetReason { get; init; }
-    /// <summary>Nearest modeled target ID, when targetless.</summary>
+    /// <summary>Nearest modeled target ID, when targetless (same ID families as target IDs).</summary>
     public string? NearestTargetId { get; init; }
     /// <summary>Human-readable target note, when targetless.</summary>
     public string? TargetNote { get; init; }
@@ -411,7 +411,7 @@ public sealed record DocxChangeInfo
     public int? OperationIndex { get; init; }
     /// <summary>Patch operation name, when from a patch.</summary>
     public string? OperationName { get; init; }
-    /// <summary>Patch operation target, when from a patch.</summary>
+    /// <summary>Raw patch operation target text, when from a patch: an explicit ID or any selector, echoed for attribution.</summary>
     public string? OperationTarget { get; init; }
 }
 
@@ -436,7 +436,7 @@ public sealed record DocxChangeGroupSummary(string Group, string Key, string Typ
 /// </summary>
 public sealed record DocxChangeTargetSummary
 {
-    /// <summary>Associated target ID, when known.</summary>
+    /// <summary>Grouped target key (same ID families as change target IDs).</summary>
     public string TargetId { get; init; } = string.Empty;
     /// <summary>Number of changes.</summary>
     public int Count { get; init; }
@@ -451,9 +451,9 @@ public sealed record DocxCommentThreadSummary
 {
     /// <summary>Comment ID.</summary>
     public string CommentId { get; init; } = string.Empty;
-    /// <summary>Anchor target ID, when resolved.</summary>
+    /// <summary>Anchor target ID, when resolved (same ID families as target IDs).</summary>
     public string? AnchorTargetId { get; init; }
-    /// <summary>Reference target ID, when resolved.</summary>
+    /// <summary>Reference target ID, when resolved (same ID families as target IDs).</summary>
     public string? ReferenceTargetId { get; init; }
     /// <summary>Anchor story, when resolved.</summary>
     public string? AnchorStory { get; init; }
