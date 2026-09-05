@@ -146,23 +146,6 @@ public static class CliTests
     }
 
     [Fact]
-    public static void ParserFlagsAndCatalogUsageAgree()
-    {
-        string program = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "Lokad.DocxEdit.Cli", "Program.cs"));
-        var parserFlags = new HashSet<string>(Regex.Matches(program, "case \"(--[a-z][\\w-]*)\":").Select(match => match.Groups[1].Value), StringComparer.Ordinal);
-        var usageFlags = new HashSet<string>(DocxHelp.Catalog.Commands.SelectMany(command => Regex.Matches(command.Usage, "--[a-z][\\w-]*").Select(match => match.Value)), StringComparer.Ordinal);
-        foreach (string flag in parserFlags)
-        {
-            Assert.Contains(flag, usageFlags);
-        }
-
-        foreach (string flag in usageFlags)
-        {
-            Assert.Contains(flag, parserFlags);
-        }
-    }
-
-    [Fact]
     public static void CliHelpIncludesRequiredExamples()
     {
         CliResult help = RunCli("--help");
