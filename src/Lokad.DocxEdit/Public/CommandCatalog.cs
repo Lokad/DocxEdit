@@ -224,6 +224,9 @@ public static class DocxHelp
             builder.Append("  ").AppendLine(example);
         }
 
+        builder.AppendLine("Pipes:");
+        builder.AppendLine("  - stands for stdin/stdout: the input .docx, the patch file, and --output accept -");
+        builder.AppendLine();
         builder.AppendLine("Exit codes:");
         builder.AppendLine("  0 success (warnings allowed; inspect diagnostics)");
         builder.AppendLine("  1 unsuccessful result; text mode prints error diagnostics to stderr");

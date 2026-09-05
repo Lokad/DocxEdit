@@ -505,7 +505,8 @@ Image operations read `asset` from the local filesystem. Relative paths are
 resolved against the patch file directory first, then the current working
 directory of the CLI process; absolute paths work unchanged. Keep assets next
 to the patch so the same patch resolves identically regardless of where the
-CLI is invoked from. Use `expect-content-type` when replacing or deleting
+CLI is invoked from. A patch read from stdin (`-`) has no directory, so relative
+assets resolve against the invoking working directory only. Use `expect-content-type` when replacing or deleting
 an image so accidental target mixups fail early.
 
 ## Diagnostics

@@ -33,6 +33,22 @@ For example:
 dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- read report.docx --summary
 ```
 
+## Standard Input And Output
+
+The input `.docx`, the patch file, and `--output` accept `-` for stdin/stdout
+(UTF-8 for the patch; raw bytes otherwise), so chained runs need no temp files:
+
+```text
+docxedit check report.docx edits.docxpatch --report check.json
+docxedit apply report.docx edits.docxpatch --output - > report.edited.docx
+docxedit validate - < report.edited.docx
+```
+
+A patch read from stdin has no directory: relative image `asset` paths resolve
+against the invoking working directory only (see [patch-format.md](patch-format.md)).
+`--report`, `--diagnostics`, and `--operation-report` stay file-only; `-` is not
+accepted there because it would collide with `--json` or binary stdout.
+
 ## Recommended Workflow
 
 Start with low-text inspection. This gives counts, IDs, diagnostics, and markup

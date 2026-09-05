@@ -637,6 +637,50 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliCheckReadsPatchFromStdin()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+        byte[] patch = Encoding.UTF8.GetBytes("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCliWithInput(patch, "check", input, "-");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("docxedit check: OK", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliApplyWritesDocxToStdout()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCli("apply", input, patch, "-o", "-");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.StartsWith("PK", result.Output, StringComparison.Ordinal);
+        Assert.True(result.Output.Length > 100);
+    }
+
+    [Fact]
+    public static void CliReadReadsInputFromStdin()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+        byte[] document = File.ReadAllBytes(input);
+
+        CliResult result = RunCliWithInput(document, "read", "-", "--summary");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("paragraphs count=", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliDumpJsonIncludesStructuredRuns()
     {
         using TempDirectory temp = TempDirectory.Create();
@@ -762,12 +806,23 @@ public static class CliTests
 
     private static CliResult RunCli(params string[] args)
     {
+        return RunCliCore(null, args);
+    }
+
+    private static CliResult RunCliWithInput(byte[] standardInput, params string[] args)
+    {
+        return RunCliCore(standardInput, args);
+    }
+
+    private static CliResult RunCliCore(byte[]? standardInput, string[] args)
+    {
         string repoRoot = FindRepoRoot();
         var startInfo = new ProcessStartInfo("dotnet")
         {
             WorkingDirectory = repoRoot,
             RedirectStandardOutput = true,
-            RedirectStandardError = true
+            RedirectStandardError = true,
+            RedirectStandardInput = standardInput is not null
         };
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--project");
@@ -780,6 +835,11 @@ public static class CliTests
 
         using Process process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start CLI process.");
+        if (standardInput is not null)
+        {
+            process.StandardInput.BaseStream.Write(standardInput, 0, standardInput.Length);
+            process.StandardInput.Close();
+        }
         string output = process.StandardOutput.ReadToEnd();
         string error = process.StandardError.ReadToEnd();
         process.WaitForExit();

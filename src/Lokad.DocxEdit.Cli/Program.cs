@@ -81,6 +81,21 @@ internal static class ProgramMain
         }
     }
 
+    private static Stream OpenInputFile(string path)
+    {
+        return path == "-" ? Console.OpenStandardInput() : File.OpenRead(path);
+    }
+
+    private static TextReader OpenPatchFile(string path)
+    {
+        return path == "-" ? Console.In : File.OpenText(path);
+    }
+
+    private static Stream CreateOutputFile(string path)
+    {
+        return path == "-" ? Console.OpenStandardOutput() : File.Create(path);
+    }
+
     private static int RunInputCommand<T>(
         ParsedOptions options,
         string usage,
@@ -95,7 +110,7 @@ internal static class ProgramMain
             return InvalidUsage(usage);
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
+        using Stream input = OpenInputFile(options.Positionals[0]);
         T result = execute(input);
         return FinishCommand(options, result, getDiagnostics, getSuccess, writeText);
     }
@@ -115,8 +130,8 @@ internal static class ProgramMain
             return InvalidUsage(usage);
         }
 
-        using Stream input = File.OpenRead(options.Positionals[0]);
-        using TextReader patch = File.OpenText(options.Positionals[1]);
+        using Stream input = OpenInputFile(options.Positionals[0]);
+        using TextReader patch = OpenPatchFile(options.Positionals[1]);
         T result = execute(input, patch);
         writeReport(result);
         return FinishCommand(options, result, getDiagnostics, getSuccess, writeText);
@@ -304,7 +319,7 @@ internal static class ProgramMain
         }
 
         string inputPath = options.Positionals[0];
-        using Stream input = File.OpenRead(inputPath);
+        using Stream input = OpenInputFile(inputPath);
         if (options.ExtractPath is string extractDirectory)
         {
             return RunExtractMedia(options, input, extractDirectory);
@@ -413,7 +428,7 @@ internal static class ProgramMain
             CommandUsageError("apply"),
             (input, patch) =>
             {
-                using Stream output = File.Create(outputPath);
+                using Stream output = CreateOutputFile(outputPath);
                 return new DocxEditor().Apply(input, patch, output, ToEditOptions(options));
             },
             static result => result.Diagnostics,
@@ -1039,7 +1054,7 @@ internal static class ProgramMain
 
                         break;
                     default:
-                        if (arg.StartsWith('-'))
+                        if (arg != "-" && arg.StartsWith('-'))
                         {
                             return WithError(command, $"Unknown option '{arg}'.");
                         }
