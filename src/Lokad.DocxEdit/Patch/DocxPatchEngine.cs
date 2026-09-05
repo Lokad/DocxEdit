@@ -285,7 +285,7 @@ internal static partial class DocxPatchEngine
         string styleType,
         CancellationToken cancellationToken,
         [NotNullWhen(true)] out string? styleId,
-        out DocxDiagnostic? diagnostic,
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic,
         DocxPatchOperation operation,
         string? target)
     {
@@ -516,8 +516,13 @@ internal static partial class DocxPatchEngine
         for (int i = matches.Count - 1; i >= 0; i--)
         {
             TextRange match = matches[i];
-            TextPosition start = positions[match.Start]!;
-            TextPosition end = positions[match.Start + match.Length - 1]!;
+            TextPosition? start = positions[match.Start];
+            TextPosition? end = positions[match.Start + match.Length - 1];
+            if (start is null || end is null)
+            {
+                unsupportedReason = "match includes tabs, line breaks, or non-text run content";
+                return false;
+            }
             if (ReferenceEquals(start.TextElement, end.TextElement))
             {
                 string value = start.TextElement.Value;

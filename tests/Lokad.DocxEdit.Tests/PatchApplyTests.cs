@@ -10102,7 +10102,9 @@ public static class PatchApplyTests
         XElement extent = XDocument.Parse(xml)
             .Descendants(XName.Get("extent", "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"))
             .First();
-        return ((long)extent.Attribute("cx")!, (long)extent.Attribute("cy")!);
+        XAttribute cx = extent.Attribute("cx") ?? throw new InvalidDataException("Test fixture image extent lacks cx.");
+        XAttribute cy = extent.Attribute("cy") ?? throw new InvalidDataException("Test fixture image extent lacks cy.");
+        return ((long)cx, (long)cy);
     }
 
     private static string ReadEntry(Stream docx, string entryName)

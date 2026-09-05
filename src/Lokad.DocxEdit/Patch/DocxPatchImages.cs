@@ -44,7 +44,7 @@ internal static partial class DocxPatchEngine
 
         if (!TryReadAsset(options.AssetProvider, asset, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
-            return [assetDiagnostic!];
+            return [assetDiagnostic];
         }
 
         if (imageTarget.Part.ContentType is not null &&
@@ -57,7 +57,7 @@ internal static partial class DocxPatchEngine
         if (hasAlt &&
             !TryGetImageDrawingContainer(imageTarget, target, operation, out imageContainer, out DocxDiagnostic? altDiagnostic))
         {
-            return [altDiagnostic!];
+            return [altDiagnostic];
         }
 
         if (!apply)
@@ -103,7 +103,7 @@ internal static partial class DocxPatchEngine
 
         if (!TryReadAsset(options.AssetProvider, asset, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
-            return [assetDiagnostic!];
+            return [assetDiagnostic];
         }
 
         if (!ValidateImageContentTypeGuard(operation, target, contentType, diagnostics))
@@ -113,7 +113,7 @@ internal static partial class DocxPatchEngine
 
         if (!TryReadImageExtent(operation, bytes, contentType, out long widthEmus, out long heightEmus, out DocxDiagnostic? dimensionDiagnostic))
         {
-            return [dimensionDiagnostic!];
+            return [dimensionDiagnostic];
         }
 
         if (!apply)
@@ -156,7 +156,7 @@ internal static partial class DocxPatchEngine
         string contentType,
         out long widthEmus,
         out long heightEmus,
-        out DocxDiagnostic? diagnostic)
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic)
     {
         widthEmus = OoxmlUnits.InchesToEmu(1);
         heightEmus = widthEmus;

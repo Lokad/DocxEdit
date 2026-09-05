@@ -405,7 +405,7 @@ internal static partial class DocxPatchEngine
 
         if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
         {
-            return [styleDiagnostic!];
+            return [styleDiagnostic];
         }
 
         if (!apply)

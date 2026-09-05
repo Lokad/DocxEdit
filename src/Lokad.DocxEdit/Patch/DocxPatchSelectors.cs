@@ -32,7 +32,7 @@ internal static partial class DocxPatchEngine
         diagnostics = [];
         if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
         {
-            diagnostics = [diagnostic!];
+            diagnostics = [diagnostic];
             return null;
         }
 
@@ -69,7 +69,7 @@ internal static partial class DocxPatchEngine
         diagnostics = [];
         if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
         {
-            diagnostics = [diagnostic!];
+            diagnostics = [diagnostic];
             return null;
         }
 
@@ -126,7 +126,7 @@ internal static partial class DocxPatchEngine
         diagnostics = [];
         if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
         {
-            diagnostics = [diagnostic!];
+            diagnostics = [diagnostic];
             return null;
         }
 
@@ -163,7 +163,7 @@ internal static partial class DocxPatchEngine
         string target,
         DocxPatchOperation operation,
         [NotNullWhen(true)] out TargetSelector? selector,
-        out DocxDiagnostic? diagnostic)
+        [NotNullWhen(false)] out DocxDiagnostic? diagnostic)
     {
         selector = null;
         diagnostic = null;
