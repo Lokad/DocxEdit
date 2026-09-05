@@ -58,7 +58,7 @@ Manual review should score each run on:
 - whether `changes`, `read --view markup`, and target IDs were adequate for
   understanding existing markup.
 
-When folding observations back into `PLAN.md`, keep them sanitized. Record the
+Fold observations back into `observations.md` in this directory (`PLAN.md` is untracked working notes, not the intake) and keep them sanitized. Record the
 challenge id, outcome, command classes, diagnostic codes, target ID classes,
 change/run markup types, aggregate counts, and ignored artifact paths only. Do
 not record private text, filenames, screenshots, raw OOXML, or excerpts from the
