@@ -68,7 +68,7 @@ internal sealed record TableOperationSnapshot(
 internal sealed record TableCellSnapshot(
     int ColumnIndex,
     int VisualColumnEndIndex,
-    string? MergeGroupId,
+    DocxTargetId? MergeGroupId,
     string? NestedTablePath);
 
 internal sealed record TableCellGridSlot(XElement Cell, int ColumnIndex, int ColumnSpan);

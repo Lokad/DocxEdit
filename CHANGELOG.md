@@ -20,3 +20,4 @@
 - Changed bookmark, content-control, field, and hyperlink `Id` plus their target-ID fields from `string` to the `DocxTargetId` struct (`required` IDs, nullable targets); text and JSON wire values are unchanged.
 - Changed paragraph, table, row, cell, section, and image `Id` fields (plus image `ContainingTargetId` and media `ImageId`) from `string` to the `DocxTargetId` struct; text and JSON wire values are unchanged.
 - Changed patch affected-target `Id`/`ParentId` from `string` to the `DocxTargetId` struct, threading the resolved target through table snapshots (string-surgery `ExtractTableId` plus two dead fallbacks deleted); report text and JSON shapes are unchanged.
+- Changed merge-group and merge-root-cell IDs from `string` to the `DocxTargetId` struct across scanners, snapshots, and DTOs, sharing one internal allocator (twin helpers deleted); text and JSON wire values are unchanged.

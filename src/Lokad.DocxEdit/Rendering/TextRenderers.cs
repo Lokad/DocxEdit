@@ -232,9 +232,9 @@ internal static class TextRenderers
             {
                 string columnSpan = cell.ColumnSpan == 1 ? string.Empty : $" column-span={cell.ColumnSpan}";
                 string visualColumnEnd = cell.VisualColumnEndIndex <= cell.ColumnIndex ? string.Empty : $" visual-column-end={cell.VisualColumnEndIndex}";
-                string mergeGroup = cell.MergeGroupId is null ? string.Empty : $" merge-group={XmlValues.EscapeText(cell.MergeGroupId)}";
+                string mergeGroup = cell.MergeGroupId is { } cellMergeGroup ? $" merge-group={cellMergeGroup.ToWireValue()}" : string.Empty;
         string verticalMerge = cell.VerticalMerge is { } cellMerge ? $" vertical-merge={cellMerge.ToWireValue()}" : string.Empty;
-                string verticalMergeRoot = cell.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={XmlValues.EscapeText(cell.VerticalMergeRootCellId)}";
+                string verticalMergeRoot = cell.VerticalMergeRootCellId is { } cellMergeRoot ? $" vertical-merge-root={cellMergeRoot.ToWireValue()}" : string.Empty;
                 string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
                 string physicalColumn = cell.PhysicalColumnIndex == 0 ? string.Empty : $" physical-column={cell.PhysicalColumnIndex}";
                 builder.Append("  ")
@@ -1068,9 +1068,9 @@ internal static class TextRenderers
             ColumnIndex = cell.ColumnIndex,
             ColumnSpan = cell.ColumnSpan,
             VisualColumnEndIndex = cell.VisualColumnEndIndex <= cell.ColumnIndex ? null : cell.VisualColumnEndIndex,
-            MergeGroupId = cell.MergeGroupId,
+            MergeGroupId = cell.MergeGroupId?.ToWireValue(),
             VerticalMerge = cell.VerticalMerge,
-            VerticalMergeRootCellId = cell.VerticalMergeRootCellId,
+            VerticalMergeRootCellId = cell.VerticalMergeRootCellId?.ToWireValue(),
             HasNestedTable = cell.HasNestedTable
         };
     }

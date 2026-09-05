@@ -462,7 +462,7 @@ public static class DocxTextRenderer
                 string visualColumnEnd = affected.VisualColumnEndIndex is null ? string.Empty : $" visual-column-end={affected.VisualColumnEndIndex}";
                 string gridBefore = affected.GridBefore is null ? string.Empty : $" grid-before={affected.GridBefore}";
                 string gridAfter = affected.GridAfter is null ? string.Empty : $" grid-after={affected.GridAfter}";
-                string mergeGroup = affected.MergeGroupId is null ? string.Empty : $" merge-group={affected.MergeGroupId}";
+                string mergeGroup = affected.MergeGroupId is { } affectedMergeGroup ? $" merge-group={affectedMergeGroup.ToWireValue()}" : string.Empty;
                 string nestedTablePath = affected.NestedTablePath is null ? string.Empty : $" nested-table-path={affected.NestedTablePath}";
                 builder.Append("  affected id=")
                     .Append(affected.Id.ToWireValue())

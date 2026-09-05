@@ -243,7 +243,7 @@ public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, strin
     /// <summary>Trailing grid columns.</summary>
     public int? GridAfter { get; init; }
     /// <summary>Merge-group ID, when merged.</summary>
-    public string? MergeGroupId { get; init; }
+    public DocxTargetId? MergeGroupId { get; init; }
     /// <summary>Nested-table path, when nested.</summary>
     public string? NestedTablePath { get; init; }
 }
@@ -973,9 +973,9 @@ public sealed record DocxTableCellInfo(
     /// <summary>1-based visual end column ordinal.</summary>
     public int VisualColumnEndIndex { get; init; }
     /// <summary>Merge-group ID, when merged.</summary>
-    public string? MergeGroupId { get; init; }
+    public DocxTargetId? MergeGroupId { get; init; }
     /// <summary>Merge-root cell ID, when merged.</summary>
-    public string? VerticalMergeRootCellId { get; init; }
+    public DocxTargetId? VerticalMergeRootCellId { get; init; }
 }
 
 /// <summary>

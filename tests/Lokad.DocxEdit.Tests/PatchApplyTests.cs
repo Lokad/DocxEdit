@@ -6795,7 +6795,7 @@ public static class PatchApplyTests
         output.Position = 0;
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
         DocxTableCellInfo cell = Assert.Single(table.Cells);
-        Assert.Equal("M.T0001.MG0001", cell.MergeGroupId);
+        Assert.Equal("M.T0001.MG0001", cell.MergeGroupId?.ToWireValue());
         Assert.Equal(2, cell.VisualColumnEndIndex);
         Assert.Equal("New merged", cell.Text);
         output.Position = 0;
@@ -8647,7 +8647,7 @@ public static class PatchApplyTests
         Assert.Equal(2, table.RowCount);
         DocxTableCellInfo promoted = table.Cells.Single(cell => cell.RowIndex == 1 && cell.ColumnIndex == 1);
         Assert.Equal(DocxVerticalMerge.Restart, promoted.VerticalMerge);
-        Assert.Equal("M.T0001.R01.C01", promoted.VerticalMergeRootCellId);
+        Assert.Equal("M.T0001.R01.C01", promoted.VerticalMergeRootCellId?.ToWireValue());
         output.Position = 0;
         string xml = ReadDocumentXml(output);
         Assert.Contains("<w:vMerge w:val=\"restart\"", xml, StringComparison.Ordinal);
@@ -8957,7 +8957,7 @@ public static class PatchApplyTests
         Assert.Equal("M.T0001.MG0001", affected.Id.ToWireValue());
         Assert.Equal(1, affected.ColumnIndex);
         Assert.Equal(2, affected.VisualColumnEndIndex);
-        Assert.Equal("M.T0001.MG0001", affected.MergeGroupId);
+        Assert.Equal("M.T0001.MG0001", affected.MergeGroupId?.ToWireValue());
         Assert.Equal("M.T0001.R01.C01.T0001", affected.NestedTablePath);
     }
 
@@ -9024,7 +9024,7 @@ public static class PatchApplyTests
                         ColumnIndex = 1,
                         VisualColumnEndIndex = 2,
                         GridBefore = 1,
-                        MergeGroupId = "M.T0001.MG0001",
+                        MergeGroupId = new DocxTargetId('M', 0, DocxTargetKind.MergeGroup, 1, 1, 0),
                         NestedTablePath = "M.T0001.R02.C01.T0001",
                         RowCountBefore = 1,
                         RowCountAfter = 2,

@@ -104,7 +104,7 @@ internal static partial class DocxPatchEngine
         var snapshots = new List<TableCellSnapshot>();
         int mergeGroupIndex = 1;
         int rowIndex = 0;
-        var activeVerticalMerges = new Dictionary<int, string>(capacity: 4);
+        var activeVerticalMerges = new Dictionary<int, DocxTargetId>(capacity: 4);
         foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
         {
             rowIndex++;
@@ -115,23 +115,25 @@ internal static partial class DocxPatchEngine
             {
                 int columnSpan = ReadTableCellColumnSpan(cell);
                 DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(cell);
-                string? mergeGroupId = null;
+                DocxTargetId? mergeGroupId = null;
                 if (verticalMerge == DocxVerticalMerge.Restart)
                 {
-                    mergeGroupId = AllocateTableMergeGroupId(tableId.ToWireValue(), ref mergeGroupIndex);
-                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
+                    DocxTargetId allocated = DocxTargetId.AllocateMergeGroupId(tableId, ref mergeGroupIndex);
+                    mergeGroupId = allocated;
+                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, allocated);
                 }
                 else if (verticalMerge is not null)
                 {
-                    mergeGroupId = FindActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan) ?? AllocateTableMergeGroupId(tableId.ToWireValue(), ref mergeGroupIndex);
-                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, mergeGroupId);
+                    DocxTargetId active = FindActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan) ?? DocxTargetId.AllocateMergeGroupId(tableId, ref mergeGroupIndex);
+                    mergeGroupId = active;
+                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, active);
                 }
                 else
                 {
                     RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, columnSpan);
                     if (columnSpan > 1)
                     {
-                        mergeGroupId = AllocateTableMergeGroupId(tableId.ToWireValue(), ref mergeGroupIndex);
+                        mergeGroupId = DocxTargetId.AllocateMergeGroupId(tableId, ref mergeGroupIndex);
                     }
                 }
 
@@ -168,18 +170,18 @@ internal static partial class DocxPatchEngine
         return snapshots;
     }
 
-    private static string? FindActiveMergeGroupId(IReadOnlyDictionary<int, string> activeVerticalMerges, int columnIndex, int columnSpan)
+    private static DocxTargetId? FindActiveMergeGroupId(IReadOnlyDictionary<int, DocxTargetId> activeVerticalMerges, int columnIndex, int columnSpan)
     {
-        string? mergeGroupId = null;
+        DocxTargetId? mergeGroupId = null;
         for (int column = columnIndex; column < columnIndex + columnSpan; column++)
         {
-            if (!activeVerticalMerges.TryGetValue(column, out string? current))
+            if (!activeVerticalMerges.TryGetValue(column, out DocxTargetId current))
             {
                 return null;
             }
 
             mergeGroupId ??= current;
-            if (!string.Equals(mergeGroupId, current, StringComparison.Ordinal))
+            if (!mergeGroupId.Equals(current))
             {
                 return null;
             }
@@ -188,7 +190,7 @@ internal static partial class DocxPatchEngine
         return mergeGroupId;
     }
 
-    private static void SetActiveMergeGroupId(Dictionary<int, string> activeVerticalMerges, int columnIndex, int columnSpan, string mergeGroupId)
+    private static void SetActiveMergeGroupId(Dictionary<int, DocxTargetId> activeVerticalMerges, int columnIndex, int columnSpan, DocxTargetId mergeGroupId)
     {
         for (int column = columnIndex; column < columnIndex + columnSpan; column++)
         {
@@ -196,7 +198,7 @@ internal static partial class DocxPatchEngine
         }
     }
 
-    private static void RemoveActiveMergeGroupIds(Dictionary<int, string> activeVerticalMerges, int columnIndex, int columnSpan)
+    private static void RemoveActiveMergeGroupIds(Dictionary<int, DocxTargetId> activeVerticalMerges, int columnIndex, int columnSpan)
     {
         for (int column = columnIndex; column < columnIndex + columnSpan; column++)
         {
@@ -204,12 +206,7 @@ internal static partial class DocxPatchEngine
         }
     }
 
-    private static string AllocateTableMergeGroupId(string tableId, ref int mergeGroupIndex)
-    {
-        return $"{tableId}.MG{mergeGroupIndex++:0000}";
-    }
-
-    private static string? CreateNestedTablePath(string cellId, XElement cell)
+   private static string? CreateNestedTablePath(string cellId, XElement cell)
     {
         int nestedTableCount = cell.Elements(OoxmlNs.W + "tbl").Count();
         return nestedTableCount switch

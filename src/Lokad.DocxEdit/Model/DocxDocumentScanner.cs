@@ -680,7 +680,7 @@ internal static partial class DocxDocumentScanner
 
     private sealed record StyleNumbering(string NumberingId, int Level, DocxLabelSource Source);
 
-    private sealed record TableMergeState(string MergeGroupId, string? RootCellId);
+    private sealed record TableMergeState(DocxTargetId? MergeGroupId, DocxTargetId? RootCellId);
 
     private sealed record ContentControlScanEntry(XElement Element, DocxContentControlInfo Info);
 

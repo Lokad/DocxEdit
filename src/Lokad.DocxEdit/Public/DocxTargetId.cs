@@ -330,6 +330,12 @@ public readonly record struct DocxTargetId(
         return ToWireValue();
     }
 
+    /// <summary>Allocates the next merge-group ID for a table, incrementing the counter.</summary>
+    internal static DocxTargetId AllocateMergeGroupId(DocxTargetId tableId, ref int mergeGroupIndex)
+    {
+        return new DocxTargetId(tableId.Story, tableId.StoryPart, DocxTargetKind.MergeGroup, tableId.Primary, mergeGroupIndex++, 0);
+    }
+
     /// <summary>Splits a story ID prefix (<c>M</c>, <c>H001</c>) for producer emission.</summary>
     internal static (char Story, int StoryPart) ParseStoryPrefix(string idPrefix)
     {
