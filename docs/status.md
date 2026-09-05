@@ -4,8 +4,9 @@ This is a pre-release editor. It supports useful structural reads and a focused 
 
 ## Where To Look
 
-Feature-by-feature inventories rot; the sources below do not, because they are
-generated from or tested against the code:
+Feature-by-feature inventories rot; the sources below are verified by hand when
+touched. Textual tests pinning them were removed as brittle; only the patch tables
+originate from generation (frozen copies since — refresh by hand):
 
 - `docxedit help <topic>` (`dump`, `context`, `changes`, `validate`, `check`,
   `apply`, `patch`, and every other command) renders the current command
