@@ -661,19 +661,19 @@ internal sealed class OoxmlPackage
 {
     public IReadOnlyDictionary<string, OoxmlPart> Parts { get; }
     public OoxmlPart ContentTypesPart { get; }
-    public OoxmlContentTypes ContentTypes { get; }
+    public string MainDocumentPartName { get; }
 
     public static OoxmlPackage Load(
         Stream input,
-        DocxEditOptions options,
-        CancellationToken cancellationToken = default);
+        OoxmlPackageOptions options,
+        CancellationToken cancellationToken);
 
     public OoxmlPart? GetPart(string partName);
     public IReadOnlyList<OoxmlRelationship> GetRelationships(
         string sourcePartName,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken);
 
-    public void Save(Stream output, CancellationToken cancellationToken = default);
+    public void Save(Stream output, CancellationToken cancellationToken);
 }
 ```
 
