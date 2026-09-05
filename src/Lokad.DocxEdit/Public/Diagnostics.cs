@@ -29,23 +29,32 @@ public enum DocxSeverity
 /// <param name="Severity">Whether this finding fails the operation.</param>
 /// <param name="Code">Stable diagnostic code (for example <c>E1201</c>).</param>
 /// <param name="Message">Human-readable detail for this instance.</param>
-/// <param name="TargetId">Stable target ID when the finding is about one target.</param>
-/// <param name="PartName">Package part path when the finding is about one part.</param>
-/// <param name="Story">Story label when the finding is about one story.</param>
-/// <param name="Feature">Machine-readable feature tag for fallback classification.</param>
-/// <param name="Fallback">Machine-readable fallback tag describing what was done instead.</param>
-/// <param name="OperationIndex">Zero-based patch operation index, when from a patch.</param>
-/// <param name="Line">1-based patch source line, when from a patch.</param>
-/// <param name="Column">1-based patch source column, when from a patch.</param>
 public sealed record DocxDiagnostic(
     DocxSeverity Severity,
     string Code,
-    string Message,
-    string? TargetId = null,
-    string? PartName = null,
-    string? Story = null,
-    string? Feature = null,
-    string? Fallback = null,
-    int? OperationIndex = null,
-    int? Line = null,
-    int? Column = null);
+    string Message)
+{
+    /// <summary>Stable target ID when the finding is about one target.</summary>
+    public string? TargetId { get; init; }
+
+    /// <summary>Package part path when the finding is about one part.</summary>
+    public string? PartName { get; init; }
+
+    /// <summary>Story label when the finding is about one story.</summary>
+    public string? Story { get; init; }
+
+    /// <summary>Machine-readable feature tag for fallback classification.</summary>
+    public string? Feature { get; init; }
+
+    /// <summary>Machine-readable fallback tag describing what was done instead.</summary>
+    public string? Fallback { get; init; }
+
+    /// <summary>Zero-based patch operation index, when from a patch.</summary>
+    public int? OperationIndex { get; init; }
+
+    /// <summary>1-based patch source line, when from a patch.</summary>
+    public int? Line { get; init; }
+
+    /// <summary>1-based patch source column, when from a patch.</summary>
+    public int? Column { get; init; }
+}

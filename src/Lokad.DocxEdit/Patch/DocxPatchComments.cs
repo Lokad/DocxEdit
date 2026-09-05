@@ -755,7 +755,7 @@ internal static partial class DocxPatchEngine
             XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
             if (root.Name != OoxmlNs.W + "comments")
             {
-                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Comments part '{partName}' has root '{root.Name.LocalName}', expected 'comments'.", PartName: partName);
+                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Comments part '{partName}' has root '{root.Name.LocalName}', expected 'comments'.") with { PartName = partName };
             }
         }
 
@@ -775,7 +775,7 @@ internal static partial class DocxPatchEngine
             XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
             if (root.Name != OoxmlNs.W15 + "commentsEx")
             {
-                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"commentsExtended part '{partName}' has root '{root.Name.LocalName}', expected 'commentsEx'.", PartName: partName);
+                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"commentsExtended part '{partName}' has root '{root.Name.LocalName}', expected 'commentsEx'.") with { PartName = partName };
             }
         }
 
@@ -795,7 +795,7 @@ internal static partial class DocxPatchEngine
             XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
             if (root.Name != OoxmlNs.W16Cid + "commentsIds")
             {
-                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"commentsIds part '{partName}' has root '{root.Name.LocalName}', expected 'commentsIds'.", PartName: partName);
+                return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"commentsIds part '{partName}' has root '{root.Name.LocalName}', expected 'commentsIds'.") with { PartName = partName };
             }
         }
 

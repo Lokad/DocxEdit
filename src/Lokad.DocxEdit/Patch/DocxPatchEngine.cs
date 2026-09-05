@@ -147,12 +147,11 @@ internal static partial class DocxPatchEngine
             diagnostics.AddRange(MarkFieldsDirty(package, cancellationToken));
             if (containsFieldsBeforeRefresh && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
             {
-                diagnostics.Add(new DocxDiagnostic(
-                    DocxSeverity.Warning,
-                    "W5103",
-                    "Document contains fields and was marked for Word-side field refresh; DocxEdit does not recalculate field results.",
-                    Feature: "field",
-                    Fallback: "word-refresh-required"));
+                diagnostics.Add(new DocxDiagnostic(DocxSeverity.Warning, "W5103", "Document contains fields and was marked for Word-side field refresh; DocxEdit does not recalculate field results.") with
+                {
+                    Feature = "field",
+                    Fallback = "word-refresh-required"
+                });
             }
         }
 
@@ -876,7 +875,7 @@ internal static partial class DocxPatchEngine
             ?? throw new InvalidDataException($"Settings part '{settingsPartName}' has no XML root.");
         if (settings.Name != OoxmlNs.W + "settings")
         {
-            return [new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Post-edit validation failed for {settingsPartName}: Expected root element 'settings', found '{settings.Name.LocalName}'.", PartName: settingsPartName)];
+            return [new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Post-edit validation failed for {settingsPartName}: Expected root element 'settings', found '{settings.Name.LocalName}'.") with { PartName = settingsPartName }];
         }
 
         XElement? updateFields = settings.Element(OoxmlNs.W + "updateFields");
@@ -1086,7 +1085,7 @@ internal static partial class DocxPatchEngine
 
     private static DocxDiagnostic PostEditValidationDiagnostic(string partName, string message)
     {
-        return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Post-edit validation failed for {partName}: {message}", PartName: partName);
+        return new DocxDiagnostic(DocxSeverity.Error, "E9001", $"Post-edit validation failed for {partName}: {message}") with { PartName = partName };
     }
 
     private static XDocument LoadMainDocument(
@@ -1161,13 +1160,12 @@ internal static partial class DocxPatchEngine
         string? feature,
         string? fallback)
     {
-        return new DocxDiagnostic(
-            severity,
-            code,
-            message,
-            TargetId: targetId,
-            Feature: feature,
-            Fallback: fallback,
-            OperationIndex: operation.Index);
+        return new DocxDiagnostic(severity, code, message) with
+        {
+            TargetId = targetId,
+            Feature = feature,
+            Fallback = fallback,
+            OperationIndex = operation.Index
+        };
     }
 }

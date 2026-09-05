@@ -832,9 +832,11 @@ internal static partial class DocxPatchEngine
                 new DocxDiagnostic(
                     DocxSeverity.Error,
                     "E6003",
-                    "TrackChangesMode.Suggest/Require requires a non-empty revision author; no document output was written.",
-                    Feature: "track-changes-revision-metadata",
-                    Fallback: "no-output-written")
+                    "TrackChangesMode.Suggest/Require requires a non-empty revision author; no document output was written.") with
+                {
+                    Feature = "track-changes-revision-metadata",
+                    Fallback = "no-output-written"
+                }
             ];
         }
 

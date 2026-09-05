@@ -273,8 +273,10 @@ public static class PublicIntegrationSurfaceTests
                 new DocxDiagnostic(
                     DocxSeverity.Error,
                     "E9105",
-                    "Drawing references missing relationship 'rMissing'.",
-                    PartName: "/word/document.xml")
+                    "Drawing references missing relationship 'rMissing'.") with
+                {
+                    PartName = "/word/document.xml"
+                }
             ],
             PartNames = ["/word/document.xml"],
             MainDocumentPartName = "/word/document.xml"

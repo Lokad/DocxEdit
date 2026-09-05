@@ -285,7 +285,7 @@ public sealed class DocxEditor
 
         IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model, changes, targetId, options.Radius, options.MaxText);
         IReadOnlyList<DocxDiagnostic> contextDiagnostics = items.Count == 0
-            ? [new DocxDiagnostic(DocxSeverity.Error, "E2001", $"Target '{targetId}' was not found.", TargetId: targetId)]
+            ? [new DocxDiagnostic(DocxSeverity.Error, "E2001", $"Target '{targetId}' was not found.") with { TargetId = targetId }]
             : [];
         return new DocxContextResult
         {
@@ -853,12 +853,11 @@ public sealed class DocxEditor
     {
         if (exception is XmlException xmlException)
         {
-            return new DocxDiagnostic(
-                DocxSeverity.Error,
-                "E0001",
-                xmlException.Message,
-                Line: xmlException.LineNumber > 0 ? xmlException.LineNumber : null,
-                Column: xmlException.LinePosition > 0 ? xmlException.LinePosition : null);
+            return new DocxDiagnostic(DocxSeverity.Error, "E0001", xmlException.Message) with
+            {
+                Line = xmlException.LineNumber > 0 ? xmlException.LineNumber : null,
+                Column = xmlException.LinePosition > 0 ? xmlException.LinePosition : null
+            };
         }
 
         return new DocxDiagnostic(DocxSeverity.Error, "E0001", exception.Message);

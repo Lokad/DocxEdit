@@ -323,13 +323,12 @@ internal static class DocxUnsupportedFeatureScanner
             return;
         }
 
-        diagnostics.Add(new DocxDiagnostic(
-            DocxSeverity.Warning,
-            code,
-            $"{message} Count={count}.",
-            PartName: partName,
-            Story: story,
-            Feature: feature,
-            Fallback: fallback));
+        diagnostics.Add(new DocxDiagnostic(DocxSeverity.Warning, code, $"{message} Count={count}.") with
+        {
+            PartName = partName,
+            Story = story,
+            Feature = feature,
+            Fallback = fallback
+        });
     }
 }

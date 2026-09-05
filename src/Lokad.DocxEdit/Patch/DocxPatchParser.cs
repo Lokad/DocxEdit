@@ -143,7 +143,7 @@ internal static class DocxPatchParser
 
     private static DocxPatch Error(string code, string message, int line, int column)
     {
-        return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message, Line: line, Column: column)]);
+        return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message) with { Line = line, Column = column }]);
     }
 
     private static int FindLine(string[] lines, string prefix)

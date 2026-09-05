@@ -583,18 +583,17 @@ internal static partial class DocxPackageValidator
 
     private static DocxDiagnostic Error(string code, string message, string? partName)
     {
-        return new DocxDiagnostic(DocxSeverity.Error, code, message, PartName: partName);
+        return new DocxDiagnostic(DocxSeverity.Error, code, message) with { PartName = partName };
     }
 
     private static DocxDiagnostic Warning(string code, string message, string partName, string feature, string fallback)
     {
-        return new DocxDiagnostic(
-            DocxSeverity.Warning,
-            code,
-            message,
-            PartName: partName,
-            Feature: feature,
-            Fallback: fallback);
+        return new DocxDiagnostic(DocxSeverity.Warning, code, message) with
+        {
+            PartName = partName,
+            Feature = feature,
+            Fallback = fallback
+        };
     }
 
     private sealed class ComplexFieldValidationState
