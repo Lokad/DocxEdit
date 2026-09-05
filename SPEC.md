@@ -449,9 +449,9 @@ public sealed record DocxPatchOperationReport(
     public IReadOnlyList<string> GeneratedRevisionIds { get; init; } = [];
 }
 
-public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Action)
+public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, string Action)
 {
-    public string? ParentId { get; init; }
+    public DocxTargetId? ParentId { get; init; }
     public int? RowIndex { get; init; }
     public int? ColumnIndex { get; init; }
     public int? RowCountBefore { get; init; }
@@ -461,7 +461,7 @@ public sealed record DocxPatchAffectedTarget(string Id, string Kind, string Acti
     public int? VisualColumnEndIndex { get; init; }
     public int? GridBefore { get; init; }
     public int? GridAfter { get; init; }
-    public string? MergeGroupId { get; init; }
+    public DocxTargetId? MergeGroupId { get; init; }
     public string? NestedTablePath { get; init; }
 }
 ```
@@ -568,12 +568,13 @@ the track-change support matrix.
 public sealed record DocxPatchOperationInfo
 {
     public string Name { get; init; } = string.Empty;
+    public string Category { get; init; } = string.Empty;
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
     public string Description { get; init; } = string.Empty;
     public string TrackChangesSupportClass { get; init; } = "unsupported";
     public string TrackChangesSupport { get; init; } = "unsupported";
-    public string TrackChangesNote { get; init; } = string.Empty;
+    public string TrackChangesNote { get; init; } = "Suggest applies directly with W4001; Require fails with E6001.";
     public bool GeneratesTrackedChanges { get; }
 }
 ```
@@ -866,7 +867,7 @@ Counters are 1-based and zero-padded.
 
 ```csharp
 public sealed record DocxParagraphInfo(
-    string Id,
+    DocxTargetId Id,
     string Story,
     string Text,
     int? HeadingLevel,
@@ -947,7 +948,7 @@ Text extraction rules:
 
 ```csharp
 public sealed record DocxTableInfo(
-    string Id,
+    DocxTargetId Id,
     string Story,
     int RowCount,
     int ColumnCount,
@@ -969,7 +970,7 @@ Row model:
 ```csharp
 public sealed record DocxTableRowInfo
 {
-    public string Id { get; init; } = string.Empty;
+    public required DocxTargetId Id { get; init; }
     public int RowIndex { get; init; }
     public int CellCount { get; init; }
     public int GridBefore { get; init; }
@@ -983,7 +984,7 @@ Cell model:
 
 ```csharp
 public sealed record DocxTableCellInfo(
-    string Id,
+    DocxTargetId Id,
     int RowIndex,
     int ColumnIndex,
     string Text,
@@ -993,8 +994,8 @@ public sealed record DocxTableCellInfo(
 {
     public int PhysicalColumnIndex { get; init; }
     public int VisualColumnEndIndex { get; init; }
-    public string? MergeGroupId { get; init; }
-    public string? VerticalMergeRootCellId { get; init; }
+    public DocxTargetId? MergeGroupId { get; init; }
+    public DocxTargetId? VerticalMergeRootCellId { get; init; }
 }
 ```
 
@@ -1008,14 +1009,14 @@ back to the restart cell when the root is visible in the scanned story.
 
 ```csharp
 public sealed record DocxImageInfo(
-    string Id,
+    DocxTargetId Id,
     string PartName,
     string? ContentType,
     long ByteLength)
 {
     public string LayoutKind { get; init; } = "unknown";
     public string? RelationshipId { get; init; }
-    public string? ContainingTargetId { get; init; }
+    public DocxTargetId? ContainingTargetId { get; init; }
     public long? WidthEmu { get; init; }
     public long? HeightEmu { get; init; }
     public string? Name { get; init; }
@@ -1055,7 +1056,7 @@ patch operations; crop percentages can be edited through `set-image-crop`.
 
 ```csharp
 public sealed record DocxSectionInfo(
-    string Id,
+    DocxTargetId Id,
     string Story,
     int Columns,
     DocxOrientation Orientation);
@@ -1069,13 +1070,13 @@ selector candidates without raw OOXML.
 ```csharp
 public sealed record DocxBookmarkInfo
 {
-    public string Id { get; init; } = string.Empty;
+    public required DocxTargetId Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string? OoxmlId { get; init; }
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
-    public string? StartTargetId { get; init; }
-    public string? EndTargetId { get; init; }
+    public DocxTargetId? StartTargetId { get; init; }
+    public DocxTargetId? EndTargetId { get; init; }
     public bool IsComplete { get; init; }
     public bool IsNameDuplicate { get; init; }
     public IReadOnlyList<string> DuplicateNameBookmarkIds { get; init; } = [];
@@ -1083,10 +1084,10 @@ public sealed record DocxBookmarkInfo
 
 public sealed record DocxContentControlInfo
 {
-    public string Id { get; init; } = string.Empty;
+    public required DocxTargetId Id { get; init; }
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
-    public string? TargetId { get; init; }
+    public DocxTargetId? TargetId { get; init; }
     public string Kind { get; init; } = "unknown";
     public string? OoxmlId { get; init; }
     public string? Tag { get; init; }
@@ -1148,10 +1149,10 @@ not evaluate or recalculate field results.
 ```csharp
 public sealed record DocxFieldInfo
 {
-    public string Id { get; init; } = string.Empty;
+    public required DocxTargetId Id { get; init; }
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
-    public string? TargetId { get; init; }
+    public DocxTargetId? TargetId { get; init; }
     public string Kind { get; init; } = "unknown";
     public string? FieldType { get; init; }
     public string Code { get; init; } = string.Empty;
@@ -1189,10 +1190,10 @@ missing-bookmark and duplicate-bookmark flags.
 ```csharp
 public sealed record DocxHyperlinkInfo
 {
-    public string Id { get; init; } = string.Empty;
+    public required DocxTargetId Id { get; init; }
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
-    public string? TargetId { get; init; }
+    public DocxTargetId? TargetId { get; init; }
     public string? RelationshipId { get; init; }
     public string? RelationshipPartName { get; init; }
     public string? RelationshipTargetMode { get; init; }
@@ -1241,7 +1242,7 @@ body text. Bounded comment body snippets are exposed only when
 ```csharp
 public sealed record DocxChangeInfo
 {
-    public string Id { get; init; } = string.Empty;
+    public required DocxChangeId Id { get; init; }
     public string Type { get; init; } = string.Empty;
     public string Story { get; init; } = string.Empty;
     public string PartName { get; init; } = string.Empty;
@@ -1274,7 +1275,7 @@ public sealed record DocxChangeInfo
     public DocxTargetReason? TargetReason { get; init; }
     public string? NearestTargetId { get; init; }
     public string? TargetNote { get; init; }
-    public string? PairedChangeId { get; init; }
+    public DocxChangeId? PairedChangeId { get; init; }
 }
 ```
 
