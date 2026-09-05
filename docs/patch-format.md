@@ -39,6 +39,7 @@ Rules:
   >>>
   ```
 
+- Single-line values wrapped in `"..."` decode escapes (`\"`, `\\`, `\n`, `\t`); other backslash sequences stay literal. Heredoc content stays raw.
 - Field names are operation-specific. Unknown fields fail validation.
 - Boolean fields must be `true` or `false`.
 - Integer fields must parse as integers.

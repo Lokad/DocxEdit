@@ -21,3 +21,4 @@
 - Changed paragraph, table, row, cell, section, and image `Id` fields (plus image `ContainingTargetId` and media `ImageId`) from `string` to the `DocxTargetId` struct; text and JSON wire values are unchanged.
 - Changed patch affected-target `Id`/`ParentId` from `string` to the `DocxTargetId` struct, threading the resolved target through table snapshots (string-surgery `ExtractTableId` plus two dead fallbacks deleted); report text and JSON shapes are unchanged.
 - Changed merge-group and merge-root-cell IDs from `string` to the `DocxTargetId` struct across scanners, snapshots, and DTOs, sharing one internal allocator (twin helpers deleted); text and JSON wire values are unchanged.
+- Fixed quoted single-line patch values being treated verbatim: surrounding quotes are stripped and the documented escapes decode, so quoted styles match and escaped newlines insert real line breaks; heredoc content stays raw.
