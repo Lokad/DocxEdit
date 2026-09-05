@@ -63,3 +63,9 @@ challenge id, outcome, command classes, diagnostic codes, target ID classes,
 change/run markup types, aggregate counts, and ignored artifact paths only. Do
 not record private text, filenames, screenshots, raw OOXML, or excerpts from the
 agent transcript.
+
+## Continuous Integration
+
+Every push and pull request runs `.github/workflows/agent-tooling.yml`: it builds
+the solution and exercises the runner without launching Codex (`-List` plus one
+`-DryRun`). Live `codex exec` probes stay manual and local-only.
