@@ -443,7 +443,12 @@ internal static class ProgramMain
 
         using Stream input = File.OpenRead(path);
         DocxApplyResult? report = JsonSerializer.Deserialize<DocxApplyResult>(input, JsonOptions);
-        return report?.Operations ?? [];
+        if (report?.Operations is null)
+        {
+            throw new InvalidDataException($"Operation report '{path}' is not a docxedit check/apply report JSON object.");
+        }
+
+        return report.Operations;
     }
 
     private static void WriteReport(string? path, object report)

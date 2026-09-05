@@ -518,6 +518,21 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliChangesRejectsWrongShapedOperationReport()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string report = Path.Combine(temp.Path, "apply-report.json");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(report, "null");
+
+        CliResult changes = RunCli("changes", input, "--operation-report", report);
+
+        Assert.Equal(4, changes.ExitCode);
+        Assert.Contains("apply-report.json", changes.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliDumpJsonIncludesStructuredRuns()
     {
         using TempDirectory temp = TempDirectory.Create();
