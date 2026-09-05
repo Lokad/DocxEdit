@@ -11,6 +11,8 @@ filenames. Private inputs stay under ignored `private-cases/`; transcripts,
 generated patches, and edited documents stay under ignored
 `artifacts/agent-challenges/`.
 
+Prefer `pwsh` over `powershell` below when both exist: hashing steps need the `Get-FileHash` cmdlet, which is absent from some Windows PowerShell 5.1 installs (the scripts fail with an explicit message in that case).
+
 List the tracked probes:
 
 ```powershell
