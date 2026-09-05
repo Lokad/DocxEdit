@@ -88,13 +88,16 @@ public sealed record DocxPatchOperationInfo
     /// <summary>Operation name (for example <c>replace-text</c>).</summary>
     public string Name { get; init; } = string.Empty;
 
+    /// <summary>Editing area group (for example <c>Tables</c>).</summary>
+    public string Category { get; init; } = string.Empty;
+
     /// <summary>Required patch fields.</summary>
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
 
     /// <summary>Optional patch fields.</summary>
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
 
-    /// <summary>What the operation does.</summary>
+    /// <summary>What the operation does. Markdown-flavored; may contain inline code spans.</summary>
     public string Description { get; init; } = string.Empty;
 
     /// <summary>Machine-readable track-change class (drives <c>GeneratesTrackedChanges</c>).</summary>
@@ -287,6 +290,77 @@ public static class DocxHelp
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>Renders the patch operation reference tables grouped by editing area.</summary>
+    public static string RenderPatchOperationTables()
+    {
+        var builder = new StringBuilder();
+        bool first = true;
+        foreach (string category in DocxPatchEngine.AllOperations.Select(registration => registration.Catalog.Category).Distinct())
+        {
+            if (!first)
+            {
+                builder.AppendLine();
+            }
+
+            first = false;
+            builder.Append("### ").AppendLine(category);
+            builder.AppendLine();
+            builder.AppendLine("| Operation | Required fields | Optional fields | Notes |");
+            builder.AppendLine("| --- | --- | --- | --- |");
+            foreach (OperationRegistration registration in DocxPatchEngine.AllOperations.Where(registration => registration.Catalog.Category == category))
+            {
+                var knownFields = new HashSet<string>(registration.AllowedFields, StringComparer.Ordinal);
+                string optional = RenderFieldDescriptors(registration.Catalog.OptionalFields, knownFields);
+                string optionalCell = optional.Length == 0 ? "| " : optional + " | ";
+                builder.Append("| `").Append(registration.Name).Append("` | ")
+                    .Append(RenderFieldDescriptors(registration.Catalog.RequiredFields, knownFields)).Append(" | ")
+                    .Append(optionalCell)
+                    .Append(EscapeMarkdownTableCell(registration.Catalog.Description))
+                    .Append(" |")
+                    .AppendLine();
+            }
+        }
+
+        return builder.ToString();
+
+        static string RenderFieldDescriptors(IEnumerable<string> descriptors, HashSet<string> knownFields)
+        {
+            return string.Join(", ", descriptors.Select(descriptor => RenderFieldDescriptor(descriptor, knownFields)));
+        }
+
+        static string RenderFieldDescriptor(string descriptor, HashSet<string> knownFields)
+        {
+            var builder = new StringBuilder();
+            int index = 0;
+            while (index < descriptor.Length)
+            {
+                if (IsFieldWordChar(descriptor[index]))
+                {
+                    int start = index;
+                    while (index < descriptor.Length && IsFieldWordChar(descriptor[index]))
+                    {
+                        index++;
+                    }
+
+                    string word = descriptor.Substring(start, index - start);
+                    builder.Append(knownFields.Contains(word) ? "`" + word + "`" : word);
+                }
+                else
+                {
+                    builder.Append(descriptor[index]);
+                    index++;
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        static bool IsFieldWordChar(char value)
+        {
+            return char.IsLetterOrDigit(value) || value == '_' || value == '-';
+        }
     }
 
     private static void AppendCommandGroup(StringBuilder builder, string title, string category)

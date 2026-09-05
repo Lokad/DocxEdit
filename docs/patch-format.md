@@ -288,7 +288,7 @@ are rejected. Internal links use bookmark `anchor` values.
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID |
-| `set-cell-shading` | `target` plus `fill` or `clear true` | `expect-fill` | Sets or clears `w:tcPr/w:shd` fill |
+| `set-cell-shading` | `target` plus `fill` or `clear` true | `expect-fill`, `clear` | Sets or clears `w:tcPr/w:shd` fill |
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |

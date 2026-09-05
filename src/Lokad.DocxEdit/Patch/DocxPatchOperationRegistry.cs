@@ -63,7 +63,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-simple",
                         "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.",
-                        ["expect-text", "preserve-runs", "occurrence"]),
+                        ["expect-text", "preserve-runs", "occurrence"],
+                        "Paragraphs And Blocks",
+                        "Replaces matching text inside one target"),
             ExecuteReplaceText),
         new OperationRegistration(
             "replace-paragraph",
@@ -76,7 +78,9 @@ internal static partial class DocxPatchEngine
                         TrackClassParagraphBlock,
                         "tracked-paragraph",
                         "Suggest/Require emit whole-paragraph w:del/w:ins for simple text replacements and add w:pPrChange when a compatible style change is included; complex shapes warn with W4002 or fail with E6002.",
-                        ["expect-text", "style"]),
+                        ["expect-text", "style"],
+                        "Paragraphs And Blocks",
+                        "Replaces the paragraph text, optionally setting style"),
             ExecuteReplaceParagraph),
         new OperationRegistration(
             "insert-before",
@@ -89,7 +93,9 @@ internal static partial class DocxPatchEngine
                         TrackClassParagraphBlock,
                         "tracked-paragraph-insert",
                         "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
-                        ["style", "copy-paragraph-properties"]),
+                        ["style", "copy-paragraph-properties"],
+                        "Paragraphs And Blocks",
+                        "Inserts a paragraph/block before the target"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)),
         new OperationRegistration(
             "insert-after",
@@ -102,7 +108,9 @@ internal static partial class DocxPatchEngine
                         TrackClassParagraphBlock,
                         "tracked-paragraph-insert",
                         "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
-                        ["style", "copy-paragraph-properties"]),
+                        ["style", "copy-paragraph-properties"],
+                        "Paragraphs And Blocks",
+                        "Inserts a paragraph/block after the target"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)),
         new OperationRegistration(
             "delete-block",
@@ -115,7 +123,9 @@ internal static partial class DocxPatchEngine
                         TrackClassParagraphBlock,
                         "tracked-paragraph-delete",
                         "Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.",
-                        ["expect-text"]),
+                        ["expect-text"],
+                        "Paragraphs And Blocks",
+                        "Deletes the target block"),
             ExecuteDeleteBlock),
         new OperationRegistration(
             "set-style",
@@ -128,7 +138,9 @@ internal static partial class DocxPatchEngine
                         TrackClassParagraphProperty,
                         "tracked-style",
                         "Suggest/Require emit paragraph property revisions with w:pPrChange.",
-                        []),
+                        [],
+                        "Paragraphs And Blocks",
+                        "Sets paragraph style"),
             ExecuteSetStyle),
         new OperationRegistration(
             "set-content-control-text",
@@ -141,7 +153,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-content-control-text",
                         "Suggest/Require emit w:del/w:ins inside simple plain-text and guarded paragraph-only rich-text content controls while preserving wrappers, bindings, locks, and paragraph containers; complex content controls warn with W4002 or fail with E6002.",
-                        ["expect-text"]),
+                        ["expect-text"],
+                        "Content Controls",
+                        "Plain-text controls are supported; guarded simple rich-text controls are supported when safe; picture/group controls fail with kind-specific guidance"),
             ExecuteSetContentControlText),
         new OperationRegistration(
             "set-content-control-checkbox",
@@ -152,7 +166,9 @@ internal static partial class DocxPatchEngine
                         "set-content-control-checkbox",
                         ["target", "checked"],
                         "Checkbox content controls update state metadata, not a simple Word revision range.",
-                        []),
+                        [],
+                        "Content Controls",
+                        "Updates checkbox state and displayed symbol"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-content-control-choice",
@@ -163,7 +179,9 @@ internal static partial class DocxPatchEngine
                         "set-content-control-choice",
                         ["target plus value or display-text"],
                         "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet.",
-                        []),
+                        [],
+                        "Content Controls",
+                        "Selects a dropdown/combo item"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-content-control-date",
@@ -174,7 +192,9 @@ internal static partial class DocxPatchEngine
                         "set-content-control-date",
                         ["target", "value"],
                         "Date content controls update date metadata and display text together; generated revision markup is not modeled yet.",
-                        ["display-text"]),
+                        ["display-text"],
+                        "Content Controls",
+                        "Updates date value and visible text"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlDate(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "add-repeating-section-item",
@@ -185,7 +205,9 @@ internal static partial class DocxPatchEngine
                         "add-repeating-section-item",
                         ["target"],
                         "Repeating-section item insertion is not safely modeled yet; check/apply fails with E4315.",
-                        ["source", "index", "text"]),
+                        ["source", "index", "text"],
+                        "Content Controls",
+                        "Recognized but fails with `E4315`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteUnsupportedRepeatingSectionOperation(operation)),
         new OperationRegistration(
             "delete-repeating-section-item",
@@ -196,7 +218,9 @@ internal static partial class DocxPatchEngine
                         "delete-repeating-section-item",
                         ["target"],
                         "Repeating-section item deletion is not safely modeled yet; check/apply fails with E4315.",
-                        ["index"]),
+                        ["index"],
+                        "Content Controls",
+                        "Recognized but fails with `E4315`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteUnsupportedRepeatingSectionOperation(operation)),
         new OperationRegistration(
             "add-bookmark",
@@ -207,7 +231,9 @@ internal static partial class DocxPatchEngine
                         "add-bookmark",
                         ["target", "name"],
                         "Bookmark creation adds anchor metadata; Word has no useful generated revision range for the bookmark markers.",
-                        ["expect-text"]),
+                        ["expect-text"],
+                        "Bookmarks",
+                        "Creates a guarded paragraph bookmark"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddBookmark(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "replace-bookmark-text",
@@ -220,7 +246,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-bookmark-text",
                         "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002.",
-                        []),
+                        [],
+                        "Bookmarks",
+                        "Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot"),
             ExecuteReplaceBookmarkText),
         new OperationRegistration(
             "rename-bookmark",
@@ -231,7 +259,9 @@ internal static partial class DocxPatchEngine
                         "rename-bookmark",
                         ["target", "name"],
                         "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update.",
-                        []),
+                        [],
+                        "Bookmarks",
+                        "Renames markers and same-story internal hyperlink anchors when unambiguous"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteRenameBookmark(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "delete-bookmark",
@@ -242,7 +272,9 @@ internal static partial class DocxPatchEngine
                         "delete-bookmark",
                         ["target"],
                         "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal.",
-                        []),
+                        [],
+                        "Bookmarks",
+                        "Removes complete unreferenced bookmark markers, preserving content"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteBookmark(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "add-comment",
@@ -253,7 +285,9 @@ internal static partial class DocxPatchEngine
                         "add-comment",
                         ["target", "text"],
                         "Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated.",
-                        ["expect-text", "anchor-text", "occurrence", "author", "initials", "date"]),
+                        ["expect-text", "anchor-text", "occurrence", "author", "initials", "date"],
+                        "Comments",
+                        "Anchors a new comment to a modeled paragraph, or to one selected text span inside it"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddComment(package, operation, options, apply, cancellationToken)),
         new OperationRegistration(
             "set-comment-text",
@@ -266,7 +300,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-comment-text",
                         "Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002.",
-                        []),
+                        [],
+                        "Comments",
+                        "Replaces one comment body"),
             ExecuteSetCommentText),
         new OperationRegistration(
             "resolve-comment",
@@ -277,7 +313,9 @@ internal static partial class DocxPatchEngine
                         "resolve-comment",
                         ["target"],
                         "Comment resolution changes review metadata, not visible document text.",
-                        []),
+                        [],
+                        "Comments",
+                        "Creates or updates modern resolution metadata for basic comments"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken)),
         new OperationRegistration(
             "reopen-comment",
@@ -288,7 +326,9 @@ internal static partial class DocxPatchEngine
                         "reopen-comment",
                         ["target"],
                         "Comment reopening changes review metadata, not visible document text.",
-                        []),
+                        [],
+                        "Comments",
+                        "Clears modern resolution metadata for basic comments"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken)),
         new OperationRegistration(
             "delete-comment",
@@ -299,7 +339,9 @@ internal static partial class DocxPatchEngine
                         "delete-comment",
                         ["target"],
                         "Comment deletion removes review markup, not a separate generated tracked edit.",
-                        []),
+                        [],
+                        "Comments",
+                        "Removes body, range/reference markers, and matching extension records"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "add-comment-reply",
@@ -310,7 +352,9 @@ internal static partial class DocxPatchEngine
                         "add-comment-reply",
                         ["target", "text"],
                         "Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit.",
-                        ["author", "initials", "date"]),
+                        ["author", "initials", "date"],
+                        "Comments",
+                        "Adds a modern threaded reply under a comment"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken)),
         new OperationRegistration(
             "delete-comment-reply",
@@ -321,7 +365,9 @@ internal static partial class DocxPatchEngine
                         "delete-comment-reply",
                         ["target"],
                         "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit.",
-                        []),
+                        [],
+                        "Comments",
+                        "Removes a leaf threaded reply"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-field-dirty",
@@ -330,9 +376,11 @@ internal static partial class DocxPatchEngine
             [],
                     PreserveOnly(
                         "set-field-dirty",
-                        ["target or all", "dirty"],
+                        ["target", "dirty"],
                         "Field dirty flags are field metadata and have no useful generated visible revision representation.",
-                        []),
+                        [],
+                        "Fields",
+                        "`target` can be a field ID or `all`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken)),
         new OperationRegistration(
             "set-field-lock",
@@ -341,9 +389,11 @@ internal static partial class DocxPatchEngine
             [],
                     PreserveOnly(
                         "set-field-lock",
-                        ["target or all", "locked"],
+                        ["target", "locked"],
                         "Field lock flags are field metadata and have no useful generated visible revision representation.",
-                        []),
+                        [],
+                        "Fields",
+                        "`target` can be a field ID or `all`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken)),
         new OperationRegistration(
             "set-field-code",
@@ -354,7 +404,9 @@ internal static partial class DocxPatchEngine
                         "set-field-code",
                         ["target", "code"],
                         "Field codes are instruction metadata; generated revisions for field instructions are not modeled yet.",
-                        ["expect-code"]),
+                        ["expect-code"],
+                        "Fields",
+                        "Simple `w:fldSimple` fields only"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldCode(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-field-result",
@@ -367,7 +419,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-field-result",
                         "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; direct mode also supports simple same-paragraph complex field result runs. Complex-field tracked output or unsafe topologies warn with W4002 or fail with E6002/E4313.",
-                        ["expect-result"]),
+                        ["expect-result"],
+                        "Fields",
+                        "Simple `w:fldSimple` cached result or validated simple same-paragraph complex result"),
             ExecuteSetFieldResult),
         new OperationRegistration(
             "refresh-field-result",
@@ -378,7 +432,9 @@ internal static partial class DocxPatchEngine
                         "refresh-field-result",
                         ["target"],
                         "Field refresh updates cached result text from modeled document state for REF/PAGEREF/NOTEREF bookmark fields and QUOTE literal fields; unsupported refresh types return categorized E4313 diagnostics. Generated revision markup for the refresh is not modeled yet.",
-                        ["expect-code", "expect-result"]),
+                        ["expect-code", "expect-result"],
+                        "Fields",
+                        "Limited refresh for simple REF/PAGEREF/NOTEREF bookmark fields and simple QUOTE literal fields"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-hyperlink-target",
@@ -389,7 +445,9 @@ internal static partial class DocxPatchEngine
                         "set-hyperlink-target",
                         ["target plus uri or anchor"],
                         "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
-                        ["tooltip", "target-frame", "history"]),
+                        ["tooltip", "target-frame", "history"],
+                        "Hyperlinks",
+                        "Updates external URI or internal bookmark anchor"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-hyperlink-text",
@@ -402,7 +460,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-hyperlink-text",
                         "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002.",
-                        []),
+                        [],
+                        "Hyperlinks",
+                        "Updates visible hyperlink text"),
             ExecuteSetHyperlinkText),
         new OperationRegistration(
             "insert-hyperlink-after",
@@ -415,7 +475,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-hyperlink-insert",
                         "Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.",
-                        ["tooltip", "target-frame", "history"]),
+                        ["tooltip", "target-frame", "history"],
+                        "Hyperlinks",
+                        "Inserts a new hyperlink paragraph after the target"),
             ExecuteInsertHyperlinkAfter),
         new OperationRegistration(
             "remove-hyperlink",
@@ -426,7 +488,9 @@ internal static partial class DocxPatchEngine
                         "remove-hyperlink",
                         ["target"],
                         "Hyperlink removal changes wrapper and relationship metadata while preserving display text.",
-                        []),
+                        [],
+                        "Hyperlinks",
+                        "Removes hyperlink markup and preserves display runs"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-cell",
@@ -439,7 +503,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTextRun,
                         "tracked-cell-simple",
                         "Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.",
-                        ["expect-text", "expect-row-count", "expect-column-count", "force"]),
+                        ["expect-text", "expect-row-count", "expect-column-count", "force"],
+                        "Tables",
+                        "Replaces one modeled cell by visual cell ID or merge-group ID"),
             ExecuteSetCell),
         new OperationRegistration(
             "set-cell-shading",
@@ -452,7 +518,9 @@ internal static partial class DocxPatchEngine
                         TrackClassCellProperty,
                         "tracked-cell-shading",
                         "Sets or clears w:tcPr/w:shd fill on a visual-grid cell ID or merge-group ID. Suggest/Require emit cell property revisions with w:tcPrChange while preserving previous cell properties; vertical-merge continuations fail with E4301.",
-                        ["expect-fill", "clear"]),
+                        ["expect-fill", "clear"],
+                        "Tables",
+                        "Sets or clears `w:tcPr/w:shd` fill"),
             ExecuteSetCellShading),
         new OperationRegistration(
             "set-table-style",
@@ -465,7 +533,9 @@ internal static partial class DocxPatchEngine
                         TrackClassTableProperty,
                         "tracked-table-style",
                         "Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.",
-                        ["expect-style"]),
+                        ["expect-style"],
+                        "Tables",
+                        "Updates `w:tblStyle`"),
             ExecuteSetTableStyle),
         new OperationRegistration(
             "set-table-metadata",
@@ -476,7 +546,9 @@ internal static partial class DocxPatchEngine
                         "set-table-metadata",
                         ["target plus caption or description"],
                         "Table caption and description updates are table metadata, not visible document text.",
-                        ["expect-caption", "expect-description"]),
+                        ["expect-caption", "expect-description"],
+                        "Tables",
+                        "Sets or clears table caption/description"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetTableMetadata(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-row-header",
@@ -489,7 +561,9 @@ internal static partial class DocxPatchEngine
                         TrackClassRowProperty,
                         "tracked-row-header",
                         "Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.",
-                        ["expect-header"]),
+                        ["expect-header"],
+                        "Tables",
+                        "Sets or clears the repeating-header flag"),
             ExecuteSetRowHeader),
         new OperationRegistration(
             "append-row",
@@ -498,11 +572,13 @@ internal static partial class DocxPatchEngine
             ["expect-row-count", "expect-column-count"],
                     Tracked(
                         "append-row",
-                        ["target plus repeated cell"],
+                        ["target, repeated cell"],
                         TrackClassRowStructure,
                         "tracked-row-insert",
                         "Direct mode appends by cloning the last row shape when the table has a consistent visual grid and the last row does not contain vertical merge cells. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; visual-grid or other complex shapes warn with W4002 or fail with E6002.",
-                        ["expect-row-count", "expect-column-count"]),
+                        ["expect-row-count", "expect-column-count"],
+                        "Tables",
+                        "Appends by cloning the last row shape when the visual grid is consistent"),
             ExecuteAppendRow),
         new OperationRegistration(
             "insert-row-before",
@@ -511,11 +587,13 @@ internal static partial class DocxPatchEngine
             ["expect-row-count", "expect-column-count", "expect-cell-count"],
                     Tracked(
                         "insert-row-before",
-                        ["target plus repeated cell"],
+                        ["target, repeated cell"],
                         TrackClassRowStructure,
                         "tracked-row-insert",
                         "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
-                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"],
+                        "Tables",
+                        "Inserts before a row by cloning the target row shape when safe"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)),
         new OperationRegistration(
             "insert-row-after",
@@ -524,11 +602,13 @@ internal static partial class DocxPatchEngine
             ["expect-row-count", "expect-column-count", "expect-cell-count"],
                     Tracked(
                         "insert-row-after",
-                        ["target plus repeated cell"],
+                        ["target, repeated cell"],
                         TrackClassRowStructure,
                         "tracked-row-insert",
                         "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
-                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"],
+                        "Tables",
+                        "Inserts after a row by cloning the target row shape when safe"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)),
         new OperationRegistration(
             "delete-row",
@@ -541,7 +621,9 @@ internal static partial class DocxPatchEngine
                         TrackClassRowStructure,
                         "tracked-row-delete",
                         "Direct mode deletes rows in consistent visual-grid tables and promotes the next vertical-merge continuation when deleting a merge root. Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
-                        ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
+                        ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"],
+                        "Tables",
+                        "Deletes a row; direct mode can promote the next vertical-merge continuation"),
             ExecuteDeleteRow),
         new OperationRegistration(
             "append-column",
@@ -550,9 +632,11 @@ internal static partial class DocxPatchEngine
             ["expect-row-count", "expect-column-count"],
                     Unsupported(
                         "append-column",
-                        ["target plus repeated cell"],
+                        ["target, repeated cell"],
                         "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                        ["expect-row-count", "expect-column-count", "force"]),
+                        ["expect-row-count", "expect-column-count", "force"],
+                        "Tables",
+                        "Recognized but fails with `E4316`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteUnsupportedColumnOperation(operation)),
         new OperationRegistration(
             "insert-column-before",
@@ -561,9 +645,11 @@ internal static partial class DocxPatchEngine
             ["column", "expect-row-count", "expect-column-count", "expect-cell-count"],
                     Unsupported(
                         "insert-column-before",
-                        ["target", "column plus repeated cell"],
+                        ["target", "column, repeated cell"],
                         "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"],
+                        "Tables",
+                        "Recognized but fails with `E4316`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteUnsupportedColumnOperation(operation)),
         new OperationRegistration(
             "insert-column-after",
@@ -572,9 +658,11 @@ internal static partial class DocxPatchEngine
             ["column", "expect-row-count", "expect-column-count", "expect-cell-count"],
                     Unsupported(
                         "insert-column-after",
-                        ["target", "column plus repeated cell"],
+                        ["target", "column, repeated cell"],
                         "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"]),
+                        ["expect-row-count", "expect-column-count", "expect-cell-count", "force"],
+                        "Tables",
+                        "Recognized but fails with `E4316`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteUnsupportedColumnOperation(operation)),
         new OperationRegistration(
             "delete-column",
@@ -585,7 +673,9 @@ internal static partial class DocxPatchEngine
                         "delete-column",
                         ["target", "column"],
                         "Table-column transforms are not safely modeled yet; check/apply fails with E4316.",
-                        ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"]),
+                        ["expect-row-count", "expect-column-count", "expect-cell-count", "expect-contains", "force"],
+                        "Tables",
+                        "Recognized but fails with `E4316`"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteUnsupportedColumnOperation(operation)),
         new OperationRegistration(
             "replace-image",
@@ -596,7 +686,9 @@ internal static partial class DocxPatchEngine
                         "replace-image",
                         ["target", "asset"],
                         "Image replacement updates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
-                        ["expect-content-type", "alt"]),
+                        ["expect-content-type", "alt"],
+                        "Images",
+                        "Replaces media bytes and preserves supported drawing layout"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteReplaceImage(package, operation, options, apply, cancellationToken)),
         new OperationRegistration(
             "insert-image-after",
@@ -607,7 +699,9 @@ internal static partial class DocxPatchEngine
                         "insert-image-after",
                         ["target", "asset"],
                         "Image insertion creates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
-                        ["expect-content-type", "width", "height", "alt"]),
+                        ["expect-content-type", "width", "height", "alt"],
+                        "Images",
+                        "Inserts an inline image paragraph after a paragraph target"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken)),
         new OperationRegistration(
             "set-image-alt",
@@ -618,7 +712,9 @@ internal static partial class DocxPatchEngine
                         "set-image-alt",
                         ["target", "alt"],
                         "Image alt-text updates DrawingML metadata, not visible document text.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Updates DrawingML description"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageAlt(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-image-metadata",
@@ -629,7 +725,9 @@ internal static partial class DocxPatchEngine
                         "set-image-metadata",
                         ["target plus alt, title, or name"],
                         "Image title/name/alt updates DrawingML metadata, not visible document text.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Updates DrawingML `docPr` metadata"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageMetadata(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-image-size",
@@ -640,7 +738,9 @@ internal static partial class DocxPatchEngine
                         "set-image-size",
                         ["target plus width or height"],
                         "Image size updates DrawingML layout metadata, not visible document text.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Updates DrawingML extents"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageSize(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-image-wrap",
@@ -649,9 +749,11 @@ internal static partial class DocxPatchEngine
             [],
                     PreserveOnly(
                         "set-image-wrap",
-                        ["target plus mode or distance"],
+                        ["target plus mode or a distance field"],
                         "Image wrapping updates DrawingML layout metadata, not visible document text.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Anchored images only"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageWrap(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-image-position",
@@ -660,9 +762,11 @@ internal static partial class DocxPatchEngine
             [],
                     PreserveOnly(
                         "set-image-position",
-                        ["target plus relative, offset, or align"],
+                        ["target plus relative, offset, or align field"],
                         "Image position updates DrawingML layout metadata, not visible document text.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Anchored images only"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImagePosition(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-image-crop",
@@ -673,7 +777,9 @@ internal static partial class DocxPatchEngine
                         "set-image-crop",
                         ["target plus one crop percentage"],
                         "Image crop updates DrawingML layout metadata, not visible document text.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Updates DrawingML crop percentages"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageCrop(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "delete-image",
@@ -684,7 +790,9 @@ internal static partial class DocxPatchEngine
                         "delete-image",
                         ["target"],
                         "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
-                        ["expect-content-type"]),
+                        ["expect-content-type"],
+                        "Images",
+                        "Deletes the modeled image"),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteImage(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-section-columns",
@@ -697,7 +805,9 @@ internal static partial class DocxPatchEngine
                         TrackClassSectionProperty,
                         "tracked-section-columns",
                         "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous section properties and references; existing section property revisions fall back or fail instead of being replaced.",
-                        ["expect-columns", "expect-orientation"]),
+                        ["expect-columns", "expect-orientation"],
+                        "Sections",
+                        "Column count must be 1 through 4"),
             ExecuteSetSectionColumns),
         new OperationRegistration(
             "set-section-orientation",
@@ -710,7 +820,9 @@ internal static partial class DocxPatchEngine
                         TrackClassSectionProperty,
                         "tracked-section-orientation",
                         "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous page size, section properties, and references; existing section property revisions fall back or fail instead of being replaced.",
-                        ["expect-columns", "expect-orientation"]),
+                        ["expect-columns", "expect-orientation"],
+                        "Sections",
+                        "`orientation` is `portrait` or `landscape`"),
             ExecuteSetSectionOrientation)
     ];
     private static readonly IReadOnlyDictionary<string, OperationRegistration> OperationsByName =
@@ -775,7 +887,9 @@ internal static partial class DocxPatchEngine
         string name,
         IReadOnlyList<string> requiredFields,
         string rationale,
-        IReadOnlyList<string> optionalFields)
+        IReadOnlyList<string> optionalFields,
+        string category,
+        string description)
     {
         return new DocxPatchOperationInfo
         {
@@ -784,7 +898,9 @@ internal static partial class DocxPatchEngine
             OptionalFields = optionalFields,
             TrackChangesSupportClass = TrackClassPreserveOnly,
             TrackChangesSupport = "preserve-only",
-            TrackChangesNote = $"{rationale} {PreserveOnlyTrackChangesNote}"
+            TrackChangesNote = $"{rationale} {PreserveOnlyTrackChangesNote}",
+            Category = category,
+            Description = description
         };
     }
 
@@ -794,7 +910,9 @@ internal static partial class DocxPatchEngine
         string supportClass,
         string support,
         string note,
-        IReadOnlyList<string> optionalFields)
+        IReadOnlyList<string> optionalFields,
+        string category,
+        string description)
     {
         return new DocxPatchOperationInfo
         {
@@ -803,7 +921,9 @@ internal static partial class DocxPatchEngine
             OptionalFields = optionalFields,
             TrackChangesSupportClass = supportClass,
             TrackChangesSupport = support,
-            TrackChangesNote = note
+            TrackChangesNote = note,
+            Category = category,
+            Description = description
         };
     }
 
@@ -811,7 +931,9 @@ internal static partial class DocxPatchEngine
         string name,
         IReadOnlyList<string> requiredFields,
         string note,
-        IReadOnlyList<string> optionalFields)
+        IReadOnlyList<string> optionalFields,
+        string category,
+        string description)
     {
         return new DocxPatchOperationInfo
         {
@@ -820,7 +942,9 @@ internal static partial class DocxPatchEngine
             OptionalFields = optionalFields,
             TrackChangesSupportClass = TrackClassUnsupported,
             TrackChangesSupport = "unsupported",
-            TrackChangesNote = note
+            TrackChangesNote = note,
+            Category = category,
+            Description = description
         };
     }
 }
