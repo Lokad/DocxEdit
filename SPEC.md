@@ -277,73 +277,78 @@ public sealed class DocxEditor
 {
     public DocxReadResult Read(
         Stream input,
-        DocxReadOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxReadOptions options,
+        CancellationToken cancellationToken);
 
     public DocxOutlineResult Outline(
         Stream input,
-        DocxOutlineOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxOutlineOptions options,
+        CancellationToken cancellationToken);
 
     public DocxFindResult Find(
         Stream input,
         string query,
-        DocxFindOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxFindOptions options,
+        CancellationToken cancellationToken);
 
     public DocxDumpResult Dump(
         Stream input,
         string targetId,
-        DocxDumpOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxDumpOptions options,
+        CancellationToken cancellationToken);
 
     public DocxContextResult Context(
         Stream input,
         string targetId,
-        DocxContextOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxContextOptions options,
+        CancellationToken cancellationToken);
 
     public DocxStylesResult Styles(
         Stream input,
-        DocxStylesOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxStylesOptions options,
+        CancellationToken cancellationToken);
 
     public DocxMediaResult Media(
         Stream input,
-        DocxMediaOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxMediaOptions options,
+        CancellationToken cancellationToken);
+
+    public DocxMediaExtractResult ExtractMedia(
+        Stream input,
+        DocxMediaOptions options,
+        CancellationToken cancellationToken);
 
     public DocxValidateResult Validate(
         Stream input,
-        DocxValidateOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxValidateOptions options,
+        CancellationToken cancellationToken);
 
     public DocxChangesResult Changes(
         Stream input,
-        DocxChangesOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxChangesOptions options,
+        CancellationToken cancellationToken);
 
     public DocxPatch ParsePatch(
         TextReader patchReader,
-        DocxPatchParseOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxPatchParseOptions options,
+        CancellationToken cancellationToken);
 
     public DocxCheckResult Check(
         Stream input,
         TextReader patchReader,
-        DocxEditOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxEditOptions options,
+        CancellationToken cancellationToken);
 
     public DocxApplyResult Apply(
         Stream input,
         TextReader patchReader,
         Stream output,
-        DocxEditOptions? options = null,
-        CancellationToken cancellationToken = default);
+        DocxEditOptions options,
+        CancellationToken cancellationToken);
 }
 ```
 
-The library must not require file paths. The CLI may provide path-based wrappers. Every long-running public operation must observe the cancellation token while loading the package, parsing XML, scanning document stories, resolving assets, validating, and writing output.
+Each operation also offers overloads dropping the trailing options and cancellation parameters; no parameter carries a default value. The library must not require file paths. The CLI may provide path-based wrappers. Every long-running public operation must observe the cancellation token while loading the package, parsing XML, scanning document stories, resolving assets, validating, and writing output.
 
 ### 5.2 Asset provider
 
