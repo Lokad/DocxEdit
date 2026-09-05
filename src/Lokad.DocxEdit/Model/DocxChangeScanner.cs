@@ -70,7 +70,7 @@ internal static partial class DocxChangeScanner
                 bool isCommentBody = element.Name.LocalName == "comment";
                 changes.Add(new DocxChangeInfo
                 {
-                    Id = new DocxChangeId(changeStory, changeStoryPart, index++).ToWireValue(),
+                    Id = new DocxChangeId(changeStory, changeStoryPart, index++),
                     Type = ReadChangeType(element),
                     Story = story,
                     PartName = part.Name,

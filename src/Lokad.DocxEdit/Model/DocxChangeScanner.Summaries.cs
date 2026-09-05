@@ -97,7 +97,7 @@ internal static partial class DocxChangeScanner
     private static IReadOnlyList<DocxChangeInfo> PairRangeBoundaries(IReadOnlyList<DocxChangeInfo> changes)
     {
         var starts = new Dictionary<RangeBoundaryKey, Queue<DocxChangeInfo>>();
-        var paired = new Dictionary<string, string>(StringComparer.Ordinal);
+        var paired = new Dictionary<DocxChangeId, DocxChangeId>();
 
         foreach (DocxChangeInfo change in changes)
         {
@@ -134,7 +134,7 @@ internal static partial class DocxChangeScanner
         }
 
         return changes
-            .Select(change => paired.TryGetValue(change.Id, out string? pairedChangeId)
+            .Select(change => paired.TryGetValue(change.Id, out DocxChangeId pairedChangeId)
                 ? change with { PairedChangeId = pairedChangeId }
                 : change)
             .ToArray();

@@ -339,8 +339,8 @@ public sealed record DocxImageInfo(string Id, string PartName, string? ContentTy
 /// </summary>
 public sealed record DocxChangeInfo
 {
-    /// <summary>Stable ID.</summary>
-    public string Id { get; init; } = string.Empty;
+    /// <summary>Stable change ID.</summary>
+    public required DocxChangeId Id { get; init; }
     /// <summary>Change type.</summary>
     public string Type { get; init; } = string.Empty;
     /// <summary>Story label.</summary>
@@ -406,7 +406,7 @@ public sealed record DocxChangeInfo
     /// <summary>Human-readable target note, when targetless.</summary>
     public string? TargetNote { get; init; }
     /// <summary>Paired change ID, when ranges pair.</summary>
-    public string? PairedChangeId { get; init; }
+    public DocxChangeId? PairedChangeId { get; init; }
     /// <summary>Zero-based patch operation index, when from a patch.</summary>
     public int? OperationIndex { get; init; }
     /// <summary>Patch operation name, when from a patch.</summary>

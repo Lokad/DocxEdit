@@ -242,7 +242,7 @@ public static class PublicIntegrationSurfaceTests
             [
                 new DocxChangeInfo
                 {
-                    Id = "M.CH0001",
+                    Id = new DocxChangeId('M', 0, 1),
                     Type = "inserted-run",
                     Story = "main",
                     PartName = "/word/document.xml",

@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Lokad.DocxEdit;
 
 /// <summary>
@@ -13,6 +16,7 @@ namespace Lokad.DocxEdit;
 /// (<c>P</c>) parts emit changes but host no targets.
 /// </para>
 /// </remarks>
+[JsonConverter(typeof(DocxChangeIdJsonConverter))]
 public readonly record struct DocxChangeId(char Story, int StoryPart, int Ordinal)
 {
     /// <summary>
@@ -57,5 +61,30 @@ public readonly record struct DocxChangeId(char Story, int StoryPart, int Ordina
     public string ToWireValue()
     {
         return Story == 'M' ? $"M.CH{Ordinal:D4}" : $"{Story}{StoryPart:D3}.CH{Ordinal:D4}";
+    }
+}
+
+/// <summary>
+/// Converts <see cref="DocxChangeId"/> to and from its wire form, so JSON
+/// output stays string-shaped under both default and CLI options.
+/// </summary>
+public sealed class DocxChangeIdJsonConverter : JsonConverter<DocxChangeId>
+{
+    /// <summary>Reads one wire-form change ID string.</summary>
+    public override DocxChangeId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string? value = reader.GetString();
+        if (DocxChangeId.TryParse(value, out DocxChangeId changeId))
+        {
+            return changeId;
+        }
+
+        throw new JsonException($"Unsupported change ID '{value}'. Expected M.CH0001 or H001.CH0002 shape.");
+    }
+
+    /// <summary>Writes one wire-form change ID string.</summary>
+    public override void Write(Utf8JsonWriter writer, DocxChangeId value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToWireValue());
     }
 }

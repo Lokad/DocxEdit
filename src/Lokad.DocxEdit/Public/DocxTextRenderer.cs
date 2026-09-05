@@ -347,7 +347,7 @@ public static class DocxTextRenderer
             string targetReason = change.TargetReason is { } reason ? $" target-reason={reason.ToWireValue()}" : string.Empty;
             string nearestTarget = change.NearestTargetId is null ? string.Empty : $" nearest-target={change.NearestTargetId}";
             string targetNote = change.TargetNote is null ? string.Empty : $" target-note=\"{XmlValues.EscapeText(change.TargetNote)}\"";
-            string pairedChange = change.PairedChangeId is null ? string.Empty : $" paired-change-id={change.PairedChangeId}";
+            string pairedChange = change.PairedChangeId is { } pairedChangeId ? $" paired-change-id={pairedChangeId.ToWireValue()}" : string.Empty;
             string operationIndex = change.OperationIndex is null ? string.Empty : $" operation-index={change.OperationIndex}";
             string operationName = change.OperationName is null ? string.Empty : $" operation-name={XmlValues.EscapeText(change.OperationName)}";
             string operationTarget = change.OperationTarget is null ? string.Empty : $" operation-target={change.OperationTarget}";
@@ -372,7 +372,7 @@ public static class DocxTextRenderer
             string commentTextLength = change.CommentTextLength is null ? string.Empty : $" comment-text-length={change.CommentTextLength}";
             string commentTextSnippet = change.CommentTextSnippet is null ? string.Empty : $" comment-text=\"{XmlValues.EscapeText(change.CommentTextSnippet)}\"";
             string commentTextTruncated = change.CommentTextTruncated ? " comment-text-truncated=true" : string.Empty;
-            builder.Append(change.Id)
+            builder.Append(change.Id.ToWireValue())
                 .Append(' ')
                 .Append(change.Type)
                 .Append(" story=\"")

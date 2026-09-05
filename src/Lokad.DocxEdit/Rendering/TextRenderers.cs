@@ -445,7 +445,7 @@ internal static class TextRenderers
     {
         DocxChangeInfo[] targetChanges = changes
             .Where(change => string.Equals(change.TargetId, targetId, StringComparison.Ordinal))
-            .OrderBy(change => change.Id, StringComparer.Ordinal)
+            .OrderBy(change => change.Id.ToWireValue(), StringComparer.Ordinal)
             .ToArray();
         if (targetChanges.Length == 0)
         {
@@ -464,7 +464,7 @@ internal static class TextRenderers
             string operationName = change.OperationName is null ? string.Empty : $" operation-name={XmlValues.EscapeText(change.OperationName)}";
             string operationTarget = change.OperationTarget is null ? string.Empty : $" operation-target={change.OperationTarget}";
             builder.Append("  ")
-                .Append(change.Id)
+                .Append(change.Id.ToWireValue())
                 .Append(" type=")
                 .Append(XmlValues.EscapeText(change.Type))
                 .Append(parent)
@@ -1103,7 +1103,7 @@ internal static class TextRenderers
     {
         return new DocxContextItem
         {
-            Id = comment.TargetId ?? (comment.CommentId is null ? comment.Id : $"comment:{comment.CommentId}"),
+            Id = comment.TargetId ?? (comment.CommentId is null ? comment.Id.ToWireValue() : $"comment:{comment.CommentId}"),
             Kind = "comment",
             Relation = relation,
             Story = comment.Story,

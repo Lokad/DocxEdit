@@ -1991,7 +1991,7 @@ public static class ReadApiTests
         Assert.Contains(paragraphSummary.Summary, summary => summary.Type == "inserted-run" && summary.Count == 1);
 
         DocxChangeInfo insertion = Assert.Single(result.Changes, change => change.Type == "inserted-run");
-        Assert.Equal("M.CH0001", insertion.Id);
+        Assert.Equal(new DocxChangeId('M', 0, 1), insertion.Id);
         Assert.Equal("main", insertion.Story);
         Assert.Equal("/word/document.xml", insertion.PartName);
         Assert.Equal("paragraph", insertion.ParentType);
@@ -3193,7 +3193,7 @@ public static class ReadApiTests
 
         var change = new DocxChangeInfo
         {
-            Id = "M.CH0001",
+            Id = new DocxChangeId('M', 0, 1),
             Type = "inserted-run",
             Story = "main",
             PartName = "/word/document.xml",
