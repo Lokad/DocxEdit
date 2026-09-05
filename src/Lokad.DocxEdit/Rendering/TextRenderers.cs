@@ -12,7 +12,7 @@ internal static class TextRenderers
         var builder = new StringBuilder();
         foreach (DocxSectionInfo section in model.Sections)
         {
-            builder.Append(section.Id).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation.ToWireValue()).AppendLine();
+            builder.Append(section.Id.ToWireValue()).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation.ToWireValue()).AppendLine();
         }
 
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
@@ -24,7 +24,7 @@ internal static class TextRenderers
             string list = paragraph.List is null
                 ? string.Empty
                 : RenderList(paragraph.List);
-            builder.Append(paragraph.Id).Append(' ').Append(kind).Append(style).Append(list).Append(" text=\"").Append(XmlValues.EscapeText(Truncate(paragraph.Text, maxText))).AppendLine("\"");
+            builder.Append(paragraph.Id.ToWireValue()).Append(' ').Append(kind).Append(style).Append(list).Append(" text=\"").Append(XmlValues.EscapeText(Truncate(paragraph.Text, maxText))).AppendLine("\"");
         }
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
@@ -218,7 +218,7 @@ internal static class TextRenderers
                 string header = row.IsHeader ? " header=true" : string.Empty;
                 string cantSplit = row.CantSplit ? " cant-split=true" : string.Empty;
                 builder.Append("  ")
-                    .Append(row.Id)
+                    .Append(row.Id.ToWireValue())
                     .Append(" row cells=")
                     .Append(row.CellCount)
                     .Append(gridBefore)
@@ -238,7 +238,7 @@ internal static class TextRenderers
                 string nestedTable = cell.HasNestedTable ? " nested-table=true" : string.Empty;
                 string physicalColumn = cell.PhysicalColumnIndex == 0 ? string.Empty : $" physical-column={cell.PhysicalColumnIndex}";
                 builder.Append("  ")
-                    .Append(cell.Id)
+                    .Append(cell.Id.ToWireValue())
                     .Append(physicalColumn)
                     .Append(columnSpan)
                     .Append(visualColumnEnd)
@@ -266,7 +266,7 @@ internal static class TextRenderers
         foreach (DocxParagraphInfo paragraph in model.Paragraphs.Where(paragraph => paragraph.HeadingLevel is not null))
         {
             string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
-            lines.Add($"{paragraph.Id} heading level={paragraph.HeadingLevel}{list} text=\"{XmlValues.EscapeText(paragraph.Text)}\"");
+            lines.Add($"{paragraph.Id.ToWireValue()} heading level={paragraph.HeadingLevel}{list} text=\"{XmlValues.EscapeText(paragraph.Text)}\"");
         }
 
         foreach (DocxTableInfo table in model.Tables)
@@ -276,13 +276,13 @@ internal static class TextRenderers
 
         foreach (DocxSectionInfo section in model.Sections)
         {
-            lines.Add($"{section.Id} section columns={section.Columns} orientation={section.Orientation.ToWireValue()}");
+            lines.Add($"{section.Id.ToWireValue()} section columns={section.Columns} orientation={section.Orientation.ToWireValue()}");
         }
 
         foreach (DocxImageInfo image in model.Images)
         {
             string target = image.ContainingTargetId is null ? "target=unknown" : $"target={image.ContainingTargetId}";
-            lines.Add($"{image.Id} image layout={XmlValues.EscapeText(image.LayoutKind)} {target} part={image.PartName}");
+            lines.Add($"{image.Id.ToWireValue()} image layout={XmlValues.EscapeText(image.LayoutKind)} {target} part={image.PartName}");
         }
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
@@ -335,7 +335,7 @@ internal static class TextRenderers
             if (paragraph.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
-                matches.Add($"{paragraph.Id}{list} text=\"{XmlValues.EscapeText(Truncate(paragraph.Text, maxText))}\"");
+                matches.Add($"{paragraph.Id.ToWireValue()}{list} text=\"{XmlValues.EscapeText(Truncate(paragraph.Text, maxText))}\"");
             }
         }
 
@@ -345,7 +345,7 @@ internal static class TextRenderers
             {
                 if (cell.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
                 {
-                    matches.Add($"{cell.Id} text=\"{XmlValues.EscapeText(Truncate(cell.Text, maxText))}\"");
+                    matches.Add($"{cell.Id.ToWireValue()} text=\"{XmlValues.EscapeText(Truncate(cell.Text, maxText))}\"");
                 }
             }
         }
@@ -355,7 +355,7 @@ internal static class TextRenderers
 
     public static string? Dump(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId, bool includeRuns, int maxText)
     {
-        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
+        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (paragraph is not null)
         {
             if (!includeRuns)
@@ -377,7 +377,7 @@ internal static class TextRenderers
                 string hyperlinkRelationshipId = run.HyperlinkRelationshipId is null ? string.Empty : $" hyperlink-relationship-id={XmlValues.EscapeText(run.HyperlinkRelationshipId)}";
                 string hyperlinkAnchor = run.HyperlinkAnchor is null ? string.Empty : $" hyperlink-anchor=\"{XmlValues.EscapeText(run.HyperlinkAnchor)}\"";
                 builder.Append("  ")
-                    .Append(paragraph.Id)
+                    .Append(paragraph.Id.ToWireValue())
                     .Append(".R")
                     .Append((i + 1).ToString("0000"))
                     .Append(markup)
@@ -396,18 +396,18 @@ internal static class TextRenderers
             return builder.ToString();
         }
 
-        DocxTableInfo? table = model.Tables.FirstOrDefault(table => string.Equals(table.Id, targetId, StringComparison.Ordinal));
+        DocxTableInfo? table = model.Tables.FirstOrDefault(table => string.Equals(table.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (table is not null)
         {
             var builder = new StringBuilder();
-            builder.AppendJoin(Environment.NewLine, table.Cells.Select(cell => $"{cell.Id}: {Truncate(cell.Text, maxText)}"));
+            builder.AppendJoin(Environment.NewLine, table.Cells.Select(cell => $"{cell.Id.ToWireValue()}: {Truncate(cell.Text, maxText)}"));
             AppendTargetChanges(builder, changes, targetId);
             return builder.ToString();
         }
 
         DocxTableCellInfo? cell = model.Tables
             .SelectMany(table => table.Cells)
-            .FirstOrDefault(cell => string.Equals(cell.Id, targetId, StringComparison.Ordinal));
+            .FirstOrDefault(cell => string.Equals(cell.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (cell is not null)
         {
             var builder = new StringBuilder();
@@ -484,7 +484,7 @@ internal static class TextRenderers
 
     public static IReadOnlyList<DocxDumpRunInfo> DumpRuns(DocxDocumentModel model, string targetId, int maxText)
     {
-        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
+        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (paragraph is null)
         {
             return [];
@@ -493,7 +493,7 @@ internal static class TextRenderers
         return paragraph.Runs
             .Select((run, index) => new DocxDumpRunInfo
             {
-                Id = $"{paragraph.Id}.R{index + 1:0000}",
+                Id = $"{paragraph.Id.ToWireValue()}.R{index + 1:0000}",
                 Text = Truncate(run.Text, maxText),
                 MarkupType = run.MarkupType,
                 RevisionId = run.RevisionId,
@@ -511,25 +511,25 @@ internal static class TextRenderers
         radius = Math.Max(0, radius);
         TargetAnnotations annotations = BuildTargetAnnotations(model, changes);
 
-        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id, targetId, StringComparison.Ordinal));
+        DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (paragraph is not null)
         {
             DocxParagraphInfo[] storyParagraphs = model.Paragraphs
                 .Where(candidate => string.Equals(candidate.Story, paragraph.Story, StringComparison.Ordinal))
                 .ToArray();
-            int index = Array.FindIndex(storyParagraphs, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+            int index = Array.FindIndex(storyParagraphs, candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
             return Window(storyParagraphs, index, radius)
                 .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset), maxText), annotations))
                 .ToArray();
         }
 
-        DocxTableInfo? table = model.Tables.FirstOrDefault(table => string.Equals(table.Id, targetId, StringComparison.Ordinal));
+        DocxTableInfo? table = model.Tables.FirstOrDefault(table => string.Equals(table.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (table is not null)
         {
             DocxTableInfo[] storyTables = model.Tables
                 .Where(candidate => string.Equals(candidate.Story, table.Story, StringComparison.Ordinal))
                 .ToArray();
-            int index = Array.FindIndex(storyTables, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+            int index = Array.FindIndex(storyTables, candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
             return Window(storyTables, index, radius)
                 .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset)), annotations))
                 .ToArray();
@@ -537,14 +537,14 @@ internal static class TextRenderers
 
         foreach (DocxTableInfo candidateTable in model.Tables)
         {
-            DocxTableCellInfo? cell = candidateTable.Cells.FirstOrDefault(cell => string.Equals(cell.Id, targetId, StringComparison.Ordinal));
+            DocxTableCellInfo? cell = candidateTable.Cells.FirstOrDefault(cell => string.Equals(cell.Id.ToWireValue(), targetId, StringComparison.Ordinal));
             if (cell is not null)
             {
                 return CellContext(candidateTable, cell, radius, maxText, annotations);
             }
 
             DocxTableCellInfo[] rowCells = candidateTable.Cells
-                .Where(cell => cell.Id.StartsWith($"{targetId}.C", StringComparison.Ordinal))
+                .Where(cell => cell.Id.ToWireValue().StartsWith($"{targetId}.C", StringComparison.Ordinal))
                 .OrderBy(cell => cell.ColumnIndex)
                 .ToArray();
             if (rowCells.Length > 0)
@@ -553,19 +553,19 @@ internal static class TextRenderers
             }
         }
 
-        DocxSectionInfo? section = model.Sections.FirstOrDefault(section => string.Equals(section.Id, targetId, StringComparison.Ordinal));
+        DocxSectionInfo? section = model.Sections.FirstOrDefault(section => string.Equals(section.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (section is not null)
         {
             DocxSectionInfo[] storySections = model.Sections
                 .Where(candidate => string.Equals(candidate.Story, section.Story, StringComparison.Ordinal))
                 .ToArray();
-            int index = Array.FindIndex(storySections, candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+            int index = Array.FindIndex(storySections, candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
             return Window(storySections, index, radius)
                 .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset)), annotations))
                 .ToArray();
         }
 
-        DocxImageInfo? image = model.Images.FirstOrDefault(image => string.Equals(image.Id, targetId, StringComparison.Ordinal));
+        DocxImageInfo? image = model.Images.FirstOrDefault(image => string.Equals(image.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (image is not null)
         {
             return [ToContextItem(image, "target")];
@@ -724,7 +724,7 @@ internal static class TextRenderers
         string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
         string layoutMetadata = RenderImageLayoutMetadata(image);
         string crop = RenderCrop(image);
-        return $"{image.Id} image layout={XmlValues.EscapeText(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}{layoutMetadata}{crop}";
+        return $"{image.Id.ToWireValue()} image layout={XmlValues.EscapeText(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}{layoutMetadata}{crop}";
     }
 
     private static string RenderImageLayoutMetadata(DocxImageInfo image)
@@ -783,7 +783,7 @@ internal static class TextRenderers
         string header = table.HasHeaderRow ? " header-row=true" : string.Empty;
         string merged = table.HasMergedCells ? " merged=true" : string.Empty;
         string nested = table.HasNestedTables ? " nested-table=true" : string.Empty;
-        return $"{table.Id} table rows={table.RowCount} columns={table.ColumnCount}{style}{caption}{description}{grid}{header}{merged}{nested}";
+        return $"{table.Id.ToWireValue()} table rows={table.RowCount} columns={table.ColumnCount}{style}{caption}{description}{grid}{header}{merged}{nested}";
     }
 
     private static IReadOnlyList<DocxContextItem> CellContext(DocxTableInfo table, DocxTableCellInfo cell, int radius, int maxText, TargetAnnotations annotations)
@@ -796,9 +796,9 @@ internal static class TextRenderers
             .Where(candidate => candidate.RowIndex == cell.RowIndex)
             .OrderBy(candidate => candidate.ColumnIndex)
             .ToArray();
-        int index = Array.FindIndex(rowCells, candidate => string.Equals(candidate.Id, cell.Id, StringComparison.Ordinal));
+        int index = Array.FindIndex(rowCells, candidate => candidate.Id.Equals(cell.Id));
         items.AddRange(Window(rowCells, index, radius)
-            .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset), maxText, table.Id, table.Story), annotations)));
+            .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset), maxText, table.Id.ToWireValue(), table.Story), annotations)));
         return items;
     }
 
@@ -813,7 +813,7 @@ internal static class TextRenderers
                 Kind = "row",
                 Relation = "target",
                 Story = table.Story,
-                ParentId = table.Id,
+                ParentId = table.Id.ToWireValue(),
                 RowIndex = rowCells[0].RowIndex,
                 ColumnCount = rowCells.Count
             }
@@ -821,7 +821,7 @@ internal static class TextRenderers
 
         items.AddRange(rowCells
             .Take(Math.Max(1, radius * 2 + 1))
-            .Select(cell => ApplyAnnotations(ToContextItem(cell, "child", maxText, table.Id, table.Story), annotations)));
+            .Select(cell => ApplyAnnotations(ToContextItem(cell, "child", maxText, table.Id.ToWireValue(), table.Story), annotations)));
         return items;
     }
 
@@ -1027,7 +1027,7 @@ internal static class TextRenderers
     {
         return new DocxContextItem
         {
-            Id = paragraph.Id,
+            Id = paragraph.Id.ToWireValue(),
             Kind = "paragraph",
             Relation = relation,
             Story = paragraph.Story,
@@ -1043,7 +1043,7 @@ internal static class TextRenderers
     {
         return new DocxContextItem
         {
-            Id = table.Id,
+            Id = table.Id.ToWireValue(),
             Kind = "table",
             Relation = relation,
             Story = table.Story,
@@ -1058,7 +1058,7 @@ internal static class TextRenderers
     {
         return new DocxContextItem
         {
-            Id = cell.Id,
+            Id = cell.Id.ToWireValue(),
             Kind = "cell",
             Relation = relation,
             Story = story,
@@ -1079,7 +1079,7 @@ internal static class TextRenderers
     {
         return new DocxContextItem
         {
-            Id = section.Id,
+            Id = section.Id.ToWireValue(),
             Kind = "section",
             Relation = relation,
             Story = section.Story,
@@ -1091,7 +1091,7 @@ internal static class TextRenderers
     {
         return new DocxContextItem
         {
-            Id = image.Id,
+            Id = image.Id.ToWireValue(),
             Kind = "image",
             Relation = relation,
             ParentId = image.PartName,

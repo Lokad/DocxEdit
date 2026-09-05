@@ -17,7 +17,7 @@ public static class ReadApiTests
         Assert.True(result.Success);
         Assert.Equal("/word/document.xml", result.MainDocumentPartName);
         Assert.Equal(2, result.Paragraphs.Count);
-        Assert.Equal("M.P0001", result.Paragraphs[0].Id);
+        Assert.Equal("M.P0001", result.Paragraphs[0].Id.ToWireValue());
         Assert.Equal(1, result.Paragraphs[0].HeadingLevel);
         Assert.Equal("Executive Summary", result.Paragraphs[0].Text);
         Assert.Single(result.Tables);
@@ -797,21 +797,21 @@ public static class ReadApiTests
         Assert.Equal(3, table.ColumnCount);
         Assert.True(table.HasMergedCells);
         Assert.True(table.HasNestedTables);
-        DocxTableCellInfo wide = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C01");
+        DocxTableCellInfo wide = table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R01.C01");
         Assert.Equal(2, wide.ColumnSpan);
         Assert.Equal(2, wide.VisualColumnEndIndex);
         Assert.Equal("M.T0001.MG0001", wide.MergeGroupId);
         Assert.Equal(DocxVerticalMerge.Restart, wide.VerticalMerge);
         Assert.Equal("M.T0001.R01.C01", wide.VerticalMergeRootCellId);
         Assert.False(wide.HasNestedTable);
-        DocxTableCellInfo east = table.Cells.Single(cell => cell.Id == "M.T0001.R01.C03");
+        DocxTableCellInfo east = table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R01.C03");
         Assert.Equal("East", east.Text);
-        DocxTableCellInfo continued = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C01");
+        DocxTableCellInfo continued = table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R02.C01");
         Assert.Equal(1, continued.VisualColumnEndIndex);
         Assert.Equal("M.T0001.MG0001", continued.MergeGroupId);
         Assert.Equal(DocxVerticalMerge.Continue, continued.VerticalMerge);
         Assert.Equal("M.T0001.R01.C01", continued.VerticalMergeRootCellId);
-        DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id == "M.T0001.R02.C02");
+        DocxTableCellInfo nested = table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R02.C02");
         Assert.True(nested.HasNestedTable);
         Assert.Contains("M.T0001.R01.C01 physical-column=1 column-span=2 visual-column-end=2 merge-group=M.T0001.MG0001 vertical-merge=restart vertical-merge-root=M.T0001.R01.C01", result.Text, StringComparison.Ordinal);
         Assert.Contains("M.T0001.R02.C01 physical-column=1 merge-group=M.T0001.MG0001 vertical-merge=continue vertical-merge-root=M.T0001.R01.C01", result.Text, StringComparison.Ordinal);
@@ -1674,11 +1674,11 @@ public static class ReadApiTests
         DocxMediaResult result = editor.Media(stream);
 
         DocxImageInfo image = Assert.Single(result.Images);
-        Assert.Equal("M.I0001", image.Id);
+        Assert.Equal("M.I0001", image.Id.ToWireValue());
         Assert.Equal("/word/media/image1.png", image.PartName);
         Assert.Equal("inline", image.LayoutKind);
         Assert.Equal("rImage", image.RelationshipId);
-        Assert.Equal("M.P0002", image.ContainingTargetId);
+        Assert.Equal("M.P0002", image.ContainingTargetId?.ToWireValue());
         Assert.Equal(914400, image.WidthEmu);
         Assert.Equal(457200, image.HeightEmu);
         Assert.Equal("Revenue chart", image.Description);
@@ -1721,7 +1721,7 @@ public static class ReadApiTests
         Assert.True(result.Success);
         DocxImageInfo image = Assert.Single(result.Images);
         Assert.Equal("anchor", image.LayoutKind);
-        Assert.Equal("M.P0001", image.ContainingTargetId);
+        Assert.Equal("M.P0001", image.ContainingTargetId?.ToWireValue());
         Assert.Equal(1000, image.WidthEmu);
         Assert.Equal(2000, image.HeightEmu);
         Assert.Equal("wrapSquare", image.WrapMode);
@@ -1772,7 +1772,7 @@ public static class ReadApiTests
         DocxReadResult result = editor.Read(stream);
 
         DocxSectionInfo section = Assert.Single(result.Sections);
-        Assert.Equal("M.S0001", section.Id);
+        Assert.Equal("M.S0001", section.Id.ToWireValue());
         Assert.Equal(2, section.Columns);
         Assert.Equal(DocxOrientation.Landscape, section.Orientation);
         Assert.Contains("M.S0001 section columns=2 orientation=landscape", result.Text, StringComparison.Ordinal);
@@ -1862,9 +1862,9 @@ public static class ReadApiTests
         DocxReadResult defaultResult = editor.Read(defaultStream);
         DocxReadResult allStories = editor.Read(allStoriesStream, new DocxReadOptions { IncludeHeadersFooters = true });
 
-        Assert.DoesNotContain(defaultResult.Paragraphs, paragraph => paragraph.Id.StartsWith("H", StringComparison.Ordinal));
-        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Story == "header[1]" && paragraph.Text == "Confidential");
-        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Story == "footer[1]" && paragraph.Text == "Page 1");
+        Assert.DoesNotContain(defaultResult.Paragraphs, paragraph => paragraph.Id.ToWireValue().StartsWith("H", StringComparison.Ordinal));
+        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0001" && paragraph.Story == "header[1]" && paragraph.Text == "Confidential");
+        Assert.Contains(allStories.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "F001.P0001" && paragraph.Story == "footer[1]" && paragraph.Text == "Page 1");
     }
 
     [Fact]
@@ -1917,8 +1917,8 @@ public static class ReadApiTests
 
         DocxReadResult result = new DocxEditor().Read(stream, new DocxReadOptions { IncludeHeadersFooters = true });
 
-        DocxParagraphInfo header = Assert.Single(result.Paragraphs, paragraph => paragraph.Id == "H001.P0001");
-        DocxParagraphInfo footer = Assert.Single(result.Paragraphs, paragraph => paragraph.Id == "F001.P0001");
+        DocxParagraphInfo header = Assert.Single(result.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0001");
+        DocxParagraphInfo footer = Assert.Single(result.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "F001.P0001");
         Assert.Equal("1.", header.List?.LabelText);
         Assert.Equal("1.", footer.List?.LabelText);
         Assert.Contains("H001.P0001 paragraph list numId=9 level=0 abstractNumId=7 format=decimal level-text=\"%1.\" label=\"1.\"", result.Text, StringComparison.Ordinal);

@@ -14,6 +14,7 @@ public static class DocxChangeIdTests
         Assert.True(DocxChangeId.TryParse(wire, out DocxChangeId changeId));
         Assert.Equal(new DocxChangeId(story, storyPart, ordinal), changeId);
         Assert.Equal(wire, changeId.ToWireValue());
+        Assert.Equal(wire, changeId.ToString());
     }
 
     [Theory]

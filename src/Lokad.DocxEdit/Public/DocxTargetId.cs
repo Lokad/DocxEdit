@@ -322,6 +322,14 @@ public readonly record struct DocxTargetId(
         };
     }
 
+    /// <summary>Returns the canonical wire form (same as <see cref="ToWireValue"/>).</summary>
+    /// <remarks>An explicit override: the synthesized record display would recurse through
+    /// the <c>TableId</c>/<c>RowId</c> projections, so display is defined as the wire form.</remarks>
+    public override string ToString()
+    {
+        return ToWireValue();
+    }
+
     /// <summary>Splits a story ID prefix (<c>M</c>, <c>H001</c>) for producer emission.</summary>
     internal static (char Story, int StoryPart) ParseStoryPrefix(string idPrefix)
     {

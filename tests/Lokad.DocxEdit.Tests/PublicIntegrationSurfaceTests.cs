@@ -204,7 +204,7 @@ public static class PublicIntegrationSurfaceTests
             MainDocumentPartName = "/word/document.xml",
             Paragraphs =
             [
-                new DocxParagraphInfo("M.P0001", "main", "Sensitive customer text", null, null, [])
+                new DocxParagraphInfo(new DocxTargetId('M', 0, DocxTargetKind.Paragraph, 1, 0, 0), "main", "Sensitive customer text", null, null, [])
             ],
             Tables = [],
             Images = [],

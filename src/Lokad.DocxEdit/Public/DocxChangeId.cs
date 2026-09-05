@@ -54,6 +54,12 @@ public readonly record struct DocxChangeId(char Story, int StoryPart, int Ordina
         return false;
     }
 
+    /// <summary>Returns the canonical wire form (same as <see cref="ToWireValue"/>).</summary>
+    public override string ToString()
+    {
+        return ToWireValue();
+    }
+
     /// <summary>
     /// Formats the canonical wire form: zero-padded exactly like the scanner,
     /// so parsed IDs round-trip.

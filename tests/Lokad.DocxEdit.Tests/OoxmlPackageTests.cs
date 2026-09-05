@@ -26,7 +26,7 @@ public static class OoxmlPackageTests
         Assert.True(result.Success);
         Assert.Equal("/word/document.xml", result.MainDocumentPartName);
         DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
-        Assert.Equal("M.P0001", paragraph.Id);
+        Assert.Equal("M.P0001", paragraph.Id.ToWireValue());
         Assert.Contains("Hello", paragraph.Text, StringComparison.Ordinal);
     }
 

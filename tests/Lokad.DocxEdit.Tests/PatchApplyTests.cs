@@ -1473,8 +1473,8 @@ public static class PatchApplyTests
         Assert.Equal(["3", "4"], result.Operations[1].GeneratedRevisionIds);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "Header rose.");
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Footer fell.");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0001" && paragraph.Text == "Header rose.");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "F001.P0001" && paragraph.Text == "Footer fell.");
         output.Position = 0;
         Assert.Contains("<w:delText>increased</w:delText>", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
         output.Position = 0;
@@ -1754,8 +1754,8 @@ public static class PatchApplyTests
         Assert.Equal(["2"], result.Operations[1].GeneratedRevisionIds);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0002" && paragraph.Text == "Header two");
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Footer zero");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0002" && paragraph.Text == "Header two");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "F001.P0001" && paragraph.Text == "Footer zero");
         output.Position = 0;
         Assert.Contains("<w:ins w:id=\"1\" w:author=\"Agent\"", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
         output.Position = 0;
@@ -6518,7 +6518,7 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "Confidential text");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0001" && paragraph.Text == "Confidential text");
     }
 
     [Fact]
@@ -6541,7 +6541,7 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Page 2");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "F001.P0001" && paragraph.Text == "Page 2");
     }
 
     [Fact]
@@ -6573,9 +6573,9 @@ public static class PatchApplyTests
         Assert.True(result.Success);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "Header text");
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0002" && paragraph.Text == "Header detail");
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "F001.P0001" && paragraph.Text == "Footer detail");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0001" && paragraph.Text == "Header text");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0002" && paragraph.Text == "Header detail");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "F001.P0001" && paragraph.Text == "Footer detail");
         Assert.DoesNotContain(read.Paragraphs, paragraph => paragraph.Story == "footer[1]" && paragraph.Text == "Footer text");
     }
 
@@ -6599,7 +6599,7 @@ public static class PatchApplyTests
         output.Position = 0;
         Assert.Contains("w:val=\"Heading2\"", ReadEntry(output, "word/header1.xml"), StringComparison.Ordinal);
         output.Position = 0;
-        DocxParagraphInfo paragraph = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true }).Paragraphs.Single(paragraph => paragraph.Id == "H001.P0001");
+        DocxParagraphInfo paragraph = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true }).Paragraphs.Single(paragraph => paragraph.Id.ToWireValue() == "H001.P0001");
         Assert.Equal(2, paragraph.HeadingLevel);
     }
 
@@ -6638,7 +6638,7 @@ public static class PatchApplyTests
         DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
         DocxTableInfo table = Assert.Single(read.Tables, table => table.Story == "header[1]");
         Assert.Equal("New", Assert.Single(table.Cells).Text);
-        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id == "H001.P0001" && paragraph.Text == "After header table");
+        Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "H001.P0001" && paragraph.Text == "After header table");
     }
 
     [Fact]
@@ -6757,7 +6757,7 @@ public static class PatchApplyTests
         output.Position = 0;
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
         DocxTableCellInfo cell = Assert.Single(table.Cells);
-        Assert.Equal("M.T0001.R01.C02", cell.Id);
+        Assert.Equal("M.T0001.R01.C02", cell.Id.ToWireValue());
         Assert.Equal("New", cell.Text);
     }
 
@@ -7489,7 +7489,7 @@ public static class PatchApplyTests
 
         Assert.True(result.Success);
         DocxMediaFile file = Assert.Single(result.Files);
-        Assert.Equal("M.I0001", file.ImageId);
+        Assert.Equal("M.I0001", file.ImageId.ToWireValue());
         Assert.Equal("/word/media/image1.png", file.PartName);
         Assert.Equal("M.I0001-image1.png", file.FileName);
         Assert.Equal("old-png", Encoding.UTF8.GetString(file.Content));
@@ -7939,7 +7939,7 @@ public static class PatchApplyTests
         Assert.DoesNotContain("rFooterImage", ReadEntry(output, "word/_rels/footer1.xml.rels"), StringComparison.Ordinal);
         output.Position = 0;
         DocxImageInfo image = Assert.Single(new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true }).Images);
-        Assert.Equal("H001.I0001", image.Id);
+        Assert.Equal("H001.I0001", image.Id.ToWireValue());
         Assert.Equal("/word/media/header.png", image.PartName);
     }
 
@@ -8748,7 +8748,7 @@ public static class PatchApplyTests
         output.Position = 0;
         DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
         DocxTableCellInfo inserted = table.Cells.Single(cell => cell.RowIndex == 1);
-        Assert.Equal("M.T0001.R01.C02", inserted.Id);
+        Assert.Equal("M.T0001.R01.C02", inserted.Id.ToWireValue());
         Assert.Equal(2, inserted.ColumnIndex);
         Assert.Equal("Inserted", inserted.Text);
         output.Position = 0;

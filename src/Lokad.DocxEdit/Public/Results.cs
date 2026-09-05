@@ -129,7 +129,7 @@ public sealed record DocxMediaExtractResult : DocxOperationResult
 /// <param name="PartName">Media part path.</param>
 /// <param name="FileName">Suggested file name (image ID plus the part file name).</param>
 /// <param name="Content">Media bytes.</param>
-public sealed record DocxMediaFile(string ImageId, string PartName, string FileName, byte[] Content);
+public sealed record DocxMediaFile(DocxTargetId ImageId, string PartName, string FileName, byte[] Content);
 
 /// <summary>Validation outcome. <see cref="DocxOperationResult.Success"/> means no <see cref="DocxSeverity.Error"/> diagnostic was produced; warnings (including the <c>W9199</c>/<c>E9199</c> cap marker) do not fail validation by themselves.</summary>
 public sealed record DocxValidateResult : DocxOperationResult
@@ -276,14 +276,14 @@ public sealed record DocxStyleInfo(string StyleId, string Name, string Type, boo
 /// <param name="PartName">Media part path.</param>
 /// <param name="ContentType">Media content type, when known.</param>
 /// <param name="ByteLength">Media byte length.</param>
-public sealed record DocxImageInfo(string Id, string PartName, string? ContentType, long ByteLength)
+public sealed record DocxImageInfo(DocxTargetId Id, string PartName, string? ContentType, long ByteLength)
 {
     /// <summary>DrawingML layout kind.</summary>
     public string LayoutKind { get; init; } = "unknown";
     /// <summary>Package relationship ID, when known.</summary>
     public string? RelationshipId { get; init; }
     /// <summary>Containing target ID, when known.</summary>
-    public string? ContainingTargetId { get; init; }
+    public DocxTargetId? ContainingTargetId { get; init; }
     /// <summary>Extent width in EMU, when known.</summary>
     public long? WidthEmu { get; init; }
     /// <summary>Extent height in EMU, when known.</summary>
@@ -611,7 +611,7 @@ public sealed record DocxContextItem
 /// <param name="List">Numbering label info, when numbered.</param>
 /// <param name="Runs">Runs in document order.</param>
 public sealed record DocxParagraphInfo(
-    string Id,
+    DocxTargetId Id,
     string Story,
     string Text,
     int? HeadingLevel,
@@ -904,7 +904,7 @@ public sealed record DocxHyperlinkInfo
 /// <param name="ColumnCount">Column count.</param>
 /// <param name="Cells">Cells in row-major order.</param>
 public sealed record DocxTableInfo(
-    string Id,
+    DocxTargetId Id,
     string Story,
     int RowCount,
     int ColumnCount,
@@ -933,8 +933,8 @@ public sealed record DocxTableInfo(
 /// </summary>
 public sealed record DocxTableRowInfo
 {
-    /// <summary>Stable ID.</summary>
-    public string Id { get; init; } = string.Empty;
+    /// <summary>Stable row ID.</summary>
+    public required DocxTargetId Id { get; init; }
     /// <summary>1-based row ordinal.</summary>
     public int RowIndex { get; init; }
     /// <summary>Cell count.</summary>
@@ -960,7 +960,7 @@ public sealed record DocxTableRowInfo
 /// <param name="VerticalMerge">Vertical-merge marker, when merged.</param>
 /// <param name="HasNestedTable">Whether a nested table is present.</param>
 public sealed record DocxTableCellInfo(
-    string Id,
+    DocxTargetId Id,
     int RowIndex,
     int ColumnIndex,
     string Text,
@@ -986,7 +986,7 @@ public sealed record DocxTableCellInfo(
 /// <param name="Columns">Column count.</param>
 /// <param name="Orientation">Page orientation.</param>
 public sealed record DocxSectionInfo(
-    string Id,
+    DocxTargetId Id,
     string Story,
     int Columns,
     DocxOrientation Orientation);

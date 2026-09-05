@@ -144,7 +144,7 @@ public static class DocxTextRenderer
             string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
             string layoutMetadata = RenderImageLayoutMetadata(image);
             string crop = RenderCrop(image);
-            builder.Append(image.Id)
+            builder.Append(image.Id.ToWireValue())
                 .Append(" image layout=")
                 .Append(XmlValues.EscapeText(image.LayoutKind))
                 .Append(" part=")

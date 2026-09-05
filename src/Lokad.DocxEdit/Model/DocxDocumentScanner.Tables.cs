@@ -8,13 +8,12 @@ internal static partial class DocxDocumentScanner
 {
     private static DocxTableInfo ReadTable(
         XElement table,
-        string id,
+        DocxTargetId tableId,
         string story,
         DocxTextView textView,
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
-        string imageIdPrefix,
         Dictionary<XElement, string> targets,
         ref int imageIndex)
     {
@@ -28,12 +27,7 @@ internal static partial class DocxDocumentScanner
             .Element(OoxmlNs.W + "tblGrid")
             ?.Elements(OoxmlNs.W + "gridCol")
             .Count();
-        if (!DocxTargetId.TryParse(id, out DocxTargetId tableId) || tableId.Kind != DocxTargetKind.Table)
-        {
-            throw new InvalidDataException($"Scanner table ID '{id}' does not parse as a table target.");
-        }
-
-        int rowIndex = 1;
+       int rowIndex = 1;
         int mergeGroupIndex = 1;
         int maxColumns = 0;
         var activeVerticalMerges = new Dictionary<int, TableMergeState>();
@@ -52,19 +46,19 @@ internal static partial class DocxDocumentScanner
             RemoveActiveVerticalMerges(activeVerticalMerges, 1, gridBefore);
             int columnIndex = 1 + gridBefore;
             int physicalColumnIndex = 1;
-            string rowId = $"{id}.R{rowIndex:00}";
+            DocxTargetId rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = rowIndex };
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
                 int columnSpan = ReadCellColumnSpan(cell);
-                string cellId = $"{id}.R{rowIndex:00}.C{columnIndex:00}";
+                DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = rowIndex, Tertiary = columnIndex };
                 DocxVerticalMerge? verticalMerge = ReadCellVerticalMerge(cell);
                 string? mergeGroupId = null;
                 string? verticalMergeRootCellId = null;
                 if (verticalMerge == DocxVerticalMerge.Restart)
                 {
                     mergeGroupId = AllocateMergeGroupId(tableId, ref mergeGroupIndex);
-                    verticalMergeRootCellId = cellId;
-                    SetActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan, new TableMergeState(mergeGroupId, cellId));
+                    verticalMergeRootCellId = cellId.ToWireValue();
+                    SetActiveVerticalMerge(activeVerticalMerges, columnIndex, columnSpan, new TableMergeState(mergeGroupId, cellId.ToWireValue()));
                 }
                 else if (verticalMerge is not null)
                 {
@@ -84,10 +78,10 @@ internal static partial class DocxDocumentScanner
 
                 foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
                 {
-                    AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, cellId, ref imageIndex);
+                    AddDrawingImages(drawing, package, relationships, images, cellId, ref imageIndex);
                 }
 
-                targets[cell] = cellId;
+                targets[cell] = cellId.ToWireValue();
                 string cellText = ReadText(cell, textView);
                 if (textView == DocxTextView.Markup)
                 {
@@ -134,7 +128,7 @@ internal static partial class DocxDocumentScanner
             rowIndex++;
         }
 
-        return new DocxTableInfo(id, story, rowIndex - 1, Math.Max(maxColumns, gridColumnCount ?? 0), cells)
+        return new DocxTableInfo(tableId, story, rowIndex - 1, Math.Max(maxColumns, gridColumnCount ?? 0), cells)
         {
             StyleId = styleId,
             Caption = (string?)tableProperties?.Element(OoxmlNs.W + "tblCaption")?.Attribute(OoxmlNs.W + "val"),

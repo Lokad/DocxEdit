@@ -18,3 +18,4 @@
 - Changed table `VerticalMerge` from `string` to the `DocxVerticalMerge` enum (`Restart`/`Continue`, null when unmerged); text and JSON wire values stay lowercase strings.
 - Added the public `DocxChangeId` struct for change-record IDs (`M.CH0001`, `H001.CH0002`, comments `C001.CH0001`); change-record text and JSON shapes are unchanged.
 - Changed bookmark, content-control, field, and hyperlink `Id` plus their target-ID fields from `string` to the `DocxTargetId` struct (`required` IDs, nullable targets); text and JSON wire values are unchanged.
+- Changed paragraph, table, row, cell, section, and image `Id` fields (plus image `ContainingTargetId` and media `ImageId`) from `string` to the `DocxTargetId` struct; text and JSON wire values are unchanged.

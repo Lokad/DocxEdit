@@ -86,7 +86,8 @@ internal static partial class DocxDocumentScanner
         int paragraphIndex = 1;
         int tableIndex = 1;
         int imageIndex = 1;
-        int sectionIndex = sections.Count(section => section.Id.StartsWith($"{idPrefix}.S", StringComparison.Ordinal)) + 1;
+        (char storyLetter, int storyPartNumber) = DocxTargetId.ParseStoryPrefix(idPrefix);
+        int sectionIndex = sections.Count(section => section.Id.Kind == DocxTargetKind.Section && section.Id.Story == storyLetter && section.Id.StoryPart == storyPartNumber) + 1;
         var targets = new Dictionary<XElement, string>();
         var numberingLabeler = new DocxNumberingLabeler(numbering);
         foreach (XElement block in EnumerateStoryBlocks(body, textView))
@@ -95,16 +96,16 @@ internal static partial class DocxDocumentScanner
             XElement? sectionProperties = null;
             if (block.Name == OoxmlNs.W + "p")
             {
-                string paragraphId = $"{idPrefix}.P{paragraphIndex++:0000}";
-                targets[block] = paragraphId;
-                paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, idPrefix, ref imageIndex));
+                DocxTargetId paragraphId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Paragraph, paragraphIndex++, 0, 0);
+                targets[block] = paragraphId.ToWireValue();
+                paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, ref imageIndex));
                 sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
             }
             else if (block.Name == OoxmlNs.W + "tbl")
             {
-                string tableId = $"{idPrefix}.T{tableIndex++:0000}";
-                targets[block] = tableId;
-                tables.Add(ReadTable(block, tableId, story, textView, package, relationships, images, idPrefix, targets, ref imageIndex));
+                DocxTargetId tableId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Table, tableIndex++, 0, 0);
+                targets[block] = tableId.ToWireValue();
+                tables.Add(ReadTable(block, tableId, story, textView, package, relationships, images, targets, ref imageIndex));
             }
             else if (block.Name == OoxmlNs.W + "sectPr")
             {
@@ -113,8 +114,8 @@ internal static partial class DocxDocumentScanner
 
             if (sectionProperties is not null && idPrefix == "M")
             {
-                string sectionId = $"{idPrefix}.S{sectionIndex++:0000}";
-                targets[sectionProperties] = sectionId;
+                DocxTargetId sectionId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Section, sectionIndex++, 0, 0);
+                targets[sectionProperties] = sectionId.ToWireValue();
                 sections.Add(ReadSection(sectionProperties, sectionId, story));
             }
         }
@@ -174,7 +175,7 @@ internal static partial class DocxDocumentScanner
 
     private static DocxParagraphInfo ReadParagraph(
         XElement paragraph,
-        string id,
+        DocxTargetId id,
         string story,
         DocxTextView textView,
         OoxmlPackage package,
@@ -183,13 +184,12 @@ internal static partial class DocxDocumentScanner
         DocxNumberingCatalog numbering,
         DocxNumberingLabeler numberingLabeler,
         List<DocxImageInfo> images,
-        string imageIdPrefix,
         ref int imageIndex)
     {
         DocxRunInfo[] runs = ReadRuns(paragraph, textView);
         foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
         {
-            AddDrawingImages(drawing, package, relationships, images, imageIdPrefix, id, ref imageIndex);
+            AddDrawingImages(drawing, package, relationships, images, id, ref imageIndex);
         }
 
         string? styleId = ReadParagraphStyleId(paragraph);
@@ -510,7 +510,7 @@ internal static partial class DocxDocumentScanner
         return null;
     }
 
-    private static DocxSectionInfo ReadSection(XElement sectionProperties, string id, string story)
+    private static DocxSectionInfo ReadSection(XElement sectionProperties, DocxTargetId id, string story)
     {
         string? columnCountText = (string?)sectionProperties
             .Element(OoxmlNs.W + "cols")
@@ -534,8 +534,7 @@ internal static partial class DocxDocumentScanner
         OoxmlPackage package,
         IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         List<DocxImageInfo> images,
-        string imageIdPrefix,
-        string containingTargetId,
+        DocxTargetId containingTarget,
         ref int imageIndex)
     {
         XElement? layout = drawing.Element(OoxmlNs.Wp + "inline") ?? drawing.Element(OoxmlNs.Wp + "anchor");
@@ -575,11 +574,11 @@ internal static partial class DocxDocumentScanner
                 .Ancestors(OoxmlNs.Pic + "blipFill")
                 .FirstOrDefault()
                 ?.Element(OoxmlNs.A + "srcRect");
-            images.Add(new DocxImageInfo($"{imageIdPrefix}.I{imageIndex++:0000}", imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length)
+            images.Add(new DocxImageInfo(new DocxTargetId(containingTarget.Story, containingTarget.StoryPart, DocxTargetKind.Image, imageIndex++, 0, 0), imagePart.Name, imagePart.ContentType, imagePart.Bytes.Length)
             {
                 LayoutKind = layoutKind,
                 RelationshipId = relationshipId,
-                ContainingTargetId = containingTargetId,
+                ContainingTargetId = containingTarget,
                 WidthEmu = ReadLongAttribute(extent, "cx"),
                 HeightEmu = ReadLongAttribute(extent, "cy"),
                 Name = (string?)docProperties?.Attribute("name"),

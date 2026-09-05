@@ -436,7 +436,7 @@ public sealed class DocxEditor
                 throw new InvalidDataException($"Inventoried image part '{image.PartName}' does not exist.");
             }
 
-            files.Add(new DocxMediaFile(image.Id, image.PartName, $"{image.Id}-{Path.GetFileName(image.PartName)}", part.Bytes.ToArray()));
+            files.Add(new DocxMediaFile(image.Id, image.PartName, $"{image.Id.ToWireValue()}-{Path.GetFileName(image.PartName)}", part.Bytes.ToArray()));
         }
 
         return new DocxMediaExtractResult

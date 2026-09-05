@@ -37,6 +37,7 @@ public static class DocxTargetIdTests
         Assert.True(DocxTargetId.TryParse(wire, out DocxTargetId targetId));
         Assert.Equal(new DocxTargetId(story, storyPart, (DocxTargetKind)kindValue, primary, secondary, tertiary), targetId);
         Assert.Equal(wire, targetId.ToWireValue());
+        Assert.Equal(wire, targetId.ToString());
     }
 
     [Theory]
