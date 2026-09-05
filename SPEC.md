@@ -3265,30 +3265,15 @@ end
 
 ### 17.1 Visible text map
 
-For each paragraph, build a visible text map:
+For each paragraph, matches are visible-text offset ranges:
 
 ```csharp
-internal sealed record TextSegment(
-    XElement Element,
-    int ElementTextStart,
-    int ElementTextLength,
-    int VisibleStart,
-    int VisibleLength,
-    TextSegmentKind Kind,
-    XElement? OwningRun,
-    XElement? ProtectedBoundary);
+internal readonly record struct TextRange(int Start, int Length);
 ```
 
-Kinds:
-
-```text
-Text
-Tab
-Break
-InsertedText
-DeletedText
-FieldInstruction
-```
+The replacement engine uses these ranges to translate visible character offsets back
+to XML nodes, splitting runs per section 17.2. Tabs, breaks, inserted/deleted runs, and
+field runs are distinguished while walking runs, not in the range itself.
 
 Default view:
 
@@ -3344,7 +3329,7 @@ When a document contains fields and edits are applied:
 * Return warning:
 
 ```text
-W5103 document contains fields; output may require Word to update fields.
+W5103 Document contains fields and was marked for Word-side field refresh; DocxEdit does not recalculate field results.
 ```
 
 ### 17.5 Revision markup validation
