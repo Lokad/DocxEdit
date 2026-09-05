@@ -154,7 +154,6 @@ Production project:
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <DebugType>portable</DebugType>
     <PackageOutputPath>..\..\artifacts\nuget\</PackageOutputPath>
     <IncludeSymbols>true</IncludeSymbols>
@@ -195,7 +194,7 @@ consumer dependencies are intentional.
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Deterministic>true</Deterministic>
-    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <LangVersion>latestMajor</LangVersion>
   </PropertyGroup>
 </Project>
