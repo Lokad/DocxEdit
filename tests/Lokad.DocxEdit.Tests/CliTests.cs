@@ -79,6 +79,29 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliIrrelevantFlagNamesCommand()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+
+        CliResult result = RunCli("read", input, "--output", Path.Combine(temp.Path, "out.docx"));
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("--output is not an option of the read command.", result.Error, StringComparison.Ordinal);
+        Assert.Contains("See 'docxedit help read'.", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliUnknownCommandWithFlagsStillReportsUnknownCommand()
+    {
+        CliResult result = RunCli("frobnicate", "--output", "x");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Unknown command 'frobnicate'.", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliUnknownCommandListsValidCommands()
     {
         CliResult result = RunCli("frobnicate");

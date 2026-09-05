@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -795,6 +796,7 @@ internal static class ProgramMain
             DateTimeOffset? timestampUtc = null;
             DocxTextView textView = DocxTextView.Final;
             DocxValidationProfile validationProfile = DocxValidationProfile.Structural;
+            var seenFlags = new HashSet<string>(StringComparer.Ordinal);
 
             static bool TryParseTimestampUtc(string value, out DateTimeOffset timestamp)
             {
@@ -815,12 +817,15 @@ internal static class ProgramMain
                 switch (arg)
                 {
                     case "--json":
+                        seenFlags.Add("--json");
                         json = true;
                         break;
                     case "--strict":
+                        seenFlags.Add("--strict");
                         strict = true;
                         break;
                     case "--compact":
+                        seenFlags.Add(arg);
                         flags.Add(arg);
                         break;
                     case "--runs":
@@ -828,9 +833,11 @@ internal static class ProgramMain
                     case "--all-stories":
                     case "--summary":
                     case "--include-comment-text":
+                        seenFlags.Add(arg);
                         flags.Add(arg);
                         break;
                     case "--diagnostics":
+                        seenFlags.Add("--diagnostics");
                         if (!TryReadValue(args, ref i, out diagnosticsPath))
                         {
                             return WithError(command, "Missing value for --diagnostics.");
@@ -838,6 +845,7 @@ internal static class ProgramMain
 
                         break;
                     case "--report":
+                        seenFlags.Add("--report");
                         if (!TryReadValue(args, ref i, out reportPath))
                         {
                             return WithError(command, "Missing value for --report.");
@@ -845,6 +853,7 @@ internal static class ProgramMain
 
                         break;
                     case "--operation-report":
+                        seenFlags.Add("--operation-report");
                         if (!TryReadValue(args, ref i, out operationReportPath))
                         {
                             return WithError(command, "Missing value for --operation-report.");
@@ -852,6 +861,7 @@ internal static class ProgramMain
 
                         break;
                     case "--extract":
+                        seenFlags.Add("--extract");
                         if (!TryReadValue(args, ref i, out extractPath))
                         {
                             return WithError(command, "Missing value for --extract.");
@@ -859,6 +869,7 @@ internal static class ProgramMain
 
                         break;
                     case "--max-text":
+                        seenFlags.Add("--max-text");
                         if (!TryReadValue(args, ref i, out string? maxTextValue))
                         {
                             return WithError(command, "Missing value for --max-text.");
@@ -872,6 +883,7 @@ internal static class ProgramMain
                         maxText = parsedMaxText;
                         break;
                     case "--max-comment-text":
+                        seenFlags.Add("--max-comment-text");
                         if (!TryReadValue(args, ref i, out string? maxCommentTextValue))
                         {
                             return WithError(command, "Missing value for --max-comment-text.");
@@ -885,6 +897,7 @@ internal static class ProgramMain
                         maxCommentText = parsedMaxCommentText;
                         break;
                     case "--max-diagnostics":
+                        seenFlags.Add("--max-diagnostics");
                         if (!TryReadValue(args, ref i, out string? maxDiagnosticsValue))
                         {
                             return WithError(command, "Missing value for --max-diagnostics.");
@@ -898,6 +911,7 @@ internal static class ProgramMain
                         maxDiagnostics = parsedMaxDiagnostics;
                         break;
                     case "--radius":
+                        seenFlags.Add("--radius");
                         if (!TryReadValue(args, ref i, out string? radiusValue))
                         {
                             return WithError(command, "Missing value for --radius.");
@@ -911,6 +925,7 @@ internal static class ProgramMain
                         radius = parsedRadius;
                         break;
                     case "--track-changes":
+                        seenFlags.Add("--track-changes");
                         if (!TryReadValue(args, ref i, out string? trackChangesValue))
                         {
                             return WithError(command, "Missing value for --track-changes.");
@@ -923,6 +938,7 @@ internal static class ProgramMain
 
                         break;
                     case "--view":
+                        seenFlags.Add("--view");
                         if (!TryReadValue(args, ref i, out string? textViewValue))
                         {
                             return WithError(command, "Missing value for --view.");
@@ -935,6 +951,7 @@ internal static class ProgramMain
 
                         break;
                     case "--profile":
+                        seenFlags.Add("--profile");
                         if (!TryReadValue(args, ref i, out string? profileValue))
                         {
                             return WithError(command, "Missing value for --profile.");
@@ -947,6 +964,7 @@ internal static class ProgramMain
 
                         break;
                     case "--author":
+                        seenFlags.Add("--author");
                         if (!TryReadValue(args, ref i, out author))
                         {
                             return WithError(command, "Missing value for --author.");
@@ -954,6 +972,7 @@ internal static class ProgramMain
 
                         break;
                     case "--timestamp-utc":
+                        seenFlags.Add("--timestamp-utc");
                         if (!TryReadValue(args, ref i, out string? timestampValue))
                         {
                             return WithError(command, "Missing value for --timestamp-utc.");
@@ -968,6 +987,7 @@ internal static class ProgramMain
                         break;
                     case "-o":
                     case "--output":
+                        seenFlags.Add("--output");
                         if (!TryReadValue(args, ref i, out outputPath))
                         {
                             return WithError(command, $"Missing value for {arg}.");
@@ -975,6 +995,7 @@ internal static class ProgramMain
 
                         break;
                     case "--id":
+                        seenFlags.Add("--id");
                         if (!TryReadValue(args, ref i, out id))
                         {
                             return WithError(command, "Missing value for --id.");
@@ -990,6 +1011,38 @@ internal static class ProgramMain
                         positionals.Add(arg);
                         break;
                 }
+            }
+
+            foreach (string seen in seenFlags.OrderBy(static flag => flag, StringComparer.Ordinal))
+            {
+                if (!IsFlagAllowedForCommand(command, seen))
+                {
+                    return WithError(command, $"{seen} is not an option of the {command} command.");
+                }
+            }
+
+            static bool IsFlagAllowedForCommand(string commandName, string flag)
+            {
+                if (!DocxHelp.TryGetCommand(commandName, out DocxCommandInfo commandInfo))
+                {
+                    return true;
+                }
+
+                var allowed = new HashSet<string>(StringComparer.Ordinal);
+                foreach (Match match in Regex.Matches(commandInfo.Usage, "--[a-z][\\w-]*"))
+                {
+                    allowed.Add(match.Value);
+                }
+
+                foreach (DocxOptionInfo option in commandInfo.Options)
+                {
+                    foreach (Match match in Regex.Matches(option.Syntax, "--[a-z][\\w-]*"))
+                    {
+                        allowed.Add(match.Value);
+                    }
+                }
+
+                return allowed.Contains(flag);
             }
 
             return new ParsedOptions
