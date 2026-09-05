@@ -42,7 +42,7 @@
       "E4301"
     ],
     "diagnosticMessagesContain": [
-      "vertical merges"
+      "vertical merge cells"
     ]
   }
 }
