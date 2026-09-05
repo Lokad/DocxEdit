@@ -10,11 +10,22 @@ return ProgramMain.Run(args);
 
 internal static class ProgramMain
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly JsonSerializerOptions IndentedJsonOptions = CreateJsonOptions(writeIndented: true);
+    private static readonly JsonSerializerOptions CompactJsonOptions = CreateJsonOptions(writeIndented: false);
+
+    private static JsonSerializerOptions CreateJsonOptions(bool writeIndented)
     {
-        WriteIndented = true,
-        Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter() }
-    };
+        return new JsonSerializerOptions
+        {
+            WriteIndented = writeIndented,
+            Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter() }
+        };
+    }
+
+    private static JsonSerializerOptions JsonOptionsFor(ParsedOptions options)
+    {
+        return options.Flags.Contains("--compact") ? CompactJsonOptions : IndentedJsonOptions;
+    }
 
     public static int Run(string[] args)
     {
@@ -119,7 +130,7 @@ internal static class ProgramMain
         where T : notnull
     {
         IReadOnlyList<DocxDiagnostic> diagnostics = getDiagnostics(result);
-        WriteDiagnostics(options.DiagnosticsPath, diagnostics);
+        WriteDiagnostics(options.DiagnosticsPath, diagnostics, JsonOptionsFor(options));
         if (!options.Json)
         {
             WriteErrorDiagnostics(diagnostics, options.Strict);
@@ -127,7 +138,7 @@ internal static class ProgramMain
 
         if (options.Json)
         {
-            WriteJson(result);
+            WriteJson(result, JsonOptionsFor(options));
         }
         else
         {
@@ -346,7 +357,7 @@ internal static class ProgramMain
                 Console.WriteLine($"{(result.Success ? "docxedit check: OK" : "docxedit check: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O})");
                 Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
             },
-            result => WriteReport(options.ReportPath, result));
+            result => WriteReport(options.ReportPath, result, JsonOptionsFor(options)));
     }
 
     private static int RunApply(ParsedOptions options)
@@ -372,7 +383,7 @@ internal static class ProgramMain
                 Console.WriteLine($"{(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O})");
                 Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
             },
-            result => WriteReport(options.ReportPath, result));
+            result => WriteReport(options.ReportPath, result, JsonOptionsFor(options)));
     }
 
     private static int RunCatalog(ParsedOptions options)
@@ -384,7 +395,7 @@ internal static class ProgramMain
 
         if (options.Json)
         {
-            WriteJson(DocxHelp.Catalog);
+            WriteJson(DocxHelp.Catalog, JsonOptionsFor(options));
         }
         else
         {
@@ -414,7 +425,7 @@ internal static class ProgramMain
                 Version = version,
                 Framework = framework,
                 PatchOperations = operations,
-            });
+            }, JsonOptionsFor(options));
         }
         else
         {
@@ -424,7 +435,7 @@ internal static class ProgramMain
         return 0;
     }
 
-    private static void WriteDiagnostics(string? path, IReadOnlyList<DocxDiagnostic> diagnostics)
+    private static void WriteDiagnostics(string? path, IReadOnlyList<DocxDiagnostic> diagnostics, JsonSerializerOptions jsonOptions)
     {
         if (path is null)
         {
@@ -432,7 +443,7 @@ internal static class ProgramMain
         }
 
         EnsureParentDirectory(path);
-        File.WriteAllText(path, JsonSerializer.Serialize(diagnostics, JsonOptions));
+        File.WriteAllText(path, JsonSerializer.Serialize(diagnostics, jsonOptions));
     }
 
     private static IReadOnlyList<DocxPatchOperationReport> ReadOperationReports(string? path)
@@ -443,7 +454,7 @@ internal static class ProgramMain
         }
 
         using Stream input = File.OpenRead(path);
-        DocxApplyResult? report = JsonSerializer.Deserialize<DocxApplyResult>(input, JsonOptions);
+        DocxApplyResult? report = JsonSerializer.Deserialize<DocxApplyResult>(input, IndentedJsonOptions);
         if (report?.Operations is null)
         {
             throw new InvalidDataException($"Operation report '{path}' is not a docxedit check/apply report JSON object.");
@@ -452,7 +463,7 @@ internal static class ProgramMain
         return report.Operations;
     }
 
-    private static void WriteReport(string? path, object report)
+    private static void WriteReport(string? path, object report, JsonSerializerOptions jsonOptions)
     {
         if (path is null)
         {
@@ -460,12 +471,12 @@ internal static class ProgramMain
         }
 
         EnsureParentDirectory(path);
-        File.WriteAllText(path, JsonSerializer.Serialize(report, JsonOptions));
+        File.WriteAllText(path, JsonSerializer.Serialize(report, jsonOptions));
     }
 
-    private static void WriteJson(object value)
+    private static void WriteJson(object value, JsonSerializerOptions jsonOptions)
     {
-        Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
+        Console.WriteLine(JsonSerializer.Serialize(value, jsonOptions));
     }
 
     private static DocxEditOptions ToEditOptions(ParsedOptions options)
@@ -808,6 +819,9 @@ internal static class ProgramMain
                         break;
                     case "--strict":
                         strict = true;
+                        break;
+                    case "--compact":
+                        flags.Add(arg);
                         break;
                     case "--runs":
                     case "--headers-footers":

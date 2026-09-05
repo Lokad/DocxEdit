@@ -1142,6 +1142,20 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliCatalogCompactJsonOmitsIndentation()
+    {
+        CliResult indented = RunCli("catalog", "--json");
+        CliResult compact = RunCli("catalog", "--json", "--compact");
+
+        Assert.Equal(0, indented.ExitCode);
+        Assert.Equal(0, compact.ExitCode);
+        Assert.Contains(Environment.NewLine + "  ", indented.Output, StringComparison.Ordinal);
+        using JsonDocument catalog = JsonDocument.Parse(compact.Output);
+        Assert.Equal("docxedit", catalog.RootElement.GetProperty("ToolName").GetString());
+        Assert.DoesNotContain(Environment.NewLine + "  ", compact.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliCatalogTextPrintsSupportTable()
     {
         CliResult result = RunCli("catalog");

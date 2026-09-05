@@ -60,8 +60,8 @@ docxedit apply report.docx edits.docxpatch --output report.edited.docx
 docxedit validate report.edited.docx
 ```
 
-Use `--json` when another program will consume the result. Use plain text when an
-agent or human needs compact context.
+Use `--json` when another program will consume the result. Add `--compact` to shrink JSON output. Use plain text when an
+agent or human needs compact context. Keep token cost down with `read --summary`, `context --max-text 0` (the default), and `--compact` for machine reads.
 
 ## Commands
 
@@ -87,6 +87,7 @@ agent or human needs compact context.
 | Option | Applies to | Meaning |
 | --- | --- | --- |
 | `--json` | Most commands | Emit the structured result object as JSON |
+| `--compact` | JSON-emitting commands | Emit JSON without indentation (stdout `--json` plus `--report`/`--diagnostics` files) |
 | `--diagnostics path` | Most commands | Write diagnostics JSON to a separate file |
 | `--strict` | Most commands | Return exit code `3` when warnings are present |
 | `--view final/original/markup` | Text reads and outline | Select how tracked inserted/deleted content is rendered |
