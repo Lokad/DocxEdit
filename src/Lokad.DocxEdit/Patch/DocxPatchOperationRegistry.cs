@@ -127,7 +127,8 @@ internal static partial class DocxPatchEngine
                         ["target", "style"],
                         TrackClassParagraphProperty,
                         "tracked-style",
-                        "Suggest/Require emit paragraph property revisions with w:pPrChange."),
+                        "Suggest/Require emit paragraph property revisions with w:pPrChange.",
+                        []),
             ExecuteSetStyle),
         new OperationRegistration(
             "set-content-control-text",
@@ -150,7 +151,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "set-content-control-checkbox",
                         ["target", "checked"],
-                        "Checkbox content controls update state metadata, not a simple Word revision range."),
+                        "Checkbox content controls update state metadata, not a simple Word revision range.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-content-control-choice",
@@ -160,7 +162,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "set-content-control-choice",
                         ["target plus value or display-text"],
-                        "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet."),
+                        "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-content-control-date",
@@ -216,7 +219,8 @@ internal static partial class DocxPatchEngine
                         ["target", "text"],
                         TrackClassTextRun,
                         "tracked-bookmark-text",
-                        "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002."),
+                        "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002.",
+                        []),
             ExecuteReplaceBookmarkText),
         new OperationRegistration(
             "rename-bookmark",
@@ -226,7 +230,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "rename-bookmark",
                         ["target", "name"],
-                        "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update."),
+                        "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteRenameBookmark(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "delete-bookmark",
@@ -236,7 +241,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "delete-bookmark",
                         ["target"],
-                        "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal."),
+                        "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteBookmark(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "add-comment",
@@ -259,7 +265,8 @@ internal static partial class DocxPatchEngine
                         ["target", "text"],
                         TrackClassTextRun,
                         "tracked-comment-text",
-                        "Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002."),
+                        "Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002.",
+                        []),
             ExecuteSetCommentText),
         new OperationRegistration(
             "resolve-comment",
@@ -269,7 +276,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "resolve-comment",
                         ["target"],
-                        "Comment resolution changes review metadata, not visible document text."),
+                        "Comment resolution changes review metadata, not visible document text.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken)),
         new OperationRegistration(
             "reopen-comment",
@@ -279,7 +287,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "reopen-comment",
                         ["target"],
-                        "Comment reopening changes review metadata, not visible document text."),
+                        "Comment reopening changes review metadata, not visible document text.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken)),
         new OperationRegistration(
             "delete-comment",
@@ -289,7 +298,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "delete-comment",
                         ["target"],
-                        "Comment deletion removes review markup, not a separate generated tracked edit."),
+                        "Comment deletion removes review markup, not a separate generated tracked edit.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "add-comment-reply",
@@ -310,7 +320,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "delete-comment-reply",
                         ["target"],
-                        "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit."),
+                        "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-field-dirty",
@@ -320,7 +331,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "set-field-dirty",
                         ["target or all", "dirty"],
-                        "Field dirty flags are field metadata and have no useful generated visible revision representation."),
+                        "Field dirty flags are field metadata and have no useful generated visible revision representation.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken)),
         new OperationRegistration(
             "set-field-lock",
@@ -330,7 +342,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "set-field-lock",
                         ["target or all", "locked"],
-                        "Field lock flags are field metadata and have no useful generated visible revision representation."),
+                        "Field lock flags are field metadata and have no useful generated visible revision representation.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken)),
         new OperationRegistration(
             "set-field-code",
@@ -388,7 +401,8 @@ internal static partial class DocxPatchEngine
                         ["target", "text"],
                         TrackClassTextRun,
                         "tracked-hyperlink-text",
-                        "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002."),
+                        "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002.",
+                        []),
             ExecuteSetHyperlinkText),
         new OperationRegistration(
             "insert-hyperlink-after",
@@ -411,7 +425,8 @@ internal static partial class DocxPatchEngine
                     PreserveOnly(
                         "remove-hyperlink",
                         ["target"],
-                        "Hyperlink removal changes wrapper and relationship metadata while preserving display text."),
+                        "Hyperlink removal changes wrapper and relationship metadata while preserving display text.",
+                        []),
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken)),
         new OperationRegistration(
             "set-cell",
@@ -760,13 +775,13 @@ internal static partial class DocxPatchEngine
         string name,
         IReadOnlyList<string> requiredFields,
         string rationale,
-        IReadOnlyList<string>? optionalFields = null)
+        IReadOnlyList<string> optionalFields)
     {
         return new DocxPatchOperationInfo
         {
             Name = name,
             RequiredFields = requiredFields,
-            OptionalFields = optionalFields ?? [],
+            OptionalFields = optionalFields,
             TrackChangesSupportClass = TrackClassPreserveOnly,
             TrackChangesSupport = "preserve-only",
             TrackChangesNote = $"{rationale} {PreserveOnlyTrackChangesNote}"
@@ -779,13 +794,13 @@ internal static partial class DocxPatchEngine
         string supportClass,
         string support,
         string note,
-        IReadOnlyList<string>? optionalFields = null)
+        IReadOnlyList<string> optionalFields)
     {
         return new DocxPatchOperationInfo
         {
             Name = name,
             RequiredFields = requiredFields,
-            OptionalFields = optionalFields ?? [],
+            OptionalFields = optionalFields,
             TrackChangesSupportClass = supportClass,
             TrackChangesSupport = support,
             TrackChangesNote = note
@@ -796,13 +811,13 @@ internal static partial class DocxPatchEngine
         string name,
         IReadOnlyList<string> requiredFields,
         string note,
-        IReadOnlyList<string>? optionalFields = null)
+        IReadOnlyList<string> optionalFields)
     {
         return new DocxPatchOperationInfo
         {
             Name = name,
             RequiredFields = requiredFields,
-            OptionalFields = optionalFields ?? [],
+            OptionalFields = optionalFields,
             TrackChangesSupportClass = TrackClassUnsupported,
             TrackChangesSupport = "unsupported",
             TrackChangesNote = note
