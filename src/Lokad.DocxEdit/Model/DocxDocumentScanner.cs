@@ -30,27 +30,22 @@ internal static partial class DocxDocumentScanner
         if (includeHeadersFooters)
         {
             IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
-            int headerIndex = 1;
-            foreach (ResolvedOoxmlRelationship relationship in relationships
-                .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                if (package.GetPart(relationship.ResolvedTarget) is not null)
-                {
-                    string prefix = $"H{headerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget, prefix, $"header[{headerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
-                }
-            }
 
-            int footerIndex = 1;
-            foreach (ResolvedOoxmlRelationship relationship in relationships
-                .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
+            ScanStories(OoxmlRelTypes.Header, "H", "header");
+            ScanStories(OoxmlRelTypes.Footer, "F", "footer");
+
+            void ScanStories(string relationshipType, string prefixLetter, string storyLabel)
             {
-                if (package.GetPart(relationship.ResolvedTarget) is not null)
+                int index = 1;
+                foreach (ResolvedOoxmlRelationship relationship in relationships
+                    .Where(candidate => candidate.Type == relationshipType)
+                    .OrderBy(candidate => candidate.Id, StringComparer.Ordinal))
                 {
-                    string prefix = $"F{footerIndex++:000}";
-                    ScanStory(package, relationship.ResolvedTarget, prefix, $"footer[{footerIndex - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
+                    if (package.GetPart(relationship.ResolvedTarget) is not null)
+                    {
+                        string prefix = $"{prefixLetter}{index++:000}";
+                        ScanStory(package, relationship.ResolvedTarget, prefix, $"{storyLabel}[{index - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
+                    }
                 }
             }
         }
