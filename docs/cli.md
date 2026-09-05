@@ -114,6 +114,9 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 | `--track-changes mode` | `check`, `apply` | Control generated revision markup |
 | `--author name` | `check`, `apply` | Author used for generated revisions |
 | `--timestamp-utc instant` | `check`, `apply` | ISO-8601 UTC timestamp for generated revisions (e.g. `2026-01-01T00:00:00Z`) |
+| `--extract dir` | `media` | Extract embedded image parts to a directory |
+| `--radius N` | `context` | Number of same-kind neighbors to include |
+| `--max-diagnostics N` | `validate` | Maximum diagnostics to return; default 500 |
 
 Text views:
 
