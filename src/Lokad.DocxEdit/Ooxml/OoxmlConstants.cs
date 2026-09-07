@@ -29,6 +29,8 @@ internal static class OoxmlRelTypes
     public const string CommentsExtended = "http://schemas.microsoft.com/office/2011/relationships/commentsExtended";
     public const string CommentsIds = "http://schemas.microsoft.com/office/2016/09/relationships/commentsIds";
     public const string Hyperlink = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+    public const string Footnotes = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes";
+    public const string Endnotes = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes";
 }
 
 internal static class OoxmlContentTypeNames

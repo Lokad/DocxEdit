@@ -58,15 +58,31 @@ internal static class OoxmlUnits
                 return false;
             }
 
-            emus = suffix.ToLowerInvariant() switch
+            if (!double.IsFinite(value))
             {
-                "emu" => checked((long)Math.Round(value, MidpointRounding.AwayFromZero)),
-                "in" => InchesToEmu(value),
-                "cm" => CentimetersToEmu(value),
-                "pt" => PointsToEmu(value),
-                "px" => PixelsToEmu(value),
-                _ => 0
-            };
+                return false;
+            }
+
+            try
+            {
+                checked
+                {
+                    emus = suffix.ToLowerInvariant() switch
+                    {
+                        "emu" => (long)Math.Round(value, MidpointRounding.AwayFromZero),
+                        "in" => InchesToEmu(value),
+                        "cm" => CentimetersToEmu(value),
+                        "pt" => PointsToEmu(value),
+                        "px" => PixelsToEmu(value),
+                        _ => 0
+                    };
+                }
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
+
             return emus >= 0;
         }
 

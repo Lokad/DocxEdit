@@ -20,19 +20,19 @@ internal sealed class OoxmlPackage
     /// <summary>Main document part name. Never null: <see cref="Load"/> throws when the package has no main document.</summary>
     public string MainDocumentPartName { get; }
 
-    // Ownership: for seekable input the archive reads `input` directly and the
-    // ZipArchive owns it unless LeaveInputOpen is set. For non-seekable input a
-    // seekable copy is made; the archive wraps the copy (never the input), the copy
-    // is always disposed here, and `input` is disposed only when LeaveInputOpen
-    // is false. Every part is buffered to memory, so nothing borrows the streams
-    // after Load returns.
+    // Ownership matrix: Load accepts input ownership at entry (after null/readable
+    // validation). The input is disposed on every exit - success, load failure,
+    // quota failure, or cancellation - if and only if LeaveInputOpen is false;
+    // otherwise it is left open. For non-seekable input a seekable copy is made;
+    // the archive wraps the copy (never the input) and the copy is always
+    // disposed here. Every part is buffered to memory, so nothing borrows the
+    // streams after Load returns.
     public static OoxmlPackage Load(
         Stream input,
         OoxmlPackageOptions options,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        ArgumentNullException.ThrowIfNull(options);
         if (!input.CanRead)
         {
             throw new ArgumentException("Input stream must be readable.", nameof(input));
@@ -41,31 +41,27 @@ internal sealed class OoxmlPackage
         cancellationToken.ThrowIfCancellationRequested();
         Stream archiveStream = input;
         MemoryStream? copy = null;
-        if (!input.CanSeek)
-        {
-            copy = new MemoryStream();
-            CopyTo(input, copy, options.MaxUncompressedBytes, cancellationToken);
-            copy.Position = 0;
-            archiveStream = copy;
-        }
 
         try
         {
-            using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read, leaveOpen: options.LeaveInputOpen || copy is not null);
+            if (!input.CanSeek)
+            {
+                copy = new MemoryStream();
+                CopyTo(input, copy, options.MaxUncompressedBytes, cancellationToken);
+                copy.Position = 0;
+                archiveStream = copy;
+            }
+
+            using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read, leaveOpen: true);
             if (archive.Entries.Count > options.MaxZipEntries)
             {
                 throw new InvalidDataException($"OOXML package has too many ZIP entries: {archive.Entries.Count}.");
             }
 
-            ZipArchiveEntry contentTypesEntry = archive.GetEntry("[Content_Types].xml")
-                ?? throw new InvalidDataException("OOXML package is missing [Content_Types].xml.");
-
-            using Stream contentTypesStream = contentTypesEntry.Open();
-            OoxmlContentTypes contentTypes = OoxmlContentTypes.Parse(contentTypesStream, cancellationToken);
-
-            long totalBytes = 0;
-            var parts = new Dictionary<string, OoxmlPart>(StringComparer.OrdinalIgnoreCase);
-
+            // Pass 1: declared sizes, totals, and duplicates from entry metadata
+            // alone, before any part content is read or parsed.
+            long declaredTotalBytes = 0;
+            var seenPartNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -82,27 +78,65 @@ internal sealed class OoxmlPackage
 
                 checked
                 {
-                    totalBytes += entry.Length;
+                    declaredTotalBytes += entry.Length;
                 }
 
-                if (totalBytes > options.MaxUncompressedBytes)
+                if (declaredTotalBytes > options.MaxUncompressedBytes)
                 {
                     throw new InvalidDataException("OOXML package exceeds the maximum supported uncompressed size.");
                 }
 
-                if (parts.ContainsKey(partName))
+                if (!seenPartNames.Add(partName))
                 {
                     throw new InvalidDataException($"OOXML package contains duplicate part '{partName}'.");
                 }
+            }
 
+            ZipArchiveEntry contentTypesEntry = archive.GetEntry("[Content_Types].xml")
+                ?? throw new InvalidDataException("OOXML package is missing [Content_Types].xml.");
+
+            OoxmlContentTypes contentTypes;
+            using (Stream contentTypesStream = contentTypesEntry.Open())
+            using (var contentTypesBuffer = new MemoryStream())
+            {
+                CopyTo(contentTypesStream, contentTypesBuffer, options.MaxSinglePartBytes, cancellationToken);
+                contentTypesBuffer.Position = 0;
+                contentTypes = OoxmlContentTypes.Parse(contentTypesBuffer, cancellationToken);
+            }
+
+            // Pass 2: buffer every part through bounded copies while enforcing
+            // the actual (not just declared) total size.
+            long actualTotalBytes = 0;
+            var parts = new Dictionary<string, OoxmlPart>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (ZipArchiveEntry entry in archive.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entry.FullName.EndsWith('/'))
+                {
+                    continue;
+                }
+
+                string partName = OoxmlPath.NormalizeZipEntryName(entry.FullName);
                 using Stream entryStream = entry.Open();
                 using var memory = new MemoryStream(entry.Length > int.MaxValue ? 0 : (int)entry.Length);
                 CopyTo(entryStream, memory, options.MaxSinglePartBytes, cancellationToken);
+                byte[] partBytes = memory.ToArray();
+
+                checked
+                {
+                    actualTotalBytes += partBytes.Length;
+                }
+
+                if (actualTotalBytes > options.MaxUncompressedBytes)
+                {
+                    throw new InvalidDataException("OOXML package exceeds the maximum supported uncompressed size.");
+                }
 
                 string? contentType = partName == "/[Content_Types].xml"
                     ? OoxmlContentTypeNames.Xml
                     : contentTypes.GetContentType(partName);
-                parts[partName] = new OoxmlPart(partName, entry.FullName, contentType, memory.ToArray());
+                parts[partName] = new OoxmlPart(partName, entry.FullName, contentType, partBytes);
             }
 
             if (!parts.ContainsKey("/[Content_Types].xml"))
@@ -136,7 +170,7 @@ internal sealed class OoxmlPackage
         finally
         {
             copy?.Dispose();
-            if (!options.LeaveInputOpen && archiveStream != input)
+            if (!options.LeaveInputOpen)
             {
                 input.Dispose();
             }
@@ -405,7 +439,7 @@ internal sealed class OoxmlPackage
         foreach (OoxmlPart relationshipPart in parts.Values.Where(part => part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string sourcePartName = GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+            string sourcePartName = OoxmlPath.GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
             using Stream stream = relationshipPart.OpenRead();
             foreach (OoxmlRelationship relationship in ParseRelationships(stream, sourcePartName, cancellationToken))
             {
@@ -427,26 +461,6 @@ internal sealed class OoxmlPackage
         {
             throw new InvalidDataException($"Main document part '{mainDocumentPart.Name}' is not a WordprocessingML document.");
         }
-    }
-
-    private static string GetSourcePartNameFromRelationshipPartName(string relationshipPartName)
-    {
-        string normalized = OoxmlPath.NormalizePartName(relationshipPartName);
-        if (normalized == "/_rels/.rels")
-        {
-            return "/";
-        }
-
-        const string relationshipMarker = "/_rels/";
-        int markerIndex = normalized.LastIndexOf(relationshipMarker, StringComparison.Ordinal);
-        if (markerIndex < 0 || !normalized.EndsWith(".rels", StringComparison.Ordinal))
-        {
-            throw new InvalidDataException($"Invalid relationship part name '{relationshipPartName}'.");
-        }
-
-        string directory = normalized[..markerIndex];
-        string fileName = normalized[(markerIndex + relationshipMarker.Length)..^".rels".Length];
-        return OoxmlPath.NormalizePartName($"{directory}/{fileName}");
     }
 
     private static void CopyTo(

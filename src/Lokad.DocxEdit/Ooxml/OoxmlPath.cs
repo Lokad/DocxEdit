@@ -117,5 +117,26 @@ internal static class OoxmlPath
         string fileName = normalized[(slash + 1)..];
         return $"{directory}_rels/{fileName}.rels";
     }
+
+    /// <summary>Maps a relationship part name back to its source part.</summary>
+    public static string GetSourcePartNameFromRelationshipPartName(string relationshipPartName)
+    {
+        string normalized = NormalizePartName(relationshipPartName);
+        if (normalized == "/_rels/.rels")
+        {
+            return "/";
+        }
+
+        const string relationshipMarker = "/_rels/";
+        int markerIndex = normalized.LastIndexOf(relationshipMarker, StringComparison.Ordinal);
+        if (markerIndex < 0 || !normalized.EndsWith(".rels", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Invalid relationship part name '{relationshipPartName}'.");
+        }
+
+        string directory = normalized[..markerIndex];
+        string fileName = normalized[(markerIndex + relationshipMarker.Length)..^".rels".Length];
+        return NormalizePartName($"{directory}/{fileName}");
+    }
 }
 

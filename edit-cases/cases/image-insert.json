@@ -7,7 +7,7 @@
     ]
   },
   "assets": {
-    "chart.png": "public-chart-bytes"
+    "chart.png": "base64:iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAAAAAAAAAAAAAElEQVQAAAAAAAAAAElFTkQAAAAA"
   },
   "patch": [
     "docxpatch 1",
