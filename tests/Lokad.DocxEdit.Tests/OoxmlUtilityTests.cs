@@ -1,6 +1,8 @@
 using System.IO.Compression;
 using System.Text;
 
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 public static class OoxmlUtilityTests
@@ -139,7 +141,19 @@ public static class OoxmlUtilityTests
             out string? contentTypeHint,
             out string? fileNameHint)
         {
-            stream = new MemoryStream(Encoding.UTF8.GetBytes("new-png"));
+            // Minimal structurally valid PNG: signature, IHDR, empty IDAT, IEND.
+            byte[] bytes =
+            [
+                0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x03,
+                0x08, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x44, 0x41,
+                0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60,
+                0x82
+            ];
+            stream = new MemoryStream(bytes, writable: false);
             contentTypeHint = "image/png";
             fileNameHint = "new.png";
             return true;
@@ -158,24 +172,7 @@ public static class OoxmlUtilityTests
         return stream;
     }
 
-    private static void AddEntry(ZipArchive archive, string name, string text)
-    {
-        ZipArchiveEntry entry = archive.CreateEntry(name);
-        using Stream stream = entry.Open();
-        byte[] bytes = Encoding.UTF8.GetBytes(text);
-        stream.Write(bytes, 0, bytes.Length);
-    }
 
-    private static string ReadEntry(MemoryStream docx, string entryName)
-    {
-        docx.Position = 0;
-        using var archive = new ZipArchive(docx, ZipArchiveMode.Read, leaveOpen: true);
-        ZipArchiveEntry entry = archive.GetEntry(entryName)
-            ?? throw new InvalidDataException($"Missing {entryName}.");
-        using Stream stream = entry.Open();
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        return reader.ReadToEnd();
-    }
 
     private static bool HasEntry(MemoryStream docx, string entryName)
     {

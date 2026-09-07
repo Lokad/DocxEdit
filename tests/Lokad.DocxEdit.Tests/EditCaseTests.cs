@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 // Serializes with CliTests: both redirect the process-wide Console.
@@ -34,21 +36,6 @@ public static class EditCaseTests
         }
     }
 
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Lokad.DocxEdit.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root.");
-    }
 
     private static string GetManifestText(JsonElement value)
     {
@@ -139,13 +126,6 @@ public static class EditCaseTests
         }
     }
 
-    private static void AddEntry(ZipArchive archive, string name, string text)
-    {
-        ZipArchiveEntry entry = archive.CreateEntry(name);
-        using Stream stream = entry.Open();
-        byte[] bytes = Encoding.UTF8.GetBytes(text);
-        stream.Write(bytes, 0, bytes.Length);
-    }
     [Theory]
     [MemberData(nameof(EditCases))]
     public static void EditCaseApplies(string caseId)
@@ -179,7 +159,7 @@ public static class EditCaseTests
         string footerXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("footerXml", out JsonElement footerValue) ? GetManifestText(footerValue) : string.Empty;
         string stylesXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("stylesXml", out JsonElement stylesValue) ? GetManifestText(stylesValue) : string.Empty;
         Assert.True(!string.IsNullOrWhiteSpace(fixture) || !string.IsNullOrWhiteSpace(bodyXml), "Case " + manifestId + " must define input.bodyXml or input.fixture.");
-        using CliTests.TempDirectory temp = CliTests.TempDirectory.Create();
+        using TempDirectory temp = TempDirectory.Create();
         string inputPath = Path.Combine(temp.Path, "input.docx");
         string patchPath = Path.Combine(temp.Path, "edit.docxpatch");
         string outputPath = Path.Combine(temp.Path, "output.docx");
@@ -191,7 +171,16 @@ public static class EditCaseTests
             foreach (JsonProperty asset in assets.EnumerateObject())
             {
                 string assetPath = Path.Combine(assetDir, asset.Name);
-                File.WriteAllText(assetPath, asset.Value.GetString() ?? string.Empty, Encoding.UTF8);
+                string assetText = asset.Value.GetString() ?? string.Empty;
+                if (assetText.StartsWith("base64:", StringComparison.Ordinal))
+                {
+                    File.WriteAllBytes(assetPath, Convert.FromBase64String(assetText["base64:".Length..]));
+                }
+                else
+                {
+                    File.WriteAllText(assetPath, assetText, Encoding.UTF8);
+                }
+
                 patchText = patchText.Replace("{{asset:" + asset.Name + "}}", assetPath);
             }
         }
@@ -314,7 +303,7 @@ public static class EditCaseTests
 
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("allStoryParagraphs", out JsonElement allStoryParagraphs))
         {
-            CliTests.CliResult allStoryRead = CliTests.RunCli("read", outputPath, "--all-stories", "--json");
+            CliTests.CliResult allStoryRead = CliTests.RunCli("read", outputPath, "--headers-footers", "--json");
             Assert.True(allStoryRead.ExitCode == 0, "Case " + manifestId + " all-story readback failed.");
             using JsonDocument allStoryJson = JsonDocument.Parse(allStoryRead.Output);
             AssertStringArraysEqual(manifestId, "All-story paragraphs", allStoryParagraphs.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), allStoryJson.RootElement.GetProperty("Paragraphs").EnumerateArray().Select(item => item.GetProperty("Text").GetString() ?? string.Empty).ToList());

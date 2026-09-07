@@ -1,6 +1,8 @@
 using System.IO.Compression;
 using System.Text;
 
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 public static class XmlValueTests
@@ -120,13 +122,6 @@ public static class XmlValueTests
         return stream;
     }
 
-    private static void AddEntry(ZipArchive archive, string name, string text)
-    {
-        ZipArchiveEntry entry = archive.CreateEntry(name);
-        using Stream stream = entry.Open();
-        byte[] bytes = Encoding.UTF8.GetBytes(text);
-        stream.Write(bytes, 0, bytes.Length);
-    }
 
     private static string ContentTypesXml()
     {
