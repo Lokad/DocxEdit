@@ -3,6 +3,7 @@ using Lokad.DocxEdit.Ooxml;
 using Lokad.DocxEdit.Model;
 using Lokad.DocxEdit.Rendering;
 using System.Xml;
+using System.Text;
 
 namespace Lokad.DocxEdit;
 
@@ -32,7 +33,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxReadResult
@@ -42,7 +43,7 @@ public sealed class DocxEditor
             };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxReadResult
             {
@@ -53,24 +54,78 @@ public sealed class DocxEditor
             };
         }
 
+        DocxDocumentModel redacted = ApplyMaxTextToReadModel(model, options.MaxText);
+        if (!TryUnsupportedScan(package, options.IncludeHeadersFooters, cancellationToken, out IReadOnlyList<DocxDiagnostic>? readUnsupported, out IReadOnlyList<DocxDiagnostic> readUnsupportedFailure))
+        {
+            return new DocxReadResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(readUnsupportedFailure).ToArray(),
+                PartNames = SortedPartNames(package),
+                MainDocumentPartName = package.MainDocumentPartName
+            };
+        }
+
         return new DocxReadResult
         {
             Success = true,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters || options.IncludeAllStories, cancellationToken))
+                .Concat(readUnsupported)
                 .ToArray(),
             PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
-            Text = TextRenderers.RenderRead(model, options.MaxText),
-            Paragraphs = model.Paragraphs,
-            Tables = model.Tables,
-            Images = model.Images,
-            Sections = model.Sections,
-            Bookmarks = model.Bookmarks,
-            ContentControls = model.ContentControls,
-            Fields = model.Fields,
-            Hyperlinks = model.Hyperlinks
+            Text = TextRenderers.RenderRead(redacted, options.MaxText),
+            Paragraphs = redacted.Paragraphs,
+            Tables = redacted.Tables,
+            Images = redacted.Images,
+            Sections = redacted.Sections,
+            Bookmarks = redacted.Bookmarks,
+            ContentControls = redacted.ContentControls,
+            Fields = redacted.Fields,
+            Hyperlinks = redacted.Hyperlinks
         };
+    }
+
+    /// <summary>
+    /// Applies <c>MaxText</c> to per-item body text in a scanned model.
+    /// Contract: paragraph/run/cell text, field cached results, and table/image
+    /// captions/descriptions/titles are truncated (0 drops); IDs, counts, style
+    /// IDs/names, bookmark names, content-control tags/aliases, field codes/kinds,
+    /// hyperlink URIs/anchors, authors, and revision IDs are retained as
+    /// structural metadata. Length/count properties keep full-text values.
+    /// </summary>
+    private static DocxDocumentModel ApplyMaxTextToReadModel(DocxDocumentModel model, int maxText)
+    {
+        IReadOnlyList<DocxParagraphInfo> paragraphs = model.Paragraphs
+            .Select(paragraph => paragraph with
+            {
+                Text = TextRenderers.Truncate(paragraph.Text, maxText),
+                Runs = paragraph.Runs
+                    .Select(run => run with { Text = TextRenderers.Truncate(run.Text, maxText) })
+                    .ToArray()
+            })
+            .ToArray();
+        IReadOnlyList<DocxTableInfo> tables = model.Tables
+            .Select(table => table with
+            {
+                Caption = table.Caption is null ? null : TextRenderers.Truncate(table.Caption, maxText),
+                Description = table.Description is null ? null : TextRenderers.Truncate(table.Description, maxText),
+                Cells = table.Cells
+                    .Select(cell => cell with { Text = TextRenderers.Truncate(cell.Text, maxText) })
+                    .ToArray()
+            })
+            .ToArray();
+        IReadOnlyList<DocxFieldInfo> fields = model.Fields
+            .Select(field => field with { CachedResultText = TextRenderers.Truncate(field.CachedResultText, maxText) })
+            .ToArray();
+        IReadOnlyList<DocxImageInfo> images = model.Images
+            .Select(image => image with
+            {
+                Description = image.Description is null ? null : TextRenderers.Truncate(image.Description, maxText),
+                Title = image.Title is null ? null : TextRenderers.Truncate(image.Title, maxText)
+            })
+            .ToArray();
+        return new DocxDocumentModel(paragraphs, tables, images, model.Sections, model.Bookmarks, model.ContentControls, fields, model.Hyperlinks);
     }
 
     /// <summary>Outlines a document. Uses default options and no cancellation.</summary>
@@ -94,7 +149,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxOutlineResult { Success = false, Diagnostics = diagnostics };
@@ -111,15 +166,26 @@ public sealed class DocxEditor
             };
         }
 
+        if (!TryUnsupportedScan(package, options.IncludeHeadersFooters, cancellationToken, out IReadOnlyList<DocxDiagnostic>? outlineUnsupported, out IReadOnlyList<DocxDiagnostic> outlineUnsupportedFailure))
+        {
+            return new DocxOutlineResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(outlineUnsupportedFailure).ToArray(),
+                PartNames = SortedPartNames(package),
+                MainDocumentPartName = package.MainDocumentPartName
+            };
+        }
+
         return new DocxOutlineResult
         {
             Success = true,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
+                .Concat(outlineUnsupported)
                 .ToArray(),
             PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
-            Lines = TextRenderers.RenderOutline(model)
+            Items = TextRenderers.BuildOutline(model, options.MaxText)
         };
     }
 
@@ -146,7 +212,7 @@ public sealed class DocxEditor
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxFindResult { Success = false, Diagnostics = diagnostics, Query = query };
@@ -162,15 +228,31 @@ public sealed class DocxEditor
             };
         }
 
+        if (!TryUnsupportedScan(package, options.IncludeHeadersFooters, cancellationToken, out IReadOnlyList<DocxDiagnostic>? findUnsupported, out IReadOnlyList<DocxDiagnostic> findUnsupportedFailure))
+        {
+            return new DocxFindResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(findUnsupportedFailure).ToArray(),
+                Query = query
+            };
+        }
+
         return new DocxFindResult
         {
             Success = true,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
+                .Concat(findUnsupported)
                 .ToArray(),
             Query = query,
             Matches = TextRenderers.Find(model, query, options.MaxText)
         };
+    }
+
+    /// <summary>Whether a dump/context target ID addresses a header or footer story, which requires scanning those parts.</summary>
+    private static bool TargetRequestsHeadersFooters(string targetId)
+    {
+        return DocxTargetId.TryParse(targetId, out DocxTargetId parsed) && parsed.Story != 'M';
     }
 
     /// <summary>Dumps one target. Uses default options and no cancellation.</summary>
@@ -196,13 +278,13 @@ public sealed class DocxEditor
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxDumpResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: false, textView: options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: TargetRequestsHeadersFooters(targetId), textView: options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxDumpResult
             {
@@ -222,15 +304,40 @@ public sealed class DocxEditor
             };
         }
 
+        if (!TryUnsupportedScan(package, includeHeadersFooters: TargetRequestsHeadersFooters(targetId), cancellationToken, out IReadOnlyList<DocxDiagnostic>? dumpUnsupported, out IReadOnlyList<DocxDiagnostic> dumpUnsupportedFailure))
+        {
+            return new DocxDumpResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(dumpUnsupportedFailure).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        string? text = TextRenderers.Dump(model, changes, targetId, options.IncludeRuns, options.MaxText);
+        IReadOnlyList<DocxDumpRunInfo> runs = options.IncludeRuns ? TextRenderers.DumpRuns(model, targetId, options.MaxText) : [];
+        if (text is null)
+        {
+            return new DocxDumpResult
+            {
+                Success = false,
+                Diagnostics = diagnostics
+                    .Concat(dumpUnsupported)
+                    .Append(new DocxDiagnostic(DocxSeverity.Error, "E1201", $"Target '{targetId}' was not found.") with { TargetId = targetId })
+                    .ToArray(),
+                TargetId = targetId
+            };
+        }
+
         return new DocxDumpResult
         {
             Success = true,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
+                .Concat(dumpUnsupported)
                 .ToArray(),
             TargetId = targetId,
-            Text = TextRenderers.Dump(model, changes, targetId, options.IncludeRuns, options.MaxText),
-            Runs = options.IncludeRuns ? TextRenderers.DumpRuns(model, targetId, options.MaxText) : []
+            Text = text,
+            Runs = runs
         };
     }
 
@@ -257,13 +364,13 @@ public sealed class DocxEditor
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxContextResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, (options.IncludeHeadersFooters || TargetRequestsHeadersFooters(targetId)), options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxContextResult
             {
@@ -285,13 +392,23 @@ public sealed class DocxEditor
 
         IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model, changes, targetId, options.Radius, options.MaxText);
         IReadOnlyList<DocxDiagnostic> contextDiagnostics = items.Count == 0
-            ? [new DocxDiagnostic(DocxSeverity.Error, "E2001", $"Target '{targetId}' was not found.") with { TargetId = targetId }]
+            ? [new DocxDiagnostic(DocxSeverity.Error, "E1201", $"Target '{targetId}' was not found.") with { TargetId = targetId }]
             : [];
+        if (!TryUnsupportedScan(package, (options.IncludeHeadersFooters || TargetRequestsHeadersFooters(targetId)), cancellationToken, out IReadOnlyList<DocxDiagnostic>? contextUnsupported, out IReadOnlyList<DocxDiagnostic> contextUnsupportedFailure))
+        {
+            return new DocxContextResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(contextUnsupportedFailure).ToArray(),
+                TargetId = targetId
+            };
+        }
+
         return new DocxContextResult
         {
             Success = items.Count > 0,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, options.IncludeHeadersFooters, cancellationToken))
+                .Concat(contextUnsupported)
                 .Concat(contextDiagnostics)
                 .ToArray(),
             TargetId = targetId,
@@ -321,7 +438,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxStylesResult { Success = false, Diagnostics = diagnostics };
@@ -365,7 +482,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxMediaResult { Success = false, Diagnostics = diagnostics };
@@ -380,11 +497,16 @@ public sealed class DocxEditor
             };
         }
 
+        if (!TryUnsupportedScan(package, includeHeadersFooters: false, cancellationToken, out IReadOnlyList<DocxDiagnostic>? mediaUnsupported, out IReadOnlyList<DocxDiagnostic> mediaUnsupportedFailure))
+        {
+            return new DocxMediaResult { Success = false, Diagnostics = diagnostics.Concat(mediaUnsupportedFailure).ToArray() };
+        }
+
         return new DocxMediaResult
         {
             Success = true,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
+                .Concat(mediaUnsupported)
                 .ToArray(),
             Images = model.Images
         };
@@ -411,7 +533,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxMediaExtractResult { Success = false, Diagnostics = diagnostics };
@@ -439,11 +561,16 @@ public sealed class DocxEditor
             files.Add(new DocxMediaFile(image.Id, image.PartName, $"{image.Id.ToWireValue()}-{Path.GetFileName(image.PartName)}", part.Bytes.ToArray()));
         }
 
+        if (!TryUnsupportedScan(package, includeHeadersFooters: false, cancellationToken, out IReadOnlyList<DocxDiagnostic>? extractUnsupported, out IReadOnlyList<DocxDiagnostic> extractUnsupportedFailure))
+        {
+            return new DocxMediaExtractResult { Success = false, Diagnostics = diagnostics.Concat(extractUnsupportedFailure).ToArray() };
+        }
+
         return new DocxMediaExtractResult
         {
             Success = true,
             Diagnostics = diagnostics
-                .Concat(DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters: false, cancellationToken))
+                .Concat(extractUnsupported)
                 .ToArray(),
             Files = files
         };
@@ -470,7 +597,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxValidateResult { Success = false, Diagnostics = diagnostics, Profile = options.Profile };
@@ -543,7 +670,7 @@ public sealed class DocxEditor
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
         {
             return new DocxChangesResult { Success = false, Diagnostics = diagnostics };
@@ -620,32 +747,49 @@ public sealed class DocxEditor
         }
     }
 
-    /// <summary>Parses a patch. Uses default options and no cancellation.</summary>
+    /// <summary>Parses a patch. Uses no cancellation.</summary>
     public DocxPatch ParsePatch(
         TextReader patchReader)
     {
-        return ParsePatch(patchReader, new DocxPatchParseOptions(), CancellationToken.None);
+        return ParsePatch(patchReader, CancellationToken.None);
     }
 
-    /// <summary>Parses a patch. Uses no cancellation.</summary>
-    public DocxPatch ParsePatch(
-        TextReader patchReader, DocxPatchParseOptions options)
-    {
-        return ParsePatch(patchReader, options, CancellationToken.None);
-    }
-
-    /// <summary>Parses patch text with explicit options and cancellation.</summary>
+    /// <summary>Parses patch text with explicit cancellation.</summary>
     public DocxPatch ParsePatch(
         TextReader patchReader,
-        DocxPatchParseOptions options,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(patchReader);
-        _ = options;
+        return ParsePatch(patchReader, new DocxEditOptions().MaxPatchChars, cancellationToken);
+    }
+
+    private static DocxPatch ParsePatch(
+        TextReader patchReader,
+        int maxPatchChars,
+        CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
-        string text = patchReader.ReadToEnd();
+        var builder = new StringBuilder();
+        var buffer = new char[8192];
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int read = patchReader.Read(buffer, 0, buffer.Length);
+            if (read == 0)
+            {
+                break;
+            }
+
+            if ((long)builder.Length + read > maxPatchChars)
+            {
+                return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, "E2014", $"Patch exceeds the maximum supported size of {maxPatchChars} characters.")]);
+            }
+
+            builder.Append(buffer, 0, read);
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
-        return DocxPatchParser.Parse(text);
+        return DocxPatchParser.Parse(builder.ToString());
     }
 
     /// <summary>Dry-runs a patch. Uses default options and no cancellation.</summary>
@@ -672,43 +816,58 @@ public sealed class DocxEditor
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(patchReader);
 
-        DocxPatch patch = ParsePatch(patchReader, new DocxPatchParseOptions(), cancellationToken);
-        if (!patch.Success)
+        // The patch reader stays caller-owned. The input is disposed on every
+        // exit below if and only if LeaveInputOpen is false (the loader also
+        // disposes it on its own paths; disposal is idempotent).
+        try
         {
-            return new DocxCheckResult { Success = false, Diagnostics = patch.Diagnostics, Author = options.Author, TimestampUtc = options.TimestampUtc };
-        }
+            // Revision metadata is normalized once here; the engine and every result below share the effective values.
+            DocxEditOptions effectiveOptions = options.WithNormalizedRevisionMetadata();
+            DocxPatch patch = ParsePatch(patchReader, options.MaxPatchChars, cancellationToken);
+            if (!patch.Success)
+            {
+                return new DocxCheckResult { Success = false, Diagnostics = patch.Diagnostics, Author = effectiveOptions.Author, TimestampUtc = effectiveOptions.TimestampUtc };
+            }
 
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        if (package is null)
-        {
+            OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+            if (package is null)
+            {
+                return new DocxCheckResult
+                {
+                    Success = false,
+                    Diagnostics = diagnostics,
+                    Author = effectiveOptions.Author,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
+            }
+
+            if (!TryDocumentOperation(() => DocxPatchEngine.Check(package, patch, effectiveOptions, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
+            {
+                return new DocxCheckResult
+                {
+                    Success = false,
+                    Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
+                    Author = effectiveOptions.Author,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
+            }
+
             return new DocxCheckResult
             {
-                Success = false,
-                Diagnostics = diagnostics,
-                Author = options.Author,
-                TimestampUtc = options.TimestampUtc
+                Success = execution.Success,
+                Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
+                Operations = execution.Reports,
+                    Author = effectiveOptions.Author,
+                    TimestampUtc = effectiveOptions.TimestampUtc
             };
         }
-
-        if (!TryDocumentOperation(() => DocxPatchEngine.Check(package, patch, options, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
+        finally
         {
-            return new DocxCheckResult
+            if (!options.LeaveInputOpen)
             {
-                Success = false,
-                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
-                Author = options.Author,
-                TimestampUtc = options.TimestampUtc
-            };
+                input.Dispose();
+            }
         }
-
-        return new DocxCheckResult
-        {
-            Success = execution.Success,
-            Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
-            Operations = execution.Reports,
-                Author = options.Author,
-                TimestampUtc = options.TimestampUtc
-        };
     }
 
     /// <summary>Applies a patch. Uses default options and no cancellation.</summary>
@@ -741,55 +900,71 @@ public sealed class DocxEditor
             throw new ArgumentException("Output stream must be writable.", nameof(output));
         }
 
-        DocxPatch patch = ParsePatch(patchReader, new DocxPatchParseOptions(), cancellationToken);
-        if (!patch.Success)
+        // The patch reader stays caller-owned. Input and output are disposed on
+        // every exit below if and only if LeaveInputOpen/LeaveOutputOpen are
+        // false (parsers, the loader, and disposal itself are idempotent, so
+        // already-disposed streams are safe).
+        try
         {
-            return new DocxApplyResult { Success = false, Diagnostics = patch.Diagnostics, Author = options.Author, TimestampUtc = options.TimestampUtc };
-        }
+            // Revision metadata is normalized once here; the engine and every result below share the effective values.
+            DocxEditOptions effectiveOptions = options.WithNormalizedRevisionMetadata();
+            DocxPatch patch = ParsePatch(patchReader, options.MaxPatchChars, cancellationToken);
+            if (!patch.Success)
+            {
+                return new DocxApplyResult { Success = false, Diagnostics = patch.Diagnostics, Author = effectiveOptions.Author, TimestampUtc = effectiveOptions.TimestampUtc };
+            }
 
-        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
-        if (package is null)
-        {
-            return new DocxApplyResult { Success = false, Diagnostics = diagnostics, Author = options.Author, TimestampUtc = options.TimestampUtc };
-        }
+            OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+            if (package is null)
+            {
+                return new DocxApplyResult { Success = false, Diagnostics = diagnostics, Author = effectiveOptions.Author, TimestampUtc = effectiveOptions.TimestampUtc };
+            }
 
-        if (!TryDocumentOperation(() => DocxPatchEngine.Apply(package, patch, options, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
-        {
+            if (!TryDocumentOperation(() => DocxPatchEngine.Apply(package, patch, effectiveOptions, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
+            {
+                return new DocxApplyResult
+                {
+                    Success = false,
+                    Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
+                    Author = effectiveOptions.Author,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
+            }
+
+            if (!execution.Success)
+            {
+                return new DocxApplyResult
+                {
+                    Success = false,
+                    Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
+                    Operations = execution.Reports,
+                    Author = effectiveOptions.Author,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
+            }
+
+            package.Save(output, cancellationToken);
             return new DocxApplyResult
             {
-                Success = false,
-                Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
-                Author = options.Author,
-                TimestampUtc = options.TimestampUtc
-            };
-        }
-
-        if (!execution.Success)
-        {
-            return new DocxApplyResult
-            {
-                Success = false,
+                Success = diagnostics.All(d => d.Severity != DocxSeverity.Error),
                 Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
                 Operations = execution.Reports,
-                Author = options.Author,
-                TimestampUtc = options.TimestampUtc
+                    Author = effectiveOptions.Author,
+                    TimestampUtc = effectiveOptions.TimestampUtc
             };
         }
-
-        package.Save(output, cancellationToken);
-        if (!options.LeaveOutputOpen)
+        finally
         {
-            output.Dispose();
+            if (!options.LeaveInputOpen)
+            {
+                input.Dispose();
+            }
+
+            if (!options.LeaveOutputOpen)
+            {
+                output.Dispose();
+            }
         }
-
-        return new DocxApplyResult
-        {
-            Success = diagnostics.All(d => d.Severity != DocxSeverity.Error),
-            Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
-            Operations = execution.Reports,
-                Author = options.Author,
-                TimestampUtc = options.TimestampUtc
-        };
     }
 
     private static string[] SortedPartNames(OoxmlPackage package)
@@ -844,9 +1019,35 @@ public sealed class DocxEditor
         }
     }
 
+    // Only document-origin exception types convert into failed results;
+    // anything else still throws, so programmer errors are never masked here.
     private static bool IsExpectedDocumentException(Exception exception)
     {
         return exception is InvalidDataException or XmlException or IOException;
+    }
+
+    // Runs the unsupported-feature scan under the same document-exception
+    // boundary as the primary scan: document-origin failures become failed
+    // results with diagnostics, while programmer errors still throw.
+    private static bool TryUnsupportedScan(
+        OoxmlPackage package,
+        bool includeHeadersFooters,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> unsupported,
+        out IReadOnlyList<DocxDiagnostic> failure)
+    {
+        try
+        {
+            unsupported = DocxUnsupportedFeatureScanner.Scan(package, includeHeadersFooters, cancellationToken);
+            failure = [];
+            return true;
+        }
+        catch (Exception ex) when (IsExpectedDocumentException(ex))
+        {
+            unsupported = [];
+            failure = [ToDocumentDiagnostic(ex)];
+            return false;
+        }
     }
 
     private static DocxDiagnostic ToDocumentDiagnostic(Exception exception)
@@ -863,13 +1064,13 @@ public sealed class DocxEditor
         return new DocxDiagnostic(DocxSeverity.Error, "E0001", exception.Message);
     }
 
-    private static OoxmlPackageOptions ToPackageOptions(IHasPackageLimits options, bool allowMacroEnabledDocuments)
+    private static OoxmlPackageOptions ToPackageOptions(DocxPackageLimits quotas, bool leaveInputOpen, bool allowMacroEnabledDocuments)
     {
         return new OoxmlPackageOptions(
-            options.LeaveInputOpen,
-            options.MaxZipEntries,
-            options.MaxUncompressedBytes,
-            options.MaxSinglePartBytes,
+            leaveInputOpen,
+            quotas.MaxZipEntries,
+            quotas.MaxUncompressedBytes,
+            quotas.MaxSinglePartBytes,
             allowMacroEnabledDocuments);
     }
 }

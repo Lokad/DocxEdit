@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -97,6 +96,88 @@ public static class ProgramMain
         return path == "-" ? Console.OpenStandardOutput() : File.Create(path);
     }
 
+    private static StringComparison PathComparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    private static bool IsStandardStreamPath(string? path) => string.IsNullOrEmpty(path) || path == "-";
+
+    private static bool SameCliPath(string first, string second) =>
+        string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), PathComparison);
+
+    // Validates writer/reader path collisions before any writer is opened.
+    // Returns an InvalidUsage message, or null when the patch file set is safe.
+    // Writers are --output/--report/--diagnostics; readers are the input
+    // document, the patch file, and (for changes) the operation report.
+    private static string? ValidatePatchCollisions(
+        ParsedOptions options,
+        string inputPath,
+        string patchPath,
+        string? operationReportPath)
+    {
+        var readers = new List<(string Label, string Path)>();
+        if (!IsStandardStreamPath(inputPath))
+        {
+            readers.Add(("input document", inputPath));
+        }
+
+        if (!IsStandardStreamPath(patchPath))
+        {
+            readers.Add(("patch file", patchPath));
+        }
+
+        if (!IsStandardStreamPath(operationReportPath))
+        {
+            readers.Add(("operation report", operationReportPath!));
+        }
+
+        var writers = new List<(string Label, string? Path)>
+        {
+            ("--output", options.OutputPath),
+            ("--report", options.ReportPath),
+            ("--diagnostics", options.DiagnosticsPath)
+        };
+        var seenWriters = new List<(string Label, string Path)>();
+        foreach ((string label, string? path) in writers)
+        {
+            if (IsStandardStreamPath(path))
+            {
+                continue;
+            }
+
+            foreach ((string readerLabel, string readerPath) in readers)
+            {
+                if (SameCliPath(path!, readerPath))
+                {
+                    return $"Invalid {label} '{path}': it must differ from the {readerLabel} '{readerPath}'.";
+                }
+            }
+
+            foreach ((string seenLabel, string seenPath) in seenWriters)
+            {
+                if (SameCliPath(path!, seenPath))
+                {
+                    return $"Invalid {label} '{path}': it must differ from the {seenLabel} '{seenPath}'.";
+                }
+            }
+
+            seenWriters.Add((label, path!));
+        }
+
+        return null;
+    }
+
+    private static string? ValidateInputCollisions(ParsedOptions options, string inputPath)
+    {
+        if (!IsStandardStreamPath(options.DiagnosticsPath) &&
+            !IsStandardStreamPath(inputPath) &&
+            SameCliPath(options.DiagnosticsPath!, inputPath))
+        {
+            return $"Invalid --diagnostics '{options.DiagnosticsPath}': it must differ from the input document '{inputPath}'.";
+        }
+
+        return null;
+    }
+
     private static int RunInputCommand<T>(
         ParsedOptions options,
         string usage,
@@ -109,6 +190,11 @@ public static class ProgramMain
         if (options.Positionals.Count != 1)
         {
             return InvalidUsage(usage);
+        }
+
+        if (ValidateInputCollisions(options, options.Positionals[0]) is { } inputCollision)
+        {
+            return InvalidUsage(inputCollision);
         }
 
         using Stream input = OpenInputFile(options.Positionals[0]);
@@ -194,29 +280,66 @@ public static class ProgramMain
 
     private static int RunRead(ParsedOptions options)
     {
-        return RunInputCommand(
-            options,
-            CommandUsageError("read"),
-            input => new DocxEditor().Read(input, new DocxReadOptions
+        if (ValidateInputCollisions(options, options.Positionals[0]) is { } readCollision)
+        {
+            return InvalidUsage(readCollision);
+        }
+
+        using Stream input = OpenInputFile(options.Positionals[0]);
+        DocxReadResult result = new DocxEditor().Read(input, new DocxReadOptions
+        {
+            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+            TextView = options.TextView,
+            MaxText = options.MaxText ?? 4_000
+        });
+        bool summary = options.Flags.Contains("--summary");
+        WriteDiagnostics(options.DiagnosticsPath, result.Diagnostics, JsonOptionsFor(options));
+        if (!options.Json)
+        {
+            WriteErrorDiagnostics(result.Diagnostics, options.Strict);
+        }
+
+        if (options.Json)
+        {
+            WriteJson(summary ? BuildReadSummaryJson(result) : result, JsonOptionsFor(options));
+        }
+        else if (summary)
+        {
+            Console.Write(DocxTextRenderer.RenderReadSummary(result));
+        }
+        else
+        {
+            Console.Write(DocxTextRenderer.RenderRead(result));
+        }
+
+        return ExitCode(result.Success, result.Diagnostics, options.Strict);
+    }
+
+    private static object BuildReadSummaryJson(DocxReadResult result)
+    {
+        return new
+        {
+            result.Success,
+            result.Diagnostics,
+            result.PartNames,
+            result.MainDocumentPartName,
+            Counts = new
             {
-                IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-                IncludeAllStories = options.Flags.Contains("--all-stories"),
-                TextView = options.TextView,
-                MaxText = options.MaxText ?? 4_000
-            }),
-            static result => result.Diagnostics,
-            static result => result.Success,
-            result =>
-            {
-                if (options.Flags.Contains("--summary"))
-                {
-                    Console.Write(DocxTextRenderer.RenderReadSummary(result));
-                }
-                else
-                {
-                    Console.Write(DocxTextRenderer.RenderRead(result));
-                }
-            });
+                Paragraphs = result.Paragraphs.Count,
+                Tables = result.Tables.Count,
+                Images = result.Images.Count,
+                Sections = result.Sections.Count,
+                Bookmarks = result.Bookmarks.Count,
+                ContentControls = result.ContentControls.Count,
+                Fields = result.Fields.Count,
+                Hyperlinks = result.Hyperlinks.Count
+            },
+            Stories = result.Paragraphs
+                .GroupBy(static paragraph => paragraph.Story)
+                .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                .Select(static group => new { Story = group.Key, Paragraphs = group.Count() })
+                .ToArray()
+        };
     }
 
     private static int RunOutline(ParsedOptions options)
@@ -227,7 +350,8 @@ public static class ProgramMain
             input => new DocxEditor().Outline(input, new DocxOutlineOptions
             {
                 IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-                TextView = options.TextView
+                TextView = options.TextView,
+                MaxText = options.MaxText ?? 4_000
             }),
             static result => result.Diagnostics,
             static result => result.Success,
@@ -236,29 +360,33 @@ public static class ProgramMain
 
     private static int RunFind(ParsedOptions options)
     {
-        if (options.Positionals.Count != 2)
+        // Find takes document plus query, unlike the single-input commands, so it opens
+        // and finishes explicitly instead of routing through the one-positional helper. Positional
+        // arity itself is validated from the command catalog during parsing.
+        string query = options.Positionals[1];
+        if (ValidateInputCollisions(options, options.Positionals[0]) is { } findCollision)
         {
-            return InvalidUsage(CommandUsageError("find"));
+            return InvalidUsage(findCollision);
         }
 
-        string query = options.Positionals[1];
-        return RunInputCommand(
+        using Stream input = OpenInputFile(options.Positionals[0]);
+        DocxFindResult result = new DocxEditor().Find(input, query, new DocxFindOptions
+        {
+            IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
+            TextView = options.TextView,
+            MaxText = options.MaxText ?? 4_000
+        });
+        return FinishCommand(
             options,
-            CommandUsageError("find"),
-            input => new DocxEditor().Find(input, query, new DocxFindOptions
-            {
-                IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
-                TextView = options.TextView,
-                MaxText = options.MaxText ?? 4_000
-            }),
-            static result => result.Diagnostics,
-            static result => result.Success,
-            result => Console.Write(DocxTextRenderer.RenderFind(result)));
+            result,
+            static findResult => findResult.Diagnostics,
+            static findResult => findResult.Success,
+            findResult => Console.Write(DocxTextRenderer.RenderFind(findResult)));
     }
 
     private static int RunDump(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1 || options.Id is null)
+        if (options.Id is null)
         {
             return InvalidUsage(CommandUsageError("dump"));
         }
@@ -280,7 +408,7 @@ public static class ProgramMain
 
     private static int RunContext(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1 || options.Id is null)
+        if (options.Id is null)
         {
             return InvalidUsage(CommandUsageError("context"));
         }
@@ -314,12 +442,12 @@ public static class ProgramMain
 
     private static int RunMedia(ParsedOptions options)
     {
-        if (options.Positionals.Count != 1)
+        string inputPath = options.Positionals[0];
+        if (ValidateInputCollisions(options, inputPath) is { } mediaCollision)
         {
-            return InvalidUsage(CommandUsageError("media"));
+            return InvalidUsage(mediaCollision);
         }
 
-        string inputPath = options.Positionals[0];
         using Stream input = OpenInputFile(inputPath);
         if (options.ExtractPath is string extractDirectory)
         {
@@ -386,6 +514,12 @@ public static class ProgramMain
 
     private static int RunChanges(ParsedOptions options)
     {
+        if (options.Positionals.Count == 1 &&
+            ValidatePatchCollisions(options, options.Positionals[0], string.Empty, options.OperationReportPath) is { } changesCollision)
+        {
+            return InvalidUsage(changesCollision);
+        }
+
         return RunInputCommand(
             options,
             CommandUsageError("changes"),
@@ -402,6 +536,19 @@ public static class ProgramMain
 
     private static int RunCheck(ParsedOptions options)
     {
+        if (options.Positionals.Count == 2)
+        {
+            if (ValidatePatchCollisions(options, options.Positionals[0], options.Positionals[1], null) is { } checkCollision)
+            {
+                return InvalidUsage(checkCollision);
+            }
+
+            if (IsStandardStreamPath(options.Positionals[0]) && IsStandardStreamPath(options.Positionals[1]))
+            {
+                return InvalidUsage("Invalid input: the input document and the patch file cannot both use standard input ('-').");
+            }
+        }
+
         return RunPatchCommand(
             options,
             CommandUsageError("check"),
@@ -424,31 +571,96 @@ public static class ProgramMain
         }
 
         string outputPath = options.OutputPath;
-        return RunPatchCommand(
-            options,
-            CommandUsageError("apply"),
-            (input, patch) =>
+        string inputPath = options.Positionals[0];
+        string patchPath = options.Positionals[1];
+        if (ValidatePatchCollisions(options, inputPath, patchPath, null) is { } applyCollision)
+        {
+            return InvalidUsage(applyCollision);
+        }
+
+        if (IsStandardStreamPath(inputPath) && IsStandardStreamPath(patchPath))
+        {
+            return InvalidUsage("Invalid input: the input document and the patch file cannot both use standard input ('-').");
+        }
+
+        if (outputPath == "-")
+        {
+            if (options.Json)
             {
-                using Stream output = CreateOutputFile(outputPath);
-                return new DocxEditor().Apply(input, patch, output, ToEditOptions(options));
-            },
-            static result => result.Diagnostics,
-            static result => result.Success,
-            result =>
+                return InvalidUsage("Invalid --json with '--output -': JSON status cannot share standard output with document bytes. Use --report <path> to capture the operation report.");
+            }
+
+            // Binary stdout owns stdout exclusively: document bytes go to
+            // stdout while status and diagnostics go to stderr (or files), so
+            // the captured stream is exactly the package.
+            using Stream binaryInput = OpenInputFile(inputPath);
+            using TextReader binaryPatch = OpenPatchFile(patchPath);
+            DocxApplyResult binaryResult;
+            using (Stream binaryOutput = Console.OpenStandardOutput())
             {
-                Console.WriteLine($"{(result.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O})");
-                Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
-            },
-            result => WriteReport(options.ReportPath, result, JsonOptionsFor(options)));
+                binaryResult = new DocxEditor().Apply(binaryInput, binaryPatch, binaryOutput, ToEditOptions(options));
+            }
+
+            WriteReport(options.ReportPath, binaryResult, JsonOptionsFor(options));
+            WriteDiagnostics(options.DiagnosticsPath, binaryResult.Diagnostics, JsonOptionsFor(options));
+            WriteErrorDiagnostics(binaryResult.Diagnostics, options.Strict);
+            Console.Error.WriteLine($"{(binaryResult.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={binaryResult.Author} timestamp={binaryResult.TimestampUtc:O})");
+            Console.Error.Write(DocxTextRenderer.RenderOperationSummary(binaryResult.Operations));
+            return ExitCode(binaryResult.Success, binaryResult.Diagnostics, options.Strict);
+        }
+
+        // File outputs publish atomically: the edit lands in a temporary
+        // sibling and replaces the destination only after successful editing,
+        // so failed operations preserve any pre-existing destination file.
+        string fullDestination = Path.GetFullPath(outputPath);
+        string? directory = Path.GetDirectoryName(fullDestination);
+        string tempPath = Path.Combine(
+            directory ?? Directory.GetCurrentDirectory(),
+            Path.GetFileName(fullDestination) + ".tmp-" + Guid.NewGuid().ToString("N") + ".docxedit-tmp");
+        try
+        {
+            DocxApplyResult result;
+            using (Stream input = OpenInputFile(inputPath))
+            using (TextReader patch = OpenPatchFile(patchPath))
+            using (Stream tempOutput = File.Create(tempPath))
+            {
+                result = new DocxEditor().Apply(input, patch, tempOutput, ToEditOptions(options));
+            }
+
+            WriteReport(options.ReportPath, result, JsonOptionsFor(options));
+            if (result.Success)
+            {
+                File.Move(tempPath, fullDestination, overwrite: true);
+            }
+
+            return FinishCommand(
+                options,
+                result,
+                static applyResult => applyResult.Diagnostics,
+                static applyResult => applyResult.Success,
+                applyResult =>
+                {
+                    Console.WriteLine($"{(applyResult.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={applyResult.Author} timestamp={applyResult.TimestampUtc:O})");
+                    Console.Write(DocxTextRenderer.RenderOperationSummary(applyResult.Operations));
+                });
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     private static int RunCatalog(ParsedOptions options)
     {
-        if (options.Positionals.Count != 0)
-        {
-            return InvalidUsage(CommandUsageError("catalog"));
-        }
-
         if (options.Json)
         {
             WriteJson(DocxHelp.Catalog, JsonOptionsFor(options));
@@ -465,11 +677,6 @@ public static class ProgramMain
 
     private static int RunVersion(ParsedOptions options)
     {
-        if (options.Positionals.Count != 0)
-        {
-            return InvalidUsage(CommandUsageError("version"));
-        }
-
         string version = typeof(DocxEditor).Assembly.GetName().Version?.ToString() ?? "unknown";
         string framework = RuntimeInformation.FrameworkDescription;
         int operations = DocxHelp.Catalog.PatchOperations.Count;
@@ -882,7 +1089,6 @@ public static class ProgramMain
                         break;
                     case "--runs":
                     case "--headers-footers":
-                    case "--all-stories":
                     case "--summary":
                     case "--include-comment-text":
                         seenFlags.Add(arg);
@@ -1065,36 +1271,33 @@ public static class ProgramMain
                 }
             }
 
-            foreach (string seen in seenFlags.OrderBy(static flag => flag, StringComparer.Ordinal))
+            if (DocxHelp.TryGetCommand(command, out DocxCommandInfo commandInfo))
             {
-                if (!IsFlagAllowedForCommand(command, seen))
+                foreach (string seen in seenFlags.OrderBy(static flag => flag, StringComparer.Ordinal))
                 {
-                    return WithError(command, $"{seen} is not an option of the {command} command.");
-                }
-            }
-
-            static bool IsFlagAllowedForCommand(string commandName, string flag)
-            {
-                if (!DocxHelp.TryGetCommand(commandName, out DocxCommandInfo commandInfo))
-                {
-                    return true;
-                }
-
-                var allowed = new HashSet<string>(StringComparer.Ordinal);
-                foreach (Match match in Regex.Matches(commandInfo.Usage, "--[a-z][\\w-]*"))
-                {
-                    allowed.Add(match.Value);
-                }
-
-                foreach (DocxOptionInfo option in commandInfo.Options)
-                {
-                    foreach (Match match in Regex.Matches(option.Syntax, "--[a-z][\\w-]*"))
+                    if (!commandInfo.Options.Any(option => option.Flags.Contains(seen, StringComparer.Ordinal)))
                     {
-                        allowed.Add(match.Value);
+                        return WithError(command, $"{seen} is not an option of the {command} command.");
                     }
                 }
 
-                return allowed.Contains(flag);
+                if (positionals.Count < commandInfo.MinPositionals || positionals.Count > commandInfo.MaxPositionals)
+                {
+                    return WithError(command, ArityError(command, commandInfo, positionals.Count));
+                }
+            }
+
+            static string ArityError(string commandName, DocxCommandInfo info, int actual)
+            {
+                if (info.MinPositionals == info.MaxPositionals && info.MinPositionals == 1)
+                {
+                    return $"The {commandName} command expects exactly 1 positional argument; received {actual}.";
+                }
+
+                string expected = info.MinPositionals == info.MaxPositionals
+                    ? $"exactly {info.MinPositionals} positional arguments"
+                    : $"between {info.MinPositionals} and {info.MaxPositionals} positional arguments";
+                return $"The {commandName} command expects {expected}; received {actual}.";
             }
 
             if (diagnosticsPath == "-")

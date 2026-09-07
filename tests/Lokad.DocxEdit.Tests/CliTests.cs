@@ -4,6 +4,8 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text;
 
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 // Serializes with EditCaseTests: both redirect the process-wide Console.
@@ -375,7 +377,7 @@ public static class CliTests
         string patch = Path.Combine(temp.Path, "edit.docxpatch");
         string asset = Path.Combine(temp.Path, "chart.png");
         CreateDocx(input);
-        File.WriteAllText(asset, "new-png");
+        File.WriteAllBytes(asset, TestPngBytes());
         File.WriteAllText(patch, $"""
             docxpatch 1
 
@@ -390,7 +392,7 @@ public static class CliTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(output));
-        Assert.Equal("new-png", ReadEntry(output, "word/media/image2.png"));
+        Assert.Equal(TestPngBytes(), ReadEntryBytes(output, "word/media/image2.png"));
     }
 
     [Fact]
@@ -401,7 +403,7 @@ public static class CliTests
         string output = Path.Combine(temp.Path, "output.docx");
         string patch = Path.Combine(temp.Path, "edit.docxpatch");
         CreateDocx(input);
-        File.WriteAllText(Path.Combine(temp.Path, "sibling-chart.png"), "new-png");
+        File.WriteAllBytes(Path.Combine(temp.Path, "sibling-chart.png"), TestPngBytes());
         File.WriteAllText(patch, """
             docxpatch 1
 
@@ -416,7 +418,7 @@ public static class CliTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(output));
-        Assert.Equal("new-png", ReadEntry(output, "word/media/image2.png"));
+        Assert.Equal(TestPngBytes(), ReadEntryBytes(output, "word/media/image2.png"));
     }
 
     [Fact]
@@ -683,11 +685,92 @@ public static class CliTests
         CreateTextOnlyDocx(input);
         File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
 
-        CliResult result = RunCliOutOfProcess("apply", input, patch, "-o", "-");
+        RawCliResult result = RunCliOutOfProcessRaw(null, "apply", input, patch, "-o", "-");
 
         Assert.Equal(0, result.ExitCode);
-        Assert.StartsWith("PK", result.Output, StringComparison.Ordinal);
-        Assert.True(result.Output.Length > 100);
+        AssertStdoutIsExactlyOnePackage(result.Output);
+        using var stream = new MemoryStream(result.Output);
+        DocxReadResult read = new DocxEditor().Read(stream);
+        Assert.True(read.Success);
+        Assert.Contains("Margin", Assert.Single(read.Paragraphs).Text, StringComparison.Ordinal);
+        Assert.Contains("docxedit apply: OK", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliApplyBinaryStdoutRejectsJson()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        RawCliResult result = RunCliOutOfProcessRaw(null, "apply", input, patch, "-o", "-", "--json");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Empty(result.Output);
+        Assert.Contains("--json", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliApplyBinaryStdoutFailureKeepsStdoutClean()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nexpect-text Wrong guarded text\nfind Revenue\nwith Margin\nend\n");
+
+        RawCliResult result = RunCliOutOfProcessRaw(null, "apply", input, patch, "-o", "-");
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Empty(result.Output);
+        Assert.Contains("FAILED", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliApplyRejectsDocumentAndPatchStdin()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string output = Path.Combine(temp.Path, "output.docx");
+
+        CliResult result = RunCli("apply", "-", "-", "--output", output);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("standard input", result.Error, StringComparison.Ordinal);
+        Assert.False(File.Exists(output));
+    }
+
+    [Fact]
+    public static void CliCheckRejectsDocumentAndPatchStdin()
+    {
+        CliResult result = RunCli("check", "-", "-");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("standard input", result.Error, StringComparison.Ordinal);
+    }
+
+    private static void AssertStdoutIsExactlyOnePackage(byte[] output)
+    {
+        Assert.True(output.Length > 22, "Stdout holds no package bytes.");
+        Assert.Equal((byte)80, output[0]);
+        Assert.Equal((byte)75, output[1]);
+        int end = -1;
+        int scanFrom = Math.Max(0, output.Length - 22 - 65557);
+        for (int i = output.Length - 22; i >= scanFrom; i--)
+        {
+            if (output[i] == 0x50 && output[i + 1] == 0x4B && output[i + 2] == 0x05 && output[i + 3] == 0x06)
+            {
+                int commentLength = output[i + 20] | (output[i + 21] << 8);
+                if (i + 22 + commentLength == output.Length)
+                {
+                    end = i;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(end >= 0, "Stdout does not end at the ZIP end-of-central-directory record; trailing bytes follow the package.");
     }
 
     [Fact]
@@ -703,6 +786,136 @@ public static class CliTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("paragraphs count=", result.Output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public static void CliFindReturnsMatches()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+
+        CliResult result = RunCli("find", input, "Revenue");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("M.P0001", result.Output, StringComparison.Ordinal);
+        Assert.Contains("Revenue", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliFindNoHitsSucceedsWithEmptyOutput()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+
+        CliResult result = RunCli("find", input, "AbsentXYZ");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(string.IsNullOrWhiteSpace(result.Output));
+    }
+
+    [Fact]
+    public static void CliFindRequiresDocumentAndQuery()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+
+        CliResult missingQuery = RunCli("find", input);
+        CliResult missingBoth = RunCli("find");
+
+        Assert.Equal(2, missingQuery.ExitCode);
+        Assert.Contains("find", missingQuery.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, missingBoth.ExitCode);
+        Assert.Contains("find", missingBoth.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public static void CliFindRejectsExtraPositionals()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+
+        CliResult result = RunCli("find", input, "Revenue", "extra");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("expects exactly 2 positional arguments", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliReadRequiresExactlyOnePositional()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult result = RunCli("read", input, "extra");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("expects exactly 1 positional argument", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliCommandsRejectForeignOptions()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult readResult = RunCli("read", input, "--radius", "1");
+        CliResult dumpResult = RunCli("dump", input, "--id", "M.P0001", "--radius", "1");
+
+        Assert.Equal(2, readResult.ExitCode);
+        Assert.Contains("--radius is not an option of the read command.", readResult.Error, StringComparison.Ordinal);
+        Assert.Equal(2, dumpResult.ExitCode);
+        Assert.Contains("--radius is not an option of the dump command.", dumpResult.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliCommandsAcceptDocumentedOptions()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult read = RunCli("read", input, "--headers-footers", "--view", "markup", "--max-text", "10", "--json", "--compact");
+        CliResult dump = RunCli("dump", input, "--id", "M.P0001", "--runs");
+        CliResult context = RunCli("context", input, "--id", "M.P0001", "--radius", "2");
+
+        Assert.Equal(0, read.ExitCode);
+        Assert.Equal(0, dump.ExitCode);
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    [Fact]
+    public static void CliZeroPositionalCommandsRejectExtraPositionals()
+    {
+        CliResult catalog = RunCli("catalog", "extra");
+        CliResult version = RunCli("version", "extra");
+        CliResult check = RunCli("check", "onlyone");
+
+        Assert.Equal(2, catalog.ExitCode);
+        Assert.Contains("expects exactly 0 positional arguments", catalog.Error, StringComparison.Ordinal);
+        Assert.Equal(2, version.ExitCode);
+        Assert.Contains("expects exactly 0 positional arguments", version.Error, StringComparison.Ordinal);
+        Assert.Equal(2, check.ExitCode);
+        Assert.Contains("expects exactly 2 positional arguments", check.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliRemovedStoryAliasIsUnknown()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateDocx(input);
+
+        CliResult result = RunCli("read", input, "--all-stories");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Unknown option '--all-stories'.", result.Error, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public static void CliDumpJsonIncludesStructuredRuns()
@@ -865,6 +1078,44 @@ public static class CliTests
         }
     }
 
+    private static RawCliResult RunCliOutOfProcessRaw(byte[]? standardInput, params string[] args)
+    {
+        string repoRoot = FindRepoRoot();
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = repoRoot,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = standardInput is not null
+        };
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add("--project");
+        startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
+        startInfo.ArgumentList.Add("--");
+        foreach (string arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using Process process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start CLI process.");
+        if (standardInput is not null)
+        {
+            process.StandardInput.BaseStream.Write(standardInput, 0, standardInput.Length);
+            process.StandardInput.Close();
+        }
+
+        using var outputBuffer = new MemoryStream();
+        // Drain both streams concurrently: sequential reads deadlock once the
+        // child fills the pipe nobody is reading.
+        Task outputTask = process.StandardOutput.BaseStream.CopyToAsync(outputBuffer);
+        Task<string> errorTask = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        outputTask.GetAwaiter().GetResult();
+        string error = errorTask.GetAwaiter().GetResult();
+        return new RawCliResult(process.ExitCode, outputBuffer.ToArray(), error);
+    }
+
     private static CliResult RunCliOutOfProcess(params string[] args)
     {
         return RunCliOutOfProcessCore(null, args);
@@ -901,27 +1152,16 @@ public static class CliTests
             process.StandardInput.BaseStream.Write(standardInput, 0, standardInput.Length);
             process.StandardInput.Close();
         }
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
+        // Drain both streams concurrently: sequential ReadToEnd calls deadlock
+        // once the child fills the pipe nobody is reading.
+        Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> errorTask = process.StandardError.ReadToEndAsync();
         process.WaitForExit();
+        string output = outputTask.GetAwaiter().GetResult();
+        string error = errorTask.GetAwaiter().GetResult();
         return new CliResult(process.ExitCode, output, error);
     }
 
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Lokad.DocxEdit.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find repository root.");
-    }
 
     private static void CreateDocx(string path)
     {
@@ -1291,23 +1531,23 @@ public static class CliTests
             """);
     }
 
-    private static void AddEntry(ZipArchive archive, string name, string text)
-    {
-        ZipArchiveEntry entry = archive.CreateEntry(name);
-        using Stream stream = entry.Open();
-        byte[] bytes = Encoding.UTF8.GetBytes(text);
-        stream.Write(bytes, 0, bytes.Length);
-    }
 
-    private static string ReadEntry(string docxPath, string entryName)
+
+
+    private static byte[] TestPngBytes()
     {
-        using FileStream file = File.OpenRead(docxPath);
-        using var archive = new ZipArchive(file, ZipArchiveMode.Read);
-        ZipArchiveEntry entry = archive.GetEntry(entryName)
-            ?? throw new InvalidDataException($"Missing {entryName}.");
-        using Stream stream = entry.Open();
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        return reader.ReadToEnd();
+        // Minimal structurally valid PNG: signature, IHDR, empty IDAT, IEND.
+        return
+        [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x03,
+            0x08, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x44, 0x41,
+            0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60,
+            0x82
+        ];
     }
 
     [Fact]
@@ -1408,28 +1648,6 @@ public static class CliTests
 
     internal sealed record CliResult(int ExitCode, string Output, string Error);
 
-    internal sealed class TempDirectory : IDisposable
-    {
-        private TempDirectory(string path)
-        {
-            Path = path;
-        }
+    internal sealed record RawCliResult(int ExitCode, byte[] Output, string Error);
 
-        public string Path { get; }
-
-        public static TempDirectory Create()
-        {
-            string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "docxedit-tests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            return new TempDirectory(path);
-        }
-
-        public void Dispose()
-        {
-            if (Directory.Exists(Path))
-            {
-                Directory.Delete(Path, recursive: true);
-            }
-        }
-    }
 }

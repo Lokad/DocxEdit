@@ -43,6 +43,12 @@ public sealed record DocxCommandInfo
     /// <summary>Longer command description.</summary>
     public string Description { get; init; } = string.Empty;
 
+    /// <summary>Minimum positional arguments.</summary>
+    public int MinPositionals { get; init; }
+
+    /// <summary>Maximum positional arguments.</summary>
+    public int MaxPositionals { get; init; }
+
     /// <summary>Accepted flags and values.</summary>
     public IReadOnlyList<DocxOptionInfo> Options { get; init; } = [];
 
@@ -64,7 +70,11 @@ public sealed record DocxCommandInfo
 /// </summary>
 /// <param name="Syntax">Flag syntax as shown in usage.</param>
 /// <param name="Description">What the flag does.</param>
-public sealed record DocxOptionInfo(string Syntax, string Description);
+public sealed record DocxOptionInfo(string Syntax, string Description)
+{
+    /// <summary>Canonical accepted spellings, aliases included. Parse validation matches these exact strings; help and usage prose never affects parsing.</summary>
+    public required IReadOnlyList<string> Flags { get; init; }
+}
 
 /// <summary>
 /// One output field callers can rely on.
@@ -91,11 +101,17 @@ public sealed record DocxPatchOperationInfo
     /// <summary>Editing area group (for example <c>Tables</c>).</summary>
     public string Category { get; init; } = string.Empty;
 
-    /// <summary>Required patch fields.</summary>
+    /// <summary>Required patch fields: real field names, each required on every invocation.</summary>
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
 
-    /// <summary>Optional patch fields.</summary>
+    /// <summary>Optional patch fields: real field names.</summary>
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
+
+    /// <summary>Field groups of which at least one member is required. Every member is a real field name.</summary>
+    public IReadOnlyList<IReadOnlyList<string>> RequiredAlternatives { get; init; } = [];
+
+    /// <summary>Fields that may repeat; every occurrence is kept in file order. All other fields are last-value-wins.</summary>
+    public IReadOnlyList<string> RepeatableFields { get; init; } = [];
 
     /// <summary>What the operation does. Markdown-flavored; may contain inline code spans.</summary>
     public string Description { get; init; } = string.Empty;
@@ -116,12 +132,22 @@ public sealed record DocxPatchOperationInfo
     /// <summary>Renders a one-line summary of the operation.</summary>
     public string RenderSummary()
     {
-        string required = RequiredFields.Count == 0 ? string.Empty : string.Join("/", RequiredFields);
-        string optional = OptionalFields.Count == 0 ? string.Empty : $", optional {string.Join(", ", OptionalFields)}";
-        return string.IsNullOrWhiteSpace(required)
+        var required = new List<string>(RequiredFields.Select(MarkRepeatable));
+        var head = new List<string>();
+        if (required.Count != 0)
+        {
+            head.Add(string.Join("/", required));
+        }
+        head.AddRange(RequiredAlternatives.Select(group => string.Join("|", group)));
+        string requiredText = string.Join(" ", head);
+        string optional = OptionalFields.Count == 0 ? string.Empty : $", optional {string.Join(", ", OptionalFields.Select(MarkRepeatable))}";
+        return string.IsNullOrWhiteSpace(requiredText)
             ? $"{Name}{optional}"
-            : $"{Name} {required}{optional}";
+            : $"{Name} {requiredText}{optional}";
     }
+
+    private string MarkRepeatable(string field) =>
+        RepeatableFields.Contains(field, StringComparer.Ordinal) ? field + "+" : field;
 }
 
 /// <summary>
@@ -297,7 +323,7 @@ public static class DocxHelp
     {
         var builder = new StringBuilder();
         bool first = true;
-        foreach (string category in DocxPatchEngine.AllOperations.Select(registration => registration.Catalog.Category).Distinct())
+        foreach (string category in DocxPatchEngine.CatalogOperations.Select(static operation => operation.Category).Distinct())
         {
             if (!first)
             {
@@ -309,21 +335,37 @@ public static class DocxHelp
             builder.AppendLine();
             builder.AppendLine("| Operation | Required fields | Optional fields | Notes |");
             builder.AppendLine("| --- | --- | --- | --- |");
-            foreach (OperationRegistration registration in DocxPatchEngine.AllOperations.Where(registration => registration.Catalog.Category == category))
+            foreach (DocxPatchOperationInfo operation in DocxPatchEngine.CatalogOperations.Where(operation => operation.Category == category))
             {
-                var knownFields = new HashSet<string>(registration.AllowedFields, StringComparer.Ordinal);
-                string optional = RenderFieldDescriptors(registration.Catalog.OptionalFields, knownFields);
+                string optional = RenderOperationFields(operation, required: false);
                 string optionalCell = optional.Length == 0 ? "| " : optional + " | ";
-                builder.Append("| `").Append(registration.Name).Append("` | ")
-                    .Append(RenderFieldDescriptors(registration.Catalog.RequiredFields, knownFields)).Append(" | ")
+                builder.Append("| `").Append(operation.Name).Append("` | ")
+                    .Append(RenderOperationFields(operation, required: true)).Append(" | ")
                     .Append(optionalCell)
-                    .Append(EscapeMarkdownTableCell(registration.Catalog.Description))
+                    .Append(EscapeMarkdownTableCell(operation.Description))
                     .Append(" |")
                     .AppendLine();
             }
         }
 
         return builder.ToString();
+
+        static string RenderOperationFields(DocxPatchOperationInfo operation, bool required)
+        {
+            var tokens = (required ? operation.RequiredFields : operation.OptionalFields)
+                .Select(field => operation.RepeatableFields.Contains(field, StringComparer.Ordinal) ? field + "+" : field)
+                .ToList();
+            if (required)
+            {
+                tokens.AddRange(operation.RequiredAlternatives.Select(group => string.Join("|", group)));
+            }
+
+            var knownFields = new HashSet<string>(operation.RequiredFields
+                .Concat(operation.OptionalFields)
+                .Concat(operation.RepeatableFields)
+                .Concat(operation.RequiredAlternatives.SelectMany(group => group)), StringComparer.Ordinal);
+            return EscapeMarkdownTableCell(RenderFieldDescriptors(tokens, knownFields));
+        }
 
         static string RenderFieldDescriptors(IEnumerable<string> descriptors, HashSet<string> knownFields)
         {
@@ -502,21 +544,22 @@ public static class DocxHelp
                 new()
                 {
                     Name = "read",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "Produce an agent-friendly structural view of a .docx",
-                    Usage = "docxedit read input.docx [--summary] [--headers-footers] [--all-stories] [--view final|original|markup] [--max-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit read input.docx [--summary] [--headers-footers] [--view final|original|markup] [--max-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "Produce an agent-friendly structural view of a .docx.",
                     Options =
                     [
-                        new("--summary", "Print compact counts without broad document text"),
-                        new("--headers-footers", "Include header/footer stories"),
-                        new("--all-stories", "Include all modeled stories"),
-                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
-                        new("--max-text N", "Maximum text per rendered field"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--summary", "Print compact counts without broad document text") { Flags = ["--summary"] },
+                        new("--headers-footers", "Include header/footer stories") { Flags = ["--headers-footers"] },
+                        new("--view final|original|markup", "Text view for tracked insert/delete text") { Flags = ["--view"] },
+                        new("--max-text N", "Maximum text per rendered field") { Flags = ["--max-text"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     PrivacyNotes =
                     [
@@ -567,18 +610,21 @@ public static class DocxHelp
                 new()
                 {
                     Name = "outline",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "Show headings, tables, images, sections, headers, footers",
-                    Usage = "docxedit outline input.docx [--headers-footers] [--view final|original|markup] [--json] [--compact] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit outline input.docx [--headers-footers] [--view final|original|markup] [--max-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "Show headings, tables, images, sections, headers, and footers.",
                     Options =
                     [
-                        new("--headers-footers", "Include header/footer stories"),
-                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--headers-footers", "Include header/footer stories") { Flags = ["--headers-footers"] },
+                        new("--view final|original|markup", "Text view for tracked insert/delete text") { Flags = ["--view"] },
+                        new("--max-text N", "Maximum text per rendered field") { Flags = ["--max-text"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     Notes =
                     [
@@ -591,19 +637,21 @@ public static class DocxHelp
                 new()
                 {
                     Name = "find",
+                    MinPositionals = 2,
+                    MaxPositionals = 2,
                     Category = "read",
                     Summary = "Find text and print stable edit targets",
                     Usage = "docxedit find input.docx \"text\" [--headers-footers] [--view final|original|markup] [--max-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "Find text and print stable edit targets.",
                     Options =
                     [
-                        new("--headers-footers", "Include header/footer stories"),
-                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
-                        new("--max-text N", "Maximum text per rendered field"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--headers-footers", "Include header/footer stories") { Flags = ["--headers-footers"] },
+                        new("--view final|original|markup", "Text view for tracked insert/delete text") { Flags = ["--view"] },
+                        new("--max-text N", "Maximum text per rendered field") { Flags = ["--max-text"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     Notes =
                     [
@@ -616,20 +664,22 @@ public static class DocxHelp
                 new()
                 {
                     Name = "dump",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "Dump one target in detail",
                     Usage = "docxedit dump input.docx --id M.P0001 [--runs] [--view final|original|markup] [--max-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "Dump one target by stable ID. Paragraph and cell dumps print visible text. Comment body targets such as C001.C0001 or comment:3 print metadata only, never comment body text. With --runs, paragraph dumps include run-level markup metadata such as markup=inserted-run, markup=deleted-run, revision-id, author, timestamp-utc, comment-id, and comment range/reference markers without printing comment body text. For targets that own tracked markup records, dump appends a privacy-safe changes block with change IDs, types, parent type, revision metadata, and child element counts; this is how property revisions on paragraph, table, row, cell, and section targets can be inspected without raw OOXML. With --json, the Runs array exposes run metadata as structured fields. Change IDs from `changes` identify markup records; run IDs from dump identify rendered run/marker lines and are not the same namespace. In JSON output, inspect Runs[] for structured run metadata.",
                     Options =
                     [
-                        new("--id M.P0001", "Target ID from read, outline, find, or changes"),
-                        new("--runs", "Include paragraph run lines and markup metadata"),
-                        new("--view final|original|markup", "Text view for tracked insert/delete text"),
-                        new("--max-text N", "Maximum text per rendered field"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--id M.P0001", "Target ID from read, outline, find, or changes") { Flags = ["--id"] },
+                        new("--runs", "Include paragraph run lines and markup metadata") { Flags = ["--runs"] },
+                        new("--view final|original|markup", "Text view for tracked insert/delete text") { Flags = ["--view"] },
+                        new("--max-text N", "Maximum text per rendered field") { Flags = ["--max-text"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     OutputFields =
                     [
@@ -645,21 +695,23 @@ public static class DocxHelp
                 new()
                 {
                     Name = "context",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "Show nearby structure around one target without broad text",
                     Usage = "docxedit context input.docx --id M.P0001 [--headers-footers] [--radius <count>] [--view final|original|markup] [--max-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "Summarize nearby modeled structure around one target without broad document text. By default, --max-text is 0, so paragraph and cell text fields are present but empty. Comment anchors are surfaced as comment IDs, comment body IDs, para IDs, durable IDs, reply IDs, resolved IDs, and parent/root para IDs; comment body targets such as C001.C0001 or comment:3 return metadata only. Increase --max-text only when short snippets are needed.",
                     Options =
                     [
-                        new("--id M.P0001", "Target ID from read, outline, find, or changes"),
-                        new("--radius N", "Number of same-kind neighbors to include"),
-                        new("--headers-footers", "Include header/footer stories"),
-                        new("--view final|original|markup", "Text view when --max-text is greater than 0"),
-                        new("--max-text N", "Maximum text per paragraph/cell; default 0"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--id M.P0001", "Target ID from read, outline, find, or changes") { Flags = ["--id"] },
+                        new("--radius N", "Number of same-kind neighbors to include") { Flags = ["--radius"] },
+                        new("--headers-footers", "Include header/footer stories") { Flags = ["--headers-footers"] },
+                        new("--view final|original|markup", "Text view when --max-text is greater than 0") { Flags = ["--view"] },
+                        new("--max-text N", "Maximum text per paragraph/cell; default 0") { Flags = ["--max-text"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     PrivacyNotes =
                     [
@@ -677,49 +729,55 @@ public static class DocxHelp
                 new()
                 {
                     Name = "styles",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "List paragraph, character, and table styles",
                     Usage = "docxedit styles input.docx [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "List paragraph, character, and table styles. Output includes inheritance links such as based-on, next, linked, and style-level numbering defaults when present.",
                     Options =
                     [
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ]
                 },
                 new()
                 {
                     Name = "media",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "List embedded images",
                     Usage = "docxedit media input.docx [--extract <dir>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "List embedded images.",
                     Options =
                     [
-                        new("--extract dir", "Extract embedded image parts to a directory"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--extract dir", "Extract embedded image parts to a directory") { Flags = ["--extract"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ]
                 },
                 new()
                 {
                     Name = "validate",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "Validate package and WordprocessingML invariants",
                     Usage = "docxedit validate input.docx [--profile structural|package] [--max-diagnostics <count>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "Validate package-level XML roots and, with the structural profile, WordprocessingML invariants: paired bookmark/comment ranges, duplicate semantic selectors, commentsExtended consistency, complex field balance/result containment, content-control metadata, tracked revision markup, paragraph style and numbering references, settings updateFields, header/footer references, section properties, drawing relationships, image target/content-type checks, drawing geometry, basic table shape, and table visual-grid consistency. This is layered DocxEdit structural validation, not full ISO/IEC 29500 schema validation; no strict schema profile is exposed. Package profile limits validation to package/XML root checks. Diagnostics are capped and report E9199 or W9199 when omitted.",
                     Options =
                     [
-                        new("--profile structural|package", "Validation profile; structural is the default"),
-                        new("--max-diagnostics N", "Maximum diagnostics to return; default 500"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--profile structural|package", "Validation profile; structural is the default") { Flags = ["--profile"] },
+                        new("--max-diagnostics N", "Maximum diagnostics to return; default 500") { Flags = ["--max-diagnostics"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     OutputFields =
                     [
@@ -734,19 +792,21 @@ public static class DocxHelp
                 new()
                 {
                     Name = "changes",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
                     Category = "read",
                     Summary = "List tracked-change and comment markup; comment text is opt-in",
                     Usage = "docxedit changes input.docx [--operation-report <path>] [--include-comment-text] [--max-comment-text <chars>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "List tracked-change and comment markup. By default this does not print revision text or comment body text. Records include change IDs, type, story, part, normalized parent type, target, revision/comment metadata, text length, child element count, and comment anchor targets when known. Use --operation-report with a check/apply report to annotate generated revisions with the originating operation. Use --include-comment-text only when short comment body snippets are needed.",
                     Options =
                     [
-                        new("--operation-report path", "Annotate generated revisions with operation index/name/target from a check/apply report JSON"),
-                        new("--include-comment-text", "Include explicit comment body snippets in comment summaries and comment body records"),
-                        new("--max-comment-text N", "Maximum comment body snippet length when --include-comment-text is used; default 240"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--operation-report path", "Annotate generated revisions with operation index/name/target from a check/apply report JSON (use the report from the run that produced the scanned document)") { Flags = ["--operation-report"] },
+                        new("--include-comment-text", "Include explicit comment body snippets in comment summaries and comment body records") { Flags = ["--include-comment-text"] },
+                        new("--max-comment-text N", "Maximum comment body snippet length when --include-comment-text is used; default 240") { Flags = ["--max-comment-text"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     OutputFields =
                     [
@@ -788,14 +848,16 @@ public static class DocxHelp
                 new()
                 {
                     Name = "catalog",
+                    MinPositionals = 0,
+                    MaxPositionals = 0,
                     Category = "read",
                     Summary = "Print the machine-readable command and patch-operation catalog",
                     Usage = "docxedit catalog [--json] [--compact]",
                     Description = "Print the structured docxedit surface: commands with options and output fields, plus patch operations with required/optional fields and track-change support. Text output prints the overview and the operation support table; --json prints the full catalog object.",
                     Options =
                     [
-                        new("--json", "Print the catalog object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
+                        new("--json", "Print the catalog object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
                     ],
                     Examples =
                     [
@@ -806,14 +868,16 @@ public static class DocxHelp
                 new()
                 {
                     Name = "version",
+                    MinPositionals = 0,
+                    MaxPositionals = 0,
                     Category = "read",
                     Summary = "Print the docxedit version",
                     Usage = "docxedit version [--json] [--compact]",
                     Description = "Print the library version, target framework, and patch-operation count. Text output prints one line; --json prints the version object.",
                     Options =
                     [
-                        new("--json", "Print the version object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
+                        new("--json", "Print the version object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
                     ],
                     Examples =
                     [
@@ -823,20 +887,22 @@ public static class DocxHelp
                 new()
                 {
                     Name = "check",
+                    MinPositionals = 2,
+                    MaxPositionals = 2,
                     Category = "patch",
                     Summary = "Validate a .docxpatch file without writing output",
                     Usage = "docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--strict]",
                     Description = "Validate a patch against an input document without writing an output file. Use check before apply to verify selectors, guards, assets, and track-change constraints. Text output includes one operation line per patch operation and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
-                        new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
-                        new("--author name", "Non-empty author used for generated revisions; defaults to docxedit"),
-                        new("--timestamp-utc instant", "Timestamp in ISO-8601 format normalized to UTC for generated revisions (e.g. 2026-01-01T00:00:00Z)"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--report path", "Write operation report JSON"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode") { Flags = ["--track-changes"] },
+                        new("--author name", "Non-empty author used for generated revisions; defaults to docxedit") { Flags = ["--author"] },
+                        new("--timestamp-utc instant", "Timestamp in ISO-8601 format normalized to UTC for generated revisions (e.g. 2026-01-01T00:00:00Z)") { Flags = ["--timestamp-utc"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--report path", "Write operation report JSON") { Flags = ["--report"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     Examples =
                     [
@@ -847,21 +913,23 @@ public static class DocxHelp
                 new()
                 {
                     Name = "apply",
+                    MinPositionals = 2,
+                    MaxPositionals = 2,
                     Category = "patch",
                     Summary = "Apply a .docxpatch file and write a new .docx",
                     Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--strict]",
                     Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation, generated revision IDs when tracked markup is created, and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
-                        new("--output path, -o path", "Output .docx path"),
-                        new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode"),
-                        new("--author name", "Non-empty author used for generated revisions; defaults to docxedit"),
-                        new("--timestamp-utc instant", "Timestamp in ISO-8601 format normalized to UTC for generated revisions (e.g. 2026-01-01T00:00:00Z)"),
-                        new("--json", "Print the result object as JSON"),
-                        new("--compact", "Print JSON without indentation"),
-                        new("--report path", "Write operation report JSON"),
-                        new("--diagnostics path", "Write diagnostics JSON"),
-                        new("--strict", "Return 3 when warnings are present")
+                        new("--output path, -o path", "Output .docx path") { Flags = ["--output", "-o"] },
+                        new("--track-changes off|preserve|suggest|require", "Tracked-change handling mode") { Flags = ["--track-changes"] },
+                        new("--author name", "Non-empty author used for generated revisions; defaults to docxedit") { Flags = ["--author"] },
+                        new("--timestamp-utc instant", "Timestamp in ISO-8601 format normalized to UTC for generated revisions (e.g. 2026-01-01T00:00:00Z)") { Flags = ["--timestamp-utc"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--report path", "Write operation report JSON") { Flags = ["--report"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     Notes =
                     [
