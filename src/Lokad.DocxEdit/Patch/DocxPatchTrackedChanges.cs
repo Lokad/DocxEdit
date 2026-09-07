@@ -52,7 +52,6 @@ internal static partial class DocxPatchEngine
         XElement paragraph,
         string current,
         string replacement,
-        string? style,
         [NotNullWhen(false)] out string? unsupportedReason)
     {
         unsupportedReason = null;
@@ -123,7 +122,7 @@ internal static partial class DocxPatchEngine
 
             string current = ReadVisibleText(paragraph);
             string insertedText = i == 0 ? replacement : string.Empty;
-            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, style: null, out unsupportedReason))
+            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, out unsupportedReason))
             {
                 return false;
             }
@@ -183,7 +182,7 @@ internal static partial class DocxPatchEngine
         }
 
         current = ReadVisibleText(trackedContainer);
-        if (!TryValidateTrackedWholeParagraphReplacement(trackedContainer, current, replacement, style: null, out unsupportedReason))
+        if (!TryValidateTrackedWholeParagraphReplacement(trackedContainer, current, replacement, out unsupportedReason))
         {
             return false;
         }
@@ -236,7 +235,7 @@ internal static partial class DocxPatchEngine
 
             string current = ReadVisibleText(paragraph);
             string insertedText = i == 0 ? replacement : string.Empty;
-            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, style: null, out unsupportedReason))
+            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, out unsupportedReason))
             {
                 return false;
             }
@@ -290,7 +289,7 @@ internal static partial class DocxPatchEngine
 
             string current = ReadVisibleText(paragraph);
             string insertedText = i == 0 ? replacement : string.Empty;
-            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, style: null, out unsupportedReason))
+            if (!TryValidateTrackedWholeParagraphReplacement(paragraph, current, insertedText, out unsupportedReason))
             {
                 return false;
             }

@@ -42,7 +42,7 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!TryReadAsset(options.AssetProvider, asset, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
+        if (!TryReadAsset(options.AssetProvider, asset, options.Quotas.MaxSinglePartBytes, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
             return [assetDiagnostic];
         }
@@ -60,10 +60,6 @@ internal static partial class DocxPatchEngine
             return [altDiagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         package.ReplacePartBytes(imageTarget.Part.Name, bytes);
         if (hasAlt && imageContainer is not null)
@@ -101,7 +97,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!TryReadAsset(options.AssetProvider, asset, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
+        if (!TryReadAsset(options.AssetProvider, asset, options.Quotas.MaxSinglePartBytes, cancellationToken, out byte[] bytes, out string? contentType, out DocxDiagnostic? assetDiagnostic, operation, target))
         {
             return [assetDiagnostic];
         }
@@ -116,10 +112,6 @@ internal static partial class DocxPatchEngine
             return [dimensionDiagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType);
         string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(paragraphTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
@@ -315,12 +307,29 @@ internal static partial class DocxPatchEngine
 
     private static string GetRelativeRelationshipTarget(string sourcePartName, string targetPartName)
     {
-        string normalizedSource = OoxmlPath.NormalizePartName(sourcePartName);
-        string normalizedTarget = OoxmlPath.NormalizePartName(targetPartName);
-        string sourceDirectory = normalizedSource[..(normalizedSource.LastIndexOf('/') + 1)];
-        return normalizedTarget.StartsWith(sourceDirectory, StringComparison.Ordinal)
-            ? normalizedTarget[sourceDirectory.Length..]
-            : normalizedTarget.TrimStart('/');
+        string[] sourceSegments = OoxmlPath.NormalizePartName(sourcePartName).Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string[] targetSegments = OoxmlPath.NormalizePartName(targetPartName).Split('/', StringSplitOptions.RemoveEmptyEntries);
+        int sourceDirectoryLength = sourceSegments.Length - 1;
+        int common = 0;
+        while (common < sourceDirectoryLength &&
+            common < targetSegments.Length - 1 &&
+            string.Equals(sourceSegments[common], targetSegments[common], StringComparison.OrdinalIgnoreCase))
+        {
+            common++;
+        }
+
+        var relative = new List<string>();
+        for (int i = common; i < sourceDirectoryLength; i++)
+        {
+            relative.Add("..");
+        }
+
+        for (int i = common; i < targetSegments.Length; i++)
+        {
+            relative.Add(targetSegments[i]);
+        }
+
+        return string.Join('/', relative);
     }
 
     private static int AllocateDrawingDocPrId(XDocument document)
@@ -414,10 +423,6 @@ internal static partial class DocxPatchEngine
             return [diagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetImageAlt(imageContainer, alt, target);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
@@ -466,10 +471,6 @@ internal static partial class DocxPatchEngine
             return [diagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetImageMetadata(imageContainer, target, alt, title, name);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
@@ -523,10 +524,6 @@ internal static partial class DocxPatchEngine
             return [diagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetImageSize(imageContainer, widthEmus, heightEmus);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
@@ -598,10 +595,6 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         if (mode is not null)
         {
@@ -673,10 +666,6 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetImagePositionAxis(imageContainer, "positionH", horizontal);
         SetImagePositionAxis(imageContainer, "positionV", vertical);
@@ -749,10 +738,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E5208", "Image crop top-percent plus bottom-percent must be less than 100.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetImageCrop(blipFill, crop);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
@@ -1287,10 +1272,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E5205", $"Image '{target}' does not have an editable DrawingML object.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         drawing.Remove();
         if (!UsesRelationship(imageTarget.Document, imageTarget.RelationshipId))
@@ -1317,7 +1298,7 @@ internal static partial class DocxPatchEngine
     {
         foreach (OoxmlPart relationshipPart in package.Parts.Values.Where(part => part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)))
         {
-            string sourcePartName = GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+            string sourcePartName = OoxmlPath.GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
             foreach (OoxmlRelationship relationship in package.GetRelationships(sourcePartName, cancellationToken))
             {
                 if (!relationship.IsExternal &&

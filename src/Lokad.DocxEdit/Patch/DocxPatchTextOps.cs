@@ -90,10 +90,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges && canUseTrackedChanges)
         {
@@ -167,7 +163,7 @@ internal static partial class DocxPatchEngine
 
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges &&
-            !TryValidateTrackedWholeParagraphReplacement(paragraphTarget.Paragraph, current, text, style, out string? trackedUnsupportedReason))
+            !TryValidateTrackedWholeParagraphReplacement(paragraphTarget.Paragraph, current, text, out string? trackedUnsupportedReason))
         {
             if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
             {
@@ -175,10 +171,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -246,10 +238,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         XElement? paragraphProperties = copyParagraphProperties
             ? CloneParagraphPropertiesForInsertion(blockTarget.Block.Element(OoxmlNs.W + "pPr"))
@@ -352,16 +340,17 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
             ReplaceWholeParagraphTextWithTrackedChanges(package, blockTarget.Block, current, string.Empty, options, generatedRevisionIds, cancellationToken);
             SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);
             return diagnostics;
+        }
+
+        if (FindOrphanedRangeBoundary(blockTarget.Document, blockTarget.Block) is { } orphaned)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4305", $"Delete for {target} would orphan {orphaned} outside the deleted element. Delete the range first or choose another target.", operation, target)];
         }
 
         blockTarget.Block.Remove();
@@ -408,10 +397,6 @@ internal static partial class DocxPatchEngine
             return [styleDiagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         if (IsTrackedMode(options))
         {

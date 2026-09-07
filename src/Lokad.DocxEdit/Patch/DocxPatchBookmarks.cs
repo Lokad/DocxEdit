@@ -112,10 +112,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges && trackedReplacement is not null)
         {
@@ -209,10 +205,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark creation for {target} would cross protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         string id = AllocateBookmarkId(paragraphTarget.Document);
         var start = new XElement(
@@ -290,10 +282,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' has duplicate name '{oldName}' and same-part hyperlink anchors; rename would be ambiguous.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         bookmarkTarget.Start.SetAttributeValue(OoxmlNs.W + "name", name);
         UpdateInternalHyperlinkAnchors(bookmarkTarget.Document, oldName, name);
@@ -337,10 +325,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is referenced by same-part hyperlink anchors; update or remove those hyperlinks before deleting the bookmark.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         bookmarkTarget.Start.Remove();
         bookmarkTarget.End.Remove();
@@ -665,7 +649,7 @@ internal static partial class DocxPatchEngine
 
         var rangeContainer = new XElement(OoxmlNs.W + "p", clonedRuns);
         string current = ReadVisibleText(rangeContainer);
-        if (!TryValidateTrackedWholeParagraphReplacement(rangeContainer, current, replacement, style: null, out unsupportedReason))
+        if (!TryValidateTrackedWholeParagraphReplacement(rangeContainer, current, replacement, out unsupportedReason))
         {
             return false;
         }
@@ -707,6 +691,8 @@ internal static partial class DocxPatchEngine
             .Any(bookmark => string.Equals((string?)bookmark.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal));
     }
 
+    // Allocates a bookmark w:id, which shares the scanned w:id space with revisions. Callers live in
+    // WordIdAllocatingOperations so later revision allocations rescan past fresh bookmark IDs.
     private static string AllocateBookmarkId(XDocument document)
     {
         int maxId = document

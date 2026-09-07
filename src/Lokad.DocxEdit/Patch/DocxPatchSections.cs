@@ -50,10 +50,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -115,10 +111,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {

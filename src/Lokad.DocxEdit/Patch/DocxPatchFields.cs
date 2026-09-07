@@ -34,10 +34,6 @@ internal static partial class DocxPatchEngine
                 return [Diagnostic(DocxSeverity.Error, "E1201", "Selector matched 0 fields: all.", operation, target)];
             }
 
-            if (!apply)
-            {
-                return [];
-            }
 
             foreach (FieldTarget targetField in fieldTargets)
             {
@@ -63,10 +59,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 fields: {target}.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + attributeName, value.Value ? "true" : "false");
         SaveDocumentPart(package, fieldTarget.PartName, fieldTarget.Document);
@@ -110,10 +102,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "instr", code);
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", "true");
@@ -189,7 +177,7 @@ internal static partial class DocxPatchEngine
                     return diagnostics;
                 }
             }
-            else if (!TryValidateTrackedWholeParagraphReplacement(fieldTarget.Element, current, text, style: null, out string? trackedUnsupportedReason))
+            else if (!TryValidateTrackedWholeParagraphReplacement(fieldTarget.Element, current, text, out string? trackedUnsupportedReason))
             {
                 if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
@@ -198,10 +186,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -268,10 +252,6 @@ internal static partial class DocxPatchEngine
 
         if (TryReadQuoteFieldText(currentCode, out string? quoteText))
         {
-            if (!apply)
-            {
-                return [];
-            }
 
             ReplaceSimpleFieldResult(fieldTarget.Element, quoteText);
             fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", null);
@@ -289,10 +269,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} cannot resolve bookmark '{bookmarkName}': {unsupportedReason}.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         ReplaceSimpleFieldResult(fieldTarget.Element, bookmarkText);
         fieldTarget.Element.SetAttributeValue(OoxmlNs.W + "dirty", null);

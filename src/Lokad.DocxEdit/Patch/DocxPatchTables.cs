@@ -418,10 +418,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4302", $"Cell '{target}' contains unsupported content. Use force true only when replacing all cell content is intended.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -497,10 +493,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected cell shading fill '{normalizedExpectedFill}', found '{currentFill ?? "none"}'.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (IsTrackedMode(options))
         {
@@ -549,10 +541,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table style '{expectedStyle}', found '{currentStyle ?? "none"}'.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         if (IsTrackedMode(options))
         {
@@ -612,10 +600,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table description '{expectedDescription}', found '{currentDescription ?? "none"}'.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetTableTextProperty(tableTarget.Table, "tblCaption", caption);
         SetTableTextProperty(tableTarget.Table, "tblDescription", description);
@@ -658,10 +642,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row header '{expectedHeader.Value.ToString().ToLowerInvariant()}', found '{currentHeader.ToString().ToLowerInvariant()}'.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         if (IsTrackedMode(options))
         {
@@ -755,10 +735,6 @@ internal static partial class DocxPatchEngine
             useTrackedChanges = false;
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         XElement newRow = CreateRowFromTemplate(templateRow, cellTexts);
         if (useTrackedChanges)
@@ -858,10 +834,6 @@ internal static partial class DocxPatchEngine
             useTrackedChanges = false;
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         XElement newRow = CreateRowFromTemplate(rowTarget.Row, cellTexts);
         if (useTrackedChanges)
@@ -950,10 +922,6 @@ internal static partial class DocxPatchEngine
             useTrackedChanges = false;
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -961,6 +929,11 @@ internal static partial class DocxPatchEngine
         }
         else
         {
+            if (FindOrphanedRangeBoundary(rowTarget.Document, rowTarget.Row) is { } orphanedRowRange)
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4305", $"Delete for {target} would orphan {orphanedRowRange} outside the deleted element. Delete the range first or choose another target.", operation, target)];
+            }
+
             PromoteVerticalMergeContinuationsAfterDeletedRow(rowTarget.Table, rowTarget.Row);
             rowTarget.Row.Remove();
         }

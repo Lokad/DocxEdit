@@ -122,10 +122,6 @@ internal static partial class DocxPatchEngine
             return [commentsPartDiagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         CommentsPartTarget commentsPart = ResolveOrCreateCommentsPart(package, cancellationToken);
         string commentId = AllocateCommentId(package, cancellationToken);
@@ -182,10 +178,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges && trackedParagraphs is not null)
         {
@@ -231,10 +223,6 @@ internal static partial class DocxPatchEngine
             return [commentsExtendedDiagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         CommentExtensionTarget? extensionTarget = ResolveOrCreateCommentExtensionTarget(
             package,
@@ -288,10 +276,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         string commentId = (string?)commentTarget.Comment.Attribute(OoxmlNs.W + "id") ?? string.Empty;
         RemoveCommentExtensionRecords(package, commentTarget.Comment, cancellationToken);
@@ -371,10 +355,6 @@ internal static partial class DocxPatchEngine
             return [commentsIdsDiagnostic];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         CommentExtensionTarget? parentExtensionTarget = ResolveOrCreateCommentExtensionTarget(
             package,
@@ -452,10 +432,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4314", $"Comment reply '{target}' has child replies and cannot be deleted without changing thread topology.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         string replyCommentId = (string?)replyTarget.Comment.Attribute(OoxmlNs.W + "id") ?? string.Empty;
         RemoveCommentExtensionRecords(package, replyTarget.Comment, cancellationToken);
@@ -721,12 +697,6 @@ internal static partial class DocxPatchEngine
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .Select(relationship => relationship.ResolvedTarget)
             .ToList();
-        if (package.GetPart("/word/commentsExtended.xml") is not null &&
-            !partNames.Contains("/word/commentsExtended.xml", StringComparer.Ordinal))
-        {
-            partNames.Add("/word/commentsExtended.xml");
-        }
-
         return partNames;
     }
 
@@ -739,12 +709,6 @@ internal static partial class DocxPatchEngine
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
             .Select(relationship => relationship.ResolvedTarget)
             .ToList();
-        if (package.GetPart("/word/commentsIds.xml") is not null &&
-            !partNames.Contains("/word/commentsIds.xml", StringComparer.Ordinal))
-        {
-            partNames.Add("/word/commentsIds.xml");
-        }
-
         return partNames;
     }
 
@@ -840,6 +804,8 @@ internal static partial class DocxPatchEngine
         return new CommentsPartTarget(commentsPartName, document, root);
     }
 
+    // Allocates a comment w:id, which shares the scanned w:id space with revisions. Callers live in
+    // WordIdAllocatingOperations so later revision allocations rescan past fresh comment IDs.
     private static string AllocateCommentId(OoxmlPackage package, CancellationToken cancellationToken)
     {
         int maxId = -1;
@@ -1402,12 +1368,20 @@ internal static partial class DocxPatchEngine
 
     private static void RemoveCommentAnchors(OoxmlPackage package, string commentId, CancellationToken cancellationToken)
     {
-        foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
-                part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(part.Name, "/word/comments.xml", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        string? commentsPartName = DocxPartRoles.FindCommentsPartName(package, cancellationToken);
+        foreach (string wordPartName in DocxPartRoles.GetWordProcessingParts(package, cancellationToken))
         {
+            if (string.Equals(wordPartName, commentsPartName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            OoxmlPart? part = package.GetPart(wordPartName);
+            if (part is null)
+            {
+                continue;
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);

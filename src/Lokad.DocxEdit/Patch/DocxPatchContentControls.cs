@@ -105,10 +105,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -176,10 +172,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetCheckboxChecked(checkBox, checkedValue.Value);
         ReplaceContentControlText(content, GetCheckboxDisplaySymbol(checkBox, checkedValue.Value));
@@ -246,10 +238,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         ReplaceContentControlText(content, choice.DisplayText);
         SaveDocumentPart(package, controlTarget.PartName, controlTarget.Document);
@@ -302,10 +290,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4310", $"Content control '{target}' has no editable content container.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         SetContentControlDateValue(date, value);
         ReplaceContentControlText(content, displayText ?? value);

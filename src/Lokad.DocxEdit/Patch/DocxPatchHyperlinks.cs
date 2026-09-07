@@ -40,10 +40,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         if (uri is not null)
         {
@@ -111,7 +107,7 @@ internal static partial class DocxPatchEngine
                     return diagnostics;
                 }
             }
-            else if (!TryValidateTrackedWholeParagraphReplacement(hyperlinkTarget.Hyperlink, current, text, style: null, out string? trackedUnsupportedReason))
+            else if (!TryValidateTrackedWholeParagraphReplacement(hyperlinkTarget.Hyperlink, current, text, out string? trackedUnsupportedReason))
             {
                 if (!TryFallbackToDirectEdit(options, operation, target, trackedUnsupportedReason, diagnostics, ref useTrackedChanges))
                 {
@@ -120,10 +116,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         if (useTrackedChanges)
         {
@@ -180,10 +172,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (!apply)
-        {
-            return diagnostics;
-        }
 
         string? relationshipId = null;
         if (uri is not null)
@@ -236,10 +224,6 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (!apply)
-        {
-            return [];
-        }
 
         string? relationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
         hyperlinkTarget.Hyperlink.ReplaceWith(hyperlinkTarget.Hyperlink.Nodes().ToArray());
