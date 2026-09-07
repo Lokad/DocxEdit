@@ -49,7 +49,7 @@ public sealed record DocxDiagnostic(
     /// <summary>Machine-readable fallback tag describing what was done instead.</summary>
     public string? Fallback { get; init; }
 
-    /// <summary>Zero-based patch operation index, when from a patch.</summary>
+    /// <summary>1-based patch operation index, when from a patch.</summary>
     public int? OperationIndex { get; init; }
 
     /// <summary>1-based patch source line, when from a patch.</summary>

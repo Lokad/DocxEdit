@@ -55,7 +55,7 @@ public static class DocxTextRenderer
     public static string RenderOutline(DocxOutlineResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return RenderLines(result.Lines);
+        return RenderLines(result.Items.Select(Rendering.TextRenderers.FormatOutlineItem).ToArray());
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public static class DocxTextRenderer
     public static string RenderFind(DocxFindResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return RenderLines(result.Matches);
+        return RenderLines(result.Matches.Select(Rendering.TextRenderers.FormatFindMatch).ToArray());
     }
 
     /// <summary>

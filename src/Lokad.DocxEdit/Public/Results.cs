@@ -61,15 +61,135 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxHyperlinkInfo> Hyperlinks { get; init; } = [];
 }
 
-/// <summary>Heading/paragraph outline lines. <see cref="DocxOperationResult.Success"/> means the package loaded and scanned.</summary>
+/// <summary>
+/// One outline entry: an ID, a kind, and the kind-specific structural data.
+/// Text bounds are applied when the entry is built; renderers format entries without re-truncating.
+/// </summary>
+public sealed record DocxOutlineItem
+{
+    /// <summary>Entry target wire ID.</summary>
+    public string TargetId { get; init; } = string.Empty;
+    /// <summary>Entry kind: heading, table, section, image, bookmark, content-control, field, or hyperlink.</summary>
+    public string Kind { get; init; } = string.Empty;
+    /// <summary>Entry text, bounded by the request maximum text; headings carry their text, other kinds leave this empty.</summary>
+    public string Text { get; init; } = string.Empty;
+    /// <summary>Heading level 1-9, when a heading.</summary>
+    public int? HeadingLevel { get; init; }
+    /// <summary>Numbering label info, when numbered.</summary>
+    public DocxListInfo? List { get; init; }
+    /// <summary>Table row count, when a table.</summary>
+    public int RowCount { get; init; }
+    /// <summary>Table or section column count, when a table or section.</summary>
+    public int Columns { get; init; }
+    /// <summary>Table style ID, when styled.</summary>
+    public string? StyleId { get; init; }
+    /// <summary>Table caption, bounded by the request maximum text.</summary>
+    public string? Caption { get; init; }
+    /// <summary>Table description, bounded by the request maximum text.</summary>
+    public string? Description { get; init; }
+    /// <summary>Table grid column count, when known.</summary>
+    public int? GridColumnCount { get; init; }
+    /// <summary>Whether the table has a header row.</summary>
+    public bool HasHeaderRow { get; init; }
+    /// <summary>Whether the table has merged cells.</summary>
+    public bool HasMergedCells { get; init; }
+    /// <summary>Whether the table has nested tables.</summary>
+    public bool HasNestedTables { get; init; }
+    /// <summary>Section orientation wire value, when a section.</summary>
+    public string Orientation { get; init; } = string.Empty;
+    /// <summary>Image layout kind, when an image.</summary>
+    public string LayoutKind { get; init; } = string.Empty;
+    /// <summary>Containing target wire ID, when an image inside a paragraph or cell.</summary>
+    public string? ContainingTargetId { get; init; }
+    /// <summary>Image part path, when an image.</summary>
+    public string PartName { get; init; } = string.Empty;
+    /// <summary>Bookmark name, when a bookmark.</summary>
+    public string Name { get; init; } = string.Empty;
+    /// <summary>Bookmark range start target wire ID, when known.</summary>
+    public string? StartTargetId { get; init; }
+    /// <summary>Bookmark range end target wire ID, when known.</summary>
+    public string? EndTargetId { get; init; }
+    /// <summary>Whether the bookmark name is duplicated.</summary>
+    public bool IsNameDuplicate { get; init; }
+    /// <summary>Bookmark IDs sharing the duplicated name.</summary>
+    public IReadOnlyList<string> DuplicateNameBookmarkIds { get; init; } = [];
+    /// <summary>Content-control kind, when a content control.</summary>
+    public string ControlKind { get; init; } = string.Empty;
+    /// <summary>Content-control target wire ID, when known.</summary>
+    public string? ControlTargetId { get; init; }
+    /// <summary>Content-control tag, when set.</summary>
+    public string? Tag { get; init; }
+    /// <summary>Content-control alias, when set.</summary>
+    public string? Alias { get; init; }
+    /// <summary>Parent content-control wire ID, when nested.</summary>
+    public string? ParentControlId { get; init; }
+    /// <summary>Child content-control wire IDs.</summary>
+    public IReadOnlyList<string> ChildControlIds { get; init; } = [];
+    /// <summary>Safe-edit status, when a content control or field.</summary>
+    public string SafeEditStatus { get; init; } = string.Empty;
+    /// <summary>Safe-edit reason, when present.</summary>
+    public string? SafeEditReason { get; init; }
+    /// <summary>Whether the content-control tag is duplicated.</summary>
+    public bool IsTagDuplicate { get; init; }
+    /// <summary>Control IDs sharing the duplicated tag.</summary>
+    public IReadOnlyList<string> DuplicateTagControlIds { get; init; } = [];
+    /// <summary>Whether the content-control alias is duplicated.</summary>
+    public bool IsAliasDuplicate { get; init; }
+    /// <summary>Control IDs sharing the duplicated alias.</summary>
+    public IReadOnlyList<string> DuplicateAliasControlIds { get; init; } = [];
+    /// <summary>Checkbox state, when a checkbox.</summary>
+    public bool? Checked { get; init; }
+    /// <summary>Dropdown item count, when a list control.</summary>
+    public int? ListItemCount { get; init; }
+    /// <summary>Field kind, when a field.</summary>
+    public string FieldKind { get; init; } = string.Empty;
+    /// <summary>Field type, when known.</summary>
+    public string? FieldType { get; init; }
+    /// <summary>Field target wire ID, when known.</summary>
+    public string? FieldTargetId { get; init; }
+    /// <summary>Normalized field code.</summary>
+    public string Code { get; init; } = string.Empty;
+    /// <summary>Field nesting depth.</summary>
+    public int NestingDepth { get; init; }
+    /// <summary>Field refresh-policy wire value.</summary>
+    public string RefreshPolicy { get; init; } = string.Empty;
+    /// <summary>Whether the field refreshes deterministically.</summary>
+    public bool DeterministicRefresh { get; init; }
+    /// <summary>Hyperlink target wire ID, when known.</summary>
+    public string? HyperlinkTarget { get; init; }
+    /// <summary>Hyperlink destination: URI, anchor, part path, or unknown.</summary>
+    public string? Destination { get; init; }
+    /// <summary>Whether the hyperlink relationship is broken.</summary>
+    public bool IsBroken { get; init; }
+}
+
+/// <summary>Structured document outline. <see cref="DocxOperationResult.Success"/> means the package loaded and scanned.</summary>
 public sealed record DocxOutlineResult : DocxOperationResult
 {
     /// <summary>Scanned package part paths.</summary>
     public IReadOnlyList<string> PartNames { get; init; } = [];
     /// <summary>Main document part path, when found.</summary>
     public string? MainDocumentPartName { get; init; }
-    /// <summary>Outline lines.</summary>
-    public IReadOnlyList<string> Lines { get; init; } = [];
+    /// <summary>Outline entries in display order.</summary>
+    public IReadOnlyList<DocxOutlineItem> Items { get; init; } = [];
+}
+
+/// <summary>
+/// One text-search hit: where it matched and the bounded match text.
+/// Text bounds are applied when the hit is built; renderers format hits without re-truncating.
+/// </summary>
+public sealed record DocxFindMatch
+{
+    /// <summary>Matched target wire ID.</summary>
+    public string TargetId { get; init; } = string.Empty;
+    /// <summary>Match kind: paragraph or cell.</summary>
+    public string Kind { get; init; } = string.Empty;
+    /// <summary>Containing table wire ID for cell matches; null for paragraphs.</summary>
+    public string? ParentId { get; init; }
+    /// <summary>Match text, bounded by the request maximum text.</summary>
+    public string Text { get; init; } = string.Empty;
+    /// <summary>Numbering label info, when the matched paragraph is numbered.</summary>
+    public DocxListInfo? List { get; init; }
 }
 
 /// <summary>Text search matches. An empty <c>Matches</c> list is a successful search with no hits, not a failure.</summary>
@@ -77,22 +197,22 @@ public sealed record DocxFindResult : DocxOperationResult
 {
     /// <summary>Searched text.</summary>
     public string Query { get; init; } = string.Empty;
-    /// <summary>Match lines.</summary>
-    public IReadOnlyList<string> Matches { get; init; } = [];
+    /// <summary>Matches in display order.</summary>
+    public IReadOnlyList<DocxFindMatch> Matches { get; init; } = [];
 }
 
-/// <summary>Target-scoped dump. <see cref="DocxOperationResult.Success"/> reports only that the document scanned: an unknown target yields success with null <c>Text</c> and empty <c>Runs</c>. Check the payload, not just success.</summary>
+/// <summary>Target-scoped dump. <see cref="DocxOperationResult.Success"/> is equivalent to "target found": an unknown target or a target with the wrong shape for dumping fails with <c>E1201</c> and leaves <c>Text</c> null.</summary>
 public sealed record DocxDumpResult : DocxOperationResult
 {
     /// <summary>Requested target, echoed byte-identical (explicit ID, comment-body ID, or comment reference); never parsed here.</summary>
     public string TargetId { get; init; } = string.Empty;
-    /// <summary>Dumped target text; null when the target was not found.</summary>
+    /// <summary>Dumped target text; null when the target was not found (the result then carries the failure).</summary>
     public string? Text { get; init; }
     /// <summary>Run detail, when requested.</summary>
     public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
 }
 
-/// <summary>Target neighborhood. Unlike dump, an unknown target fails with <c>E2001</c>; <see cref="DocxOperationResult.Success"/> is equivalent to "target found".</summary>
+/// <summary>Target neighborhood. An unknown target fails with <c>E1201</c>; <see cref="DocxOperationResult.Success"/> is equivalent to "target found".</summary>
 public sealed record DocxContextResult : DocxOperationResult
 {
     /// <summary>Requested target, echoed byte-identical (explicit ID, comment-body ID, or comment reference); never parsed here.</summary>
@@ -167,10 +287,10 @@ public sealed record DocxCheckResult : DocxOperationResult
     /// <summary>Per-operation reports.</summary>
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
 
-    /// <summary>Effective author recorded on generated revisions.</summary>
+    /// <summary>Effective author recorded on generated revisions: the requested <c>Author</c> trimmed. Present on failed results too.</summary>
     public string Author { get; init; } = "docxedit";
 
-    /// <summary>Effective UTC timestamp used for generated revisions.</summary>
+    /// <summary>Effective UTC timestamp used for generated revisions: the requested <c>TimestampUtc</c> converted to UTC. Present on failed results too.</summary>
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>Version of the producing Lokad.DocxEdit assembly.</summary>
@@ -183,10 +303,10 @@ public sealed record DocxApplyResult : DocxOperationResult
     /// <summary>Per-operation reports.</summary>
     public IReadOnlyList<DocxPatchOperationReport> Operations { get; init; } = [];
 
-    /// <summary>Effective author recorded on generated revisions.</summary>
+    /// <summary>Effective author recorded on generated revisions: the requested <c>Author</c> trimmed. Present on failed results too.</summary>
     public string Author { get; init; } = "docxedit";
 
-    /// <summary>Effective UTC timestamp used for generated revisions.</summary>
+    /// <summary>Effective UTC timestamp used for generated revisions: the requested <c>TimestampUtc</c> converted to UTC. Present on failed results too.</summary>
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>Version of the producing Lokad.DocxEdit assembly.</summary>
@@ -196,7 +316,7 @@ public sealed record DocxApplyResult : DocxOperationResult
 /// <summary>
 /// One operation outcome: target, success, and diagnostics.
 /// </summary>
-/// <param name="Index">Zero-based operation index.</param>
+/// <param name="Index">1-based operation index, matching the parsed patch operation.</param>
 /// <param name="OperationName">Operation name.</param>
 /// <param name="Target">Target selector text, when the operation has one.</param>
 /// <param name="Success">Whether the operation reported success.</param>
@@ -407,7 +527,7 @@ public sealed record DocxChangeInfo
     public string? TargetNote { get; init; }
     /// <summary>Paired change ID, when ranges pair.</summary>
     public DocxChangeId? PairedChangeId { get; init; }
-    /// <summary>Zero-based patch operation index, when from a patch.</summary>
+    /// <summary>1-based patch operation index, when from a patch.</summary>
     public int? OperationIndex { get; init; }
     /// <summary>Patch operation name, when from a patch.</summary>
     public string? OperationName { get; init; }

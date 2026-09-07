@@ -210,7 +210,7 @@ internal static class TextRenderers
 
         foreach (DocxTableInfo table in model.Tables)
         {
-            builder.Append(RenderTable(table)).AppendLine();
+            builder.Append(RenderTable(table, maxText)).AppendLine();
             foreach (DocxTableRowInfo row in table.Rows)
             {
                 string gridBefore = row.GridBefore == 0 ? string.Empty : $" grid-before={row.GridBefore}";
@@ -254,88 +254,229 @@ internal static class TextRenderers
 
         foreach (DocxImageInfo image in model.Images)
         {
-            builder.Append(RenderImage(image)).AppendLine();
+            builder.Append(RenderImage(image, maxText)).AppendLine();
         }
 
         return builder.ToString();
     }
 
-    public static IReadOnlyList<string> RenderOutline(DocxDocumentModel model)
+    public static IReadOnlyList<DocxOutlineItem> BuildOutline(DocxDocumentModel model, int maxText)
     {
-        var lines = new List<string>();
+        var items = new List<DocxOutlineItem>();
         foreach (DocxParagraphInfo paragraph in model.Paragraphs.Where(paragraph => paragraph.HeadingLevel is not null))
         {
-            string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
-            lines.Add($"{paragraph.Id.ToWireValue()} heading level={paragraph.HeadingLevel}{list} text=\"{XmlValues.EscapeText(paragraph.Text)}\"");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = paragraph.Id.ToWireValue(),
+                Kind = "heading",
+                Text = Truncate(paragraph.Text, maxText),
+                HeadingLevel = paragraph.HeadingLevel,
+                List = paragraph.List
+            });
         }
 
         foreach (DocxTableInfo table in model.Tables)
         {
-            lines.Add(RenderTable(table));
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = table.Id.ToWireValue(),
+                Kind = "table",
+                RowCount = table.RowCount,
+                Columns = table.ColumnCount,
+                StyleId = table.StyleId,
+                Caption = table.Caption is null ? null : Truncate(table.Caption, maxText),
+                Description = table.Description is null ? null : Truncate(table.Description, maxText),
+                GridColumnCount = table.GridColumnCount,
+                HasHeaderRow = table.HasHeaderRow,
+                HasMergedCells = table.HasMergedCells,
+                HasNestedTables = table.HasNestedTables
+            });
         }
 
         foreach (DocxSectionInfo section in model.Sections)
         {
-            lines.Add($"{section.Id.ToWireValue()} section columns={section.Columns} orientation={section.Orientation.ToWireValue()}");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = section.Id.ToWireValue(),
+                Kind = "section",
+                Columns = section.Columns,
+                Orientation = section.Orientation.ToWireValue()
+            });
         }
 
         foreach (DocxImageInfo image in model.Images)
         {
-            string target = image.ContainingTargetId is null ? "target=unknown" : $"target={image.ContainingTargetId}";
-            lines.Add($"{image.Id.ToWireValue()} image layout={XmlValues.EscapeText(image.LayoutKind)} {target} part={image.PartName}");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = image.Id.ToWireValue(),
+                Kind = "image",
+                LayoutKind = image.LayoutKind,
+                ContainingTargetId = image.ContainingTargetId is null ? null : image.ContainingTargetId.Value.ToWireValue(),
+                PartName = image.PartName
+            });
         }
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
-            string start = bookmark.StartTargetId is { } outlineStart ? outlineStart.ToWireValue() : "unknown";
-            string end = bookmark.EndTargetId is { } outlineEnd ? outlineEnd.ToWireValue() : "unknown";
-            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
-            lines.Add($"{bookmark.Id.ToWireValue()} bookmark name=\"{XmlValues.EscapeText(bookmark.Name)}\" start={start} end={end}{duplicateName}");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = bookmark.Id.ToWireValue(),
+                Kind = "bookmark",
+                Name = bookmark.Name,
+                StartTargetId = bookmark.StartTargetId is null ? null : bookmark.StartTargetId.Value.ToWireValue(),
+                EndTargetId = bookmark.EndTargetId is null ? null : bookmark.EndTargetId.Value.ToWireValue(),
+                IsNameDuplicate = bookmark.IsNameDuplicate,
+                DuplicateNameBookmarkIds = bookmark.DuplicateNameBookmarkIds
+            });
         }
 
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
-            string target = control.TargetId is { } controlTarget ? controlTarget.ToWireValue() : "unknown";
-            string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
-            string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
-            string parentControl = control.ParentContentControlId is { } outlineParentControlId ? $" parent-control={outlineParentControlId.ToWireValue()}" : string.Empty;
-            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
-            string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
-            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
-            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
-            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
-            string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
-            string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            lines.Add($"{control.Id.ToWireValue()} content-control kind={XmlValues.EscapeText(control.Kind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = control.Id.ToWireValue(),
+                Kind = "content-control",
+                ControlKind = control.Kind,
+                ControlTargetId = control.TargetId is null ? null : control.TargetId.Value.ToWireValue(),
+                Tag = control.Tag,
+                Alias = control.Alias,
+                ParentControlId = control.ParentContentControlId is null ? null : control.ParentContentControlId.Value.ToWireValue(),
+                ChildControlIds = control.ChildContentControlIds,
+                SafeEditStatus = control.SafeEditStatus,
+                SafeEditReason = control.SafeEditReason,
+                IsTagDuplicate = control.IsTagDuplicate,
+                DuplicateTagControlIds = control.DuplicateTagControlIds,
+                IsAliasDuplicate = control.IsAliasDuplicate,
+                DuplicateAliasControlIds = control.DuplicateAliasControlIds,
+                Checked = control.Checked,
+                ListItemCount = control.ListItems.Count == 0 ? null : control.ListItems.Count,
+            });
         }
 
         foreach (DocxFieldInfo field in model.Fields)
         {
-            string target = field.TargetId is { } fieldTarget ? fieldTarget.ToWireValue() : "unknown";
-            string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
-            string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
-            lines.Add($"{field.Id.ToWireValue()} field kind={XmlValues.EscapeText(field.Kind)}{fieldType} target={target} code=\"{XmlValues.EscapeText(field.Code)}\" nesting-depth={field.NestingDepth} refresh-policy={field.RefreshPolicy.ToWireValue()} deterministic-refresh={field.CanRefreshDeterministically.ToString().ToLowerInvariant()}{safeEdit}");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = field.Id.ToWireValue(),
+                Kind = "field",
+                FieldKind = field.Kind,
+                FieldType = field.FieldType,
+                FieldTargetId = field.TargetId is null ? null : field.TargetId.Value.ToWireValue(),
+                Code = field.Code,
+                NestingDepth = field.NestingDepth,
+                RefreshPolicy = field.RefreshPolicy.ToWireValue(),
+                DeterministicRefresh = field.CanRefreshDeterministically,
+                SafeEditStatus = field.SafeEditStatus
+            });
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
-            string target = hyperlink.TargetId is { } hyperlinkTarget ? hyperlinkTarget.ToWireValue() : "unknown";
-            string destination = hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName ?? "unknown";
-            lines.Add($"{hyperlink.Id.ToWireValue()} hyperlink target={target} destination=\"{XmlValues.EscapeText(destination)}\" broken={hyperlink.IsBroken}");
+            items.Add(new DocxOutlineItem
+            {
+                TargetId = hyperlink.Id.ToWireValue(),
+                Kind = "hyperlink",
+                HyperlinkTarget = hyperlink.TargetId is null ? null : hyperlink.TargetId.Value.ToWireValue(),
+                Destination = hyperlink.Uri ?? hyperlink.Anchor ?? hyperlink.TargetPartName,
+                IsBroken = hyperlink.IsBroken
+            });
         }
 
-        return lines;
+        return items;
     }
 
-    public static IReadOnlyList<string> Find(DocxDocumentModel model, string query, int maxText)
+    public static string FormatOutlineItem(DocxOutlineItem item)
     {
-        var matches = new List<string>();
+        if (item.Kind == "heading")
+        {
+            string list = item.List is null ? string.Empty : RenderList(item.List);
+            return $"{item.TargetId} heading level={item.HeadingLevel}{list} text=\"{XmlValues.EscapeText(item.Text)}\"";
+        }
+
+        if (item.Kind == "table")
+        {
+            return FormatOutlineTable(item);
+        }
+
+        if (item.Kind == "section")
+        {
+            return $"{item.TargetId} section columns={item.Columns} orientation={item.Orientation}";
+        }
+
+        if (item.Kind == "image")
+        {
+            string target = item.ContainingTargetId is null ? "target=unknown" : $"target={item.ContainingTargetId}";
+            return $"{item.TargetId} image layout={XmlValues.EscapeText(item.LayoutKind)} {target} part={item.PartName}";
+        }
+
+        if (item.Kind == "bookmark")
+        {
+            string start = item.StartTargetId is null ? "unknown" : item.StartTargetId;
+            string end = item.EndTargetId is null ? "unknown" : item.EndTargetId;
+            string duplicateName = item.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", item.DuplicateNameBookmarkIds))}\"" : string.Empty;
+            return $"{item.TargetId} bookmark name=\"{XmlValues.EscapeText(item.Name)}\" start={start} end={end}{duplicateName}";
+        }
+
+        if (item.Kind == "content-control")
+        {
+            string target = item.ControlTargetId is null ? "unknown" : item.ControlTargetId;
+            string tag = item.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(item.Tag)}\"";
+            string alias = item.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(item.Alias)}\"";
+            string parentControl = item.ParentControlId is null ? string.Empty : $" parent-control={item.ParentControlId}";
+            string childControls = item.ChildControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", item.ChildControlIds))}\"";
+            string safeEdit = $" safe-edit={XmlValues.EscapeText(item.SafeEditStatus)}";
+            string safeEditReason = item.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(item.SafeEditReason)}\"";
+            string tagDuplicate = item.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{XmlValues.EscapeText(string.Join(",", item.DuplicateTagControlIds))}\"" : string.Empty;
+            string aliasDuplicate = item.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", item.DuplicateAliasControlIds))}\"" : string.Empty;
+            string checkedValue = item.Checked is null ? string.Empty : $" checked={item.Checked.Value.ToString().ToLowerInvariant()}";
+            string listItems = item.ListItemCount is null || item.ListItemCount == 0 ? string.Empty : $" list-items={item.ListItemCount}";
+            return $"{item.TargetId} content-control kind={XmlValues.EscapeText(item.ControlKind)} target={target}{tag}{alias}{parentControl}{childControls}{safeEdit}{safeEditReason}{tagDuplicate}{aliasDuplicate}{checkedValue}{listItems}";
+        }
+
+        if (item.Kind == "field")
+        {
+            string target = item.FieldTargetId is null ? "unknown" : item.FieldTargetId;
+            string fieldType = item.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(item.FieldType)}";
+            string safeEdit = $" safe-edit={XmlValues.EscapeText(item.SafeEditStatus)}";
+            return $"{item.TargetId} field kind={XmlValues.EscapeText(item.FieldKind)}" + fieldType + $" target={target} code=\"{XmlValues.EscapeText(item.Code)}\" nesting-depth={item.NestingDepth} refresh-policy={item.RefreshPolicy} deterministic-refresh={item.DeterministicRefresh.ToString().ToLowerInvariant()}{safeEdit}";
+        }
+
+        if (item.Kind == "hyperlink")
+        {
+            string target = item.HyperlinkTarget is null ? "unknown" : item.HyperlinkTarget;
+            string destination = item.Destination ?? "unknown";
+            return $"{item.TargetId} hyperlink target={target} destination=\"{XmlValues.EscapeText(destination)}\" broken={item.IsBroken}";
+        }
+
+        return string.Empty;
+    }
+
+    private static string FormatOutlineTable(DocxOutlineItem item)
+    {
+        string style = item.StyleId is null ? string.Empty : $" styleId={XmlValues.EscapeText(item.StyleId)}";
+        string caption = item.Caption is null ? string.Empty : $" caption=\"{XmlValues.EscapeText(item.Caption)}\"";
+        string description = item.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(item.Description)}\"";
+        string grid = item.GridColumnCount is null ? string.Empty : $" grid-columns={item.GridColumnCount}";
+        string header = item.HasHeaderRow ? " header-row=true" : string.Empty;
+        string merged = item.HasMergedCells ? " merged=true" : string.Empty;
+        string nested = item.HasNestedTables ? " nested-table=true" : string.Empty;
+        return $"{item.TargetId} table rows={item.RowCount} columns={item.Columns}{style}{caption}{description}{grid}{header}{merged}{nested}";
+    }
+
+    public static IReadOnlyList<DocxFindMatch> Find(DocxDocumentModel model, string query, int maxText)
+    {
+        var matches = new List<DocxFindMatch>();
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
         {
             if (paragraph.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
-                string list = paragraph.List is null ? string.Empty : RenderList(paragraph.List);
-                matches.Add($"{paragraph.Id.ToWireValue()}{list} text=\"{XmlValues.EscapeText(Truncate(paragraph.Text, maxText))}\"");
+                matches.Add(new DocxFindMatch
+                {
+                    TargetId = paragraph.Id.ToWireValue(),
+                    Kind = "paragraph",
+                    Text = Truncate(paragraph.Text, maxText),
+                    List = paragraph.List
+                });
             }
         }
 
@@ -345,12 +486,26 @@ internal static class TextRenderers
             {
                 if (cell.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
                 {
-                    matches.Add($"{cell.Id.ToWireValue()} text=\"{XmlValues.EscapeText(Truncate(cell.Text, maxText))}\"");
+                    matches.Add(new DocxFindMatch
+                    {
+                        TargetId = cell.Id.ToWireValue(),
+                        Kind = "cell",
+                        ParentId = table.Id.ToWireValue(),
+                        Text = Truncate(cell.Text, maxText)
+                    });
                 }
             }
         }
 
         return matches;
+    }
+
+    public static string FormatFindMatch(DocxFindMatch match)
+    {
+        string list = match.List is null ? string.Empty : RenderList(match.List);
+        return match.Kind == "cell"
+            ? $"{match.TargetId} text=\"{XmlValues.EscapeText(match.Text)}\""
+            : $"{match.TargetId}{list} text=\"{XmlValues.EscapeText(match.Text)}\"";
     }
 
     public static string? Dump(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId, bool includeRuns, int maxText)
@@ -712,19 +867,29 @@ internal static class TextRenderers
         return $" list numId={XmlValues.EscapeText(list.NumberingId)} level={list.Level}{abstractId}{format}{levelText}{paragraphStyle}{source}{label}{labelStatus}{labelWarnings}{labelComponents}{start}{suffix}{legal}{restart}";
     }
 
-    private static string RenderImage(DocxImageInfo image)
+    private static string RenderImage(DocxImageInfo image, int maxText)
     {
         string relationshipId = image.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(image.RelationshipId)}";
         string target = image.ContainingTargetId is null ? " target=unknown" : $" target={image.ContainingTargetId}";
         string size = image.WidthEmu is null || image.HeightEmu is null ? string.Empty : $" size-emu={image.WidthEmu}x{image.HeightEmu}";
-        string name = image.Name is null ? string.Empty : $" name=\"{XmlValues.EscapeText(image.Name)}\"";
-        string description = image.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(image.Description)}\"";
-        string title = image.Title is null ? string.Empty : $" title=\"{XmlValues.EscapeText(image.Title)}\"";
+        string name = image.Name is null ? string.Empty : $" name=\"{XmlValues.EscapeText(Truncate(image.Name, maxText))}\"";
+        string description = image.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(Truncate(image.Description, maxText))}\"";
+        string title = image.Title is null ? string.Empty : $" title=\"{XmlValues.EscapeText(Truncate(image.Title, maxText))}\"";
         string wrap = image.WrapMode is null ? string.Empty : $" wrap={XmlValues.EscapeText(image.WrapMode)}";
         string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
         string layoutMetadata = RenderImageLayoutMetadata(image);
         string crop = RenderCrop(image);
         return $"{image.Id.ToWireValue()} image layout={XmlValues.EscapeText(image.LayoutKind)} part={image.PartName} content-type={image.ContentType ?? "unknown"} bytes={image.ByteLength}{relationshipId}{target}{size}{name}{description}{title}{wrap}{behind}{layoutMetadata}{crop}";
+    }
+
+    private static string RenderImage(DocxImageInfo image)
+    {
+        return RenderImage(image, -1);
+    }
+
+    private static string RenderTable(DocxTableInfo table)
+    {
+        return RenderTable(table, -1);
     }
 
     private static string RenderImageLayoutMetadata(DocxImageInfo image)
@@ -774,11 +939,11 @@ internal static class TextRenderers
         return value is null ? string.Empty : $" {name}={XmlValues.EscapeText(value)}";
     }
 
-    private static string RenderTable(DocxTableInfo table)
+    private static string RenderTable(DocxTableInfo table, int maxText)
     {
         string style = table.StyleId is null ? string.Empty : $" styleId={XmlValues.EscapeText(table.StyleId)}";
-        string caption = table.Caption is null ? string.Empty : $" caption=\"{XmlValues.EscapeText(table.Caption)}\"";
-        string description = table.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(table.Description)}\"";
+        string caption = table.Caption is null ? string.Empty : $" caption=\"{XmlValues.EscapeText(Truncate(table.Caption, maxText))}\"";
+        string description = table.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(Truncate(table.Description, maxText))}\"";
         string grid = table.GridColumnCount is null ? string.Empty : $" grid-columns={table.GridColumnCount}";
         string header = table.HasHeaderRow ? " header-row=true" : string.Empty;
         string merged = table.HasMergedCells ? " merged=true" : string.Empty;
@@ -1142,7 +1307,8 @@ internal static class TextRenderers
     }
 
 
-    private static string Truncate(string text, int maxText)
+    /// <summary>Bounds body text to the request maximum, marking longer text with a suffix. Inspection builders apply this when items are built; rendering already-bounded text with the same bound is a no-op.</summary>
+    internal static string Truncate(string text, int maxText)
     {
         if (maxText < 0 || text.Length <= maxText)
         {
