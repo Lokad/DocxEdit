@@ -289,17 +289,17 @@ are rejected. Internal links use bookmark `anchor` values.
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID |
-| `set-cell-shading` | `target` plus `fill` or `clear` true | `expect-fill`, `clear` | Sets or clears `w:tcPr/w:shd` fill |
+| `set-cell-shading` | `target` plus `fill` or `clear` true | `expect-fill` | Sets or clears `w:tcPr/w:shd` fill |
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
-| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count` | Appends by cloning the last row shape when the visual grid is consistent |
-| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts before a row by cloning the target row shape when safe |
-| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Inserts after a row by cloning the target row shape when safe |
+| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `cell+` | Appends by cloning the last row shape when the visual grid is consistent |
+| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Inserts before a row by cloning the target row shape when safe |
+| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Inserts after a row by cloning the target row shape when safe |
 | `delete-row` | `target` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Deletes a row; direct mode can promote the next vertical-merge continuation |
-| `append-column` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `force` | Recognized but fails with `E4316` |
-| `insert-column-before` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Recognized but fails with `E4316` |
-| `insert-column-after` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force` | Recognized but fails with `E4316` |
+| `append-column` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `force`, `cell+` | Recognized but fails with `E4316` |
+| `insert-column-before` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Recognized but fails with `E4316` |
+| `insert-column-after` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Recognized but fails with `E4316` |
 | `delete-column` | `target`, `column` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Recognized but fails with `E4316` |
 
 Table and cell IDs use visual grid coordinates from `read` or `context`, not raw
@@ -340,9 +340,9 @@ caption <<<
 | `set-image-alt` | `target`, `alt` | `expect-content-type` | Updates DrawingML description |
 | `set-image-metadata` | `target` plus `alt`, `title`, or `name` | `expect-content-type` | Updates DrawingML `docPr` metadata |
 | `set-image-size` | `target` plus `width` or `height` | `expect-content-type` | Updates DrawingML extents |
-| `set-image-wrap` | `target` plus `mode` or a distance field | `expect-content-type` | Anchored images only |
-| `set-image-position` | `target` plus relative, offset, or align field | `expect-content-type` | Anchored images only |
-| `set-image-crop` | `target` plus one crop percentage | `expect-content-type` | Updates DrawingML crop percentages |
+| `set-image-wrap` | `target` plus `mode` or one distance field (`dist-top`, `dist-bottom`, `dist-left`, `dist-right`) | `expect-content-type` | Anchored images only |
+| `set-image-position` | `target` plus one positioning field (`horizontal-relative`, `horizontal-offset`, `horizontal-align`, `vertical-relative`, `vertical-offset`, `vertical-align`) | `expect-content-type` | Anchored images only |
+| `set-image-crop` | `target` plus one crop percentage (`left-percent`, `top-percent`, `right-percent`, `bottom-percent`) | `expect-content-type` | Updates DrawingML crop percentages |
 | `delete-image` | `target` | `expect-content-type` | Deletes the modeled image |
 
 Image dimensions and distances accept `emu`, `in`, `cm`, `pt`, and `px` suffixes.

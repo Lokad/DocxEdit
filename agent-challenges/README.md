@@ -7,9 +7,11 @@ change markup, recover from diagnostics, and avoid unsafe private-document
 handling.
 
 Tracked challenge files must not contain private document text or private
-filenames. Private inputs stay under ignored `private-cases/`; transcripts,
-generated patches, and edited documents stay under ignored
-`artifacts/agent-challenges/`.
+filenames. Private inputs stay under ignored `private-cases/`. Each run gets an
+ignored run directory under `private-cases/_runs/` holding the input copy,
+prompt, transcripts, generated patches, and edited documents.
+`artifacts/agent-challenges/` keeps only sanitized run summaries (counts,
+booleans, hashes, and exit codes — no document text or private names).
 
 Prefer `pwsh` over `powershell` below when both exist: hashing steps need the `Get-FileHash` cmdlet, which is absent from some Windows PowerShell 5.1 installs (the scripts fail with an explicit message in that case).
 
@@ -25,8 +27,8 @@ Preview a prompt without launching Codex:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -DryRun
 ```
 
-Prepare the ignored run directory, private input copy, wrapper, and build without
-launching Codex:
+Prepare the ignored run directory (under `private-cases/_runs/`), private
+input copy, wrapper, and build without launching Codex:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -PrepareOnly
@@ -45,7 +47,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 
 ```
 
 By default, the runner invokes `codex exec --json --ephemeral`, captures the
-full JSONL event stream in the ignored artifact directory, and asks the final
+full JSONL event stream in the ignored run directory, and asks the final
 agent response to match `final.schema.json`. Use `-PersistCodexSession` only
 when you also want Codex's normal session files for resume-style inspection.
 
@@ -62,12 +64,13 @@ Manual review should score each run on:
 
 Fold observations back into `observations.md` in this directory (`PLAN.md` is untracked working notes, not the intake) and keep them sanitized. Record the
 challenge id, outcome, command classes, diagnostic codes, target ID classes,
-change/run markup types, aggregate counts, and ignored artifact paths only. Do
+change/run markup types, aggregate counts, the sanitized summary path (under `artifacts/agent-challenges/`), and the ignored run directory (under `private-cases/_runs/`) only. Do
 not record private text, filenames, screenshots, raw OOXML, or excerpts from the
 agent transcript.
 
 ## Continuous Integration
 
 Every push and pull request runs `.github/workflows/agent-tooling.yml`: it builds
-the solution and exercises the runner without launching Codex (`-List` plus one
-`-DryRun`). Live `codex exec` probes stay manual and local-only.
+the solution and exercises the runner without launching Codex (`-List`, per-challenge
+`-DryRun`, plus one fixture-stand-in `-PrepareOnly` with run-containment, path-guard,
+and summary-sanitizer assertions). Live `codex exec` probes stay manual and local-only.

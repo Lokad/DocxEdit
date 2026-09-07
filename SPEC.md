@@ -77,176 +77,28 @@ The library may preserve unsupported structures, report them, and avoid modifyin
 
 ## 4. Solution layout
 
-Create this structure:
+The solution (`Lokad.DocxEdit.slnx`) holds the `Lokad.DocxEdit` library and
+its local CLI (`src/Lokad.DocxEdit.Cli`, never packaged), the `Lokad.DocxEdit.Tests`
+and `Lokad.DocxEdit.OfficeTests` suites, PowerShell tooling (`tools/`),
+data-driven edit cases (`edit-cases/`), and these docs (`docs/`).
+`artifacts/`, `private-cases/`, `bin/`, and `obj/` are ignored build outputs.
 
-```text
-.gitignore
-Lokad.DocxEdit.slnx
-Directory.Build.props
-Directory.Build.rsp
-Directory.Packages.props                # optional; no production package refs
-Directory.Build.targets                 # package-reference allowlist
-README.md
-CHANGELOG.md
-LICENSE.txt
-src/
-  Lokad.DocxEdit/
-    Lokad.DocxEdit.csproj
-    Public/
-    Ooxml/
-    Model/
-    Patch/
-    Rendering/
-  Lokad.DocxEdit.Cli/
-    Lokad.DocxEdit.Cli.csproj
-    Program.cs
-tests/
-  Lokad.DocxEdit.Tests/
-    Lokad.DocxEdit.Tests.csproj
-  Lokad.DocxEdit.OfficeTests/
-    Lokad.DocxEdit.OfficeTests.csproj
-tools/
-  CheckPrivateCase.ps1
-  DocxCaseCommon.ps1
-  RunAgentChallenge.ps1
-edit-cases/
-  cases/
-  families/
-private-cases/                          # ignored local-only cases
-artifacts/                              # ignored generated outputs
-docs/
-  patch-format.md
-  cli.md
-  architecture.md
-  diagnostics.md
-  validation.md
-  status.md
-```
+Dependency rules (enforced in build, not just written here): the production
+package carries no consumer dependency entries — the only production
+`PackageReference` is build-only `Microsoft.SourceLink.GitHub` with
+`PrivateAssets="All"`, and `Directory.Build.targets` rejects anything else so
+new consumer dependencies are intentional. Test projects may use xUnit and its
+runner SDK only; `PackagingTests` asserts the shipped `.nuspec` has no
+dependencies. Shared MSBuild settings live in `Directory.Build.props`
+(nullable, implicit usings, deterministic compiler builds) with `-tl:off` in
+`Directory.Build.rsp` for stable automation logging.
 
-Production project:
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageId>Lokad.DocxEdit</PackageId>
-    <Title>Lokad.DocxEdit</Title>
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0</AssemblyVersion>
-    <FileVersion>0.1.0</FileVersion>
-    <Authors>Lokad</Authors>
-    <Company>Lokad</Company>
-    <Description>Stream-first .docx reader and patch editor for coding agents.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
-    <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>0.1.0 introduces the stream-first DocxEditor library, the docxedit CLI workflow, deterministic patch operations, package validation, and private-text-safe document inspection surfaces.</PackageReleaseNotes>
-    <PackageTags>docx;word;openxml;documents;editing;agents</PackageTags>
-    <PackageProjectUrl>https://github.com/Lokad/DocxEdit</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/Lokad/DocxEdit.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <DebugType>portable</DebugType>
-    <PackageOutputPath>..\..\artifacts\nuget\</PackageOutputPath>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <NoWarn>$(NoWarn)</NoWarn>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
-    <None Include="..\..\CHANGELOG.md" Pack="true" PackagePath="\" Visible="false" />
-    <None Include="..\..\LICENSE.txt" Pack="true" PackagePath="\" Visible="false" />
-    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Visible="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
-  </ItemGroup>
-
-  <Target Name="EnforceReleasePackageConfiguration" BeforeTargets="GenerateNuspec"
-          Condition="'$(Configuration)' != 'Release' and '$(AllowNonReleasePackage)' != 'true'">
-    <Error Text="NuGet packages must be produced with -c Release. Pass /p:AllowNonReleasePackage=true only for troubleshooting." />
-  </Target>
-
-</Project>
-```
-
-The produced `Lokad.DocxEdit` package must contain **no consumer dependency
-entries**. The only production project `PackageReference` allowed is the
-build-only `Microsoft.SourceLink.GitHub` reference with `PrivateAssets="All"`.
-`Directory.Build.targets` must reject unapproved package references so new
-consumer dependencies are intentional.
-
-`Directory.Build.props` should centralize:
-
-```xml
-<Project>
-  <PropertyGroup>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Deterministic>true</Deterministic>
-    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    <LangVersion>latestMajor</LangVersion>
-  </PropertyGroup>
-</Project>
-```
-
-`Directory.Build.rsp` should contain:
-
-```text
--tl:off
-```
-
-This keeps command-line builds on stable console logging for automation and coding agents.
-
-`Directory.Build.targets` should enforce the package-reference allowlist:
-
-```xml
-<Project>
-  <ItemGroup>
-    <AllowedPackageReference Include="Microsoft.SourceLink.GitHub" />
-    <AllowedPackageReference Include="Microsoft.NET.Test.Sdk" />
-    <AllowedPackageReference Include="xunit" />
-    <AllowedPackageReference Include="xunit.runner.visualstudio" />
-  </ItemGroup>
-
-  <Target Name="EnforcePackageAllowlist" BeforeTargets="CollectPackageReferences">
-    <ItemGroup>
-      <DisallowedPackageReference Include="@(PackageReference)" Exclude="@(AllowedPackageReference)" />
-    </ItemGroup>
-    <Error
-      Condition="'@(DisallowedPackageReference)' != ''"
-      Text="PackageReference(s) not in allowlist: @(DisallowedPackageReference). Update Directory.Packages.props intentionally." />
-  </Target>
-</Project>
-```
-
-`.gitignore` must ignore:
-
-```text
-artifacts/
-private-cases/
-bin/
-obj/
-```
-
-Test projects may reference xUnit and the minimal runner/test SDK needed to execute xUnit tests. Those dependencies must remain test-only and must not become transitive dependencies of the `Lokad.DocxEdit` NuGet package.
-
-NuGet artifacts are release outputs only when produced by an explicit Release
-pack. A Release pack must emit both `.nupkg` and `.snupkg` files under ignored
-`artifacts/nuget/`. Non-Release packs must fail unless
-`/p:AllowNonReleasePackage=true` is passed for troubleshooting.
-
-The CLI project is not packaged with the `Lokad.DocxEdit` NuGet package. It may reference only `DocxEdit` and system libraries.
-
-The CLI can be published as a single executable for local use. .NET supports single-file deployment for framework-dependent and self-contained apps; publishing requires a runtime identifier and `PublishSingleFile`. ([Microsoft Learn][7])
-
-Example:
+A Release pack must emit both `.nupkg` and `.snupkg` under ignored
+`artifacts/nuget/`. Other configurations fail unless
+`/p:AllowNonReleasePackage=true` is passed for troubleshooting
+(`PackagingTests` covers both). The CLI project is not packaged; it references
+only the library and system libraries. It can be published as a single
+executable for local use with a runtime identifier and `PublishSingleFile`:
 
 ```bash
 dotnet publish src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj \
@@ -255,9 +107,6 @@ dotnet publish src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj \
   --self-contained false \
   -p:PublishSingleFile=true
 ```
-
----
-
 ## 5. Public API requirements
 
 The public API must be stream-first and command-line agnostic.
@@ -326,7 +175,6 @@ public sealed class DocxEditor
 
     public DocxPatch ParsePatch(
         TextReader patchReader,
-        DocxPatchParseOptions options,
         CancellationToken cancellationToken);
 
     public DocxCheckResult Check(
@@ -345,6 +193,12 @@ public sealed class DocxEditor
 ```
 
 Each operation also offers overloads dropping the trailing options and cancellation parameters; no parameter carries a default value. The library must not require file paths. The CLI may provide path-based wrappers. Every long-running public operation must observe the cancellation token while loading the package, parsing XML, scanning document stories, resolving assets, validating, and writing output.
+
+Resource limits bind reads before allocation and parsing: ZIP entry metadata (counts, declared sizes, duplicate names) is validated before any part content is read; `[Content_Types].xml` is read through a bounded copy before parsing; every part is buffered through bounded copies with the actual total enforced alongside the declared total; patch text is read through a bounded character scan (`DocxEditOptions.MaxPatchChars`); image assets are copied through a bound (`MaxSinglePartBytes`, the same quota that bounds parts, since assets become parts); and the edited package total is re-checked against `MaxUncompressedBytes` before publication. XML parsing itself (DTD prohibited, no entity expansion) always operates on quota-bounded buffers.
+
+Cancellation is cooperative at chunk, part, patch-read, operation, and validation boundaries: an in-flight synchronous parse, ZIP inflate, or save completes once started, while loops between those units observe the token and scoped cleanup (temporary files, open streams, partial buffers) still runs through `finally`/`using`.
+
+Stream ownership follows one matrix on every exit (success, failure, or cancellation): the loader accepts input ownership at entry and disposes the input if and only if `LeaveInputOpen` is false, always disposing its internal non-seekable copy; `check`/`apply` dispose the input and (for apply) the output on every exit under the same flags, so parse, load, edit, save, and cancellation failures never leak owned streams; the patch reader stays caller-owned and is never disposed by the library; asset streams opened by a provider are engine-owned once `TryOpen` returns true and are disposed after reading on every outcome.
 
 ### 5.2 Asset provider
 
@@ -377,16 +231,14 @@ public sealed class DocxEditOptions
     public bool LeaveInputOpen { get; init; } = true;
     public bool LeaveOutputOpen { get; init; } = true;
 
-    public int MaxZipEntries { get; init; } = 10_000;
-    public long MaxUncompressedBytes { get; init; } = 512L * 1024 * 1024;
-    public long MaxSinglePartBytes { get; init; } = 128L * 1024 * 1024;
+    public DocxPackageLimits Quotas { get; init; } = DocxPackageLimits.Default;
 
     public bool AllowMacroEnabledDocuments { get; init; } = false;
     public bool MarkFieldsDirtyWhenEditing { get; init; } = true;
 }
 ```
 
-Read-only option classes share the same package-limit and `LeaveInputOpen` defaults,
+Read-only option classes compose the same `DocxPackageLimits` quotas and default `LeaveInputOpen` to true,
 including `DocxValidateOptions`.
 `DocxReadOptions`, `DocxOutlineOptions`, `DocxFindOptions`, `DocxDumpOptions`, and
 `DocxContextOptions` also accept `DocxTextView` (`Final`, `Original`, or `Markup`)
@@ -408,132 +260,13 @@ Every public method must return diagnostics instead of throwing for expected doc
 
 Throw only for programmer errors such as `null` arguments, non-readable streams, or non-writable output streams.
 
-```csharp
-public enum DocxSeverity
-{
-    Info,
-    Warning,
-    Error
-}
+Findings travel as `DocxDiagnostic` records: three positional values (severity, code, human message) plus init-only location metadata. Operation outcomes share the `DocxOperationResult` base (success flag plus causally ordered diagnostics).
 
-public sealed record DocxDiagnostic(
-    DocxSeverity Severity,
-    string Code,
-    string Message,
-    string? TargetId = null,
-    string? PartName = null,
-    string? Story = null,
-    string? Feature = null,
-    string? Fallback = null,
-    int? OperationIndex = null,
-    int? Line = null,
-    int? Column = null);
+`Check` and `Apply` must include per-operation reports with the operation index, name, target text, success flag, diagnostics, affected targets, and generated revision IDs.
 
-public abstract record DocxOperationResult
-{
-    public required bool Success { get; init; }
-    public required IReadOnlyList<DocxDiagnostic> Diagnostics { get; init; }
-}
-```
+Read and explore results must expose structured data (IDs, match and outline records, text bounded at build) in addition to what the CLI text renderings show; renderers format records but never replace them.
 
-`Check` and `Apply` must include operation-level results:
-
-```csharp
-public sealed record DocxPatchOperationReport(
-    int Index,
-    string OperationName,
-    string? Target,
-    bool Success,
-    IReadOnlyList<DocxDiagnostic> Diagnostics)
-{
-    public IReadOnlyList<DocxPatchAffectedTarget> AffectedTargets { get; init; } = [];
-    public IReadOnlyList<string> GeneratedRevisionIds { get; init; } = [];
-}
-
-public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, string Action)
-{
-    public DocxTargetId? ParentId { get; init; }
-    public int? RowIndex { get; init; }
-    public int? ColumnIndex { get; init; }
-    public int? RowCountBefore { get; init; }
-    public int? RowCountAfter { get; init; }
-    public int? ColumnCount { get; init; }
-    public int? CellCount { get; init; }
-    public int? VisualColumnEndIndex { get; init; }
-    public int? GridBefore { get; init; }
-    public int? GridAfter { get; init; }
-    public DocxTargetId? MergeGroupId { get; init; }
-    public string? NestedTablePath { get; init; }
-}
-```
-
-Read/explore result records must expose structured data in addition to the CLI text
-renderings:
-
-```csharp
-public sealed record DocxReadResult : DocxOperationResult
-{
-    public IReadOnlyList<string> PartNames { get; init; } = [];
-    public string? MainDocumentPartName { get; init; }
-    public string Text { get; init; } = string.Empty;
-    public IReadOnlyList<DocxParagraphInfo> Paragraphs { get; init; } = [];
-    public IReadOnlyList<DocxTableInfo> Tables { get; init; } = [];
-    public IReadOnlyList<DocxImageInfo> Images { get; init; } = [];
-    public IReadOnlyList<DocxSectionInfo> Sections { get; init; } = [];
-    public IReadOnlyList<DocxBookmarkInfo> Bookmarks { get; init; } = [];
-    public IReadOnlyList<DocxContentControlInfo> ContentControls { get; init; } = [];
-    public IReadOnlyList<DocxFieldInfo> Fields { get; init; } = [];
-    public IReadOnlyList<DocxHyperlinkInfo> Hyperlinks { get; init; } = [];
-}
-
-public sealed record DocxDumpResult : DocxOperationResult
-{
-    public string TargetId { get; init; } = string.Empty;
-    public string? Text { get; init; }
-    public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
-}
-
-public sealed record DocxContextResult : DocxOperationResult
-{
-    public string TargetId { get; init; } = string.Empty;
-    public string Text { get; init; } = string.Empty;
-    public IReadOnlyList<DocxContextItem> Items { get; init; } = [];
-}
-
-public sealed record DocxChangesResult : DocxOperationResult
-{
-    public IReadOnlyList<string> PartNames { get; init; } = [];
-    public string? MainDocumentPartName { get; init; }
-    public IReadOnlyList<DocxChangeInfo> Changes { get; init; } = [];
-    public IReadOnlyList<DocxChangeSummary> Summary { get; init; } = [];
-    public IReadOnlyList<DocxChangeGroupSummary> GroupSummary { get; init; } = [];
-    public IReadOnlyList<DocxChangeTargetSummary> TargetSummary { get; init; } = [];
-    public IReadOnlyList<DocxCommentThreadSummary> CommentSummary { get; init; } = [];
-}
-
-public sealed record DocxValidateResult : DocxOperationResult
-{
-    public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
-    public IReadOnlyList<string> PartNames { get; init; } = [];
-    public string? MainDocumentPartName { get; init; }
-}
-
-public sealed class DocxValidateOptions
-{
-    public DocxValidationProfile Profile { get; init; } = DocxValidationProfile.Structural;
-    public int MaxDiagnostics { get; init; } = 500;
-    public int MaxZipEntries { get; init; } = 10_000;
-    public long MaxUncompressedBytes { get; init; } = 512L * 1024L * 1024L;
-    public long MaxSinglePartBytes { get; init; } = 128L * 1024L * 1024L;
-    public bool LeaveInputOpen { get; init; } = true;
-}
-
-public enum DocxValidationProfile
-{
-    Structural,
-    Package
-}
-```
+The records in `src/Lokad.DocxEdit/Public/` are the definition of every shape above; this section states the rules they must satisfy, not a second copy of their members.
 
 `Changes` must be private-text-free by default. It may report revision/comment
 metadata, text lengths, child counts, IDs, targets, stories, and parts. It must not
@@ -541,7 +274,7 @@ copy revision text into the result. Comment body snippets may appear only when
 `DocxChangesOptions.IncludeCommentText` is true, and then must be bounded by
 `MaxCommentText`.
 
-### 5.1 Public integration surfaces
+### 5.4 Public integration surfaces
 
 The NuGet library must expose the agent-facing command guidance that the CLI uses.
 Integrators must not have to duplicate CLI-local help text.
@@ -571,7 +304,9 @@ public sealed record DocxPatchOperationInfo
     public string Name { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
     public IReadOnlyList<string> RequiredFields { get; init; } = [];
+    public IReadOnlyList<IReadOnlyList<string>> RequiredAlternatives { get; init; } = [];
     public IReadOnlyList<string> OptionalFields { get; init; } = [];
+    public IReadOnlyList<string> RepeatableFields { get; init; } = [];
     public string Description { get; init; } = string.Empty;
     public string TrackChangesSupportClass { get; init; } = "unsupported";
     public string TrackChangesSupport { get; init; } = "unsupported";
@@ -641,10 +376,7 @@ public static class DocxPrivacyPresets
 }
 ```
 
-`ReadSummary` and `ContextMetadataOnly` use `MaxText = 0`. Consumers must prefer
-`DocxTextRenderer.RenderReadSummary`, `DocxTextRenderer.RenderContext`, and
-`DocxTextRenderer.RenderChanges` when they need privacy-safe agent output instead of
-serializing full result objects.
+`ReadSummary` and `ContextMetadataOnly` use `MaxText = 0`. `MaxText` bounds per-item body text in both rendered text and structured/JSON payloads: paragraph/run/cell text, field cached results, and table/image captions/descriptions/titles are truncated (0 drops). IDs, counts, style IDs/names, bookmark names, content-control tags/aliases, field codes/kinds/types, hyperlink URIs/anchors, authors, and revision IDs are retained as structural metadata; length/count properties keep full-text values. `DocxPrivacyPresets.RenderReadSummary` emits counts only; `RenderContextMetadata` and `RenderChangesMarkup` strip item text and comment snippets even when the input result carries them. Prefer these renderers over serializing full result objects for privacy-safe agent output.
 
 ---
 
@@ -722,19 +454,14 @@ The loader must parse:
 
 It must discover the main document part through the office document relationship in `/_rels/.rels`, not by assuming `/word/document.xml` always exists.
 
-The scanner should also discover, when present:
-
-```text
-/word/styles.xml
-/word/numbering.xml
-/word/settings.xml
-/word/comments.xml
-/word/header*.xml
-/word/footer*.xml
-/word/media/*
-/docProps/core.xml
-/docProps/app.xml
-```
+Part roles resolve through package relationships, never fixed paths: styles,
+numbering, settings, comments, headers, footers, footnotes, and endnotes are
+discovered from the main document part relationships (conventional paths such
+as `/word/styles.xml` are only used when creating new parts). A part shared by
+several relationships of one kind is processed once under the first
+relationship index. Footnotes, endnotes, and comment bodies stay out of the
+read model (no paragraph/table targets) but are inventoried by changes and
+validated; parts without a relationship role receive no role-based checks.
 
 ### 6.4 Content types and relationships
 
@@ -842,7 +569,7 @@ text boxes         read-only initially
 
 IDs are generated deterministically during scanning. They are not written into the `.docx`.
 
-IDs are stable for the same document bytes and same scanner version.
+IDs are physical and positional: every top-level w:p / w:tbl / w:sectPr in document order owns one ordinal, including blocks wrapped in a single block-level w:ins / w:del / w:moveFrom / w:moveTo container. Table rows own physical ordinals; table cells use visual grid columns (gridBefore plus gridSpan). Text views filter which blocks are reported but never renumber the survivors, so Final omits deleted blocks (leaving gaps), Original omits inserted blocks, and Markup reports everything. The same physical enumeration backs read, dump, context, outline, find, changes, and patch target resolution, so a discovered ID always resolves to the same element. IDs are stable for the same document bytes and same scanner version, but they are not permanently stable: earlier structural operations in the same patch shift later positional IDs, resolved sequentially against the evolving package in operation order.
 
 Use these forms:
 
@@ -862,7 +589,7 @@ F001.T0001                      first footer part, table
 F001.I0001                      first footer part, image
 ```
 
-Counters are 1-based and zero-padded.
+Counters are 1-based with minimum zero-padded widths (4 for entities, 2 for rows and cells, 4 for merge groups, 3 for story parts); larger counters extend the width, and parsers accept any wider all-digit form while rejecting non-digits, zeros, signs, and short runs.
 
 ### 8.3 Paragraph model
 
@@ -1416,7 +1143,7 @@ M.T0001 table rows=2 columns=3 styleId=TableGrid grid-columns=3 header-row=true
 M.I0001 image layout=anchor part=/word/media/image1.png content-type=image/png bytes=12345 relationship-id=rImage target=M.P0002 size-emu=914400x457200 description="Revenue chart" wrap=wrapSquare behind-doc=true wrap-dist-top-emu=10 position-h-relative=column position-h-offset-emu=12345 crop-left-percent=10 crop-top-percent=5
 ```
 
-`read --summary` prints aggregate counts without listing every target:
+`read --summary` prints aggregate counts without listing every target (with `--json` it emits the same counts-only shape, not the full result object):
 
 ```text
 parts count=50
@@ -1552,6 +1279,8 @@ after M.P0005 paragraph story="main" text=""
 ---
 
 ## 10. Patch DSL: `.docxpatch`
+
+Field sets and worked examples live in docs/patch-format.md; the operation registry is their machine owner. This section states the grammar and resolution contracts.
 
 ### 10.1 Format goals
 
@@ -1704,6 +1433,8 @@ delete-image
 
 ## 11. Patch operations v0.1
 
+Per-operation behavior contracts. Field sets live in docs/patch-format.md (frozen copies of `DocxHelp.Catalog` output); examples there show the same operations in use.
+
 ### 11.1 `replace-text`
 
 Replace text inside one paragraph.
@@ -1831,6 +1562,7 @@ Rules:
 * Target must be a paragraph or top-level table.
 * For paragraphs, delete the paragraph XML element.
 * For tables, delete the table XML element.
+* Refuse with `E4305` when deletion would orphan a bookmark, comment-range, or complex-field boundary whose counterpart lies outside the deleted element; delete the range first or retarget. Removing an element that fully contains a range is allowed.
 * Do not delete the only paragraph in a table cell; replace it with an empty paragraph instead.
 
 ### 11.6 `set-style`
@@ -2378,6 +2110,7 @@ Rules:
 * `expect-row-count`, `expect-column-count`, `expect-cell-count`, and
   `expect-contains` are supported guards.
 * Do not allow deleting the only row of a table.
+* Refuse with `E4305` when deletion would orphan a bookmark, comment-range, or complex-field boundary whose counterpart lies outside the deleted row; delete the range first or retarget.
 * Direct deletion supports consistent visual-grid tables.
 * When deleting a row whose vertical-merge root is followed by a matching
   continuation, promote the next continuation from `continue` to `restart`.
@@ -2854,7 +2587,7 @@ Revision metadata:
 
 ### 13.1 `check`
 
-`Check` must parse and validate a patch against an input document without writing output.
+`Check` must parse and validate a patch against an input document without writing output. It executes the same mutations as `Apply` against the disposable in-memory package (including field-refresh marking) and discards them instead of saving, so dependent edits, repeated guards, topology changes, field refresh, and post-edit validation reach the same outcomes; only publication differs. `GeneratedRevisionIds` stays empty in check reports and is populated only for apply operations that actually create revision markup.
 
 It must:
 
@@ -2920,6 +2653,7 @@ Patch apply validation must check:
 * No relationship target path traversal.
 * Main document root has expected WordprocessingML namespace.
 * Edited tables still contain valid basic `w:tbl/w:tr/w:tc` nesting.
+* Edited bookmarks, comment ranges, complex fields, and table grids still pair and balance; only violations introduced by the patch fail, pre-existing ones do not block it.
 * Edited paragraphs still contain valid basic `w:p/w:r/w:t` nesting.
 
 `DocxEditor.Validate` and `docxedit validate` must additionally scan safe XML parts
@@ -2963,6 +2697,8 @@ document problem was found.
 ---
 
 ## 14. Diagnostics
+
+Code meanings live in docs/diagnostics.md. This section states the code and record contracts.
 
 Diagnostics must be stable and actionable.
 
@@ -3136,7 +2872,6 @@ Options for read/probe commands:
 --runs
 --summary
 --headers-footers
---all-stories
 --view final|original|markup
 --radius <count>
 --max-text <chars>
@@ -3147,6 +2882,8 @@ Options for read/probe commands:
 ```
 
 `--diagnostics <path>` writes the full diagnostics array as JSON for any command. `--report <path>` remains the operation-level patch report for `check` and `apply`. `--operation-report <path>` on `changes` reads a check/apply report and annotates matching revision records.
+
+`apply` publishes file outputs atomically: the edited document lands in a temporary sibling and replaces `--output` only after successful editing, so a failed run preserves any pre-existing destination file (temporary files are removed on failure, cancellation, or I/O errors). `--output`/`--report`/`--diagnostics` must differ from the input document, the patch file, the operation report source, and each other; collisions fail upfront with exit code 2 before any writer opens. `-` keeps streaming standard input/output directly.
 
 `--strict` must make an otherwise successful command return the strict-warning exit code when any warning or error diagnostic was emitted.
 
@@ -3423,7 +3160,14 @@ PNG:  89 50 4E 47 0D 0A 1A 0A
 JPEG: FF D8 FF
 ```
 
-Do not trust file extension alone.
+Do not trust file extension alone. Magic bytes are authoritative: assets
+without a recognized PNG/JPEG signature are rejected (`E5203`), provider
+MIME/name hints must agree with the magic, and a recognized extension that
+conflicts with the magic is rejected. Beyond signatures, structural validation
+is bounded and decoder-free: PNG requires a leading IHDR (sane dimensions and
+encoding), at least one IDAT chunk, and IEND terminating the file; JPEG
+requires a frame header with sane dimensions and scan data closed by an end
+marker. Touched image parts are re-validated post-edit.
 
 ### 19.3 Dimensions
 
@@ -3599,9 +3343,14 @@ Streams
 
 ### 23.2 Deterministic output
 
-Representative fixtures assert exact rendered text in `EditCaseTests` readback
-values; there are no checked-in golden files. Deterministic builds plus exact
-readback assertions keep output stable.
+Determinism is scoped from strongest to weakest claim:
+
+1. Repeatable targeting: the same document bytes scanned with the same scanner version produce the same target IDs (SPEC 8.2). IDs are positional, not permanently stable across edits.
+2. Equivalent part payloads: the same input, patch, asset bytes, author, and UTC timestamp produce byte-identical ZIP part payloads across separate executions. Pin `--author` and `--timestamp-utc` (or `Author`/`TimestampUtc`); omitting the timestamp records the current time into revision markup, so payloads then differ by design.
+3. Stable rendered output: equal payloads render equal text. Representative fixtures assert exact rendered text in `EditCaseTests` readback values; there are no checked-in golden files.
+4. Archive bytes are NOT reproducible: ZIP entry timestamps record the save time, so two separately saved packages differ byte-for-byte even when every part payload matches. Compare part payloads or rendered text, never archives.
+
+`Deterministic` in the build props refers to compiler builds, not documents.
 
 ### 23.3 Fixture generation
 
@@ -3682,6 +3431,8 @@ Public notes derived from private cases must be anonymized: record feature gaps,
 
 ## 24. CLI help requirements
 
+Usage lives in docs/cli.md. This section states what help must provide.
+
 The CLI must be self-explanatory for a fresh coding agent. Help material belongs to
 the NuGet library through `DocxHelp`; the CLI is only one renderer of that catalog.
 
@@ -3726,12 +3477,15 @@ Examples:
   docxedit apply report.docx edits.docxpatch --output report.edited.docx
 Pipes:
   - stands for stdin/stdout: the input .docx, the patch file, and --output accept -
+  - with --output -, stdout carries exactly the edited package: status goes to
+    stderr (or --report), --json is rejected, the input document and patch file
+    cannot both be -, and failed runs emit no stdout bytes
 
 Exit codes:
   0 success (warnings allowed; inspect diagnostics)
   1 unsuccessful result; text mode prints error diagnostics to stderr
   2 invalid command-line usage
-  3 successful result with warnings under --strict
+  3 successful result with warnings under --strict (a published output document, if any, is still written)
   4 unhandled exception
 ```
 
@@ -3856,7 +3610,7 @@ The implementation is acceptable when all of the following are true:
 22. `check` and `apply` expose operation-level reports in JSON and compact plain text.
 23. Command-specific help exists for `dump`, `context`, `changes`, `validate`,
     `check`, `apply`, and `patch`.
-24. Golden tests prove deterministic read/probe output.
+24. Edit-case readback assertions prove deterministic rendered output.
 25. Stream-only tests prove no file-system dependency in the library.
 26. Public edit-case validation tools can run at least one smoke case.
 27. Private-case tooling rejects tracked or out-of-directory confidential inputs.
@@ -3864,43 +3618,18 @@ The implementation is acceptable when all of the following are true:
 
 ---
 
-## 28. Recommended implementation order
+## 28. Implementation history
 
-1. Create solution and projects.
-2. Implement ZIP package loader/saver.
-3. Implement content types and relationships parser.
-4. Discover main document, styles, headers, footers, media.
-5. Implement logical scanner for paragraphs, tables, images, sections.
-6. Implement deterministic ID assignment.
-7. Implement read/outline/find/dump/context/styles/media/changes renderers.
-8. Implement patch parser.
-9. Implement selector resolver.
-10. Implement guards.
-11. Implement paragraph text replacement.
-12. Implement insert/delete paragraph operations.
-13. Implement table `set-cell` and `append-row`.
-14. Implement image list and replace.
-15. Implement inline image insertion.
-16. Implement section column/orientation edits.
-17. Implement basic track-changes mode.
-18. Implement `check` simulation.
-19. Implement `apply`.
-20. Implement CLI.
-21. Implement command-specific help and JSON output.
-22. Implement CLI diagnostics JSON and strict mode.
-23. Add golden tests.
-24. Add public edit-case validation tools.
-25. Add private-case validation guardrails and agent challenge probes.
-26. Add optional Office integration tests.
-27. Publish local `Lokad.DocxEdit` NuGet package and verify the CLI consumes the library through project reference only.
+The project is implemented; the original step-by-step build order is retired.
+Current capability and validation coverage are described in docs/status.md.
 
 The most important invariant throughout the implementation is:
 
 ```text
-Every edit must specify:
-  where to edit,
-  what current visible content is expected,
-  and what change to make.
+Every edit must specify where to edit and what change to make.
+Guards (find, expect-text, expect-*) let an edit additionally assert the
+expected current content; check and apply fail when a supplied guard
+mismatches. Some operations require a guard, elsewhere guards are optional.
 ```
 
 That invariant is what makes `docxedit` safe for iterative coding-agent use.

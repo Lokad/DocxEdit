@@ -14,7 +14,7 @@ document contents may appear below.
 - Target-ID classes touched (for example `M.P0001`-style paragraph IDs).
 - Change/run markup types observed (for example inserted-run, deleted-run).
 - Aggregate counts only (commands run, retries, diagnostics seen).
-- Ignored artifact path (under `artifacts/agent-challenges/`).
+- Sanitized summary path (under `artifacts/agent-challenges/`) and ignored run directory (under `private-cases/_runs/`).
 - Tooling gaps only in notes; never document content.
 
 ## What never to record

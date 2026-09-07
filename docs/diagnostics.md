@@ -41,13 +41,13 @@ Common code ranges:
   invalid generated revision metadata before operation execution. Empty revision
   authors are rejected with `Feature = track-changes-revision-metadata` and
   `Fallback = no-output-written`.
-- `E1201`: selector matched no targets, or the target shape is wrong for the operation.
+- `E1201`: selector matched no targets, a target ID was not found, or the target shape is wrong for the operation.
 - `E1202`: selector matched multiple targets ambiguously; the message lists candidate IDs.
 - `E1203`: selector text is malformed.
 - `E2001`: patch text is empty.
 - `E2002`: patch is missing the required `docxpatch 1` preamble.
 - `E2003`: unsupported docxpatch major version.
-- `E2004`: the `expect-hash` feature is not supported.
+- `E2004`: an `expect-hash` patch field was supplied; the feature is not supported (the same words inside a heredoc value stay literal).
 - `E2005`: unexpected patch line.
 - `E2006`: operation name is required.
 - `E2007`: invalid field line.
@@ -57,6 +57,7 @@ Common code ranges:
 - `E2011`: unknown field for the operation.
 - `E2012`: boolean field value must be true or false.
 - `E2013`: integer field value must be an integer.
+- `E2014`: patch text exceeds the configured maximum patch size.
 - `E3201`: guard failed: an `expect-*` value differs from the current value.
 - `E4201`: operation is recognized but not supported in this mode.
 - `E4202`: required field or field combination is missing.
@@ -92,10 +93,11 @@ Common code ranges:
   tabs/line breaks inside the selected span.
 - `E5201`: no asset provider is configured for image operation assets.
 - `E5202`: image asset could not be resolved.
-- `E5203`: image asset is not a supported PNG or JPEG image.
+- `E5203`: image asset is not a supported PNG or JPEG image (missing signature, hint/content disagreement, or structural defect such as truncation).
 - `E5204`: replacing the image content type is not supported for existing media.
 - `E5205`: image lacks editable DrawingML (properties, crop, or anchored-only metadata).
 - `E5206`: invalid image width or height.
+- `E5207`: image asset exceeds the configured maximum single-part size.
 - `E5208`: image crop percentages are invalid.
 - `E5209`: image wrap mode or wrap distance is invalid.
 - `E5210`: image position axis is invalid.

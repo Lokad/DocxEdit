@@ -15,19 +15,8 @@ The normal loop is:
 
 ## Running The CLI
 
-When installed as a tool or exposed by an integration, examples use `docxedit`:
-
-```text
-docxedit read report.docx --summary
-```
-
-When running this repository from source, replace `docxedit` with:
-
-```text
-dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj --
-```
-
-For example:
+Examples use `docxedit` as the command name. No tool package is published:
+run the CLI from source (integrations embed the library instead):
 
 ```text
 dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- read report.docx --summary
@@ -48,6 +37,15 @@ A patch read from stdin has no directory: relative image `asset` paths resolve
 against the invoking working directory only (see [patch-format.md](patch-format.md)).
 `--report`, `--diagnostics`, and `--operation-report` stay file-only; `-` is not
 accepted there because it would collide with `--json` or binary stdout.
+
+Binary-stdout ownership: with `apply --output -`, standard output carries
+exactly the edited package and nothing else. Status lines and the operation
+summary go to standard error (use `--report <path>` for the machine-readable
+report); `--json` is rejected with `--output -`. The input document and the
+patch file cannot both use `-`. A failed binary run writes no bytes to
+standard output. `--output`/`--report`/`--diagnostics` must differ from the
+input document, the patch file, and each other, failing with exit code `2`
+before any writer opens.
 
 ## Recommended Workflow
 
@@ -107,9 +105,8 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 | `--diagnostics path` | Most commands | Write diagnostics JSON to a separate file |
 | `--strict` | Most commands | Return exit code `3` when warnings are present |
 | `--view final/original/markup` | Text reads and outline | Select how tracked inserted/deleted content is rendered |
-| `--max-text N` | Text reads | Limit rendered text per field |
+| `--max-text N` | Text reads | Limit body text per field in text and structured/JSON output (0 drops; IDs, counts, and structural metadata retained) |
 | `--headers-footers` | Read commands | Include modeled header and footer stories |
-| `--all-stories` | `read` | Include every modeled story |
 | `--report path` | `check`, `apply` | Write full operation report JSON |
 | `--track-changes mode` | `check`, `apply` | Control generated revision markup |
 | `--author name` | `check`, `apply` | Author used for generated revisions |
@@ -162,7 +159,8 @@ especially when selector diagnostics report duplicates.
 
 DocxEdit is designed so an agent can inspect document shape before exposing text.
 
-- `read --summary` prints package and story counts without listing every target.
+- `read --summary` prints package and story counts without listing every target; with `--json` it emits a counts-only object (no target lists, no text).
+- `apply` writes the edited document to a temporary sibling and replaces `--output` only after successful editing; failed runs preserve any pre-existing destination file. `--output`/`--report`/`--diagnostics` must differ from the input document, the patch file, and each other, failing with exit code `2` otherwise.
 - `context` defaults to `--max-text 0`; paragraph and cell text fields are present
   but empty.
 - `changes` does not print revision text or comment body text by default.
@@ -173,6 +171,12 @@ DocxEdit is designed so an agent can inspect document shape before exposing text
   text.
 - Comment snippets require `changes --include-comment-text`; bound them with
   `--max-comment-text N`.
+- `--max-text 0` (and the `ReadSummary`/`ContextMetadataOnly` presets) drops
+  paragraph/run/cell text, field cached results, and table/image
+  captions/descriptions/titles in text and structured/JSON output. IDs, counts,
+  style IDs/names, bookmark names, content-control tags/aliases, field
+  codes/kinds/types, hyperlink URIs/anchors, authors, and revision IDs are
+  retained as structural metadata and never imply redaction of those fields.
 
 For private inputs, start with `read --summary`, `validate`, `changes`, and
 metadata-only `context`.
@@ -265,7 +269,7 @@ omitted-column offsets, merge groups, and nested-table paths when relevant. Use
 Generated revision IDs from the report can be correlated with
 `changes --operation-report`.
 
-Both commands echo the effective `--author`, `--timestamp-utc`, and producing-library version in the text summary line and the JSON report, so a run can be replayed and attributed from its report alone. Agent workflows should always pass explicit `--author` and `--timestamp-utc` for reproducible outputs; omitting them records the `docxedit` default author and the current UTC time.
+Both commands echo the effective `--author`, `--timestamp-utc`, and producing-library version in the text summary line and the JSON report, so a run can be replayed and attributed from its report alone. Agent workflows should always pass explicit `--author` and `--timestamp-utc` for reproducible outputs; omitting them records the `docxedit` default author and the current UTC time. Reproducibility covers part payloads and rendered text: archive bytes still differ because ZIP entry timestamps record each save.
 
 Track-change modes:
 
@@ -319,7 +323,7 @@ Exit codes:
 - `0`: success.
 - `1`: operation failed.
 - `2`: invalid CLI usage.
-- `3`: `--strict` with a successful result that carries warnings (errors fail as `1`).
+- `3`: `--strict` with a successful result that carries warnings (errors fail as `1`). A published output document, if any, is still written; only the exit code signals the warnings.
 - `4`: unexpected CLI exception.
 
 In text mode, error diagnostics print to standard error (warnings too under `--strict`); `--json` carries diagnostics in the result object. Diagnostics are documented in [diagnostics.md](diagnostics.md). Validation details

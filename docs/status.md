@@ -4,9 +4,9 @@ This is a pre-release editor. It supports useful structural reads and a focused 
 
 ## Where To Look
 
-Feature-by-feature inventories rot; the sources below are verified by hand when
-touched. Textual tests pinning them were removed as brittle; only the patch tables
-originate from generation (frozen copies since — refresh by hand):
+Feature-by-feature inventories rot, so each source below is either generated or
+verified by hand when touched. The patch tables in patch-format.md are frozen
+copies of generator output — refresh them by hand after registry changes:
 
 - `docxedit help <topic>` (`dump`, `context`, `changes`, `validate`, `check`,
   `apply`, `patch`, and every other command) renders the current command
@@ -21,13 +21,13 @@ originate from generation (frozen copies since — refresh by hand):
 - [diagnostics.md](diagnostics.md) catalogs every diagnostic code the library emits.
 - [validation.md](validation.md) describes the structural validation profiles.
 
-## Stable Guarantees
+## Current Guarantees
 
-These hold across releases and are safe to rely on in prose:
+DocxEdit has never been released; these hold today:
 
 - Stream-first library with no NuGet dependencies beyond the .NET platform libraries.
-- Deterministic `.docxpatch` edits against stable target IDs discovered through
-  `read`, `outline`, `find`, `dump`, or `context`.
+- Repeatable `.docxpatch` edits against discovered target IDs (`read`, `outline`, `find`, `dump`, or `context`): same bytes scan to the same IDs,
+  which are positional rather than permanently stable (SPEC 8.2, SPEC 23.2).
 - `check` before `apply`: patches validate selectors, guards, assets, and
   track-change constraints without writing output.
 - Privacy-safe inspection: shape and metadata before text (`read --summary`,

@@ -115,7 +115,7 @@ artifacts are kept. (`tools/CheckPrivateCase.ps1` remains for local-only private
 
 ## Office Compatibility
 
-Optional Microsoft Word automation tests are gated by `DOCXEDIT_ENABLE_OFFICE_TESTS=1`.
+Optional Microsoft Word automation tests are gated by `DOCXEDIT_ENABLE_OFFICE_TESTS=1` and tagged `Category=RequiresWord`. Without the variable the test returns without touching Word, and CI runs it only as an explicitly separate opt-in step that reports when the Word open/save check did not execute, so a green default run never implies a Word compatibility pass.
 On Windows with Word installed, the Office test project creates a synthetic `.docx`, applies
 a patch with generated tracked text, paragraph insertion, row insertion, and a
 preserve-only image insertion, opens and saves the generated output through Word
@@ -131,7 +131,7 @@ Run:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/CheckPrivateCase.ps1 -Case local-case.docx -ValidateOnly
 ```
 
-The harness writes sanitized artifacts under ignored `artifacts/private-edit/` and prints only structure counts, tracked-change counts, diagnostics count, and status. It must not print or store private document text.
+Each run gets an ignored run directory under `private-cases/_runs/` holding the build logs and the full `summary.json` for local review. A sanitized summary (counts, diagnostic codes, and aggregate comparisons only -- no case names, document text, or diagnostic messages) is also written under `artifacts/private-edit/` keyed by a hash of the case id. Console output prints only structure counts, tracked-change counts, diagnostics count, and status. Private document text must never be printed or stored outside `private-cases/`.
 
 An ignored private manifest may sit next to the input and provide aggregate-only
 expectations:
@@ -181,8 +181,4 @@ Run a probe:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory
 ```
 
-Artifacts are written under ignored `artifacts/agent-challenges/`. The runner captures
-Codex JSONL events, the final response, post-run `docxedit` read/changes checks for
-generated outputs, and heuristic signals such as whether the agent used `docxedit`,
-`changes`, `check`, `apply`, or forbidden raw OOXML inspection. These artifacts may
-contain private text if the evaluated agent printed it, so do not commit or publish them.
+Each run gets an ignored run directory under `private-cases/_runs/` holding the input copy, prompt, wrapper, Codex JSONL events, the final response, post-run `docxedit` read/changes checks for generated outputs, and heuristic signals such as whether the agent used `docxedit`, `changes`, `check`, `apply`, or forbidden raw OOXML inspection. Those run files may contain private text if the evaluated agent printed it, so they stay under ignored `private-cases/` and must never be committed or published. A sanitized run summary (counts, booleans, hashes, and exit codes -- no document text, filenames, commands, or transcript paths) is also written under `artifacts/agent-challenges/`.
