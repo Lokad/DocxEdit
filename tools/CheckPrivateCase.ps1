@@ -12,6 +12,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $PrivateRoot = Join-Path $RepoRoot "private-cases"
 $ArtifactRoot = Join-Path $RepoRoot "artifacts/private-edit"
+$PrivateRunRoot = Join-Path $PrivateRoot "_runs"
 $CliProject = Join-Path $RepoRoot "src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj"
 
 function Resolve-ExistingPath([string] $Path) {
@@ -310,8 +311,11 @@ function Resolve-PrivateCase([string] $CaseValue) {
 
 $privateCase = Resolve-PrivateCase $Case
 $runId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ")
-$artifactDir = Join-Path $ArtifactRoot (Join-Path $privateCase.CaseId $runId)
+$caseKey = Get-StableCaseKey $privateCase.CaseId
+$artifactDir = Join-Path $PrivateRunRoot (Join-Path ("check-" + $caseKey) $runId)
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+$artifactDir = (Resolve-Path -LiteralPath $artifactDir).Path
+Assert-PrivatePath $artifactDir "Run directory"
 
 $build = Invoke-ProcessCapture "dotnet" @("build", $CliProject, "--nologo", "--verbosity", "minimal")
 if ($build.ExitCode -ne 0) {
@@ -369,9 +373,14 @@ $summaryObject = [pscustomobject]@{
 
 $summaryPath = Join-Path $artifactDir "summary.json"
 $summaryObject | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath
+$publicArtifactDir = Join-Path $ArtifactRoot (Join-Path ("check-" + $caseKey) $runId)
+New-Item -ItemType Directory -Force -Path $publicArtifactDir | Out-Null
+$publicSummaryPath = Join-Path $publicArtifactDir "summary.json"
+New-SanitizedPrivateCaseSummary $summaryObject $caseKey | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $publicSummaryPath
 
 Write-Host "private case '$($privateCase.CaseId)': $(if ($success) { 'OK' } else { 'FAILED' })"
 Write-Host "artifact: $(Get-RepoRelativePath $summaryPath)"
+Write-Host "sanitized-artifact: $(Get-RepoRelativePath $publicSummaryPath)"
 Write-Host "structure: parts=$($structure.PackageParts) paragraphs=$($structure.Paragraphs) tables=$($structure.Tables) images=$($structure.ScannerVisibleImages) sections=$($structure.Sections) styles=$($structure.Styles)"
 Write-Host "changes: total=$($changeRecords.Count)"
 foreach ($key in @($changeSummary.Keys | Sort-Object)) {

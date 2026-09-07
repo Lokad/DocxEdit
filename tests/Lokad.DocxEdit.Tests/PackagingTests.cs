@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 public static class PackagingTests
@@ -78,9 +80,13 @@ public static class PackagingTests
 
         using Process process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start dotnet pack.");
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
+        // Drain both streams concurrently: sequential ReadToEnd calls deadlock
+        // once the child fills the pipe nobody is reading.
+        Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> errorTask = process.StandardError.ReadToEndAsync();
         process.WaitForExit();
+        string output = outputTask.GetAwaiter().GetResult();
+        string error = errorTask.GetAwaiter().GetResult();
 
         return new PackResult(process.ExitCode, output, error);
     }
@@ -93,46 +99,7 @@ public static class PackagingTests
         }
     }
 
-    private static string FindRepoRoot()
-    {
-        string? directory = AppContext.BaseDirectory;
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory, "Lokad.DocxEdit.slnx")))
-            {
-                return directory;
-            }
-
-            directory = Directory.GetParent(directory)?.FullName;
-        }
-
-        throw new InvalidOperationException("Could not locate repository root.");
-    }
 
     private sealed record PackResult(int ExitCode, string Output, string Error);
 
-    private sealed class TempDirectory : IDisposable
-    {
-        private TempDirectory(string path)
-        {
-            Path = path;
-        }
-
-        public string Path { get; }
-
-        public static TempDirectory Create()
-        {
-            string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "docxedit-tests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            return new TempDirectory(path);
-        }
-
-        public void Dispose()
-        {
-            if (Directory.Exists(Path))
-            {
-                Directory.Delete(Path, recursive: true);
-            }
-        }
-    }
 }

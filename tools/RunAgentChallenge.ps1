@@ -37,7 +37,8 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ChallengeRoot = Join-Path $RepoRoot "agent-challenges/challenges"
 $SchemaPath = Join-Path $RepoRoot "agent-challenges/final.schema.json"
 $PrivateRoot = Join-Path $RepoRoot "private-cases"
-$ArtifactRoot = Join-Path $RepoRoot "artifacts/agent-challenges"
+$PrivateRunRoot = Join-Path $PrivateRoot "_runs"
+$PublicArtifactRoot = Join-Path $RepoRoot "artifacts/agent-challenges"
 $CliProject = Join-Path $RepoRoot "src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj"
 
 function ConvertTo-StringList([object] $Value) {
@@ -518,8 +519,10 @@ if ($DryRun) {
 $privatePath = Resolve-PrivateCase $PrivateCase
 $runId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ")
 $challengeId = [string] (Get-ObjectProperty $manifest "id")
-$runDirectory = Join-Path $ArtifactRoot (Join-Path $challengeId $runId)
+$runDirectory = Join-Path $PrivateRunRoot (Join-Path $challengeId $runId)
 New-Item -ItemType Directory -Force -Path $runDirectory | Out-Null
+$runDirectory = (Resolve-Path -LiteralPath $runDirectory).Path
+Assert-PrivatePath $runDirectory "Run directory"
 
 $inputCopy = Join-Path $runDirectory "input.docx"
 Copy-Item -LiteralPath $privatePath -Destination $inputCopy
@@ -629,9 +632,14 @@ $summary = [pscustomobject]@{
 
 $summaryPath = Join-Path $runDirectory "summary.json"
 Write-JsonFile $summaryPath $summary
+$publicRunDirectory = Join-Path $PublicArtifactRoot (Join-Path $challengeId $runId)
+New-Item -ItemType Directory -Force -Path $publicRunDirectory | Out-Null
+$publicSummaryPath = Join-Path $publicRunDirectory "summary.json"
+Write-JsonFile $publicSummaryPath (New-SanitizedChallengeSummary $summary)
 
 Write-Host "agent challenge '$challengeId': $(if ($summary.Success) { 'OK' } else { 'FAILED' })"
 Write-Host "artifact: $(Get-RepoRelativePath $summaryPath)"
+Write-Host "sanitized-artifact: $(Get-RepoRelativePath $publicSummaryPath)"
 Write-Host "codex: exit=$($run.ExitCode) timedOut=$($run.TimedOut) thread=$($events.ThreadId)"
 Write-Host "commands: count=$($metrics.CommandCount) docxedit=$($metrics.UsedDocxEdit) changes=$($metrics.UsedChanges) check=$($metrics.UsedCheck) apply=$($metrics.UsedApply) forbidden-docx-inspection=$($metrics.UsedForbiddenDocxInspection)"
 Write-Host "output-docx: $($outputDocx.Count)"

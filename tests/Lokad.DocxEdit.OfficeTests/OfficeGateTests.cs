@@ -7,6 +7,7 @@ namespace Lokad.DocxEdit.OfficeTests;
 public static class OfficeGateTests
 {
     [Fact]
+    [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationOpenSaveRoundTripIsOptIn()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))

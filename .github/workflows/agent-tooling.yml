@@ -37,3 +37,174 @@ jobs:
           New-Item -ItemType Directory -Force -Path private-cases | Out-Null
           Copy-Item -LiteralPath edit-cases/fixtures/word-smoke.docx -Destination private-cases/ci-standin.docx
           pwsh -NoProfile -ExecutionPolicy Bypass -File tools/RunAgentChallenge.ps1 -Challenge markup-inventory -PrepareOnly
+      # B15 containment: preparation must not place document-bearing run material
+      # outside private-cases/, and the prepared run must live under its _runs root.
+      - name: Assert run containment under private-cases
+        run: |
+          $leaked = @(Get-ChildItem artifacts/agent-challenges -Recurse -Include *.docx, prompt.md, events.jsonl, final-response.* -File -ErrorAction SilentlyContinue)
+          if ($leaked.Count -ne 0) { throw ("Private run material leaked outside private-cases/: " + ($leaked.FullName -join ", ")) }
+          $prepared = @(Get-ChildItem private-cases/_runs -Recurse -Filter prepare-summary.json -File -ErrorAction SilentlyContinue)
+          if ($prepared.Count -eq 0) { throw "Expected prepared run material under private-cases/_runs." }
+          Write-Host "Containment holds: no document-bearing run files outside private-cases/."
+      - name: Unit-test private-path guards
+        run: |
+          . ./tools/DocxCaseCommon.ps1
+          $fakeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("docxedit-fakeroot-" + [Guid]::NewGuid().ToString("N"))
+          New-Item -ItemType Directory -Force -Path $fakeRoot | Out-Null
+          $PrivateRoot = $fakeRoot
+          $RepoRoot = $fakeRoot
+          try {
+            if (-not (Test-IsUnderPath (Join-Path $fakeRoot "a.docx") $fakeRoot)) { throw "Inside path rejected." }
+            if (Test-IsUnderPath ([System.IO.Path]::GetTempPath()) $fakeRoot) { throw "Outside path accepted." }
+            if (Test-IsUnderPath ($fakeRoot + "-evil") $fakeRoot) { throw "Sibling-prefix path accepted." }
+            $threw = $false
+            try { Assert-PrivatePath ([System.IO.Path]::GetTempPath()) "Probe" } catch { $threw = $true }
+            if (-not $threw) { throw "Outside path passed Assert-PrivatePath." }
+            $outside = Join-Path ([System.IO.Path]::GetTempPath()) ("docxedit-outside-" + [Guid]::NewGuid().ToString("N"))
+            New-Item -ItemType Directory -Force -Path $outside | Out-Null
+            try {
+              Set-Content -LiteralPath (Join-Path $outside "secret.docx") -Value "synthetic stand-in" -Encoding UTF8
+              try {
+                $link = New-Item -ItemType Junction -Path (Join-Path $fakeRoot "link") -Target $outside -ErrorAction Stop
+                $resolved = (Resolve-Path -LiteralPath $link.FullName).Path
+                if (Test-IsUnderPath (Join-Path $resolved "secret.docx") $fakeRoot) { throw "Resolved junction escaped the root." }
+                Write-Host "Junction bypass rejected."
+              } catch {
+                Write-Host ("WARNING: junction probe skipped: " + $_.Exception.Message)
+              }
+            } finally {
+              Remove-Item -LiteralPath $outside -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          } finally {
+            Remove-Item -LiteralPath $fakeRoot -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "Private-path guards hold."
+      - name: Unit-test sanitized summaries
+        run: |
+          . ./tools/DocxCaseCommon.ps1
+          $summary = [pscustomobject]@{
+            ChallengeId = "probe"
+            Title = "Probe"
+            RunId = "run"
+            Success = $true
+            ExitCode = 0
+            TimedOut = $false
+            Sandbox = "workspace-write"
+            Model = $null
+            Ephemeral = $true
+            UsedOutputSchema = $true
+            CodexVersion = "codex-cli 0.0"
+            ThreadId = "thread-probe"
+            Usage = [pscustomobject]@{ input_tokens = 3 }
+            EventParseErrors = 0
+            InputCopyModified = $false
+            PrivateInputHashSha256 = "AA"
+            InputCopyHashBeforeSha256 = "BB"
+            InputCopyHashAfterSha256 = "CC"
+            Metrics = [pscustomobject]@{
+              CommandCount = 2
+              UsedDocxEdit = $true
+              UsedChanges = $true
+              UsedMarkupView = $false
+              UsedCheck = $true
+              UsedApply = $false
+              UsedForbiddenDocxInspection = $false
+            }
+            OutputDocx = @("AcmeContract-edited.docx")
+            PostChecks = @([pscustomobject]@{ File = "AcmeContract-edited.docx"; Bytes = 9; ReadExitCode = 0; ChangesExitCode = 0 })
+            Commands = @([pscustomobject]@{ Command = "apply AcmeContract-edited.docx"; Status = "ok" })
+            ArtifactPaths = [pscustomobject]@{ FinalResponse = "private-cases/_runs/probe/final-response.json" }
+            TrackedStatusBefore = @()
+            TrackedStatusAfter = @()
+          }
+          $sanitized = New-SanitizedChallengeSummary $summary | ConvertTo-Json -Depth 8
+          foreach ($marker in @("AcmeContract", "apply AcmeContract", "final-response.json")) {
+            if ($sanitized.Contains($marker)) { throw "Sanitized challenge summary leaked: $marker" }
+          }
+          $caseSummary = [pscustomobject]@{
+            CaseId = "AcmeCase"
+            RunId = "run"
+            ValidateOnly = $true
+            Success = $true
+            InputBytes = 9
+            Structure = [pscustomobject]@{ Paragraphs = 1; Tables = 0; ScannerVisibleImages = 0; Sections = 0; Styles = 0 }
+            Changes = [pscustomobject]@{ Total = 0; ByType = @{} }
+            Diagnostics = @([pscustomobject]@{ Code = "E9103"; Severity = "Error"; Message = "Unbalanced bookmark id '9' for ClientName" })
+            AggregateFailures = @()
+          }
+          $sanitizedCase = New-SanitizedPrivateCaseSummary $caseSummary "deadbeefdeadbeef" | ConvertTo-Json -Depth 8
+          foreach ($marker in @("AcmeCase", "ClientName")) {
+            if ($sanitizedCase.Contains($marker)) { throw "Sanitized case summary leaked: $marker" }
+          }
+          Write-Host "Sanitized summaries hold no document text or private names."
+
+
+  behavioral-tests:
+    name: Release tests with zero-warning gate
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      # One serialized invocation: the build (warnings fail it) finishes
+      # before any test assembly runs, and the in-test dotnet pack probes
+      # share this workspace, so build, test, and pack never race each other
+      # for build or package outputs.
+      # The main suite runs here. The Word COM round trip lives in its own
+      # opt-in project below and never counts toward this green run.
+      - name: Release tests (warnings are errors)
+        run: dotnet test tests/Lokad.DocxEdit.Tests/Lokad.DocxEdit.Tests.csproj -c Release --nologo -p:TreatWarningsAsErrors=true
+      # Explicitly separate opt-in invocation with a visible result: without
+      # DOCXEDIT_ENABLE_OFFICE_TESTS=1 (and Word on Windows) this step
+      # reports that the Word open/save check did not execute, so a green
+      # run can never be mistaken for a Word compatibility pass.
+      - name: Office Word round trip (opt-in)
+        run: |
+          if ($env:DOCXEDIT_ENABLE_OFFICE_TESTS -eq '1') {
+            dotnet test tests/Lokad.DocxEdit.OfficeTests/Lokad.DocxEdit.OfficeTests.csproj -c Release --nologo -p:TreatWarningsAsErrors=true
+            if ($LASTEXITCODE -ne 0) { throw 'Office Word round trip failed.' }
+          } else {
+            Write-Host "SKIP: Word open/save round trip did not execute (DOCXEDIT_ENABLE_OFFICE_TESTS is not set to 1)."
+          }
+
+      # C05 plumbing: the shared capture must drain both streams concurrently
+      # (a child flooding stdout+stderr terminates with full contents) and quote
+      # arguments so spaces/quotes/backslashes round-trip; an expired timeout
+      # kills the child and reports TimedOut instead of hanging.
+      - name: Unit-test process capture and quoting
+        run: |
+          . ./tools/DocxCaseCommon.ps1
+          $RepoRoot = (Resolve-Path .).Path
+          $echoScript = Join-Path ([System.IO.Path]::GetTempPath()) "docxedit-echo-args.ps1"
+          Set-Content -LiteralPath $echoScript -Value '$args | ConvertTo-Json -Compress' -Encoding UTF8
+          try {
+            $flood = Start-Job -ScriptBlock {
+              $RepoRoot = $using:RepoRoot
+              . (Join-Path $RepoRoot "tools/DocxCaseCommon.ps1")
+              $child = '$o = ''x'' * 200; $e = ''e'' * 200; 1..4000 | ForEach-Object { [Console]::Out.WriteLine($o); [Console]::Error.WriteLine($e) }'
+              Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", $child)
+            }
+            if (-not (Wait-Job $flood -Timeout 120)) { Stop-Job $flood; Remove-Job $flood -Force; throw "Dual-stream capture did not terminate." }
+            $captured = Receive-Job $flood
+            Remove-Job $flood
+            if ($captured.ExitCode -ne 0) { throw "Flood child failed." }
+            if ($captured.StdOut.Length -ne 808000 -or $captured.StdErr.Length -ne 808000) { throw "Lost stream bytes." }
+            $want = @("plain", "with space", 'quote"inside', "trailing-backslash\", "", 'both "\ mix', "C:\Program Files\App\")
+            $echoArgs = @("-NoProfile", "-File", $echoScript) + $want
+            $echoed = Invoke-ProcessCapture "pwsh" $echoArgs
+            if ($echoed.ExitCode -ne 0) { throw "Echo child failed." }
+            $got = @($echoed.StdOut | ConvertFrom-Json)
+            if ($got.Count -ne $want.Count) { throw "Argument count changed in flight." }
+            for ($i = 0; $i -lt $want.Count; $i++) {
+              if ($got[$i] -cne $want[$i]) { throw ("Argument changed in flight.") }
+            }
+            $sleepy = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", "Start-Sleep 60") 3
+            if (-not $sleepy.TimedOut -or $sleepy.ExitCode -ne -1) { throw "Expired timeout did not kill the child." }
+            Write-Host "Process capture drains concurrently, quotes round-trip, and timeouts kill."
+          } finally {
+            Remove-Item -LiteralPath $echoScript -Force -ErrorAction SilentlyContinue
+          }
+
