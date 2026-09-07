@@ -42,7 +42,8 @@ internal static partial class DocxPackageValidator
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        OoxmlPart? stylesPart = package.GetPart("/word/styles.xml");
+        string? stylesPartName = DocxPartRoles.FindStylesPartName(package, cancellationToken);
+        OoxmlPart? stylesPart = stylesPartName is null ? null : package.GetPart(stylesPartName);
         if (stylesPart is null)
         {
             return null;
@@ -66,7 +67,7 @@ internal static partial class DocxPackageValidator
         List<DocxDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(partName, "/word/numbering.xml", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(partName, DocxPartRoles.FindNumberingPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -99,11 +100,13 @@ internal static partial class DocxPackageValidator
     }
 
     private static void ValidateNumberingDefinitions(
+        OoxmlPackage package,
         string partName,
         XDocument document,
-        List<DocxDiagnostic> diagnostics)
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
     {
-        if (!string.Equals(partName, "/word/numbering.xml", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(partName, DocxPartRoles.FindNumberingPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

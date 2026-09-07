@@ -134,19 +134,12 @@ internal static partial class DocxChangeScanner
         CancellationToken cancellationToken)
     {
 
-        var partNames = package
+        return package
             .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
             .Where(relationship => relationship.Type == OoxmlRelTypes.CommentsIds)
             .Select(relationship => relationship.ResolvedTarget)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (package.GetPart("/word/commentsIds.xml") is not null &&
-            !partNames.Contains("/word/commentsIds.xml", StringComparer.OrdinalIgnoreCase))
-        {
-            partNames.Add("/word/commentsIds.xml");
-        }
-
-        return partNames;
     }
 
     private static string? ResolveCommentRootParaId(
@@ -182,8 +175,9 @@ internal static partial class DocxChangeScanner
     {
         var anchors = new Dictionary<string, CommentAnchorBuilder>(StringComparer.Ordinal);
         int fallbackPartIndex = 1;
+        HashSet<string> wordParts = DocxPartRoles.GetWordProcessingParts(package, cancellationToken).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => IsWordXmlPart(part) && !IsCommentsPart(package, part.Name, cancellationToken))
+            .Where(part => (IsWordXmlPart(part) || wordParts.Contains(part.Name)) && !IsCommentsPart(package, part.Name, cancellationToken))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();

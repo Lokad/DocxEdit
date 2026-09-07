@@ -218,12 +218,14 @@ internal static partial class DocxPackageValidator
 
         var rangeIds = new HashSet<string>(StringComparer.Ordinal);
         var referenceIds = new HashSet<string>(StringComparer.Ordinal);
+        string? commentsPartName = DocxPartRoles.FindCommentsPartName(package, cancellationToken);
+        string? commentsExtendedPartName = DocxPartRoles.FindCommentsExtendedPartName(package, cancellationToken);
         foreach (OoxmlPart part in package.Parts.Values
             .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
                 part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
                 !part.Name.Contains("/_rels/", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(part.Name, "/word/comments.xml", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(part.Name, "/word/commentsExtended.xml", StringComparison.OrdinalIgnoreCase))
+                !string.Equals(part.Name, commentsPartName, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(part.Name, commentsExtendedPartName, StringComparison.OrdinalIgnoreCase))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();

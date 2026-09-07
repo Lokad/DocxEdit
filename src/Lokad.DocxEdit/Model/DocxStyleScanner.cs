@@ -16,18 +16,13 @@ internal static class DocxStyleScanner
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        OoxmlRelationship? relationship = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .FirstOrDefault(relationship =>
-                !relationship.IsExternal &&
-                relationship.Type == OoxmlRelTypes.Styles &&
-                relationship.ResolvedTarget is not null);
-        if (relationship?.ResolvedTarget is null)
+        string? stylesPartName = DocxPartRoles.FindStylesPartName(package, cancellationToken);
+        if (stylesPartName is null)
         {
             return [];
         }
 
-        OoxmlPart? stylesPart = package.GetPart(relationship.ResolvedTarget);
+        OoxmlPart? stylesPart = package.GetPart(stylesPartName);
         if (stylesPart is null)
         {
             return [];

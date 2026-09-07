@@ -45,8 +45,9 @@ internal static partial class DocxChangeScanner
         IReadOnlyDictionary<string, CommentMetadata> comments = BuildCommentMap(package, includeCommentText, maxCommentText, cancellationToken);
         IReadOnlyDictionary<string, CommentAnchorMetadata> commentAnchors = BuildCommentAnchorMap(package, cancellationToken);
         int fallbackPartIndex = 1;
+        HashSet<string> wordParts = DocxPartRoles.GetWordProcessingParts(package, cancellationToken).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (OoxmlPart part in package.Parts.Values
-            .Where(IsWordXmlPart)
+            .Where(part => IsWordXmlPart(part) || wordParts.Contains(part.Name))
             .OrderBy(part => part.Name, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();

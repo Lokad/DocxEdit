@@ -28,18 +28,13 @@ internal sealed class DocxNumberingCatalog
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        OoxmlRelationship? relationship = package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .FirstOrDefault(relationship =>
-                !relationship.IsExternal &&
-                relationship.Type == OoxmlRelTypes.Numbering &&
-                relationship.ResolvedTarget is not null);
-        if (relationship?.ResolvedTarget is null)
+        string? numberingPartName = DocxPartRoles.FindNumberingPartName(package, cancellationToken);
+        if (numberingPartName is null)
         {
             return Empty;
         }
 
-        OoxmlPart? numberingPart = package.GetPart(relationship.ResolvedTarget);
+        OoxmlPart? numberingPart = package.GetPart(numberingPartName);
         if (numberingPart is null)
         {
             return Empty;

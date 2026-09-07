@@ -3,6 +3,10 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit.Model;
 
+// Checks the package and reports content problems as diagnostics with part names
+// and codes. Malformed bytes still surface as document exceptions at the loading
+// boundary, which the editor converts into failed results; validator logic itself
+// never throws for the content it can read.
 internal static partial class DocxPackageValidator
 {
     public static IReadOnlyList<DocxDiagnostic> Validate(
@@ -22,11 +26,11 @@ internal static partial class DocxPackageValidator
             cancellationToken.ThrowIfCancellationRequested();
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
-            ValidateRoot(part.Name, document.Root, diagnostics);
+            ValidateRoot(package, part.Name, document.Root, diagnostics, cancellationToken);
             bool isXmlPart = part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase);
             if (profile == DocxValidationProfile.Structural &&
                 isXmlPart &&
-                part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase))
+                DocxPartRoles.IsValidatedWordPart(package, part.Name, cancellationToken))
             {
                 storyPrefixes.TryGetValue(part.Name, out string? storyPrefix);
                 ValidateWordPart(package, part.Name, storyPrefix, document, diagnostics, cancellationToken);
@@ -45,36 +49,15 @@ internal static partial class DocxPackageValidator
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        var prefixes = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        prefixes[package.MainDocumentPartName] = "M";
-        IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
-        int headerIndex = 1;
-        foreach (ResolvedOoxmlRelationship relationship in relationships
-            .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
-            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-        {
-            if (package.GetPart(relationship.ResolvedTarget) is not null)
-            {
-                prefixes[relationship.ResolvedTarget] = $"H{headerIndex++:000}";
-            }
-        }
-
-        int footerIndex = 1;
-        foreach (ResolvedOoxmlRelationship relationship in relationships
-            .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
-            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-        {
-            if (package.GetPart(relationship.ResolvedTarget) is not null)
-            {
-                prefixes[relationship.ResolvedTarget] = $"F{footerIndex++:000}";
-            }
-        }
-
-        return prefixes;
+        return DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
     }
 
-    private static void ValidateRoot(string partName, XElement? root, List<DocxDiagnostic> diagnostics)
+    private static void ValidateRoot(
+        OoxmlPackage package,
+        string partName,
+        XElement? root,
+        List<DocxDiagnostic> diagnostics,
+        CancellationToken cancellationToken)
     {
         if (root is null)
         {
@@ -85,18 +68,7 @@ internal static partial class DocxPackageValidator
         XName? expected = partName switch
         {
             _ when partName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase) => OoxmlNs.Rel + "Relationships",
-            "/word/document.xml" => OoxmlNs.W + "document",
-            "/word/styles.xml" => OoxmlNs.W + "styles",
-            "/word/numbering.xml" => OoxmlNs.W + "numbering",
-            "/word/settings.xml" => OoxmlNs.W + "settings",
-            "/word/comments.xml" => OoxmlNs.W + "comments",
-            "/word/commentsExtended.xml" => OoxmlNs.W15 + "commentsEx",
-            "/word/commentsIds.xml" => OoxmlNs.W16Cid + "commentsIds",
-            "/word/footnotes.xml" => OoxmlNs.W + "footnotes",
-            "/word/endnotes.xml" => OoxmlNs.W + "endnotes",
-            _ when partName.StartsWith("/word/header", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "hdr",
-            _ when partName.StartsWith("/word/footer", StringComparison.OrdinalIgnoreCase) => OoxmlNs.W + "ftr",
-            _ => null
+            _ => DocxPartRoles.GetExpectedRoot(package, partName, cancellationToken)
         };
         if (expected is not null && root.Name != expected)
         {
@@ -125,21 +97,21 @@ internal static partial class DocxPackageValidator
         ValidateContentControls(document, partName, diagnostics);
         ValidateParagraphStyleReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateNumberingReferences(package, partName, document, diagnostics, cancellationToken);
-        ValidateNumberingDefinitions(partName, document, diagnostics);
+        ValidateNumberingDefinitions(package, partName, document, diagnostics, cancellationToken);
         ValidateHeaderFooterReferences(package, partName, document, diagnostics, cancellationToken);
         ValidateSectionProperties(document, partName, diagnostics);
         ValidateDrawingRelationships(package, partName, document, diagnostics, cancellationToken);
         ValidateDrawingProperties(document, partName, diagnostics);
         ValidateDrawingGeometry(document, partName, diagnostics);
-        if (string.Equals(partName, "/word/commentsExtended.xml", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(partName, DocxPartRoles.FindCommentsExtendedPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
         {
             ValidateCommentsExtended(package, partName, document, diagnostics, cancellationToken);
         }
-        else if (string.Equals(partName, "/word/commentsIds.xml", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(partName, DocxPartRoles.FindCommentsIdsPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
         {
             ValidateCommentsIds(package, partName, document, diagnostics, cancellationToken);
         }
-        else if (string.Equals(partName, "/word/settings.xml", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(partName, DocxPartRoles.FindSettingsPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
         {
             ValidateSettings(document, partName, diagnostics);
         }
@@ -337,7 +309,8 @@ internal static partial class DocxPackageValidator
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        OoxmlPart? numberingPart = package.GetPart("/word/numbering.xml");
+        string? numberingPartName = DocxPartRoles.FindNumberingPartName(package, cancellationToken);
+        OoxmlPart? numberingPart = numberingPartName is null ? null : package.GetPart(numberingPartName);
         if (numberingPart is null)
         {
             return null;
@@ -555,6 +528,11 @@ internal static partial class DocxPackageValidator
                 return false;
             }
 
+            if (percent < 0 || percent > 100)
+            {
+                return false;
+            }
+
             value = (int)Math.Round(percent * 1000m, MidpointRounding.AwayFromZero);
             return value is >= 0 and <= 100_000;
         }
@@ -573,9 +551,10 @@ internal static partial class DocxPackageValidator
             partNames.Add(relationship.ResolvedTarget);
         }
 
-        if (package.GetPart("/word/comments.xml") is not null)
+        string? commentsPartName = DocxPartRoles.FindCommentsPartName(package, cancellationToken);
+        if (commentsPartName is not null)
         {
-            partNames.Add("/word/comments.xml");
+            partNames.Add(commentsPartName);
         }
 
         return partNames.ToArray();
