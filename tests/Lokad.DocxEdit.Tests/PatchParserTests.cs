@@ -35,7 +35,10 @@ public static class PatchParserTests
             """));
 
         Assert.False(patch.Success);
-        Assert.Contains(patch.Diagnostics, diagnostic => diagnostic.Code == "E2004");
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2004", diagnostic.Code);
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
     }
 
     [Fact]
@@ -268,4 +271,98 @@ public static class PatchParserTests
         Assert.False(patch.Success);
         Assert.Contains(patch.Diagnostics, diagnostic => diagnostic.Code == "E2011");
     }
+
+    [Fact]
+    public static void ParsePatchKeepsExpectHashPrefixedHeredocTextLiteral()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            with <<<
+            expect-hash abc
+            >>>
+            end
+            """));
+
+        Assert.True(patch.Success);
+        Assert.Equal("expect-hash abc", patch.Operations[0].Fields["with"]);
+    }
+
+    [Fact]
+    public static void ParsePatchRecordsHeredocFieldStartLine()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            with <<<
+            hello
+            world
+            >>>
+            end
+            """));
+
+        Assert.True(patch.Success);
+        DocxPatchOperation operation = Assert.Single(patch.Operations);
+        Assert.Equal("target", operation.FieldValues[0].Name);
+        Assert.Equal(4, operation.FieldValues[0].Line);
+        Assert.Equal("with", operation.FieldValues[1].Name);
+        Assert.Equal(5, operation.FieldValues[1].Line);
+    }
+
+    [Fact]
+    public static void ParsePatchReportsHeredocValueErrorAtFieldStartLine()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            expect-row-count <<<
+            two
+            >>>
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2013", diagnostic.Code);
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void ParsePatchKeepsPerOccurrenceLinesForRepeatedFields()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            cell A
+            cell <<<
+            B
+            >>>
+            end
+            """));
+
+        Assert.True(patch.Success);
+        DocxPatchOperation operation = Assert.Single(patch.Operations);
+        Assert.Equal("B", operation.Fields["cell"]);
+        Assert.Equal(3, operation.FieldValues.Count);
+        Assert.Equal(5, operation.FieldValues[1].Line);
+        Assert.Equal(6, operation.FieldValues[2].Line);
+    }
+
 }

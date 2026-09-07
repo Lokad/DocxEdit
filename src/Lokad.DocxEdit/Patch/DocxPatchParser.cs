@@ -5,7 +5,10 @@ namespace Lokad.DocxEdit;
 internal static class DocxPatchParser
 {
     private static readonly IReadOnlyDictionary<string, OperationDefinition> OperationDefinitions = DocxPatchEngine.AllOperations
-        .ToDictionary(registration => registration.Name, registration => new OperationDefinition(registration.AllowedFields, registration.BooleanFields, registration.IntegerFields), StringComparer.Ordinal);
+        .ToDictionary(registration => registration.Name, registration => new OperationDefinition(
+            registration.Fields.Select(static field => field.Name).ToArray(),
+            registration.Fields.Where(static field => field.Kind == FieldValueKind.Boolean).Select(static field => field.Name).ToArray(),
+            registration.Fields.Where(static field => field.Kind == FieldValueKind.Integer).Select(static field => field.Name).ToArray()), StringComparer.Ordinal);
 
     public static DocxPatch Parse(string text)
     {
@@ -29,13 +32,6 @@ internal static class DocxPatchParser
         if (!int.TryParse(versionText, out int majorVersion) || majorVersion != 1)
         {
             return Error("E2003", $"Unsupported docxpatch major version '{versionText}'.", firstContentLine + 1, "docxpatch ".Length + 1);
-        }
-
-        if (normalized.Contains("\nexpect-hash", StringComparison.Ordinal) ||
-            normalized.Contains("\nexpect-hash ", StringComparison.Ordinal))
-        {
-            int line = FindLine(lines, "expect-hash");
-            return Error("E2004", "The expect-hash feature is not supported.", line, 1);
         }
 
         var operations = new List<DocxPatchOperation>();
@@ -92,9 +88,15 @@ internal static class DocxPatchParser
                 string key = fieldLine[..separator].Trim();
                 string rawValue = fieldLine[(separator + 1)..].Trim();
                 int keyColumn = leadingWhitespace + 1;
+                int fieldLineNumber = i + 1;
+                if (key == "expect-hash")
+                {
+                    return Error("E2004", "The expect-hash feature is not supported.", fieldLineNumber, keyColumn);
+                }
+
                 if (!operationDefinition.AllowedFields.Contains(key))
                 {
-                    return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", i + 1, keyColumn);
+                    return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", fieldLineNumber, keyColumn);
                 }
 
                 string value = rawValue;
@@ -122,16 +124,16 @@ internal static class DocxPatchParser
 
                 if (operationDefinition.BooleanFields.Contains(key) && !IsBooleanLiteral(value))
                 {
-                    return Error("E2012", $"Field '{key}' must be true or false.", i + 1, keyColumn);
+                    return Error("E2012", $"Field '{key}' must be true or false.", fieldLineNumber, keyColumn);
                 }
 
                 if (operationDefinition.IntegerFields.Contains(key) && !int.TryParse(value, out _))
                 {
-                    return Error("E2013", $"Field '{key}' must be an integer.", i + 1, keyColumn);
+                    return Error("E2013", $"Field '{key}' must be an integer.", fieldLineNumber, keyColumn);
                 }
 
                 fields[key] = value;
-                fieldValues.Add(new DocxPatchField(key, value, i + 1, keyColumn));
+                fieldValues.Add(new DocxPatchField(key, value, fieldLineNumber, keyColumn));
             }
 
             if (i >= lines.Length || lines[i].Trim() != "end")
@@ -146,19 +148,6 @@ internal static class DocxPatchParser
         }
 
         return new DocxPatch(true, majorVersion, operations, []);
-
-        static int FindLine(string[] parserLines, string prefix)
-        {
-            for (int i = 0; i < parserLines.Length; i++)
-            {
-                if (parserLines[i].TrimStart().StartsWith(prefix, StringComparison.Ordinal))
-                {
-                    return i + 1;
-                }
-            }
-
-            return 1;
-        }
 
         static bool IsBooleanLiteral(string value)
         {

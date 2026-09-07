@@ -1,33 +1,71 @@
 using System.IO.Compression;
 using System.Text;
 
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 public static class OperationRegistryTests
 {
     [Fact]
-    public static void CatalogOperationsParseWithoutUnknownOperationOrFieldErrors()
+    public static void CatalogAndParserAgreeOnEveryField()
     {
         var editor = new DocxEditor();
+
         foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
         {
-            DocxPatch known = editor.ParsePatch(new StringReader($"docxpatch 1\n\nop {operation.Name}\nend\n"));
+            DocxPatch known = editor.ParsePatch(new StringReader($"""
+                docxpatch 1
+
+                op {operation.Name}
+                end
+                """));
             Assert.DoesNotContain(known.Diagnostics, diagnostic => diagnostic.Code == "E2010");
 
-            foreach (string field in operation.RequiredFields.Concat(operation.OptionalFields))
-            {
-                if (string.IsNullOrWhiteSpace(field) || field.Contains(' '))
-                {
-                    continue;
-                }
+            var catalogued = new HashSet<string>(
+                operation.RequiredFields
+                    .Concat(operation.RequiredAlternatives.SelectMany(group => group))
+                    .Concat(operation.OptionalFields)
+                    .Concat(operation.RepeatableFields),
+                StringComparer.Ordinal);
+            Assert.NotEmpty(catalogued);
+            Assert.All(catalogued, field => Assert.DoesNotContain(" ", field));
 
-                DocxPatch parsed = editor.ParsePatch(new StringReader($"docxpatch 1\n\nop {operation.Name}\n{field} v\nend\n"));
+            foreach (string field in catalogued)
+            {
+                DocxPatch parsed = editor.ParsePatch(new StringReader($"""
+                    docxpatch 1
+
+                    op {operation.Name}
+                    {field} v
+                    end
+                    """));
                 Assert.DoesNotContain(parsed.Diagnostics, diagnostic => diagnostic.Code == "E2010");
                 Assert.DoesNotContain(parsed.Diagnostics, diagnostic => diagnostic.Code == "E2011");
+
+                if (parsed.Success)
+                {
+                    DocxPatchOperation parsedOperation = Assert.Single(parsed.Operations);
+                    DocxPatchField parsedField = Assert.Single(parsedOperation.FieldValues);
+                    Assert.Equal(field, parsedField.Name);
+                    Assert.Equal(4, parsedField.Line);
+                }
+                else
+                {
+                    DocxDiagnostic valueError = Assert.Single(
+                        parsed.Diagnostics,
+                        diagnostic => diagnostic.Code == "E2012" || diagnostic.Code == "E2013");
+                    Assert.Equal(4, valueError.Line);
+                }
             }
         }
 
-        DocxPatch unknown = editor.ParsePatch(new StringReader("docxpatch 1\n\nop no-such-operation\nend\n"));
+        DocxPatch unknown = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op no-such-operation
+            end
+            """));
         Assert.Contains(unknown.Diagnostics, diagnostic => diagnostic.Code == "E2010");
     }
 
@@ -100,22 +138,24 @@ public static class OperationRegistryTests
         return stream;
     }
 
-    private static void AddEntry(ZipArchive archive, string name, string text)
+
+
+    [Fact]
+    public static void PatchOperationTablesRenderStructuredFields()
     {
-        ZipArchiveEntry entry = archive.CreateEntry(name);
-        using Stream stream = entry.Open();
-        byte[] bytes = Encoding.UTF8.GetBytes(text);
-        stream.Write(bytes, 0, bytes.Length);
+        string tables = DocxHelp.RenderPatchOperationTables();
+
+        Assert.Contains("`cell`+", tables, StringComparison.Ordinal);
+        Assert.DoesNotContain("target plus", tables, StringComparison.Ordinal);
+        Assert.DoesNotContain("repeated cell", tables, StringComparison.Ordinal);
+        Assert.DoesNotContain("plus one crop", tables, StringComparison.Ordinal);
     }
 
-    private static string ReadEntry(MemoryStream docx, string entryName)
+    [Fact]
+    public static void PatchHelpListsStructuredAlternatives()
     {
-        docx.Position = 0;
-        using var archive = new ZipArchive(docx, ZipArchiveMode.Read, leaveOpen: true);
-        ZipArchiveEntry entry = archive.GetEntry(entryName)
-            ?? throw new InvalidDataException($"Missing {entryName}.");
-        using Stream stream = entry.Open();
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        return reader.ReadToEnd();
+        Assert.True(DocxHelp.TryRenderTopic("patch", out string patchHelp));
+        Assert.Contains("left-percent|top-percent|right-percent|bottom-percent", patchHelp, StringComparison.Ordinal);
+        Assert.DoesNotContain("target plus one crop percentage", patchHelp, StringComparison.Ordinal);
     }
 }
