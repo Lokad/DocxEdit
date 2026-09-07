@@ -44,8 +44,8 @@ public enum DocxTargetKind
 }
 
 /// <summary>
-/// Structured explicit target ID: the parsed form of one stable ID string
-/// (<c>M.P0001</c>, <c>H001.T0001</c>, <c>M.T0001.R02.C03</c>, …).
+/// Structured explicit target ID: the parsed form of one target ID string
+/// (<c>M.P0001</c>, <c>H001.T0001</c>, <c>M.T0001.R02.C03</c>, ...).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -55,6 +55,12 @@ public enum DocxTargetKind
 /// <c>Tertiary</c> holds the cell ordinal for <c>Cell</c>. Unused slots are 0.
 /// <c>Story</c> is the story prefix (<c>M</c>, <c>H</c>, <c>F</c>); <c>StoryPart</c>
 /// is the 1-based header/footer part ordinal, 0 for the main story.
+/// </para>
+/// <para>
+/// IDs enumerate physical document order at inspection time and are stable for
+/// the same document bytes and scanner version, but they are not permanently
+/// stable: within a patch, operations resolve sequentially, so an earlier
+/// structural edit shifts later positional IDs (SPEC section 8.2).
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(DocxTargetIdJsonConverter))]
@@ -77,9 +83,18 @@ public readonly record struct DocxTargetId(
     public DocxTargetId RowId => new DocxTargetId(Story, StoryPart, DocxTargetKind.Row, Primary, Secondary, 0);
 
     /// <summary>
-    /// Parses the wire form (SPEC section 8.2) with the exact fixed-shape grammar:
-    /// fixed lengths, ordinal prefixes and markers, and integer ordinals.
+    /// Parses the wire form (SPEC section 8.2).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Markers are fixed; ordinals are ASCII-digit runs with canonical minimum
+    /// widths (4 for entities, 2 for rows and cells, 4 for merge groups, 3 for
+    /// story parts) and no upper width limit, so producer output past a width
+    /// boundary still parses. Every ordinal must be at least 1: zero, signs,
+    /// whitespace, and non-digits are rejected, as are short runs, unknown
+    /// markers, and trailing content.
+    /// </para>
+    /// </remarks>
     public static bool TryParse(string? target, out DocxTargetId targetId)
     {
         targetId = default;
@@ -88,208 +103,207 @@ public readonly record struct DocxTargetId(
             return false;
         }
 
-        if (TryParseMain(target, out targetId))
+        ReadOnlySpan<char> span = target.AsSpan();
+        if (!TryParseStoryHead(ref span, out char story, out int storyPart))
         {
+            return false;
+        }
+
+        if (!TryParseEntity(ref span, out DocxTargetKind kind, out int primary, out int secondary, out int tertiary))
+        {
+            return false;
+        }
+
+        if (!span.IsEmpty)
+        {
+            return false;
+        }
+
+        targetId = new DocxTargetId(story, storyPart, kind, primary, secondary, tertiary);
+        return true;
+
+        static bool TryParseStoryHead(ref ReadOnlySpan<char> span, out char story, out int storyPart)
+        {
+            story = (char)0;
+            storyPart = 0;
+            if (span.IsEmpty)
+            {
+                return false;
+            }
+
+            if (span[0] == 'M')
+            {
+                story = 'M';
+                span = span[1..];
+                return true;
+            }
+
+            if (span[0] is 'H' or 'F')
+            {
+                story = span[0];
+                ReadOnlySpan<char> tail = span[1..];
+                if (!TakeOrdinal(ref tail, 3, out storyPart))
+                {
+                    return false;
+                }
+
+                span = tail;
+                return true;
+            }
+
+            return false;
+        }
+
+        static bool TryParseEntity(ref ReadOnlySpan<char> span, out DocxTargetKind kind, out int primary, out int secondary, out int tertiary)
+        {
+            kind = default;
+            primary = 0;
+            secondary = 0;
+            tertiary = 0;
+            if (span.Length < 2 || span[0] != '.')
+            {
+                return false;
+            }
+
+            switch (span[1])
+            {
+                case 'P':
+                    kind = DocxTargetKind.Paragraph;
+                    break;
+                case 'I':
+                    kind = DocxTargetKind.Image;
+                    break;
+                case 'L':
+                    kind = DocxTargetKind.Hyperlink;
+                    break;
+                case 'F':
+                    kind = DocxTargetKind.Field;
+                    break;
+                case 'B':
+                    kind = DocxTargetKind.Bookmark;
+                    break;
+                case 'S':
+                    kind = DocxTargetKind.Section;
+                    break;
+                case 'T':
+                    return TryParseTableTail(span[2..], out kind, out primary, out secondary, out tertiary, out span);
+                case 'C':
+                    if (span.Length >= 3 && span[2] == 'C')
+                    {
+                        kind = DocxTargetKind.ContentControl;
+                        ReadOnlySpan<char> tail = span[3..];
+                        if (!TakeOrdinal(ref tail, 4, out primary))
+                        {
+                            return false;
+                        }
+
+                        span = tail;
+                        return true;
+                    }
+
+                    return false;
+                default:
+                    return false;
+            }
+
+            ReadOnlySpan<char> ordinal = span[2..];
+            if (!TakeOrdinal(ref ordinal, 4, out primary))
+            {
+                return false;
+            }
+
+            span = ordinal;
             return true;
         }
 
-        return TryParseStory(target, 'H', out targetId) || TryParseStory(target, 'F', out targetId);
-    }
-
-    private static bool TryParseMain(string target, out DocxTargetId targetId)
-    {
-        targetId = default;
-        if (target.Length == 7)
+        static bool TryParseTableTail(ReadOnlySpan<char> span, out DocxTargetKind kind, out int primary, out int secondary, out int tertiary, out ReadOnlySpan<char> rest)
         {
-            if (target.StartsWith("M.P", StringComparison.Ordinal) && int.TryParse(target[3..], out int paragraphOrdinal))
+            kind = default;
+            primary = 0;
+            secondary = 0;
+            tertiary = 0;
+            rest = span;
+            if (!TakeOrdinal(ref rest, 4, out primary))
             {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Paragraph, paragraphOrdinal, 0, 0);
+                return false;
+            }
+
+            if (rest.IsEmpty)
+            {
+                kind = DocxTargetKind.Table;
                 return true;
             }
 
-            if (target.StartsWith("M.T", StringComparison.Ordinal) && int.TryParse(target[3..], out int tableOrdinal))
+            if (rest.Length >= 2 && rest[0] == '.' && rest[1] == 'R')
             {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Table, tableOrdinal, 0, 0);
+                ReadOnlySpan<char> tail = rest[2..];
+                if (!TakeOrdinal(ref tail, 2, out secondary))
+                {
+                    return false;
+                }
+
+                if (tail.IsEmpty)
+                {
+                    kind = DocxTargetKind.Row;
+                    rest = tail;
+                    return true;
+                }
+
+                if (tail.Length >= 2 && tail[0] == '.' && tail[1] == 'C')
+                {
+                    ReadOnlySpan<char> cell = tail[2..];
+                    if (!TakeOrdinal(ref cell, 2, out tertiary))
+                    {
+                        return false;
+                    }
+
+                    kind = DocxTargetKind.Cell;
+                    rest = cell;
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (rest.Length >= 3 && rest[0] == '.' && rest[1] == 'M' && rest[2] == 'G')
+            {
+                ReadOnlySpan<char> tail = rest[3..];
+                if (!TakeOrdinal(ref tail, 4, out secondary))
+                {
+                    return false;
+                }
+
+                kind = DocxTargetKind.MergeGroup;
+                rest = tail;
                 return true;
             }
 
-            if (target.StartsWith("M.I", StringComparison.Ordinal) && int.TryParse(target[3..], out int imageOrdinal))
-            {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Image, imageOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target.StartsWith("M.L", StringComparison.Ordinal) && int.TryParse(target[3..], out int hyperlinkOrdinal))
-            {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Hyperlink, hyperlinkOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target.StartsWith("M.F", StringComparison.Ordinal) && int.TryParse(target[3..], out int fieldOrdinal))
-            {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Field, fieldOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target.StartsWith("M.B", StringComparison.Ordinal) && int.TryParse(target[3..], out int bookmarkOrdinal))
-            {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target.StartsWith("M.S", StringComparison.Ordinal) && int.TryParse(target[3..], out int sectionOrdinal))
-            {
-                targetId = new DocxTargetId('M', 0, DocxTargetKind.Section, sectionOrdinal, 0, 0);
-                return true;
-            }
+            return false;
         }
 
-        if (target.Length == 8 &&
-            target.StartsWith("M.CC", StringComparison.Ordinal) &&
-            int.TryParse(target[4..], out int contentControlOrdinal))
+        static bool TakeOrdinal(ref ReadOnlySpan<char> span, int minDigits, out int ordinal)
         {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.ContentControl, contentControlOrdinal, 0, 0);
+            ordinal = 0;
+            int width = 0;
+            while (width < span.Length && char.IsAsciiDigit(span[width]))
+            {
+                width++;
+            }
+
+            if (width < minDigits)
+            {
+                return false;
+            }
+
+            if (!int.TryParse(span[..width], NumberStyles.Integer, CultureInfo.InvariantCulture, out ordinal) || ordinal < 1)
+            {
+                ordinal = 0;
+                return false;
+            }
+
+            span = span[width..];
             return true;
         }
-
-        if (target.Length == 11 &&
-            target.StartsWith("M.T", StringComparison.Ordinal) &&
-            target[7..9] == ".R" &&
-            int.TryParse(target[3..7], out int rowTableOrdinal) &&
-            int.TryParse(target[9..11], out int rowOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Row, rowTableOrdinal, rowOrdinal, 0);
-            return true;
-        }
-
-        if (target.Length == 14 &&
-            target.StartsWith("M.T", StringComparison.Ordinal) &&
-            target[7..10] == ".MG" &&
-            int.TryParse(target[3..7], out int mergeGroupTableOrdinal) &&
-            int.TryParse(target[10..14], out int mergeGroupOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.MergeGroup, mergeGroupTableOrdinal, mergeGroupOrdinal, 0);
-            return true;
-        }
-
-        if (target.Length == 15 &&
-            target.StartsWith("M.T", StringComparison.Ordinal) &&
-            target[7..9] == ".R" &&
-            target[11..13] == ".C" &&
-            int.TryParse(target[3..7], out int cellTableOrdinal) &&
-            int.TryParse(target[9..11], out int cellRowOrdinal) &&
-            int.TryParse(target[13..15], out int cellOrdinal))
-        {
-            targetId = new DocxTargetId('M', 0, DocxTargetKind.Cell, cellTableOrdinal, cellRowOrdinal, cellOrdinal);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryParseStory(string target, char storyPrefix, out DocxTargetId targetId)
-    {
-        targetId = default;
-        if (target.Length == 10 && target[0] == storyPrefix)
-        {
-            if (target[4..6] == ".P" &&
-                int.TryParse(target[1..4], out int storyOrdinal) &&
-                int.TryParse(target[6..], out int paragraphOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Paragraph, paragraphOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target[4..6] == ".T" &&
-                int.TryParse(target[1..4], out storyOrdinal) &&
-                int.TryParse(target[6..], out int tableOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Table, tableOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target[4..6] == ".I" &&
-                int.TryParse(target[1..4], out storyOrdinal) &&
-                int.TryParse(target[6..], out int imageOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Image, imageOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target[4..6] == ".L" &&
-                int.TryParse(target[1..4], out storyOrdinal) &&
-                int.TryParse(target[6..], out int hyperlinkOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Hyperlink, hyperlinkOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target[4..6] == ".F" &&
-                int.TryParse(target[1..4], out storyOrdinal) &&
-                int.TryParse(target[6..], out int fieldOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Field, fieldOrdinal, 0, 0);
-                return true;
-            }
-
-            if (target[4..6] == ".B" &&
-                int.TryParse(target[1..4], out storyOrdinal) &&
-                int.TryParse(target[6..], out int bookmarkOrdinal))
-            {
-                targetId = new DocxTargetId(storyPrefix, storyOrdinal, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
-                return true;
-            }
-        }
-
-        if (target.Length == 11 &&
-            target[0] == storyPrefix &&
-            target[4..7] == ".CC" &&
-            int.TryParse(target[1..4], out int storyPartOrdinal) &&
-            int.TryParse(target[7..], out int contentControlOrdinal))
-        {
-            targetId = new DocxTargetId(storyPrefix, storyPartOrdinal, DocxTargetKind.ContentControl, contentControlOrdinal, 0, 0);
-            return true;
-        }
-
-        if (target.Length == 14 &&
-            target[0] == storyPrefix &&
-            target[4..6] == ".T" &&
-            target[10..12] == ".R" &&
-            int.TryParse(target[1..4], out storyPartOrdinal) &&
-            int.TryParse(target[6..10], out int rowTableOrdinal) &&
-            int.TryParse(target[12..], out int rowOrdinal))
-        {
-            targetId = new DocxTargetId(storyPrefix, storyPartOrdinal, DocxTargetKind.Row, rowTableOrdinal, rowOrdinal, 0);
-            return true;
-        }
-
-        if (target.Length == 18 &&
-            target[0] == storyPrefix &&
-            target[4..6] == ".T" &&
-            target[10..12] == ".R" &&
-            target[14..16] == ".C" &&
-            int.TryParse(target[1..4], out storyPartOrdinal) &&
-            int.TryParse(target[6..10], out int cellTableOrdinal) &&
-            int.TryParse(target[12..14], out int cellRowOrdinal) &&
-            int.TryParse(target[16..], out int cellOrdinal))
-        {
-            targetId = new DocxTargetId(storyPrefix, storyPartOrdinal, DocxTargetKind.Cell, cellTableOrdinal, cellRowOrdinal, cellOrdinal);
-            return true;
-        }
-
-        if (target.Length == 17 &&
-            target[0] == storyPrefix &&
-            target[4..6] == ".T" &&
-            target[10..13] == ".MG" &&
-            int.TryParse(target[1..4], out storyPartOrdinal) &&
-            int.TryParse(target[6..10], out int mergeGroupTableOrdinal) &&
-            int.TryParse(target[13..17], out int mergeGroupOrdinal))
-        {
-            targetId = new DocxTargetId(storyPrefix, storyPartOrdinal, DocxTargetKind.MergeGroup, mergeGroupTableOrdinal, mergeGroupOrdinal, 0);
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -297,13 +311,39 @@ public readonly record struct DocxTargetId(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Counters zero-pad exactly like the scanners, so canonical IDs round-trip.
-    /// Non-canonical parses admitted by the fixed-shape matchers (for example
-    /// sign-carrying ordinals) do not necessarily reproduce their input.
+    /// Counters zero-pad to canonical minimum widths exactly like the scanners,
+    /// so canonical IDs round-trip. Longer counters extend the width instead of
+    /// wrapping. Stories, parts, kinds, and used ordinals are range-checked;
+    /// default or out-of-range values throw instead of emitting an unparseable ID.
     /// </para>
     /// </remarks>
     public string ToWireValue()
     {
+        if (Story != 'M' && Story != 'H' && Story != 'F')
+        {
+            throw new ArgumentOutOfRangeException(nameof(Story), $"Unsupported story '{Story}'. Expected 'M', 'H', or 'F'.");
+        }
+
+        if (Story == 'M' ? StoryPart != 0 : StoryPart < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(StoryPart), "The main story uses part 0; header and footer parts start at 1.");
+        }
+
+        if (Primary < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Primary), "Target ordinals start at 1.");
+        }
+
+        if (Kind is DocxTargetKind.Row or DocxTargetKind.Cell or DocxTargetKind.MergeGroup && Secondary < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Secondary), "Row, cell, and merge-group targets need a row ordinal starting at 1.");
+        }
+
+        if (Kind is DocxTargetKind.Cell && Tertiary < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Tertiary), "Cell targets need a cell ordinal starting at 1.");
+        }
+
         string head = Story == 'M' ? "M" : $"{Story}{StoryPart:D3}";
         return Kind switch
         {
