@@ -79,12 +79,16 @@ internal static partial class DocxPatchEngine
             return new PatchExecutionResult(false, trackChangeOptionDiagnostics, []);
         }
 
+        Dictionary<string, int> rangeBaseline = CaptureRangeStructureBaseline(package, cancellationToken);
+        // One shared revision-ID allocator per execution; per-operation reports slice
+        // their own ID ranges out of it below.
+        var revisionIds = new RevisionIdTracker();
         var reports = new List<DocxPatchOperationReport>();
         foreach (DocxPatchOperation operation in patch.Operations)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var operationDiagnostics = new List<DocxDiagnostic>();
-            var generatedRevisionIds = new List<string>();
+            int revisionMark = revisionIds.Count;
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
@@ -112,7 +116,7 @@ internal static partial class DocxPatchEngine
                         "direct-edit-preserve-existing-revisions"));
                 }
 
-                IReadOnlyList<DocxDiagnostic>? executed = TryExecuteOperation(package, operation, options, apply, generatedRevisionIds, cancellationToken);
+                IReadOnlyList<DocxDiagnostic>? executed = TryExecuteOperation(package, operation, options, apply, revisionIds, cancellationToken);
                 if (executed is not null)
                 {
                     operationDiagnostics.AddRange(executed);
@@ -132,12 +136,17 @@ internal static partial class DocxPatchEngine
                 operationDiagnostics)
             {
                 AffectedTargets = operationSuccess ? BuildAffectedTargets(operation, tableBefore) : [],
-                GeneratedRevisionIds = operationSuccess ? generatedRevisionIds.ToArray() : []
+                GeneratedRevisionIds = apply && operationSuccess ? revisionIds.Skip(revisionMark).ToArray() : []
             });
+            // Comment and bookmark operations allocate w:id values outside revision
+            // allocation; later revision allocations must rescan to stay above them.
+            if (WordIdAllocatingOperations.Contains(operation.OperationName))
+            {
+                revisionIds.Invalidate();
+            }
         }
 
-        bool shouldMarkFieldsDirty = apply &&
-            options.MarkFieldsDirtyWhenEditing &&
+        bool shouldMarkFieldsDirty = options.MarkFieldsDirtyWhenEditing &&
             patch.Operations.Count != 0 &&
             patch.Operations.Any(operation => MarksFieldsDirtyAfterEdit(operation.OperationName)) &&
             diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
@@ -155,12 +164,139 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if (apply && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+        if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
         {
             diagnostics.AddRange(ValidateEditedPackage(package, cancellationToken));
         }
 
+        if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+        {
+            diagnostics.AddRange(ValidateNewRangeViolations(package, rangeBaseline, cancellationToken));
+        }
+
+        if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+        {
+            long editedTotalBytes = 0;
+            foreach (OoxmlPart part in package.Parts.Values)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                checked
+                {
+                    editedTotalBytes += part.Bytes.Length;
+                }
+            }
+
+            if (editedTotalBytes > options.Quotas.MaxUncompressedBytes)
+            {
+                diagnostics.Add(new DocxDiagnostic(DocxSeverity.Error, "E0001", "Edited package exceeds the maximum supported uncompressed size."));
+            }
+        }
+
         return new PatchExecutionResult(diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error), diagnostics, reports);
+    }
+
+    private static Dictionary<string, int> CaptureRangeStructureBaseline(
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        var baseline = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (string partName in RangeCheckedStoryParts(package, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            using Stream stream = part.OpenRead();
+            XDocument document = SafeXml.Load(stream, cancellationToken);
+            foreach (DocxDiagnostic diagnostic in DocxPackageValidator.ValidateRangeStructure(document, partName))
+            {
+                baseline.TryGetValue(RangeDiagnosticKey(diagnostic), out int count);
+                baseline[RangeDiagnosticKey(diagnostic)] = count + 1;
+            }
+        }
+
+        return baseline;
+    }
+
+    private static IReadOnlyList<DocxDiagnostic> ValidateNewRangeViolations(
+        OoxmlPackage package,
+        Dictionary<string, int> baseline,
+        CancellationToken cancellationToken)
+    {
+        var remaining = new Dictionary<string, int>(baseline, StringComparer.Ordinal);
+        var fresh = new List<DocxDiagnostic>();
+        foreach (string partName in package.TouchedPartNames.Order(StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsRangeCheckedStoryPart(package, partName, cancellationToken))
+            {
+                continue;
+            }
+
+            OoxmlPart? part = package.GetPart(partName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                using Stream stream = part.OpenRead();
+                XDocument document = SafeXml.Load(stream, cancellationToken);
+                foreach (DocxDiagnostic diagnostic in DocxPackageValidator.ValidateRangeStructure(document, partName))
+                {
+                    string key = RangeDiagnosticKey(diagnostic);
+                    if (remaining.TryGetValue(key, out int count) && count > 0)
+                    {
+                        remaining[key] = count - 1;
+                        continue;
+                    }
+
+                    fresh.Add(diagnostic);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or XmlException)
+            {
+                fresh.Add(PostEditValidationDiagnostic(part.Name, ex.Message));
+            }
+        }
+
+        return fresh;
+    }
+
+    private static IEnumerable<string> RangeCheckedStoryParts(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            yield return story.PartName;
+        }
+
+        foreach (string? partName in new[]
+        {
+            DocxPartRoles.FindCommentsPartName(package, cancellationToken),
+            DocxPartRoles.FindFootnotesPartName(package, cancellationToken),
+            DocxPartRoles.FindEndnotesPartName(package, cancellationToken)
+        })
+        {
+            if (partName is not null && package.GetPart(partName) is not null)
+            {
+                yield return partName;
+            }
+        }
+    }
+
+    private static bool IsRangeCheckedStoryPart(OoxmlPackage package, string partName, CancellationToken cancellationToken)
+    {
+        return RangeCheckedStoryParts(package, cancellationToken)
+            .Contains(partName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string RangeDiagnosticKey(DocxDiagnostic diagnostic)
+    {
+        return string.Concat(diagnostic.Code, "|", diagnostic.PartName, "|", diagnostic.Message);
     }
 
     private static string BuildUnsupportedTrackedOperationMessage(TrackChangesMode mode, DocxPatchOperation operation)
@@ -182,14 +318,16 @@ internal static partial class DocxPatchEngine
 
     private static bool PackageContainsFieldMarkup(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) &&
-                part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
-                !part.Name.Contains("/_rels/", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        foreach (string wordPartName in DocxPartRoles.GetWordProcessingParts(package, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using Stream stream = part.OpenRead();
+            OoxmlPart? fieldPart = package.GetPart(wordPartName);
+            if (fieldPart is null)
+            {
+                continue;
+            }
+
+            using Stream stream = fieldPart.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
             if (document.Descendants().Any(element =>
                 element.Name == OoxmlNs.W + "fldSimple" ||
@@ -222,24 +360,15 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken)
     {
 
-        var partNames = new List<string> { package.MainDocumentPartName };
-        IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
-        partNames.AddRange(relationships
-            .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
-            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget)
-            .Where(partName => package.GetPart(partName) is not null));
-        partNames.AddRange(relationships
-            .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
-            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .Select(relationship => relationship.ResolvedTarget)
-            .Where(partName => package.GetPart(partName) is not null));
-        return partNames;
+        return DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken)
+            .Select(story => story.PartName)
+            .ToArray();
     }
 
     private static bool TryReadAsset(
         IDocxAssetProvider? assetProvider,
         string asset,
+        long maxAssetBytes,
         CancellationToken cancellationToken,
         out byte[] bytes,
         [NotNullWhen(true)] out string? contentType,
@@ -265,27 +394,306 @@ internal static partial class DocxPatchEngine
         using (stream)
         using (var memory = new MemoryStream())
         {
-            CopyTo(stream, memory, cancellationToken);
+            try
+            {
+                CopyTo(stream, memory, maxAssetBytes, cancellationToken);
+            }
+            catch (InvalidDataException)
+            {
+                bytes = [];
+                contentType = null;
+                diagnostic = Diagnostic(DocxSeverity.Error, "E5207", $"Image asset '{asset}' exceeds the maximum supported size of {maxAssetBytes} bytes.", operation, target);
+                return false;
+            }
+
             bytes = memory.ToArray();
         }
 
-        contentType = DetectImageContentType(bytes, contentTypeHint, fileNameHint ?? asset);
-        if (contentType is null)
+        // Content is authoritative: magic bytes decide the type, provider hints
+        // and file names are only hints, and the structure is validated boundedly.
+        string? magicType = DetectImageMagicContentType(bytes);
+        if (magicType is null)
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a supported PNG or JPEG image.", operation, target);
             return false;
         }
 
+        string? normalizedHint = NormalizeImageContentType(contentTypeHint);
+        if (normalizedHint is not null && !string.Equals(normalizedHint, magicType, StringComparison.Ordinal))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' content-type hint suggests '{normalizedHint}' but the content is '{magicType}'.", operation, target);
+            return false;
+        }
+
         if (contentTypeHint is null &&
             DetectImageExtensionContentType(fileNameHint ?? asset) is { } extensionType &&
-            DetectImageMagicContentType(bytes) is { } magicType &&
             !string.Equals(extensionType, magicType, StringComparison.Ordinal))
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' file extension suggests '{extensionType}' but the content is '{magicType}'.", operation, target);
             return false;
         }
 
+        if (!TryValidateImageStructure(bytes, magicType, out string? structuralReason))
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a structurally valid {magicType} image ({structuralReason}).", operation, target);
+            return false;
+        }
+
+        contentType = magicType;
         return true;
+    }
+
+    internal static bool TryValidateImageStructure(byte[] bytes, string contentType, out string? reason)
+    {
+        switch (contentType)
+        {
+            case "image/png":
+                return TryValidatePngStructure(bytes, out reason);
+            case "image/jpeg":
+                return TryValidateJpegStructure(bytes, out reason);
+            default:
+                reason = "unsupported content type";
+                return false;
+        }
+    }
+
+    private static bool TryValidatePngStructure(byte[] bytes, out string? reason)
+    {
+        reason = null;
+        if (DetectImageMagicContentType(bytes) != "image/png" || bytes.Length < 33)
+        {
+            reason = "missing signature or header";
+            return false;
+        }
+
+        // Walk chunks: 4-byte big-endian length, 4-byte type, data, 4-byte CRC.
+        // Requires IHDR first (length 13, sane dimensions and encoding), at
+        // least one IDAT chunk, and IEND terminating the file exactly.
+        int position = 8;
+        bool seenHeader = false;
+        bool seenData = false;
+        while (true)
+        {
+            if (position + 8 > bytes.Length)
+            {
+                reason = "truncated chunk header";
+                return false;
+            }
+
+            long length = ((long)bytes[position] << 24) | ((long)bytes[position + 1] << 16) | ((long)bytes[position + 2] << 8) | bytes[position + 3];
+            if (length < 0 || length > 1_000_000_000 || position + 8 + length + 4 > bytes.Length)
+            {
+                reason = "truncated chunk data";
+                return false;
+            }
+
+            string type = System.Text.Encoding.ASCII.GetString(bytes, position + 4, 4);
+            if (!seenHeader)
+            {
+                if (type != "IHDR" || length != 13)
+                {
+                    reason = "missing IHDR header";
+                    return false;
+                }
+
+                long width = ((long)bytes[position + 8] << 24) | ((long)bytes[position + 9] << 16) | ((long)bytes[position + 10] << 8) | bytes[position + 11];
+                long height = ((long)bytes[position + 12] << 24) | ((long)bytes[position + 13] << 16) | ((long)bytes[position + 14] << 8) | bytes[position + 15];
+                int bitDepth = bytes[position + 16];
+                int colorType = bytes[position + 17];
+                int compression = bytes[position + 18];
+                int filter = bytes[position + 19];
+                int interlace = bytes[position + 20];
+                if (width < 1 || height < 1 || width > 1_000_000 || height > 1_000_000)
+                {
+                    reason = "invalid dimensions";
+                    return false;
+                }
+
+                bool validEncoding = (bitDepth, colorType) switch
+                {
+                    (1, 0 or 3) => true,
+                    (2, 0 or 3) => true,
+                    (4, 0 or 3) => true,
+                    (8, 0 or 2 or 3 or 4 or 6) => true,
+                    (16, 0 or 2 or 4 or 6) => true,
+                    _ => false
+                };
+                if (!validEncoding || compression != 0 || filter != 0 || interlace is not (0 or 1))
+                {
+                    reason = "unsupported encoding";
+                    return false;
+                }
+
+                seenHeader = true;
+            }
+            else if (type == "IDAT")
+            {
+                seenData = true;
+            }
+            else if (type == "IEND")
+            {
+                if (!seenData)
+                {
+                    reason = "missing image data";
+                    return false;
+                }
+
+                if (position + 12 != bytes.Length)
+                {
+                    reason = "trailing bytes after image end";
+                    return false;
+                }
+
+                return true;
+            }
+
+            position += 8 + (int)length + 4;
+        }
+    }
+
+    private static bool TryValidateJpegStructure(byte[] bytes, out string? reason)
+    {
+        reason = null;
+        if (bytes.Length < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8)
+        {
+            reason = "missing start marker";
+            return false;
+        }
+
+        // Walk segments to the first frame header (SOF), then require scan data
+        // closed by an end marker: truncated files without either are rejected.
+        // Dimensions follow the JPEG specification (1..65500).
+        int position = 2;
+        bool seenFrame = false;
+        while (position + 1 < bytes.Length)
+        {
+            if (bytes[position] != 0xFF)
+            {
+                position++;
+                continue;
+            }
+
+            while (position < bytes.Length && bytes[position] == 0xFF)
+            {
+                position++;
+            }
+
+            if (position >= bytes.Length)
+            {
+                reason = "truncated marker";
+                return false;
+            }
+
+            byte marker = bytes[position++];
+            if (marker == 0x00 || marker is >= 0xD0 and <= 0xD7)
+            {
+                continue;
+            }
+
+            if (marker == 0xD9)
+            {
+                if (!seenFrame)
+                {
+                    reason = "missing frame header";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (marker == 0xDA)
+            {
+                if (!seenFrame)
+                {
+                    reason = "missing frame header";
+                    return false;
+                }
+
+                // Scan data runs to the end marker; only stuffed (FF00) and
+                // restart markers may appear inside it.
+                while (position + 1 < bytes.Length)
+                {
+                    if (bytes[position] != 0xFF)
+                    {
+                        position++;
+                        continue;
+                    }
+
+                    byte following = bytes[position + 1];
+                    if (following == 0x00 || following is >= 0xD0 and <= 0xD7)
+                    {
+                        position += 2;
+                        continue;
+                    }
+
+                    if (following == 0xD9)
+                    {
+                        return true;
+                    }
+
+                    reason = "truncated scan data";
+                    return false;
+                }
+
+                reason = "truncated scan data";
+                return false;
+            }
+
+            if (marker is 0x01 || marker == 0xD8)
+            {
+                continue;
+            }
+
+            if (IsJpegFrameMarker(marker))
+            {
+                if (position + 7 > bytes.Length)
+                {
+                    reason = "truncated frame header";
+                    return false;
+                }
+
+                int length = (bytes[position] << 8) | bytes[position + 1];
+                if (length < 8)
+                {
+                    reason = "invalid frame header";
+                    return false;
+                }
+
+                int height = (bytes[position + 3] << 8) | bytes[position + 4];
+                int width = (bytes[position + 5] << 8) | bytes[position + 6];
+                if (width < 1 || height < 1 || width > 65500 || height > 65500)
+                {
+                    reason = "invalid dimensions";
+                    return false;
+                }
+
+                seenFrame = true;
+            }
+
+            if (position + 1 >= bytes.Length)
+            {
+                reason = "truncated segment";
+                return false;
+            }
+
+            int segmentLength = (bytes[position] << 8) | bytes[position + 1];
+            if (segmentLength < 2 || position + segmentLength > bytes.Length)
+            {
+                reason = "truncated segment";
+                return false;
+            }
+
+            position += segmentLength;
+        }
+
+        reason = seenFrame ? "truncated scan data" : "missing frame header";
+        return false;
+    }
+
+    private static bool IsJpegFrameMarker(byte marker)
+    {
+        return marker is >= 0xC0 and <= 0xCF
+            && marker is not (0xC4 or 0xC8 or 0xCC);
     }
 
     private static bool TryResolveStyleId(
@@ -323,17 +731,6 @@ internal static partial class DocxPatchEngine
             ? Diagnostic(DocxSeverity.Error, "E7102", $"Style name '{requestedStyle}' is ambiguous.", operation, target)
             : Diagnostic(DocxSeverity.Error, "E7101", $"Style '{requestedStyle}' was not found.", operation, target);
         return false;
-    }
-
-    private static string? DetectImageContentType(byte[] bytes, string? contentTypeHint, string? fileNameHint)
-    {
-        string? normalizedHint = NormalizeImageContentType(contentTypeHint);
-        if (normalizedHint is not null)
-        {
-            return normalizedHint;
-        }
-
-        return DetectImageExtensionContentType(fileNameHint) ?? DetectImageMagicContentType(bytes);
     }
 
     private static string? DetectImageExtensionContentType(string? fileNameHint)
@@ -383,9 +780,10 @@ internal static partial class DocxPatchEngine
         };
     }
 
-    private static void CopyTo(Stream source, Stream destination, CancellationToken cancellationToken)
+    private static void CopyTo(Stream source, Stream destination, long maxBytes, CancellationToken cancellationToken)
     {
         byte[] buffer = new byte[81920];
+        long total = 0;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -393,6 +791,12 @@ internal static partial class DocxPatchEngine
             if (read == 0)
             {
                 return;
+            }
+
+            total += read;
+            if (total > maxBytes)
+            {
+                throw new InvalidDataException("Asset stream exceeds the maximum supported size.");
             }
 
             destination.Write(buffer, 0, read);
@@ -425,6 +829,117 @@ internal static partial class DocxPatchEngine
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Finds the first paired range the removal of <paramref name="removed"/> would newly orphan:
+    /// a bookmark/comment-range marker inside the subtree whose counterpart lies outside it
+    /// in an otherwise healthy pair, or complex-field markers whose removal unbalances the part.
+    /// Returns a human-readable range description, or null when removal keeps pairing intact.
+    /// </summary>
+    private static string? FindOrphanedRangeBoundary(XDocument document, XElement removed)
+    {
+        foreach ((XName startName, XName endName, bool named, string label) in new[]
+        {
+            (OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd", true, "bookmark"),
+            (OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", false, "comment range")
+        })
+        {
+            foreach (XElement marker in removed.Descendants(startName))
+            {
+                string? id = (string?)marker.Attribute(OoxmlNs.W + "id");
+                if (string.IsNullOrWhiteSpace(id) || !IsHealthyPair(document, startName, endName, id))
+                {
+                    continue;
+                }
+
+                if (!HasCounterpartInside(removed, endName, id))
+                {
+                    return DescribeRange(label, marker, id);
+                }
+            }
+
+            foreach (XElement marker in removed.Descendants(endName))
+            {
+                string? id = (string?)marker.Attribute(OoxmlNs.W + "id");
+                if (string.IsNullOrWhiteSpace(id) || !IsHealthyPair(document, startName, endName, id))
+                {
+                    continue;
+                }
+
+                if (!HasCounterpartInside(removed, startName, id))
+                {
+                    return DescribeRange(label, marker, id);
+                }
+            }
+        }
+
+        if (WouldUnbalanceFieldMarkers(document, removed))
+        {
+            return "complex field boundary";
+        }
+
+        return null;
+    }
+
+    private static bool IsHealthyPair(XDocument document, XName startName, XName endName, string id)
+    {
+        return document.Descendants(startName).Count(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), id, StringComparison.Ordinal)) == 1 &&
+            document.Descendants(endName).Count(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), id, StringComparison.Ordinal)) == 1;
+    }
+
+    private static bool HasCounterpartInside(XElement removed, XName counterpartName, string id)
+    {
+        return removed.Descendants(counterpartName)
+            .Any(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), id, StringComparison.Ordinal));
+    }
+
+    private static string DescribeRange(string label, XElement marker, string id)
+    {
+        string? name = (string?)marker.Attribute(OoxmlNs.W + "name");
+        return string.IsNullOrWhiteSpace(name)
+            ? $"{label} (id '{id}')"
+            : $"{label} '{name}' (id '{id}')";
+    }
+
+    private static bool WouldUnbalanceFieldMarkers(XDocument document, XElement removed)
+    {
+        int documentBegins = 0;
+        int documentEnds = 0;
+        foreach (XElement field in document.Descendants(OoxmlNs.W + "fldChar"))
+        {
+            string? type = (string?)field.Attribute(OoxmlNs.W + "fldCharType");
+            if (string.Equals(type, "begin", StringComparison.Ordinal))
+            {
+                documentBegins++;
+            }
+            else if (string.Equals(type, "end", StringComparison.Ordinal))
+            {
+                documentEnds++;
+            }
+        }
+
+        if (documentBegins != documentEnds)
+        {
+            return false;
+        }
+
+        int removedBegins = 0;
+        int removedEnds = 0;
+        foreach (XElement field in removed.Descendants(OoxmlNs.W + "fldChar"))
+        {
+            string? type = (string?)field.Attribute(OoxmlNs.W + "fldCharType");
+            if (string.Equals(type, "begin", StringComparison.Ordinal))
+            {
+                removedBegins++;
+            }
+            else if (string.Equals(type, "end", StringComparison.Ordinal))
+            {
+                removedEnds++;
+            }
+        }
+
+        return removedBegins != removedEnds;
     }
 
     private static bool TryGetProtectedTextEditFeature(XElement paragraph, out string feature)
@@ -786,13 +1301,35 @@ internal static partial class DocxPatchEngine
         return textElement;
     }
 
+    // Execution-scoped revision-ID state. The per-operation generated-ID lists flow
+    // through one shared instance, so repeated allocations reuse a single package scan.
+    // The counter only moves forward; package deletions can only lower the stored
+    // maximum, and cloned nodes copy existing IDs. Comment and bookmark allocations
+    // write w:id values outside this tracker, so the engine invalidates it after the
+    // operations that allocate them (see WordIdAllocatingOperations); the next
+    // allocation then rescans. Per-operation reports still slice their own ID ranges
+    // out of the shared list.
+    private sealed class RevisionIdTracker : List<string>
+    {
+        public int NextId { get; set; } = 1;
+
+        public bool NeedsScan { get; set; } = true;
+
+        public void Invalidate()
+        {
+            NeedsScan = true;
+        }
+    }
+
     private static string[] AllocateRevisionIds(
         OoxmlPackage package,
         int count,
         List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
-        int nextId = FindNextRevisionId(package, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        RevisionIdTracker? tracker = generatedRevisionIds as RevisionIdTracker;
+        int nextId = tracker is not null && !tracker.NeedsScan ? tracker.NextId : FindNextRevisionId(package, cancellationToken);
         foreach (string generatedRevisionId in generatedRevisionIds)
         {
             if (int.TryParse(generatedRevisionId, out int id) && id >= nextId)
@@ -803,27 +1340,28 @@ internal static partial class DocxPatchEngine
 
         string[] ids = BuildRevisionIds(nextId, count);
         generatedRevisionIds.AddRange(ids);
+        if (tracker is not null)
+        {
+            tracker.NextId = nextId + count;
+            tracker.NeedsScan = false;
+        }
+
         return ids;
     }
-
-    private static string[] AllocateRevisionIds(
-        OoxmlPackage package,
-        int count,
-        CancellationToken cancellationToken)
-    {
-        return BuildRevisionIds(FindNextRevisionId(package, cancellationToken), count);
-    }
-
     private static int FindNextRevisionId(
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
         int nextId = 1;
-        foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => part.Name.StartsWith("/word/", StringComparison.OrdinalIgnoreCase) && part.Name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(part => part.Name, StringComparer.Ordinal))
+        foreach (string wordPartName in DocxPartRoles.GetWordProcessingParts(package, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? part = package.GetPart(wordPartName);
+            if (part is null)
+            {
+                continue;
+            }
+
             using Stream stream = part.OpenRead();
             XDocument document = SafeXml.Load(stream, cancellationToken);
             foreach (XAttribute idAttribute in document.Descendants().Attributes(OoxmlNs.W + "id"))
@@ -929,7 +1467,7 @@ internal static partial class DocxPatchEngine
         }
 
         string relationshipId = OoxmlIds.AllocateRelationshipId(package
-            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
+            .GetRelationships(package.MainDocumentPartName, cancellationToken)
             .Select(relationship => relationship.Id));
         package.AddRelationship(package.MainDocumentPartName, relationshipId, OoxmlRelTypes.Settings, GetRelativeRelationshipTarget(package.MainDocumentPartName, settingsPartName), targetMode: null, cancellationToken);
         return settingsPartName;
@@ -980,15 +1518,25 @@ internal static partial class DocxPatchEngine
 
     private static void ValidateTouchedBinaryPart(OoxmlPart part, List<DocxDiagnostic> diagnostics)
     {
-        if (part.Bytes.Length != 0)
+        string? contentType = part.ContentType;
+        bool isSupportedImage = string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase);
+        if (!isSupportedImage || contentType is null)
         {
             return;
         }
 
-        if (string.Equals(part.ContentType, "image/png", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(part.ContentType, "image/jpeg", StringComparison.OrdinalIgnoreCase))
+        if (part.Bytes.Length == 0)
         {
             diagnostics.Add(PostEditValidationDiagnostic(part.Name, "Image part is empty."));
+            return;
+        }
+
+        // Defense in depth: assets were structurally validated before embedding,
+        // so this only trips on corruption introduced after that gate.
+        if (!TryValidateImageStructure(part.Bytes, contentType.ToLowerInvariant(), out _))
+        {
+            diagnostics.Add(PostEditValidationDiagnostic(part.Name, $"Image part is not a structurally valid {contentType} image."));
         }
     }
 
@@ -1068,7 +1616,7 @@ internal static partial class DocxPatchEngine
         List<DocxDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
-        string sourcePartName = GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+        string sourcePartName = OoxmlPath.GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
         using Stream stream = relationshipPart.OpenRead();
         foreach (OoxmlRelationship relationship in OoxmlPackage.ParseRelationships(stream, sourcePartName, cancellationToken))
         {
@@ -1079,26 +1627,6 @@ internal static partial class DocxPatchEngine
                 diagnostics.Add(PostEditValidationDiagnostic(relationshipPart.Name, $"Relationship '{relationship.Id}' targets missing part '{relationship.ResolvedTarget}'."));
             }
         }
-    }
-
-    private static string GetSourcePartNameFromRelationshipPartName(string relationshipPartName)
-    {
-        string normalized = OoxmlPath.NormalizePartName(relationshipPartName);
-        if (normalized == "/_rels/.rels")
-        {
-            return "/";
-        }
-
-        const string relationshipMarker = "/_rels/";
-        int markerIndex = normalized.LastIndexOf(relationshipMarker, StringComparison.Ordinal);
-        if (markerIndex < 0 || !normalized.EndsWith(".rels", StringComparison.Ordinal))
-        {
-            throw new InvalidDataException($"Invalid relationship part name '{relationshipPartName}'.");
-        }
-
-        string directory = normalized[..markerIndex];
-        string fileName = normalized[(markerIndex + relationshipMarker.Length)..^".rels".Length];
-        return OoxmlPath.NormalizePartName($"{directory}/{fileName}");
     }
 
     private static DocxDiagnostic PostEditValidationDiagnostic(string partName, string message)
