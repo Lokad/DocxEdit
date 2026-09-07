@@ -11,16 +11,12 @@ internal static partial class DocxPatchEngine
 {
     private static XElement? FindTable(XElement body, int tableOrdinal)
     {
-        return tableOrdinal < 1
-            ? null
-            : body.Elements(OoxmlNs.W + "tbl").ElementAtOrDefault(tableOrdinal - 1);
+        return DocxStoryBlocks.FindTableByPhysicalOrdinal(body, tableOrdinal);
     }
 
     private static XElement? FindParagraph(XElement body, int paragraphOrdinal)
     {
-        return paragraphOrdinal < 1
-            ? null
-            : body.Elements(OoxmlNs.W + "p").ElementAtOrDefault(paragraphOrdinal - 1);
+        return DocxStoryBlocks.FindParagraphByPhysicalOrdinal(body, paragraphOrdinal);
     }
 
     private static XElement? ResolveMainBlock(
@@ -347,12 +343,17 @@ internal static partial class DocxPatchEngine
         diagnostics = [];
         var matches = new List<ParagraphSelectorMatch>();
         int paragraphOrdinal = 0;
-        foreach (XElement paragraph in body.Elements(OoxmlNs.W + "p"))
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
         {
-            paragraphOrdinal++;
-            if (predicate(paragraph))
+            if (entry.Block.Name != OoxmlNs.W + "p")
             {
-                matches.Add(new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", paragraph));
+                continue;
+            }
+
+            paragraphOrdinal++;
+            if (predicate(entry.Block))
+            {
+                matches.Add(new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", entry.Block));
             }
         }
 
@@ -414,10 +415,15 @@ internal static partial class DocxPatchEngine
     private static IEnumerable<ParagraphSelectorMatch> EnumerateMainParagraphs(XElement body)
     {
         int paragraphOrdinal = 0;
-        foreach (XElement paragraph in body.Elements(OoxmlNs.W + "p"))
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
         {
+            if (entry.Block.Name != OoxmlNs.W + "p")
+            {
+                continue;
+            }
+
             paragraphOrdinal++;
-            yield return new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", paragraph);
+            yield return new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", entry.Block);
         }
     }
 
@@ -452,9 +458,10 @@ internal static partial class DocxPatchEngine
 
         XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
         int currentOrdinal = 0;
-        foreach (XElement block in body.Elements())
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            XElement block = entry.Block;
             XElement? element = block.Name == OoxmlNs.W + "p"
                 ? block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr")
                 : block.Name == OoxmlNs.W + "sectPr"
@@ -526,7 +533,7 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadDocumentPart(package, relationship.ResolvedTarget, cancellationToken, out XElement root);
-        XElement? block = root.Elements(blockName).ElementAtOrDefault(blockOrdinal - 1);
+        XElement? block = DocxStoryBlocks.FindBlockByPhysicalOrdinal(root, blockName, blockOrdinal);
         return block is null ? null : new BlockTarget(relationship.ResolvedTarget, document, block);
     }
 

@@ -35,22 +35,21 @@ internal static partial class DocxDocumentScanner
         {
             bool rowInserted = IsTableRowInserted(row);
             bool rowDeleted = IsTableRowDeleted(row);
-            if (textView == DocxTextView.Final && rowDeleted ||
-                textView == DocxTextView.Original && rowInserted)
-            {
-                continue;
-            }
+            bool rowVisible = !((textView == DocxTextView.Final && rowDeleted) ||
+                (textView == DocxTextView.Original && rowInserted));
+            int currentRowIndex = rowIndex++;
 
             int gridBefore = ReadRowGridOffset(row, "gridBefore");
             int gridAfter = ReadRowGridOffset(row, "gridAfter");
             RemoveActiveVerticalMerges(activeVerticalMerges, 1, gridBefore);
             int columnIndex = 1 + gridBefore;
             int physicalColumnIndex = 1;
-            DocxTargetId rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = rowIndex };
+            DocxTargetId rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = currentRowIndex };
+            targets[row] = rowId.ToWireValue();
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
                 int columnSpan = ReadCellColumnSpan(cell);
-                DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = rowIndex, Tertiary = columnIndex };
+                DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = currentRowIndex, Tertiary = columnIndex };
                 DocxVerticalMerge? verticalMerge = ReadCellVerticalMerge(cell);
                 DocxTargetId? mergeGroupId = null;
                 DocxTargetId? verticalMergeRootCellId = null;
@@ -76,12 +75,14 @@ internal static partial class DocxDocumentScanner
                     }
                 }
 
-                foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
-                {
-                    AddDrawingImages(drawing, package, relationships, images, cellId, ref imageIndex);
-                }
-
                 targets[cell] = cellId.ToWireValue();
+                if (rowVisible)
+                {
+                    foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
+                    {
+                        AddDrawingImages(drawing, package, relationships, images, cellId, ref imageIndex);
+                    }
+                }
                 string cellText = ReadText(cell, textView);
                 if (textView == DocxTextView.Markup)
                 {
@@ -95,40 +96,45 @@ internal static partial class DocxDocumentScanner
                     }
                 }
 
-                cells.Add(new DocxTableCellInfo(
-                    cellId,
-                    rowIndex,
-                    columnIndex,
+                if (rowVisible)
+                {
+                    cells.Add(new DocxTableCellInfo(
+                        cellId,
+                        currentRowIndex,
+                        columnIndex,
                     cellText,
                     columnSpan,
                     verticalMerge,
                     cell.Elements(OoxmlNs.W + "tbl").Any())
                 {
-                    PhysicalColumnIndex = physicalColumnIndex,
-                    VisualColumnEndIndex = columnIndex + columnSpan - 1,
-                    MergeGroupId = mergeGroupId,
-                    VerticalMergeRootCellId = verticalMergeRootCellId
-                });
+                        PhysicalColumnIndex = physicalColumnIndex,
+                        VisualColumnEndIndex = columnIndex + columnSpan - 1,
+                        MergeGroupId = mergeGroupId,
+                        VerticalMergeRootCellId = verticalMergeRootCellId
+                    });
+                }
                 columnIndex += columnSpan;
                 physicalColumnIndex++;
             }
 
             RemoveActiveVerticalMerges(activeVerticalMerges, columnIndex, gridAfter);
-            rows.Add(new DocxTableRowInfo
+            if (rowVisible)
             {
-                Id = rowId,
-                RowIndex = rowIndex,
-                CellCount = physicalColumnIndex - 1,
-                GridBefore = gridBefore,
-                GridAfter = gridAfter,
-                IsHeader = ReadRowFlag(row, "tblHeader"),
-                CantSplit = ReadRowFlag(row, "cantSplit")
-            });
-            maxColumns = Math.Max(maxColumns, columnIndex - 1 + gridAfter);
-            rowIndex++;
+                rows.Add(new DocxTableRowInfo
+                {
+                    Id = rowId,
+                    RowIndex = currentRowIndex,
+                    CellCount = physicalColumnIndex - 1,
+                    GridBefore = gridBefore,
+                    GridAfter = gridAfter,
+                    IsHeader = ReadRowFlag(row, "tblHeader"),
+                    CantSplit = ReadRowFlag(row, "cantSplit")
+                });
+                maxColumns = Math.Max(maxColumns, columnIndex - 1 + gridAfter);
+            }
         }
 
-        return new DocxTableInfo(tableId, story, rowIndex - 1, Math.Max(maxColumns, gridColumnCount ?? 0), cells)
+        return new DocxTableInfo(tableId, story, rows.Count, Math.Max(maxColumns, gridColumnCount ?? 0), cells)
         {
             StyleId = styleId,
             Caption = (string?)tableProperties?.Element(OoxmlNs.W + "tblCaption")?.Attribute(OoxmlNs.W + "val"),

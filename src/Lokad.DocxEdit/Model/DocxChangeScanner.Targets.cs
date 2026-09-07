@@ -25,8 +25,9 @@ internal static partial class DocxChangeScanner
         int tableIndex = 1;
         int sectionIndex = 1;
 
-        foreach (XElement block in body.Elements())
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
         {
+            XElement block = entry.Block;
             if (block.Name == OoxmlNs.W + "p")
             {
                 targets[block] = $"{prefix}.P{paragraphIndex++:0000}";
@@ -45,10 +46,11 @@ internal static partial class DocxChangeScanner
                 {
                     string rowId = $"{tableId}.R{rowIndex:00}";
                     targets[row] = rowId;
-                    int cellIndex = 1;
+                    int visualColumn = 1 + ReadChangeRowGridOffset(row, "gridBefore");
                     foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
                     {
-                        targets[cell] = $"{rowId}.C{cellIndex++:00}";
+                        targets[cell] = $"{rowId}.C{visualColumn:00}";
+                        visualColumn += ReadChangeCellColumnSpan(cell);
                     }
 
                     rowIndex++;
@@ -61,6 +63,24 @@ internal static partial class DocxChangeScanner
         }
 
         return targets;
+    }
+
+    private static int ReadChangeRowGridOffset(XElement row, string localName)
+    {
+        string? value = (string?)row
+            .Element(OoxmlNs.W + "trPr")
+            ?.Element(OoxmlNs.W + localName)
+            ?.Attribute(OoxmlNs.W + "val");
+        return int.TryParse(value, out int parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    private static int ReadChangeCellColumnSpan(XElement cell)
+    {
+        string? spanText = (string?)cell
+            .Element(OoxmlNs.W + "tcPr")
+            ?.Element(OoxmlNs.W + "gridSpan")
+            ?.Attribute(OoxmlNs.W + "val");
+        return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
     }
 
     private static TargetMetadata FindTarget(

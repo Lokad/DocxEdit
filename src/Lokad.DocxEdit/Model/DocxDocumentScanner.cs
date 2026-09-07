@@ -4,6 +4,10 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit.Model;
 
+// Reads the package into an inspection model. Missing parts and unrecognized
+// entries yield empty collections; malformed document data throws a document
+// exception (InvalidDataException, XmlException, IOException) at an explicit
+// boundary, which the editor converts into failed results with diagnostics.
 internal static partial class DocxDocumentScanner
 {
     public static DocxDocumentModel Scan(
@@ -15,6 +19,17 @@ internal static partial class DocxDocumentScanner
         cancellationToken.ThrowIfCancellationRequested();
 
         IReadOnlyList<DocxStyleInfo> styles = DocxStyleScanner.Scan(package, cancellationToken);
+        // Style IDs come from the document, so uniqueness is validated here at
+        // the dictionary-construction boundary instead of throwing ArgumentException.
+        string? duplicateStyleId = styles
+            .GroupBy(style => style.StyleId, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1)
+            ?.Key;
+        if (duplicateStyleId is not null)
+        {
+            throw new InvalidDataException($"Duplicate style ID '{duplicateStyleId}'.");
+        }
+
         IReadOnlyDictionary<string, DocxStyleInfo> stylesById = styles.ToDictionary(style => style.StyleId, StringComparer.Ordinal);
         DocxNumberingCatalog numbering = DocxNumberingCatalog.Scan(package, cancellationToken);
         var paragraphs = new List<DocxParagraphInfo>();
@@ -29,24 +44,14 @@ internal static partial class DocxDocumentScanner
 
         if (includeHeadersFooters)
         {
-            IReadOnlyList<ResolvedOoxmlRelationship> relationships = package.GetResolvedRelationships(package.MainDocumentPartName, cancellationToken);
-
-            ScanStories(OoxmlRelTypes.Header, "H", "header");
-            ScanStories(OoxmlRelTypes.Footer, "F", "footer");
-
-            void ScanStories(string relationshipType, string prefixLetter, string storyLabel)
+            foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
             {
-                int index = 1;
-                foreach (ResolvedOoxmlRelationship relationship in relationships
-                    .Where(candidate => candidate.Type == relationshipType)
-                    .OrderBy(candidate => candidate.Id, StringComparer.Ordinal))
+                if (story.Prefix == "M")
                 {
-                    if (package.GetPart(relationship.ResolvedTarget) is not null)
-                    {
-                        string prefix = $"{prefixLetter}{index++:000}";
-                        ScanStory(package, relationship.ResolvedTarget, prefix, $"{storyLabel}[{index - 1}]", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
-                    }
+                    continue;
                 }
+
+                ScanStory(package, story.PartName, story.Prefix, story.StoryLabel, textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
             }
         }
 
@@ -90,22 +95,30 @@ internal static partial class DocxDocumentScanner
         int sectionIndex = sections.Count(section => section.Id.Kind == DocxTargetKind.Section && section.Id.Story == storyLetter && section.Id.StoryPart == storyPartNumber) + 1;
         var targets = new Dictionary<XElement, string>();
         var numberingLabeler = new DocxNumberingLabeler(numbering);
-        foreach (XElement block in EnumerateStoryBlocks(body, textView))
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            XElement block = entry.Block;
+            bool visible = DocxStoryBlocks.IsVisibleInView(entry.Wrapper, textView);
             XElement? sectionProperties = null;
             if (block.Name == OoxmlNs.W + "p")
             {
                 DocxTargetId paragraphId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Paragraph, paragraphIndex++, 0, 0);
                 targets[block] = paragraphId.ToWireValue();
-                paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, ref imageIndex));
-                sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
+                if (visible)
+                {
+                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, ref imageIndex));
+                    sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
+                }
             }
             else if (block.Name == OoxmlNs.W + "tbl")
             {
                 DocxTargetId tableId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Table, tableIndex++, 0, 0);
                 targets[block] = tableId.ToWireValue();
-                tables.Add(ReadTable(block, tableId, story, textView, package, relationships, images, targets, ref imageIndex));
+                if (visible)
+                {
+                    tables.Add(ReadTable(block, tableId, story, textView, package, relationships, images, targets, ref imageIndex));
+                }
             }
             else if (block.Name == OoxmlNs.W + "sectPr")
             {
@@ -116,7 +129,10 @@ internal static partial class DocxDocumentScanner
             {
                 DocxTargetId sectionId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Section, sectionIndex++, 0, 0);
                 targets[sectionProperties] = sectionId.ToWireValue();
-                sections.Add(ReadSection(sectionProperties, sectionId, story));
+                if (visible)
+                {
+                    sections.Add(ReadSection(sectionProperties, sectionId, story));
+                }
             }
         }
 
@@ -124,53 +140,6 @@ internal static partial class DocxDocumentScanner
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
         fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
         hyperlinks.AddRange(ReadHyperlinks(document, partName, story, idPrefix, textView, targets, relationships));
-    }
-
-    private static IEnumerable<XElement> EnumerateStoryBlocks(XElement body, DocxTextView textView)
-    {
-        foreach (XElement block in body.Elements())
-        {
-            if (IsStoryBlock(block))
-            {
-                yield return block;
-                continue;
-            }
-
-            if (!IsRevisionBlockContainer(block) || !ShouldIncludeRevisionBlock(block, textView))
-            {
-                continue;
-            }
-
-            foreach (XElement revisionBlock in block.Elements().Where(IsStoryBlock))
-            {
-                yield return revisionBlock;
-            }
-        }
-    }
-
-    private static bool IsStoryBlock(XElement element)
-    {
-        return element.Name == OoxmlNs.W + "p" ||
-            element.Name == OoxmlNs.W + "tbl" ||
-            element.Name == OoxmlNs.W + "sectPr";
-    }
-
-    private static bool IsRevisionBlockContainer(XElement element)
-    {
-        return element.Name.Namespace == OoxmlNs.W &&
-            element.Name.LocalName is "ins" or "del" or "moveFrom" or "moveTo" &&
-            element.Elements().Any(IsStoryBlock);
-    }
-
-    private static bool ShouldIncludeRevisionBlock(XElement element, DocxTextView textView)
-    {
-        return textView switch
-        {
-            DocxTextView.Final => element.Name.LocalName is not ("del" or "moveFrom"),
-            DocxTextView.Original => element.Name.LocalName is not ("ins" or "moveTo"),
-            DocxTextView.Markup => true,
-            _ => element.Name.LocalName is not ("del" or "moveFrom")
-        };
     }
 
     private static DocxParagraphInfo ReadParagraph(
