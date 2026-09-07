@@ -3562,7 +3562,6 @@ Text replacement
   single run replacement
   run splitting
   replacement across simple adjacent runs
-  failure across hyperlink boundary
   xml:space preservation
 
 Tables
@@ -3598,19 +3597,11 @@ Streams
   asset provider works without file paths
 ```
 
-### 23.2 Golden tests
+### 23.2 Deterministic output
 
-For representative fixtures, compare rendered text output to checked-in golden files:
-
-```text
-read.simple.golden.txt
-outline.simple.golden.txt
-dump.paragraph-runs.golden.txt
-styles.corporate.golden.txt
-media.images.golden.txt
-```
-
-Golden output must be deterministic.
+Representative fixtures assert exact rendered text in `EditCaseTests` readback
+values; there are no checked-in golden files. Deterministic builds plus exact
+readback assertions keep output stable.
 
 ### 23.3 Fixture generation
 
@@ -3644,7 +3635,7 @@ Office tests should:
 6. Fail if Word cannot open/save the document.
 7. Optionally export to PDF for visual inspection in local developer workflows.
 
-Run Office automation tests in STA threads. Always close documents and quit Word in `finally`.
+Always close documents and quit Word in `finally`.
 
 ### 23.5 Edit case validation harness
 
