@@ -50,6 +50,7 @@ Rules:
   in row operations are preserved in file order.
 - `expect-hash` and `preserve-size` are not supported.
 - Validate shape without a document: `docxedit lint edits.docxpatch` checks syntax, required fields, alternative groups, and exclusive fields. Lint failures always predict `check` failures; lint success leaves targets, guards, assets, and shapes to `check`.
+- Machine-generated patches can use the DocxPatchWriter API, which renders canonical field values with the same rules.
 
 ## Minimal Examples
 
