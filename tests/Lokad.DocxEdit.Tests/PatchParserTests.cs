@@ -517,4 +517,35 @@ public static class PatchParserTests
         Assert.Equal("Omega", operation.Fields["with"]);
     }
 
+
+    [Theory]
+    [InlineData("replace-text", "preserve-runs")]
+    [InlineData("insert-after", "copy-paragraph-properties")]
+    [InlineData("set-content-control-checkbox", "checked")]
+    [InlineData("set-cell", "force")]
+    [InlineData("set-cell-shading", "clear")]
+    [InlineData("set-row-header", "header")]
+    [InlineData("set-row-header", "expect-header")]
+    [InlineData("set-hyperlink-target", "history")]
+    [InlineData("set-field-dirty", "dirty")]
+    [InlineData("set-field-lock", "locked")]
+    public static void ParsePatchRejectsNonBooleanLiteralsForBooleanFields(string operationName, string fieldName)
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op OP
+            target M.P0001
+            FIELD maybe
+            end
+            """.Replace("OP", operationName).Replace("FIELD", fieldName)));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2012");
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
 }

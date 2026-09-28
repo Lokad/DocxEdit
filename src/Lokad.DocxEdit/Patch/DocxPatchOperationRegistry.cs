@@ -196,7 +196,7 @@ internal static partial class DocxPatchEngine
             "set-content-control-checkbox",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("checked", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("checked", FieldValueKind.Boolean, Repeatable: false, Required: true),
             ],
             [],
             "Checkbox content controls update state metadata, not a simple Word revision range.",
