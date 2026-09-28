@@ -61,17 +61,6 @@ internal static partial class DocxPatchEngine
             ];
         }
 
-        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
-        {
-            if (options.TrackChanges == TrackChangesMode.Require)
-            {
-                TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
-                return diagnostics;
-            }
-
-            return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
-        }
-
         IReadOnlyList<TextRange> matches = FindTextMatches(current, find, replaceAll ? null : occurrence);
         if (matches.Count == 0)
         {
@@ -81,6 +70,22 @@ internal static partial class DocxPatchEngine
         if (!replaceAll && occurrence is null && matches.Count > 1)
         {
             return [Diagnostic(DocxSeverity.Error, "E1202", $"Find text matched {matches.Count} occurrences in {target}. Specify occurrence N to select one match or occurrence all to replace every match.", operation, target)];
+        }
+
+        if (string.Equals(ApplyTextReplacement(current, matches, replacement), current, StringComparison.Ordinal))
+        {
+            return NoOpResult(operation, target, "Replace-text for " + target + " leaves the text unchanged; nothing was written and no revisions were generated.");
+        }
+
+        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+        {
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
+                return diagnostics;
+            }
+
+            return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
         bool useTrackedChanges = options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;
@@ -156,6 +161,25 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
         }
 
+        string? styleId = null;
+        if (style is not null)
+        {
+            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+            {
+                return [styleDiagnostic];
+            }
+        }
+
+        string? currentStyle = (string?)paragraphTarget.Paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "pStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+        if (string.Equals(text, current, StringComparison.Ordinal) &&
+            (styleId is null || string.Equals(styleId, currentStyle, StringComparison.Ordinal)))
+        {
+            return NoOpResult(operation, target, "Replace-paragraph for " + target + " leaves the paragraph unchanged; nothing was written and no revisions were generated.");
+        }
+
         if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
         {
             if (options.TrackChanges == TrackChangesMode.Require)
@@ -177,15 +201,6 @@ internal static partial class DocxPatchEngine
             }
         }
 
-
-        string? styleId = null;
-        if (style is not null)
-        {
-            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
-            {
-                return [styleDiagnostic];
-            }
-        }
 
         if (useTrackedChanges)
         {
@@ -254,12 +269,12 @@ internal static partial class DocxPatchEngine
         }
 
 
-        string? styleId = null;
+        string? insertStyleId = null;
         if (style is not null)
         {
-            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out insertStyleId, out DocxDiagnostic? insertStyleDiagnostic, operation, target))
             {
-                return [styleDiagnostic];
+                return [insertStyleDiagnostic];
             }
         }
 
@@ -267,8 +282,8 @@ internal static partial class DocxPatchEngine
             ? CloneParagraphPropertiesForInsertion(blockTarget.Block.Element(OoxmlNs.W + "pPr"))
             : null;
         XElement paragraph = useTrackedChanges
-            ? CreateTrackedInsertedParagraph(package, text, styleId, paragraphProperties, options, generatedRevisionIds, cancellationToken)
-            : CreateSimpleParagraph(text, styleId, paragraphProperties);
+            ? CreateTrackedInsertedParagraph(package, text, insertStyleId, paragraphProperties, options, generatedRevisionIds, cancellationToken)
+            : CreateSimpleParagraph(text, insertStyleId, paragraphProperties);
         if (insertAfter)
         {
             blockTarget.Block.AddAfterSelf(paragraph);
@@ -421,6 +436,14 @@ internal static partial class DocxPatchEngine
             return [styleDiagnostic];
         }
 
+        string? currentStyle = (string?)paragraphTarget.Paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "pStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+        if (string.Equals(styleId, currentStyle, StringComparison.Ordinal))
+        {
+            return NoOpResult(operation, target, "Set-style for " + target + " leaves the style unchanged; nothing was written and no revisions were generated.");
+        }
 
         if (IsTrackedMode(options))
         {
@@ -435,3 +458,4 @@ internal static partial class DocxPatchEngine
         return [];
     }
 }
+

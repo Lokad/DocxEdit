@@ -1251,4 +1251,29 @@ public static class PatchTableTests
         Assert.Equal("South", table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R01.C02").Text);
     }
 
+
+    [Fact]
+    public static void ApplySetCellIdenticalTextIsNoOp()
+    {
+        using MemoryStream probe = CreateDocxWithSimpleTwoByTwoTable();
+        string before = ReadDocumentXml(probe);
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            text North
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        output.Position = 0;
+        Assert.Equal(before, ReadDocumentXml(output));
+    }
+
 }

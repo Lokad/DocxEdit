@@ -388,6 +388,11 @@ internal static partial class DocxPatchEngine
             ];
         }
 
+        if (string.Equals(text, current, StringComparison.Ordinal) && IsSimpleEditableCell(cellTarget.Cell))
+        {
+            return NoOpResult(operation, target, "Set-cell for " + target + " leaves the cell unchanged; nothing was written and no revisions were generated.");
+        }
+
         if (IsVerticalMergeContinuation(cellTarget.Cell))
         {
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Unsupported merged-cell target '{target}'.", operation, target)];

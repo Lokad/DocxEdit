@@ -1538,4 +1538,143 @@ public static class PatchApplyTests
         Assert.Contains("M.T0001", diagnostic.Message, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public static void ApplyReplaceTextIdenticalReplacementIsNoOpUnderRequire()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream probe = CreateDocx("Anchor");
+        string before = ReadDocumentXml(probe);
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Anchor
+            with Anchor
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("I0001", diagnostic.Code);
+        Assert.Equal(DocxSeverity.Info, diagnostic.Severity);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.Equal(before, ReadDocumentXml(output));
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextIdenticalReplacementIsNoOp()
+    {
+        using MemoryStream probe = CreateDocx("Anchor");
+        string before = ReadDocumentXml(probe);
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Anchor
+            with Anchor
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        output.Position = 0;
+        Assert.Equal(before, ReadDocumentXml(output));
+    }
+
+    [Fact]
+    public static void ApplyReplaceParagraphIdenticalTextIsNoOp()
+    {
+        using MemoryStream probe = CreateDocx("Anchor");
+        string before = ReadDocumentXml(probe);
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            text Anchor
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        output.Position = 0;
+        Assert.Equal(before, ReadDocumentXml(output));
+    }
+
+    [Fact]
+    public static void ApplyReplaceParagraphSameTextNewStyleStillEdits()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            """, """
+              <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            text Anchor
+            style Normal
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Code == "I0001");
+    }
+
+    [Fact]
+    public static void ApplyEmptyPatchSucceedsWithNoOperations()
+    {
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("docxpatch 1\n");
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Empty(result.Operations);
+    }
+
+    [Fact]
+    public static void ApplyAllNoOpPatchDoesNotMarkFieldsDirty()
+    {
+        using MemoryStream input = CreateDocxWithRefField();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Acme Corp
+            with Acme Corp
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Code == "W5103");
+    }
+
 }

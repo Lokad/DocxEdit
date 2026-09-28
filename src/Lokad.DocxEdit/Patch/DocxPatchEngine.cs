@@ -90,6 +90,7 @@ internal static partial class DocxPatchEngine
         // One shared revision-ID allocator per execution; per-operation reports slice
         // their own ID ranges out of it below.
         var revisionIds = new RevisionIdTracker();
+        bool anyMutation = false;
         var reports = new List<DocxPatchOperationReport>();
         foreach (DocxPatchOperation operation in patch.Operations)
         {
@@ -134,6 +135,8 @@ internal static partial class DocxPatchEngine
                 }
             }
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
+            bool operationMutated = operationSuccess && operationDiagnostics.All(diagnostic => diagnostic.Code != NoOpDiagnosticCode);
+            anyMutation |= operationMutated;
             diagnostics.AddRange(operationDiagnostics);
             reports.Add(new DocxPatchOperationReport(
                 operation.Index,
@@ -142,7 +145,7 @@ internal static partial class DocxPatchEngine
                 operationSuccess,
                 operationDiagnostics)
             {
-                AffectedTargets = operationSuccess ? BuildAffectedTargets(operation, tableBefore) : [],
+                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore) : [],
                 GeneratedRevisionIds = apply && operationSuccess ? revisionIds.Skip(revisionMark).ToArray() : []
             });
             // Comment and bookmark operations allocate w:id values outside revision
@@ -158,6 +161,7 @@ internal static partial class DocxPatchEngine
         StripTargetSnapshot(package, snapshotOriginals, cancellationToken);
 
         bool shouldMarkFieldsDirty = options.MarkFieldsDirtyWhenEditing &&
+            anyMutation &&
             patch.Operations.Count != 0 &&
             patch.Operations.Any(operation => MarksFieldsDirtyAfterEdit(operation.OperationName)) &&
             diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
@@ -1700,6 +1704,17 @@ internal static partial class DocxPatchEngine
         using var output = new MemoryStream();
         document.Save(output, SaveOptions.DisableFormatting);
         package.ReplacePartBytes(partName, output.ToArray());
+    }
+
+    // D16: semantic no-ops succeed with this informational code instead of
+    // writing unchanged bytes or fabricating revision history. Execution uses
+    // it to tell mutating operations apart for field-refresh decisions and
+    // affected-target reporting.
+    internal const string NoOpDiagnosticCode = "I0001";
+
+    private static IReadOnlyList<DocxDiagnostic> NoOpResult(DocxPatchOperation operation, string? target, string message)
+    {
+        return [Diagnostic(DocxSeverity.Info, NoOpDiagnosticCode, message, operation, target)];
     }
 
     private static bool RequiresPreserveSpace(string text)

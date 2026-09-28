@@ -176,6 +176,14 @@ can still assert text produced by an earlier one. IDs do not establish identity
 across independently modified input versions: re-discover targets and keep
 guards (xpect-text, counts) on every patch.
 
+## No-op and retry behavior
+
+An operation whose guards pass but whose requested end state already holds
+succeeds as a semantic no-op: nothing is written, no revision markup is generated, fields are not marked dirty, and the operation report carries an `I0001` informational diagnostic. This covers unchanged text replacements,
+whole-paragraph and cell rewrites with identical text, and property changes that set the already-current value. Under tracked modes a no-op generates no revisions, so it never blocks a later edit with phantom revision markup.
+
+Retries are not automatically safe: append and insert operations are not idempotent, and a failed stale guard stays failed. A host that retries after an uncertain response must re-discover targets against the current input and deduplicate at its own boundary; the patch text alone carries no execution identity. An empty patch (a preamble with no operations) succeeds trivially with no operation reports.
+
 ## Guards
 
 Guard fields make patches reviewable and safer to rerun. Prefer them whenever the

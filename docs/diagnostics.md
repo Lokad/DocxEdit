@@ -5,6 +5,7 @@ Diagnostics have a severity, code, message, and optional target, part, story, fe
 Common code ranges:
 
 - `E0001`: expected document/package/XML failure normalized by the public API.
+- `I00xx`: informational notes that never fail; success is unaffected.
 - `W10xx`: read-model unsupported-feature warnings.
 - `E12xx`: selector parse, not found, or ambiguity.
 - `E20xx`: patch syntax errors.
@@ -59,6 +60,7 @@ Common code ranges:
 - `E2013`: integer field value must be an integer.
 - `E2014`: patch text exceeds the configured maximum patch size.
 - `E2015`: a non-repeatable patch field is specified more than once in one operation.
+- `I0001`: an operation completed as a semantic no-op: guards passed but the requested end state already held, so nothing was written, no revisions were generated, and fields were not marked dirty.
 - `E3201`: guard failed: an `expect-*` value differs from the current value.
 - `E4201`: operation is recognized but not supported in this mode.
 - `E4202`: required field or field combination is missing.

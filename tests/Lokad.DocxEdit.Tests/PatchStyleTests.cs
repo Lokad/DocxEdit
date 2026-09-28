@@ -258,4 +258,33 @@ public static class PatchStyleTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E7103");
     }
 
+
+    [Fact]
+    public static void ApplySetStyleIdenticalStyleIsNoOpWithoutRevision()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest };
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
+            """, """
+              <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target M.P0001
+            style Heading 2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.DoesNotContain("w:pPrChange", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
 }
