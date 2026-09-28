@@ -83,7 +83,7 @@ internal static class DocxPatchParser
                 int separator = fieldLine.IndexOfAny([' ', '\t']);
                 if (separator <= 0)
                 {
-                    return Error("E2007", $"Invalid field line '{operationTrimmed}'.", i + 1, 1);
+                    return Error("E2007", $"Invalid field line '{operationTrimmed}'.", i + 1, 1, operationName);
                 }
 
                 string key = fieldLine[..separator].Trim();
@@ -92,17 +92,17 @@ internal static class DocxPatchParser
                 int fieldLineNumber = i + 1;
                 if (key == "expect-hash")
                 {
-                    return Error("E2004", "The expect-hash feature is not supported.", fieldLineNumber, keyColumn);
+                    return Error("E2004", "The expect-hash feature is not supported.", fieldLineNumber, keyColumn, operationName);
                 }
 
                 if (!operationDefinition.AllowedFields.Contains(key))
                 {
-                    return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", fieldLineNumber, keyColumn);
+                    return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", fieldLineNumber, keyColumn, operationName);
                 }
 
                 if (fields.ContainsKey(key) && !operationDefinition.RepeatableFields.Contains(key))
                 {
-                    return Error("E2015", $"Field '{key}' is specified more than once in operation '{operationName}'. Only fields documented as repeatable may repeat.", fieldLineNumber, keyColumn);
+                    return Error("E2015", $"Field '{key}' is specified more than once in operation '{operationName}'. Only fields documented as repeatable may repeat.", fieldLineNumber, keyColumn, operationName);
                 }
 
                 string value = rawValue;
@@ -118,7 +118,7 @@ internal static class DocxPatchParser
 
                     if (i >= lines.Length)
                     {
-                        return Error("E2008", $"Unterminated heredoc for field '{key}'.", startLine, 1);
+                        return Error("E2008", $"Unterminated heredoc for field '{key}'.", startLine, 1, operationName);
                     }
 
                     value = string.Join('\n', heredoc);
@@ -130,7 +130,7 @@ internal static class DocxPatchParser
 
                 if (operationDefinition.BooleanFields.Contains(key) && !IsBooleanLiteral(value))
                 {
-                    return Error("E2012", $"Field '{key}' must be true or false.", fieldLineNumber, keyColumn);
+                    return Error("E2012", $"Field '{key}' must be true or false.", fieldLineNumber, keyColumn, operationName);
                 }
 
                 // replace-text selects every match with the literal occurrence value all.
@@ -140,11 +140,11 @@ internal static class DocxPatchParser
                 // stays accepted for replace-text only.
                 if (operationDefinition.IntegerFields.Contains(key) && int.TryParse(value, out int integerValue) && integerValue <= 0)
                 {
-                    return Error("E4205", $"Field \u0027{key}\u0027 must be greater than 0.", fieldLineNumber, keyColumn);
+                    return Error("E4205", $"Field \u0027{key}\u0027 must be greater than 0.", fieldLineNumber, keyColumn, operationName);
                 }
                 if (operationDefinition.IntegerFields.Contains(key) && !int.TryParse(value, out _) && !IsAllOccurrence(operationName, key, value))
                 {
-                    return Error("E2013", $"Field '{key}' must be an integer.", fieldLineNumber, keyColumn);
+                    return Error("E2013", $"Field '{key}' must be an integer.", fieldLineNumber, keyColumn, operationName);
                 }
 
                 fields[key] = value;
@@ -153,7 +153,7 @@ internal static class DocxPatchParser
 
             if (i >= lines.Length || lines[i].Trim() != "end")
             {
-                return Error("E2009", $"Operation '{operationName}' is missing 'end'.", i + 1, 1);
+                return Error("E2009", $"Operation '{operationName}' is missing 'end'.", i + 1, 1, operationName);
             }
 
             operations.Add(new DocxPatchOperation(index++, operationName, fields)
@@ -225,9 +225,9 @@ internal static class DocxPatchParser
         return decoded.ToString();
     }
 
-    private static DocxPatch Error(string code, string message, int line, int column)
+    private static DocxPatch Error(string code, string message, int line, int column, string? helpTopic = null)
     {
-        return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message) with { Line = line, Column = column }]);
+        return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message) with { Line = line, Column = column, HelpTopic = helpTopic }]);
     }
 
     private sealed record OperationDefinition(

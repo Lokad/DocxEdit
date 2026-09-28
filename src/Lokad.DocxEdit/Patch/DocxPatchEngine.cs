@@ -1830,6 +1830,7 @@ internal static partial class DocxPatchEngine
             TargetId = targetId,
             Feature = feature,
             Fallback = fallback,
+            HelpTopic = DocxHelp.TryGetPatchOperation(operation.OperationName, out _) ? operation.OperationName : null,
             OperationIndex = operation.Index,
             Line = field?.Line,
             Column = field?.Column

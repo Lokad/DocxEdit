@@ -291,6 +291,10 @@ public static class ProgramMain
                 }
             }
 
+            if (diagnostic.HelpTopic is not null)
+            {
+                message.Append(" help=").Append(diagnostic.HelpTopic);
+            }
             Console.Error.WriteLine(message.ToString());
         }
     }

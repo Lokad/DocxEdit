@@ -49,6 +49,9 @@ public sealed record DocxDiagnostic(
     /// <summary>Machine-readable fallback tag describing what was done instead.</summary>
     public string? Fallback { get; init; }
 
+    /// <summary>Focused help topic for this finding, usually the patch operation name; null when no topic applies.</summary>
+    public string? HelpTopic { get; init; }
+
     /// <summary>1-based patch operation index, when from a patch.</summary>
     public int? OperationIndex { get; init; }
 

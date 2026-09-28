@@ -279,4 +279,70 @@ public static class HelpTopicTests
         Assert.False(relativeResult.Success);
         Assert.Contains(relativeResult.Diagnostics, static diagnostic => diagnostic.Code == "E5210");
     }
+    [Fact]
+    public static void EngineFailuresCarryHelpTopic()
+    {
+        using MemoryStream input = CreateDocxWithAnchoredImage();
+        using var patch = new StringReader("docxpatch 1\n\nop set-image-size\ntarget M.I0001\nwidth enormous\nend\n");
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic failure = Assert.Single(result.Diagnostics, static diagnostic => diagnostic.Code == "E5206");
+        Assert.Equal("set-image-size", failure.HelpTopic);
+    }
+
+    [Fact]
+    public static void LintFailuresCarryHelpTopic()
+    {
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nend\n");
+        DocxLintResult lint = new DocxEditor().Lint(patch);
+        Assert.False(lint.Success);
+        DocxDiagnostic failure = Assert.Single(lint.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
+        Assert.Equal("replace-text", failure.HelpTopic);
+    }
+
+    [Fact]
+    public static void ParserFindingsCarryHelpTopic()
+    {
+        using var unknownFieldPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nbogus-field value\nend\n");
+        DocxPatch unknownField = new DocxEditor().ParsePatch(unknownFieldPatch);
+        Assert.False(unknownField.Success);
+        DocxDiagnostic fieldFailure = Assert.Single(unknownField.Diagnostics, static diagnostic => diagnostic.Code == "E2011");
+        Assert.Equal("replace-text", fieldFailure.HelpTopic);
+        using var noPreamblePatch = new StringReader("op replace-text\ntarget M.P0001\nend\n");
+        DocxPatch noPreamble = new DocxEditor().ParsePatch(noPreamblePatch);
+        Assert.False(noPreamble.Success);
+        Assert.Null(Assert.Single(noPreamble.Diagnostics).HelpTopic);
+        using var unknownOpPatch = new StringReader("docxpatch 1\n\nop frobnicate\ntarget M.P0001\nend\n");
+        DocxPatch unknownOp = new DocxEditor().ParsePatch(unknownOpPatch);
+        Assert.False(unknownOp.Success);
+        Assert.Null(Assert.Single(unknownOp.Diagnostics).HelpTopic);
+    }
+
+    [Fact]
+    public static void CliFailuresPrintHelpPointer()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        File.WriteAllBytes(input, CreateDocxWithAnchoredImage().ToArray());
+        string patch = Path.Combine(temp.Path, "edits.docxpatch");
+        File.WriteAllText(patch, "docxpatch 1" + Environment.NewLine + Environment.NewLine + "op set-image-size" + Environment.NewLine + "target M.I0001" + Environment.NewLine + "width enormous" + Environment.NewLine + "end" + Environment.NewLine);
+        CliTests.CliResult result = CliTests.RunCli("check", input, patch);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("help=set-image-size", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CliJsonReportCarriesHelpTopic()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        File.WriteAllBytes(input, CreateDocxWithAnchoredImage().ToArray());
+        string patch = Path.Combine(temp.Path, "edits.docxpatch");
+        File.WriteAllText(patch, "docxpatch 1" + Environment.NewLine + Environment.NewLine + "op set-image-size" + Environment.NewLine + "target M.I0001" + Environment.NewLine + "width enormous" + Environment.NewLine + "end" + Environment.NewLine);
+        string report = Path.Combine(temp.Path, "report.json");
+        CliTests.CliResult result = CliTests.RunCli("check", input, patch, "--report", report);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("HelpTopic", File.ReadAllText(report), StringComparison.Ordinal);
+        Assert.Contains("set-image-size", File.ReadAllText(report), StringComparison.Ordinal);
+    }
 }
