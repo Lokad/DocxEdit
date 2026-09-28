@@ -1664,6 +1664,22 @@ public static class CliTests
     }
 
 
+    [Fact]
+    public static void CliCheckPreviewFlagRendersBeforeAndAfter()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCli("check", input, patch, "--max-preview-chars", "100");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("preview-before=", result.Output, StringComparison.Ordinal);
+        Assert.Contains("preview-after=", result.Output, StringComparison.Ordinal);
+    }
+
     internal sealed record CliResult(int ExitCode, string Output, string Error);
 
     internal sealed record RawCliResult(int ExitCode, byte[] Output, string Error);

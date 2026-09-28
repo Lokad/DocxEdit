@@ -186,6 +186,113 @@ internal static partial class DocxPatchEngine
             : null;
     }
 
+    // D14: opt-in bounded before/after preview state for text and property edits.
+    // Reads run against the live package: before-values are captured pre-operation
+    // and after-values are re-read post-operation. A null record means previews are
+    // disabled or inapplicable; a record with a null value means the value itself
+    // was absent (for example no paragraph style). Missing resolution never fails.
+    private sealed record PreviewSnapshot(string? Before);
+
+    private static PreviewSnapshot? CapturePreviewBefore(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxEditOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (options.MaxPreviewChars <= 0)
+        {
+            return null;
+        }
+
+        string? before = ReadPreviewValue(package, operation, cancellationToken);
+        return before is null && !PreviewValueMayBeAbsent(operation.OperationName) ? null : new PreviewSnapshot(before);
+    }
+
+    private static bool PreviewValueMayBeAbsent(string operationName)
+    {
+        return operationName == "set-style";
+    }
+
+    private static (string? Before, string? After, bool Truncated) FinalizePreview(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxEditOptions options,
+        PreviewSnapshot? before,
+        bool success,
+        CancellationToken cancellationToken)
+    {
+        if (before is null || !success || options.MaxPreviewChars <= 0)
+        {
+            return (null, null, false);
+        }
+
+        string? after = ReadPreviewValue(package, operation, cancellationToken);
+        if (after is null && !PreviewValueMayBeAbsent(operation.OperationName))
+        {
+            return (null, null, false);
+        }
+
+        int budget = options.MaxPreviewChars;
+        bool truncated = false;
+        string? boundedBefore = before.Before;
+        if (boundedBefore is not null && boundedBefore.Length > budget)
+        {
+            boundedBefore = boundedBefore.Substring(0, budget);
+            truncated = true;
+        }
+
+        string? boundedAfter = after;
+        if (boundedAfter is not null && boundedAfter.Length > budget)
+        {
+            boundedAfter = boundedAfter.Substring(0, budget);
+            truncated = true;
+        }
+
+        return (boundedBefore, boundedAfter, truncated);
+    }
+
+    private static string? ReadPreviewValue(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        CancellationToken cancellationToken)
+    {
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text"))
+        {
+            return null;
+        }
+
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        if (operation.OperationName == "set-cell")
+        {
+            CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+            return cellTarget is null ? null : ReadVisibleText(cellTarget.Cell);
+        }
+
+        if (operation.OperationName == "set-hyperlink-text")
+        {
+            HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
+            return hyperlinkTarget is null ? null : ReadVisibleText(hyperlinkTarget.Hyperlink);
+        }
+
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
+        if (paragraphTarget is null)
+        {
+            return null;
+        }
+
+        if (operation.OperationName == "set-style")
+        {
+            return (string?)paragraphTarget.Paragraph.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "pStyle")?.Attribute(OoxmlNs.W + "val");
+        }
+
+        return ReadVisibleText(paragraphTarget.Paragraph);
+    }
+
     private static bool TryParseTargetSelector(
         string target,
         DocxPatchOperation operation,

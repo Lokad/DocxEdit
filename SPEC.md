@@ -262,7 +262,7 @@ Throw only for programmer errors such as `null` arguments, non-readable streams,
 
 Findings travel as `DocxDiagnostic` records: three positional values (severity, code, human message) plus init-only location metadata. Operation outcomes share the `DocxOperationResult` base (success flag plus causally ordered diagnostics).
 
-`Check` and `Apply` must include per-operation reports with the operation index, name, target text, success flag, diagnostics, affected targets, and generated revision IDs.
+`Check` and `Apply` must include per-operation reports with the operation index, name, target text, success flag, diagnostics, affected targets, generated revision IDs, and bounded before/after preview text when previews are enabled.
 
 Read and explore results must expose structured data (IDs, match and outline records, text bounded at build) in addition to what the CLI text renderings show; renderers format records but never replace them.
 

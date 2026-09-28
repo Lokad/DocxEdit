@@ -165,6 +165,9 @@ public sealed class DocxEditOptions
     /// <summary>Whether successful edits mark fields dirty.</summary>
     public bool MarkFieldsDirtyWhenEditing { get; init; } = true;
 
+    /// <summary>Maximum before/after preview characters per side in operation reports; 0 disables previews and keeps reports metadata-only. Raising it exposes document text in reports.</summary>
+    public int MaxPreviewChars { get; init; }
+
     /// <summary>Copies these options with revision metadata normalized the way generated revisions record it: trimmed author and UTC timestamp.</summary>
     internal DocxEditOptions WithNormalizedRevisionMetadata()
     {
@@ -179,7 +182,8 @@ public sealed class DocxEditOptions
             Quotas = Quotas,
             MaxPatchChars = MaxPatchChars,
             AllowMacroEnabledDocuments = AllowMacroEnabledDocuments,
-            MarkFieldsDirtyWhenEditing = MarkFieldsDirtyWhenEditing
+            MarkFieldsDirtyWhenEditing = MarkFieldsDirtyWhenEditing,
+            MaxPreviewChars = MaxPreviewChars
         };
     }
 }

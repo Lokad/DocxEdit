@@ -938,7 +938,7 @@ public static class DocxHelp
                     MaxPositionals = 2,
                     Category = "patch",
                     Summary = "Validate a .docxpatch file without writing output",
-                    Usage = "docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit check input.docx edits.docxpatch [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--max-preview-chars <n>] [--strict]",
                     Description = "Validate a patch against an input document without writing an output file. Use check before apply to verify selectors, guards, assets, and track-change constraints. Text output includes one operation line per patch operation and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
@@ -949,6 +949,7 @@ public static class DocxHelp
                         new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
                         new("--report path", "Write operation report JSON") { Flags = ["--report"] },
                         new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--max-preview-chars n", "Bounded before/after preview text per operation report; 0 disables previews") { Flags = ["--max-preview-chars"] },
                         new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     Examples =
@@ -964,7 +965,7 @@ public static class DocxHelp
                     MaxPositionals = 2,
                     Category = "patch",
                     Summary = "Apply a .docxpatch file and write a new .docx",
-                    Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit apply input.docx edits.docxpatch --output output.docx [--track-changes <mode>] [--author <name>] [--timestamp-utc <instant>] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--max-preview-chars <n>] [--strict]",
                     Description = "Apply a patch and write a new .docx. The input is never modified in place. Text output includes one operation line per patch operation, generated revision IDs when tracked markup is created, and affected row/cell lines for table operations, including visual-grid, merge-group, and nested-table metadata when relevant.",
                     Options =
                     [
@@ -976,6 +977,7 @@ public static class DocxHelp
                         new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
                         new("--report path", "Write operation report JSON") { Flags = ["--report"] },
                         new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--max-preview-chars n", "Bounded before/after preview text per operation report; 0 disables previews") { Flags = ["--max-preview-chars"] },
                         new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
                     ],
                     Notes =

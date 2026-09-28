@@ -765,7 +765,8 @@ public static class ProgramMain
             TrackChanges = options.TrackChanges,
             Author = options.Author ?? "docxedit",
             TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow,
-            AssetProvider = new FileSystemAssetProvider(patchDirectory)
+            AssetProvider = new FileSystemAssetProvider(patchDirectory),
+            MaxPreviewChars = options.MaxPreviewChars ?? 0
         };
     }
 
@@ -1039,6 +1040,7 @@ public static class ProgramMain
         public required int? MaxText { get; init; }
         public required int? MaxCommentText { get; init; }
         public required int? MaxDiagnostics { get; init; }
+        public required int? MaxPreviewChars { get; init; }
         public required int? Radius { get; init; }
         public required TrackChangesMode TrackChanges { get; init; }
         public required string? Author { get; init; }
@@ -1063,6 +1065,7 @@ public static class ProgramMain
             int? maxText = null;
             int? maxCommentText = null;
             int? maxDiagnostics = null;
+            int? maxPreviewChars = null;
             int? radius = null;
             TrackChangesMode trackChanges = TrackChangesMode.Off;
             string? author = null;
@@ -1181,6 +1184,20 @@ public static class ProgramMain
                         }
 
                         maxDiagnostics = parsedMaxDiagnostics;
+                        break;
+                    case "--max-preview-chars":
+                        seenFlags.Add("--max-preview-chars");
+                        if (!TryReadValue(args, ref i, out string? maxPreviewCharsValue))
+                        {
+                            return WithError(command, "Missing value for --max-preview-chars.");
+                        }
+
+                        if (!int.TryParse(maxPreviewCharsValue, out int parsedMaxPreviewChars) || parsedMaxPreviewChars < 0)
+                        {
+                            return WithError(command, "Invalid value for --max-preview-chars.");
+                        }
+
+                        maxPreviewChars = parsedMaxPreviewChars;
                         break;
                     case "--radius":
                         seenFlags.Add("--radius");
@@ -1345,6 +1362,7 @@ public static class ProgramMain
                 MaxText = maxText,
                 MaxCommentText = maxCommentText,
                 MaxDiagnostics = maxDiagnostics,
+                MaxPreviewChars = maxPreviewChars,
                 Radius = radius,
                 TrackChanges = trackChanges,
                 Author = author,
@@ -1386,6 +1404,7 @@ public static class ProgramMain
                 MaxText = null,
                 MaxCommentText = null,
                 MaxDiagnostics = null,
+                MaxPreviewChars = null,
                 Radius = null,
                 TrackChanges = TrackChangesMode.Off,
                 Author = null,

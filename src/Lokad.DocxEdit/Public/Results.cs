@@ -332,6 +332,12 @@ public sealed record DocxPatchOperationReport(
     public IReadOnlyList<DocxPatchAffectedTarget> AffectedTargets { get; init; } = [];
     /// <summary>Generated revision IDs.</summary>
     public IReadOnlyList<string> GeneratedRevisionIds { get; init; } = [];
+    /// <summary>Bounded text before the operation, when previews are enabled.</summary>
+    public string? PreviewBefore { get; init; }
+    /// <summary>Bounded text after the operation, when previews are enabled.</summary>
+    public string? PreviewAfter { get; init; }
+    /// <summary>Whether either preview side was truncated to the preview budget.</summary>
+    public bool PreviewTruncated { get; init; }
 }
 
 /// <summary>

@@ -450,6 +450,15 @@ public static class DocxTextRenderer
                 .Append(operation.Success)
                 .Append(revisionIds)
                 .AppendLine();
+            if (operation.PreviewBefore is not null || operation.PreviewAfter is not null)
+            {
+                builder.Append("  preview-before=").AppendLine(XmlValues.EscapeText(operation.PreviewBefore ?? string.Empty));
+                builder.Append("  preview-after=").AppendLine(XmlValues.EscapeText(operation.PreviewAfter ?? string.Empty));
+                if (operation.PreviewTruncated)
+                {
+                    builder.AppendLine("  preview-truncated=true");
+                }
+            }
             foreach (DocxPatchAffectedTarget affected in operation.AffectedTargets)
             {
                 string parent = affected.ParentId is { } affectedParent ? $" parent={affectedParent.ToWireValue()}" : string.Empty;

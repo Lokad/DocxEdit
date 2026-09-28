@@ -188,4 +188,166 @@ public static class PatchReportTests
         Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
         Assert.Empty(Assert.Single(result.Operations).AffectedTargets);
     }
+
+    [Fact]
+    public static void PreviewStaysOffByDefault()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Null(report.PreviewBefore);
+        Assert.Null(report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsBeforeAndAfterText()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Alpha Beta", report.PreviewBefore);
+        Assert.Equal("Omega Beta", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewTruncatesToBudget()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 4 };
+        using MemoryStream input = CreateDocx("Alpha Beta Gamma");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Alph", report.PreviewBefore);
+        Assert.Equal("Omeg", report.PreviewAfter);
+        Assert.True(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsPropertyChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """, """
+              <w:p><w:r><w:t>Title</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target M.P0001
+            style Heading 2
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Null(report.PreviewBefore);
+        Assert.Equal("Heading2", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsCellChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            text Changed
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("North", report.PreviewBefore);
+        Assert.Equal("Changed", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewAgreesBetweenCheckAndApply()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        const string patchText = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha Beta");
+        DocxPatchOperationReport check = Assert.Single(new DocxEditor().Check(checkInput, new StringReader(patchText), options).Operations);
+        using MemoryStream applyInput = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        DocxPatchOperationReport apply = Assert.Single(new DocxEditor().Apply(applyInput, new StringReader(patchText), output, options).Operations);
+        Assert.Equal(check.PreviewBefore, apply.PreviewBefore);
+        Assert.Equal(check.PreviewAfter, apply.PreviewAfter);
+        Assert.Equal(check.PreviewTruncated, apply.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewShowsIdenticalTextForNoOp()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Anchor
+            with Anchor
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success);
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Anchor", report.PreviewBefore);
+        Assert.Equal("Anchor", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
 }

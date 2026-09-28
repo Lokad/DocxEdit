@@ -99,6 +99,7 @@ internal static partial class DocxPatchEngine
             int revisionMark = revisionIds.Count;
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
             DocxTargetId? resolvedBefore = CaptureResolvedTargetSnapshot(package, operation, cancellationToken);
+            PreviewSnapshot? previewBefore = CapturePreviewBefore(package, operation, options, cancellationToken);
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             // D15: intrinsic review/annotation operations are permitted under Require:
             // a comment is already review markup, so requiring generated text
@@ -140,6 +141,7 @@ internal static partial class DocxPatchEngine
             }
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
             bool operationMutated = operationSuccess && operationDiagnostics.All(diagnostic => diagnostic.Code != NoOpDiagnosticCode);
+            var (previewBeforeText, previewAfterText, previewTruncated) = FinalizePreview(package, operation, options, previewBefore, operationSuccess, cancellationToken);
             anyMutation |= operationMutated;
             diagnostics.AddRange(operationDiagnostics);
             reports.Add(new DocxPatchOperationReport(
@@ -150,6 +152,9 @@ internal static partial class DocxPatchEngine
                 operationDiagnostics)
             {
                 AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore, resolvedBefore) : [],
+                PreviewBefore = previewBeforeText,
+                PreviewAfter = previewAfterText,
+                PreviewTruncated = previewTruncated,
                 GeneratedRevisionIds = apply && operationSuccess ? revisionIds.Skip(revisionMark).ToArray() : []
             });
             // Comment and bookmark operations allocate w:id values outside revision
