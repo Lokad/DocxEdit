@@ -98,8 +98,8 @@ internal static partial class DocxPatchEngine
                 string relationshipType = blockId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
                 return ResolveRelatedStoryBlockTarget(package, relationshipType, blockId, cancellationToken);
             }
+        diagnostics = [WrongKindDiagnostic(operation, target, blockId, "a paragraph ID such as M.P0001 or a table ID such as M.T0001")];
         }
-
         return null;
     }
 
@@ -135,6 +135,7 @@ internal static partial class DocxPatchEngine
                 return ResolveRelatedStoryParagraphTarget(package, relationshipType, paragraphId, cancellationToken);
             }
 
+            diagnostics = [WrongKindDiagnostic(operation, target, paragraphId, "a paragraph ID such as M.P0001")];
             return null;
         }
 
@@ -428,6 +429,55 @@ internal static partial class DocxPatchEngine
             paragraphOrdinal++;
             yield return new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", entry.Block);
         }
+    }
+
+    private static string DescribeTargetKind(DocxTargetKind kind)
+    {
+        return kind switch
+        {
+            DocxTargetKind.Paragraph => "paragraph",
+            DocxTargetKind.Table => "table",
+            DocxTargetKind.Row => "table row",
+            DocxTargetKind.Cell => "table cell",
+            DocxTargetKind.MergeGroup => "merge group",
+            DocxTargetKind.Image => "image",
+            DocxTargetKind.Hyperlink => "hyperlink",
+            DocxTargetKind.Field => "field",
+            DocxTargetKind.Bookmark => "bookmark",
+            DocxTargetKind.ContentControl => "content control",
+            DocxTargetKind.Section => "section",
+            _ => "unknown",
+        };
+    }
+
+    private static string? WrongKindAlternative(DocxTargetKind kind)
+    {
+        return kind switch
+        {
+            DocxTargetKind.Cell => "Use set-cell with this cell ID to edit its text.",
+            DocxTargetKind.MergeGroup => "Use set-cell with this merge-group ID to edit its text.",
+            DocxTargetKind.Row => "Use a table-row operation with this row ID.",
+            DocxTargetKind.Table => "Use a table operation with this table ID.",
+            DocxTargetKind.Image => "Use an image operation with this image ID.",
+            DocxTargetKind.Hyperlink => "Use a hyperlink operation with this hyperlink ID.",
+            DocxTargetKind.Field => "Use a field operation with this field ID.",
+            DocxTargetKind.Bookmark => "Use a bookmark operation with this bookmark ID.",
+            DocxTargetKind.ContentControl => "Use a content-control operation with this content-control ID.",
+            DocxTargetKind.Section => "Use a section operation with this section ID.",
+            _ => null,
+        };
+    }
+
+    private static DocxDiagnostic WrongKindDiagnostic(DocxPatchOperation operation, string target, DocxTargetId parsed, string acceptedForms)
+    {
+        string message = "Target " + target + " is a " + DescribeTargetKind(parsed.Kind) + " ID. Operation " + operation.OperationName + " requires " + acceptedForms + ".";
+        string? alternative = WrongKindAlternative(parsed.Kind);
+        if (alternative is not null)
+        {
+            message += " " + alternative;
+        }
+
+        return Diagnostic(DocxSeverity.Error, "E1201", message, operation, target);
     }
 
     private static SectionTarget? ResolveMainSectionTarget(

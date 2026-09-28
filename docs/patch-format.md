@@ -159,6 +159,7 @@ Paragraph operations also support semantic selectors:
 
 Ambiguous selectors fail with `E1202`; use an explicit ID from `read`,
 `context`, or `find`. Selectors with no match fail with `E1201`.
+A valid ID of the wrong kind for the operation also fails with `E1201` and names the accepted target forms plus a dedicated alternative when one exists.
 
 ## Target lifetime
 
