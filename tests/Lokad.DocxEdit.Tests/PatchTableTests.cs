@@ -1217,4 +1217,36 @@ public static class PatchTableTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
         Assert.False(Assert.Single(result.Operations).Success);
     }
+
+    [Fact]
+    public static void ApplySetCellWithEmptyTextClearsCell()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            expect-text North
+            text ""
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal("", table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R01.C01").Text);
+        Assert.Equal("South", table.Cells.Single(cell => cell.Id.ToWireValue() == "M.T0001.R01.C02").Text);
+    }
+
 }

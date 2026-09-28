@@ -212,7 +212,7 @@ The tables below group the same operations by editing area.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target |
+| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text |
 | `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style |
 | `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target |
 | `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target |
@@ -304,7 +304,7 @@ are rejected. Internal links use bookmark `anchor` values.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID |
+| `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID; an empty `text` clears the cell |
 | `set-cell-shading` | `target` plus `fill` or `clear` true | `expect-fill` | Sets or clears `w:tcPr/w:shd` fill |
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |

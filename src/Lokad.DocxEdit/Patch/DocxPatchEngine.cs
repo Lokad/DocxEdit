@@ -356,9 +356,10 @@ internal static partial class DocxPatchEngine
     private static string? ReadRequiredField(
         DocxPatchOperation operation,
         string fieldName,
-        List<DocxDiagnostic> diagnostics)
+        List<DocxDiagnostic> diagnostics,
+        bool allowEmpty = false)
     {
-        if (operation.Fields.TryGetValue(fieldName, out string? value) && value.Length != 0)
+        if (operation.Fields.TryGetValue(fieldName, out string? value) && (value.Length != 0 || allowEmpty))
         {
             return value;
         }

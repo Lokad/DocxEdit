@@ -20,7 +20,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? find = ReadRequiredField(operation, "find", diagnostics);
-        string? replacement = ReadRequiredField(operation, "with", diagnostics);
+        string? replacement = ReadRequiredField(operation, "with", diagnostics, allowEmpty: true);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         bool? preserveRuns = ReadBooleanField(operation, "preserve-runs", diagnostics);
         int? occurrence = ReadPositiveOccurrence(operation, diagnostics);
@@ -125,7 +125,7 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? text = ReadRequiredField(operation, "text", diagnostics, allowEmpty: true);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         string? style = operation.Fields.GetValueOrDefault("style");
         if (text is null || target is null || diagnostics.Count != 0)

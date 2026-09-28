@@ -1106,4 +1106,151 @@ public static class PatchApplyTests
 
         public override long Length => throw new NotSupportedException();
     }
+
+    [Fact]
+    public static void ApplyReplaceTextWithEmptyWithDeletesMatchedText()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with ""
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        DocxParagraphInfo paragraph = Assert.Single(new DocxEditor().Read(output).Paragraphs);
+        Assert.Equal(" Beta", paragraph.Text);
+        Assert.NotEmpty(paragraph.Runs);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextWithEmptyHeredocDeletesMatchedText()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with <<<
+            >>>
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(" Beta", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextMissingWithStillFails()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextEmptyFindStillFails()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find ""
+            with Omega
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextEmptyWithUnderRequireTracksDeletion()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with ""
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.NotEmpty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.Equal(" Beta", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void CheckReplaceTextEmptyWithAgreesWithApply()
+    {
+        const string patchText = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith \"\"\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha Beta");
+        DocxCheckResult check = new DocxEditor().Check(checkInput, new StringReader(patchText));
+        using MemoryStream applyInput = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patchText), output);
+        Assert.Equal(apply.Success, check.Success);
+        Assert.True(check.Success);
+    }
+
+    [Fact]
+    public static void ApplyReplaceParagraphWithEmptyTextClearsParagraph()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            text ""
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
 }
