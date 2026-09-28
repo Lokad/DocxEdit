@@ -264,7 +264,9 @@ Relative image `asset` paths in the patch resolve against the patch file directo
 
 Both commands report one operation line per patch operation. Table operations also
 report affected row/cell IDs with visual-grid metadata such as column spans,
-omitted-column offsets, merge groups, and nested-table paths when relevant. Use
+omitted-column offsets, merge groups, and nested-table paths when relevant. Text
+and structural paragraph operations report the resolved paragraph ID (or the table
+anchor for table targets) with update, insert, or delete actions. Use
 `--report path` for the full JSON report.
 Generated revision IDs from the report can be correlated with
 `changes --operation-report`.
@@ -350,3 +352,4 @@ the most compact source for exact operation fields and track-change support.
 
 For `apply --track-changes suggest|require`, operation summaries and report JSON
 include `GeneratedRevisionIds` when an operation actually creates revision markup.
+Revision IDs appear only for committed output: check reports never carry them, and a failed patch reports none because nothing was published.

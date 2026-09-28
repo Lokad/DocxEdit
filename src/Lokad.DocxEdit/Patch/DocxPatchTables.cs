@@ -215,22 +215,34 @@ internal static partial class DocxPatchEngine
         };
     }
 
-    private static IReadOnlyList<DocxPatchAffectedTarget> BuildAffectedTargets(DocxPatchOperation operation, TableOperationSnapshot? before)
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildAffectedTargets(DocxPatchOperation operation, TableOperationSnapshot? before, DocxTargetId? resolved)
     {
-        if (before is null)
+        if (before is not null)
+        {
+            return operation.OperationName switch
+            {
+                "set-cell" or "set-cell-shading" => BuildSetCellAffectedTargets(before),
+                "append-row" => BuildInsertedRowAffectedTargets(before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
+                "insert-row-before" => BuildInsertedRowAffectedTargets(before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+                "insert-row-after" => BuildInsertedRowAffectedTargets(before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+                "delete-row" => BuildDeletedRowAffectedTargets(before),
+                _ => []
+            };
+        }
+
+        if (resolved is not { } resolvedId)
         {
             return [];
         }
 
-        return operation.OperationName switch
+        string action = operation.OperationName switch
         {
-            "set-cell" or "set-cell-shading" => BuildSetCellAffectedTargets(before),
-            "append-row" => BuildInsertedRowAffectedTargets(before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
-            "insert-row-before" => BuildInsertedRowAffectedTargets(before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
-            "insert-row-after" => BuildInsertedRowAffectedTargets(before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
-            "delete-row" => BuildDeletedRowAffectedTargets(before),
-            _ => []
+            "insert-before" or "insert-after" => "insert",
+            "delete-block" => "delete",
+            _ => "update"
         };
+        string kind = resolvedId.Kind == DocxTargetKind.Table ? "table" : "paragraph";
+        return [new DocxPatchAffectedTarget(resolvedId, kind, action)];
     }
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildSetCellAffectedTargets(TableOperationSnapshot before)

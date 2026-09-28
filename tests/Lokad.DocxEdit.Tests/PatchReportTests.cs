@@ -1,0 +1,191 @@
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
+namespace Lokad.DocxEdit.Tests;
+
+// D14: reports identify resolved targets instead of echoing only the
+// selector, and never present simulated output as committed output.
+public static class PatchReportTests
+{
+    [Fact]
+    public static void CheckReplaceTextReportsResolvedParagraph()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.P0001", affected.Id.ToWireValue());
+        Assert.Equal("paragraph", affected.Kind);
+        Assert.Equal("update", affected.Action);
+    }
+
+    [Fact]
+    public static void CheckReplaceTextWithSemanticSelectorReportsResolvedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+              <w:p><w:r><w:t>Beta</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Beta"
+            find Beta
+            with Gamma
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.P0002", affected.Id.ToWireValue());
+    }
+
+    [Fact]
+    public static void CheckAndApplyAgreeOnAffectedTargets()
+    {
+        const string patchText = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha Beta");
+        IReadOnlyList<string> checkAffected = Assert.Single(new DocxEditor().Check(checkInput, new StringReader(patchText)).Operations).AffectedTargets.Select(static target => target.Id.ToWireValue()).ToArray();
+        using MemoryStream applyInput = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        IReadOnlyList<string> applyAffected = Assert.Single(new DocxEditor().Apply(applyInput, new StringReader(patchText), output).Operations).AffectedTargets.Select(static target => target.Id.ToWireValue()).ToArray();
+        Assert.Equal(checkAffected, applyAffected);
+        Assert.Equal(new[] { "M.P0001" }, applyAffected);
+    }
+
+    [Fact]
+    public static void ApplyInsertAfterReportsAnchorAsInsert()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.P0001", affected.Id.ToWireValue());
+        Assert.Equal("insert", affected.Action);
+    }
+
+    [Fact]
+    public static void ApplyDeleteBlockReportsDeletedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+              <w:p><w:r><w:t>Beta</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0002
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.P0002", affected.Id.ToWireValue());
+        Assert.Equal("delete", affected.Action);
+    }
+
+    [Fact]
+    public static void ApplyInsertAfterOnTableReportsTableAnchor()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:tbl>
+                <w:tblGrid><w:gridCol/></w:tblGrid>
+                <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+              </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.T0001
+            text Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.T0001", affected.Id.ToWireValue());
+        Assert.Equal("table", affected.Kind);
+    }
+
+    [Fact]
+    public static void FailedApplyClearsGeneratedRevisionIds()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+
+            op replace-text
+            target M.P9999
+            find Beta
+            with Gamma
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.False(result.Success);
+        Assert.All(result.Operations, static operation => Assert.Empty(operation.GeneratedRevisionIds));
+    }
+
+    [Fact]
+    public static void NoOpReportsNoAffectedTargets()
+    {
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Anchor
+            with Anchor
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        Assert.Empty(Assert.Single(result.Operations).AffectedTargets);
+    }
+}

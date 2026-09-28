@@ -147,6 +147,45 @@ internal static partial class DocxPatchEngine
             : new ParagraphTarget(package.MainDocumentPartName, mainDocument, selectedParagraph);
     }
 
+    // D14: capture the resolved target for paragraph and block text ops so
+    // reports identify the resolved paragraph (or table anchor) instead of
+    // echoing only the selector. Snapshot marks supply input-snapshot IDs;
+    // a missing mark or failed resolution means no reporting, never a failure.
+    private static DocxTargetId? CaptureResolvedTargetSnapshot(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        CancellationToken cancellationToken)
+    {
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block"))
+        {
+            return null;
+        }
+
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        if (DocxTargetId.TryParse(target, out DocxTargetId explicitId)
+            && explicitId.Kind == DocxTargetKind.Table
+            && operation.OperationName is ("insert-before" or "insert-after" or "delete-block"))
+        {
+            return explicitId;
+        }
+
+        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
+        if (paragraphTarget is null)
+        {
+            return null;
+        }
+
+        string? snapshotId = (string?)paragraphTarget.Paragraph.Attribute(SnapshotIdName);
+        return snapshotId is not null && DocxTargetId.TryParse(snapshotId, out DocxTargetId resolved)
+            ? resolved
+            : null;
+    }
+
     private static bool TryParseTargetSelector(
         string target,
         DocxPatchOperation operation,

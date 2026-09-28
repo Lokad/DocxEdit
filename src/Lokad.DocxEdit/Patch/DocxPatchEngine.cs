@@ -98,6 +98,7 @@ internal static partial class DocxPatchEngine
             var operationDiagnostics = new List<DocxDiagnostic>();
             int revisionMark = revisionIds.Count;
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
+            DocxTargetId? resolvedBefore = CaptureResolvedTargetSnapshot(package, operation, cancellationToken);
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
             {
@@ -145,7 +146,7 @@ internal static partial class DocxPatchEngine
                 operationSuccess,
                 operationDiagnostics)
             {
-                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore) : [],
+                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore, resolvedBefore) : [],
                 GeneratedRevisionIds = apply && operationSuccess ? revisionIds.Skip(revisionMark).ToArray() : []
             });
             // Comment and bookmark operations allocate w:id values outside revision
@@ -207,7 +208,15 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        return new PatchExecutionResult(diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error), diagnostics, reports);
+        bool success = diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
+        if (!success)
+        {
+            // D14: revision IDs from simulated edits were never published when the
+            // patch fails, so reports must not carry them as if they were committed.
+            reports = reports.Select(report => report with { GeneratedRevisionIds = [] }).ToList();
+        }
+
+        return new PatchExecutionResult(success, diagnostics, reports);
     }
 
     private static Dictionary<string, int> CaptureRangeStructureBaseline(
