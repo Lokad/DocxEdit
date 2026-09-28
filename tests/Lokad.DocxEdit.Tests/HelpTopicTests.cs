@@ -158,4 +158,42 @@ public static class HelpTopicTests
 
         Assert.Equal(ReadEntryBytes(omittedOutput, "word/document.xml"), ReadEntryBytes(explicitOutput, "word/document.xml"));
     }
+    [Fact]
+    public static void AllowedValuesAreMachineReadable()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("set-section-orientation", out DocxPatchOperationInfo orientation));
+        Assert.Contains("orientation=portrait|landscape", orientation.AllowedValues);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-wrap", out DocxPatchOperationInfo wrap));
+        Assert.Contains("mode=none|wrapNone|square|wrapSquare|tight|wrapTight|through|wrapThrough|top-bottom|topAndBottom|wrapTopAndBottom", wrap.AllowedValues);
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-image", out DocxPatchOperationInfo replaceImage));
+        Assert.Contains("expect-content-type=image/png|image/jpeg", replaceImage.AllowedValues);
+    }
+
+    [Fact]
+    public static void HelpRendersAllowedValues()
+    {
+        string topic = DocxHelp.RenderTopic("set-section-orientation");
+        Assert.Contains("Allowed values:", topic, StringComparison.Ordinal);
+        Assert.Contains("orientation=portrait|landscape", topic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ClosedValuesStillRejectedByExecution()
+    {
+        using MemoryStream orientationInput = CreateDocx("Alpha");
+        using var orientationPatch = new StringReader("docxpatch 1\n\nop set-section-orientation\ntarget M.S0001\norientation diagonal\nend\n");
+        DocxCheckResult orientationResult = new DocxEditor().Check(orientationInput, orientationPatch);
+        Assert.False(orientationResult.Success);
+        Assert.Contains(orientationResult.Diagnostics, static diagnostic => diagnostic.Code == "E6202");
+        using MemoryStream wrapInput = CreateDocxWithAnchoredImage();
+        using var wrapPatch = new StringReader("docxpatch 1\n\nop set-image-wrap\ntarget M.I0001\nmode sideways\nend\n");
+        DocxCheckResult wrapResult = new DocxEditor().Check(wrapInput, wrapPatch);
+        Assert.False(wrapResult.Success);
+        Assert.Contains(wrapResult.Diagnostics, static diagnostic => diagnostic.Code == "E5209");
+        using MemoryStream contentTypeInput = CreateDocxWithImage("png", "image/png", "old-png");
+        using var contentTypePatch = new StringReader("docxpatch 1\n\nop replace-image\ntarget M.I0001\nasset chart.png\nexpect-content-type image/gif\nend\n");
+        DocxCheckResult contentTypeResult = new DocxEditor().Check(contentTypeInput, contentTypePatch);
+        Assert.False(contentTypeResult.Success);
+        Assert.Contains(contentTypeResult.Diagnostics, static diagnostic => diagnostic.Code == "E4205");
+    }
 }
