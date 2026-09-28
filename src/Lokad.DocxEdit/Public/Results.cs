@@ -212,6 +212,43 @@ public sealed record DocxDumpResult : DocxOperationResult
     public IReadOnlyList<DocxDumpRunInfo> Runs { get; init; } = [];
 }
 
+/// <summary>Editing capabilities for one target under an effective track-change policy. Guidance only: capabilities can change after an edit, and check remains authoritative for a patch.</summary>
+public sealed record DocxCapabilitiesResult : DocxOperationResult
+{
+    /// <summary>Requested target, echoed byte-identical.</summary>
+    public string TargetId { get; init; } = string.Empty;
+    /// <summary>Capabilities for the resolved target; null when the target was not found or has no capability model.</summary>
+    public DocxTargetCapabilities? Capabilities { get; init; }
+}
+
+/// <summary>Supported, conditional, and unsupported operations for one discovered target.</summary>
+/// <param name="TargetId">Canonical wire ID of the resolved target.</param>
+/// <param name="Kind">Target kind word (for example <c>paragraph</c>).</param>
+/// <param name="Story">Story label (for example <c>main</c>).</param>
+/// <param name="Operations">Per-operation guidance in canonical operation order.</param>
+public sealed record DocxTargetCapabilities(
+    string TargetId,
+    string Kind,
+    string Story,
+    IReadOnlyList<DocxOperationCapability> Operations)
+{
+}
+
+/// <summary>What one operation can do to one target under the effective policy.</summary>
+/// <param name="Operation">Operation name; also the help topic name.</param>
+/// <param name="Support">One of <c>supported</c>, <c>conditional</c>, or <c>unsupported</c>.</param>
+/// <param name="Reason">Actionable reason, including preservation and fallback notes.</param>
+/// <param name="HelpTopic">Help topic with operation reference.</param>
+/// <param name="Alternative">Safe alternative operation or target form, when one exists.</param>
+public sealed record DocxOperationCapability(
+    string Operation,
+    string Support,
+    string Reason,
+    string HelpTopic,
+    string? Alternative)
+{
+}
+
 /// <summary>Target neighborhood. An unknown target fails with <c>E1201</c>; <see cref="DocxOperationResult.Success"/> is equivalent to "target found".</summary>
 public sealed record DocxContextResult : DocxOperationResult
 {

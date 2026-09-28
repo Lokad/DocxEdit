@@ -122,6 +122,17 @@ public sealed class DocxValidateOptions
     public bool LeaveInputOpen { get; init; } = true;
 }
 
+/// <summary>Options for target editing capabilities.</summary>
+public sealed class DocxCapabilitiesOptions
+{
+    /// <summary>Effective track-change policy the capabilities describe.</summary>
+    public TrackChangesMode TrackChanges { get; init; } = TrackChangesMode.Off;
+    /// <summary>Package quotas: ZIP entry count, total uncompressed bytes, and single-part bytes.</summary>
+    public DocxPackageLimits Quotas { get; init; } = DocxPackageLimits.Default;
+    /// <summary>Whether to leave the input stream open; when false the input is disposed on every exit (success, failure, or cancellation).</summary>
+    public bool LeaveInputOpen { get; init; } = true;
+}
+
 /// <summary>Options for the change inventory.</summary>
 public sealed class DocxChangesOptions
 {

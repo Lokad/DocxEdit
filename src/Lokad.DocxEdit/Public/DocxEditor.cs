@@ -417,6 +417,77 @@ public sealed class DocxEditor
         };
     }
 
+    /// <summary>Describes editing capabilities for one paragraph target. Uses default options and no cancellation.</summary>
+    public DocxCapabilitiesResult GetCapabilities(
+        Stream input, string targetId)
+    {
+        return GetCapabilities(input, targetId, new DocxCapabilitiesOptions(), CancellationToken.None);
+    }
+
+    /// <summary>Describes editing capabilities for one paragraph target. Uses no cancellation.</summary>
+    public DocxCapabilitiesResult GetCapabilities(
+        Stream input, string targetId, DocxCapabilitiesOptions options)
+    {
+        return GetCapabilities(input, targetId, options, CancellationToken.None);
+    }
+
+    /// <summary>Describes editing capabilities for one paragraph target with explicit options and cancellation.</summary>
+    public DocxCapabilitiesResult GetCapabilities(
+        Stream input,
+        string targetId,
+        DocxCapabilitiesOptions options,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        if (package is null)
+        {
+            return new DocxCapabilitiesResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
+        }
+
+        if (!TryUnsupportedScan(package, TargetRequestsHeadersFooters(targetId), cancellationToken, out IReadOnlyList<DocxDiagnostic>? capabilitiesUnsupported, out IReadOnlyList<DocxDiagnostic> capabilitiesUnsupportedFailure))
+        {
+            return new DocxCapabilitiesResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(capabilitiesUnsupportedFailure).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        if (!TryDocumentOperation(() => DocxPatchEngine.GetParagraphCapabilities(package, targetId, options.TrackChanges, cancellationToken), out DocxPatchEngine.ParagraphCapabilitiesOutcome? outcome, out IReadOnlyList<DocxDiagnostic> capabilitiesFailure))
+        {
+            return new DocxCapabilitiesResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(capabilitiesFailure).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        if (outcome is null || outcome.Capabilities is null)
+        {
+            DocxDiagnostic missing = outcome is null || outcome.Error is null
+                ? new DocxDiagnostic(DocxSeverity.Error, "E1201", "Target " + ((char)39).ToString() + targetId + ((char)39).ToString() + " was not found.") with { TargetId = targetId }
+                : outcome.Error with { TargetId = targetId };
+            return new DocxCapabilitiesResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(capabilitiesUnsupported).Append(missing).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        return new DocxCapabilitiesResult
+        {
+            Success = true,
+            Diagnostics = diagnostics.Concat(capabilitiesUnsupported).ToArray(),
+            TargetId = targetId,
+            Capabilities = outcome.Capabilities
+        };
+    }
+
     /// <summary>Lists styles. Uses default options and no cancellation.</summary>
     public DocxStylesResult Styles(
         Stream input)
