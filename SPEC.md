@@ -2766,11 +2766,11 @@ document problem was found.
 ### 13.4 lint
 
 Lint validates patch shape without loading a document: syntax, required
-fields, alternative groups, and exclusive fields. It reuses the registry
+fields, alternative groups, exclusive fields, and explicit target ID kinds. It reuses the registry
 contracts and the same diagnostic codes check would produce for shape errors:
 E2010 and E2011 for unknown operations and fields, E2012 and E2013 for bad
 literals, E2015 for repeats, E4202 for missing fields and unsatisfied
-alternative groups, and E4205 for conflicting exclusive fields. Lint failures
+alternative groups, E4205 for conflicting exclusive fields, and E1201 for wrong-kind explicit IDs. Lint failures
 always predict check failures; lint success leaves document-dependent
 targets, guards, assets, and shapes to check. The result reports the parsed
 operation count with operation indexes and names.

@@ -64,6 +64,8 @@ internal sealed record OperationRegistration(
     public bool IsAnnotation { get; init; }
     /// <summary>Field groups of which at most one member may carry a value; execution rejects combinations with E4205 or E4202.</summary>
     public string[][] ExclusiveGroups { get; init; } = [];
+    /// <summary>Explicit target ID kinds this operation accepts; empty skips document-independent kind validation (non-ID selectors, special targets, or unimplemented operations).</summary>
+    public DocxTargetKind[] AcceptedKinds { get; init; } = [];
     /// <summary>Executable example patches, minimal first and guarded second; empty when the operation has no curated example.</summary>
     public string[] Examples { get; init; } = [];
 }
@@ -139,6 +141,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph],
         },
         Tracked(
             "replace-paragraph",
@@ -184,6 +187,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph],
         },
         Tracked(
             "insert-before",
@@ -227,6 +231,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
         },
         Tracked(
             "insert-after",
@@ -270,6 +275,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
         },
         Tracked(
             "delete-block",
@@ -307,6 +313,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
         },
         Tracked(
             "set-style",
@@ -345,6 +352,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph],
         },
         Tracked(
             "set-content-control-text",
@@ -389,6 +397,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.ContentControl],
         },
         PreserveOnly(
             "set-content-control-checkbox",
@@ -400,7 +409,7 @@ internal static partial class DocxPatchEngine
             "Checkbox content controls update state metadata, not a simple Word revision range.",
             "Content Controls",
             "Updates checkbox state and displayed symbol",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.ContentControl] },
         PreserveOnly(
             "set-content-control-choice",
             [
@@ -412,7 +421,7 @@ internal static partial class DocxPatchEngine
             "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet.",
             "Content Controls",
             "Selects a dropdown/combo item",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["value", "display-text"]] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["value", "display-text"]], AcceptedKinds = [DocxTargetKind.ContentControl] },
         PreserveOnly(
             "set-content-control-date",
             [
@@ -424,7 +433,7 @@ internal static partial class DocxPatchEngine
             "Date content controls update date metadata and display text together; generated revision markup is not modeled yet.",
             "Content Controls",
             "Updates date value and visible text",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlDate(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlDate(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.ContentControl] },
         Unsupported(
             "add-repeating-section-item",
             [
@@ -486,6 +495,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph],
         },
         Tracked(
             "replace-bookmark-text",
@@ -499,7 +509,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002.",
             "Bookmarks",
             "Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot",
-            ExecuteReplaceBookmarkText),
+            ExecuteReplaceBookmarkText) with { AcceptedKinds = [DocxTargetKind.Bookmark] },
         PreserveOnly(
             "rename-bookmark",
             [
@@ -511,7 +521,7 @@ internal static partial class DocxPatchEngine
             "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update.",
             "Bookmarks",
             "Renames markers and same-story internal hyperlink anchors when unambiguous",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRenameBookmark(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRenameBookmark(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Bookmark] },
         PreserveOnly(
             "delete-bookmark",
             [
@@ -521,7 +531,7 @@ internal static partial class DocxPatchEngine
             "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal.",
             "Bookmarks",
             "Removes complete unreferenced bookmark markers, preserving content",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteBookmark(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteBookmark(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Bookmark] },
         PreserveOnly(
             "add-comment",
             [
@@ -568,6 +578,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Paragraph],
         },
         Tracked(
             "set-comment-text",
@@ -646,7 +657,7 @@ internal static partial class DocxPatchEngine
             "Field dirty flags are field metadata and have no useful generated visible revision representation.",
             "Fields",
             "`target` can be a field ID or `all`",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
         PreserveOnly(
             "set-field-lock",
             [
@@ -657,7 +668,7 @@ internal static partial class DocxPatchEngine
             "Field lock flags are field metadata and have no useful generated visible revision representation.",
             "Fields",
             "`target` can be a field ID or `all`",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
         PreserveOnly(
             "set-field-code",
             [
@@ -669,7 +680,7 @@ internal static partial class DocxPatchEngine
             "Field codes are instruction metadata; generated revisions for field instructions are not modeled yet.",
             "Fields",
             "Simple `w:fldSimple` fields only",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldCode(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldCode(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
         Tracked(
             "set-field-result",
             [
@@ -683,7 +694,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; direct mode also supports simple same-paragraph complex field result runs. Complex-field tracked output or unsafe topologies warn with W4002 or fail with E6002/E4313.",
             "Fields",
             "Simple `w:fldSimple` cached result or validated simple same-paragraph complex result",
-            ExecuteSetFieldResult),
+            ExecuteSetFieldResult) with { AcceptedKinds = [DocxTargetKind.Field] },
         PreserveOnly(
             "refresh-field-result",
             [
@@ -695,7 +706,7 @@ internal static partial class DocxPatchEngine
             "Field refresh updates cached result text from modeled document state for REF/PAGEREF/NOTEREF bookmark fields and QUOTE literal fields; unsupported refresh types return categorized E4313 diagnostics. Generated revision markup for the refresh is not modeled yet.",
             "Fields",
             "Limited refresh for simple REF/PAGEREF/NOTEREF bookmark fields and simple QUOTE literal fields",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
         PreserveOnly(
             "set-hyperlink-target",
             [
@@ -710,7 +721,7 @@ internal static partial class DocxPatchEngine
             "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
             "Hyperlinks",
             "Updates external URI or internal bookmark anchor",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["uri", "anchor"]] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["uri", "anchor"]], AcceptedKinds = [DocxTargetKind.Hyperlink] },
         Tracked(
             "set-hyperlink-text",
             [
@@ -724,7 +735,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002.",
             "Hyperlinks",
             "Updates visible hyperlink text",
-            ExecuteSetHyperlinkText),
+            ExecuteSetHyperlinkText) with { AcceptedKinds = [DocxTargetKind.Hyperlink] },
         Tracked(
             "insert-hyperlink-after",
             [
@@ -742,7 +753,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.",
             "Hyperlinks",
             "Inserts a new hyperlink paragraph after the target",
-            ExecuteInsertHyperlinkAfter) with { ExclusiveGroups = [["uri", "anchor"]] },
+            ExecuteInsertHyperlinkAfter) with { ExclusiveGroups = [["uri", "anchor"]], AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table] },
         PreserveOnly(
             "remove-hyperlink",
             [
@@ -752,7 +763,7 @@ internal static partial class DocxPatchEngine
             "Hyperlink removal changes wrapper and relationship metadata while preserving display text.",
             "Hyperlinks",
             "Removes hyperlink markup and preserves display runs",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Hyperlink] },
         Tracked(
             "set-cell",
             [
@@ -799,6 +810,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Cell, DocxTargetKind.MergeGroup],
         },
         Tracked(
             "set-cell-shading",
@@ -839,6 +851,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
+            AcceptedKinds = [DocxTargetKind.Cell, DocxTargetKind.MergeGroup],
         },
         Tracked(
             "set-table-style",
@@ -853,7 +866,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.",
             "Tables",
             "Updates `w:tblStyle`",
-            ExecuteSetTableStyle),
+            ExecuteSetTableStyle) with { AcceptedKinds = [DocxTargetKind.Table] },
         PreserveOnly(
             "set-table-metadata",
             [
@@ -867,7 +880,7 @@ internal static partial class DocxPatchEngine
             "Table caption and description updates are table metadata, not visible document text.",
             "Tables",
             "Sets or clears table caption/description",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetTableMetadata(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetTableMetadata(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Table] },
         Tracked(
             "set-row-header",
             [
@@ -881,7 +894,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.",
             "Tables",
             "Sets or clears the repeating-header flag",
-            ExecuteSetRowHeader),
+            ExecuteSetRowHeader) with { AcceptedKinds = [DocxTargetKind.Row] },
         Tracked(
             "append-row",
             [
@@ -896,7 +909,7 @@ internal static partial class DocxPatchEngine
             "Direct mode appends by cloning the last row shape when the table has a consistent visual grid and the last row does not contain vertical merge cells. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; visual-grid or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Appends by cloning the last row shape when the visual grid is consistent",
-            ExecuteAppendRow),
+            ExecuteAppendRow) with { AcceptedKinds = [DocxTargetKind.Table] },
         Tracked(
             "insert-row-before",
             [
@@ -913,7 +926,7 @@ internal static partial class DocxPatchEngine
             "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Inserts before a row by cloning the target row shape when safe",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Row] },
         Tracked(
             "insert-row-after",
             [
@@ -930,7 +943,7 @@ internal static partial class DocxPatchEngine
             "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Inserts after a row by cloning the target row shape when safe",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Row] },
         Tracked(
             "delete-row",
             [
@@ -947,7 +960,7 @@ internal static partial class DocxPatchEngine
             "Direct mode deletes rows in consistent visual-grid tables and promotes the next vertical-merge continuation when deleting a merge root. Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Deletes a row; direct mode can promote the next vertical-merge continuation",
-            ExecuteDeleteRow),
+            ExecuteDeleteRow) with { AcceptedKinds = [DocxTargetKind.Row] },
         Unsupported(
             "append-column",
             [
@@ -1022,7 +1035,7 @@ internal static partial class DocxPatchEngine
             "Image replacement updates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
             "Images",
             "Replaces media bytes and preserves supported drawing layout",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteReplaceImage(package, operation, options, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteReplaceImage(package, operation, options, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "insert-image-after",
             [
@@ -1037,7 +1050,7 @@ internal static partial class DocxPatchEngine
             "Image insertion creates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
             "Images",
             "Inserts an inline image paragraph after a paragraph target",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Paragraph] },
         PreserveOnly(
             "set-image-alt",
             [
@@ -1050,7 +1063,7 @@ internal static partial class DocxPatchEngine
             "Image alt-text updates DrawingML metadata, not visible document text.",
             "Images",
             "Updates DrawingML description",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageAlt(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageAlt(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "set-image-metadata",
             [
@@ -1067,7 +1080,7 @@ internal static partial class DocxPatchEngine
             "Image title/name/alt updates DrawingML metadata, not visible document text.",
             "Images",
             "Updates DrawingML `docPr` metadata",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageMetadata(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageMetadata(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "set-image-size",
             [
@@ -1080,7 +1093,7 @@ internal static partial class DocxPatchEngine
             "Image size updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Updates DrawingML extents",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageSize(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageSize(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "set-image-wrap",
             [
@@ -1096,7 +1109,7 @@ internal static partial class DocxPatchEngine
             "Image wrapping updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Anchored images only",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageWrap(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageWrap(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "set-image-position",
             [
@@ -1113,7 +1126,7 @@ internal static partial class DocxPatchEngine
             "Image position updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Anchored images only",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImagePosition(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImagePosition(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "set-image-crop",
             [
@@ -1128,7 +1141,7 @@ internal static partial class DocxPatchEngine
             "Image crop updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Updates DrawingML crop percentages",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageCrop(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageCrop(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         PreserveOnly(
             "delete-image",
             [
@@ -1139,7 +1152,7 @@ internal static partial class DocxPatchEngine
             "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
             "Images",
             "Deletes the modeled image",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteImage(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteImage(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
         Tracked(
             "set-section-columns",
             [
@@ -1154,7 +1167,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous section properties and references; existing section property revisions fall back or fail instead of being replaced.",
             "Sections",
             "Column count must be 1 through 4",
-            ExecuteSetSectionColumns),
+            ExecuteSetSectionColumns) with { AcceptedKinds = [DocxTargetKind.Section] },
         Tracked(
             "set-section-orientation",
             [
@@ -1169,7 +1182,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous page size, section properties, and references; existing section property revisions fall back or fail instead of being replaced.",
             "Sections",
             "`orientation` is `portrait` or `landscape`",
-            ExecuteSetSectionOrientation)
+            ExecuteSetSectionOrientation) with { AcceptedKinds = [DocxTargetKind.Section] },
     ];
     private static readonly IReadOnlyDictionary<string, OperationRegistration> OperationsByName =
         OperationRegistrations.ToDictionary(registration => registration.Name, StringComparer.Ordinal);
@@ -1197,6 +1210,7 @@ internal static partial class DocxPatchEngine
             ExclusiveAlternatives = registration.ExclusiveGroups.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             Examples = registration.Examples.ToArray(),
             FieldDefaults = registration.Fields.Where(static field => field.DefaultValue is not null).Select(static field => field.Name + "=" + field.DefaultValue).ToArray(),
+            AcceptedTargets = registration.AcceptedKinds.Select(static kind => TargetKindWord(kind)).ToArray(),
             OptionalFields = registration.Fields.Where(field => !field.Required && !grouped.Contains(field.Name)).Select(static field => field.Name).ToArray(),
             RepeatableFields = registration.Fields.Where(static field => field.Repeatable).Select(static field => field.Name).ToArray(),
             BooleanFields = registration.Fields.Where(static field => field.Kind == FieldValueKind.Boolean).Select(static field => field.Name).ToArray(),
@@ -1207,6 +1221,25 @@ internal static partial class DocxPatchEngine
             TrackChangesNote = registration.TrackNote,
             Category = registration.Category,
             Description = registration.Description
+        };
+    }
+
+    private static string TargetKindWord(DocxTargetKind kind)
+    {
+        return kind switch
+        {
+            DocxTargetKind.Paragraph => "paragraph",
+            DocxTargetKind.Table => "table",
+            DocxTargetKind.Row => "row",
+            DocxTargetKind.Cell => "cell",
+            DocxTargetKind.MergeGroup => "merge-group",
+            DocxTargetKind.Image => "image",
+            DocxTargetKind.Hyperlink => "hyperlink",
+            DocxTargetKind.Field => "field",
+            DocxTargetKind.Bookmark => "bookmark",
+            DocxTargetKind.ContentControl => "content-control",
+            DocxTargetKind.Section => "section",
+            _ => "unknown",
         };
     }
 

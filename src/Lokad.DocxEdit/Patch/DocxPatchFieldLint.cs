@@ -1,4 +1,4 @@
-﻿namespace Lokad.DocxEdit;
+namespace Lokad.DocxEdit;
 
 // D10: document-independent patch shape validation. Every rule below is a
 // necessary condition of check success: required fields, alternative groups,
@@ -56,6 +56,14 @@ internal static partial class DocxPatchEngine
                         target));
                 }
             }
+
+            if (registration.AcceptedKinds.Length != 0 &&
+                operation.Fields.TryGetValue("target", out string? targetValue) &&
+                DocxTargetId.TryParse(targetValue, out DocxTargetId parsedTarget) &&
+                !registration.AcceptedKinds.Contains(parsedTarget.Kind))
+            {
+                diagnostics.Add(WrongKindDiagnostic(operation, targetValue!, parsedTarget, DescribeAcceptedKinds(registration.AcceptedKinds)));
+            }
         }
 
         return diagnostics;
@@ -80,6 +88,32 @@ internal static partial class DocxPatchEngine
         }
 
         return true;
+    }
+
+    private static string DescribeAcceptedKinds(DocxTargetKind[] kinds)
+    {
+        return string.Join(" or ", kinds.Select(static kind => DescribeAcceptedKind(kind)));
+    }
+
+    private static string DescribeAcceptedKind(DocxTargetKind kind)
+    {
+        string article = kind == DocxTargetKind.Image ? "an" : "a";
+        string example = kind switch
+        {
+            DocxTargetKind.Paragraph => "M.P0001",
+            DocxTargetKind.Table => "M.T0001",
+            DocxTargetKind.Row => "M.T0001.R02",
+            DocxTargetKind.Cell => "M.T0001.R02.C03",
+            DocxTargetKind.MergeGroup => "M.T0001.MG0001",
+            DocxTargetKind.Image => "M.I0001",
+            DocxTargetKind.Hyperlink => "M.L0001",
+            DocxTargetKind.Field => "M.F0001",
+            DocxTargetKind.Bookmark => "M.B0001",
+            DocxTargetKind.ContentControl => "M.CC0001",
+            DocxTargetKind.Section => "M.S0001",
+            _ => "M.P0001",
+        };
+        return article + " " + DescribeTargetKind(kind) + " ID such as " + example;
     }
 
     private static string JoinQuoted(IReadOnlyList<string> names)

@@ -116,6 +116,8 @@ public sealed record DocxPatchOperationInfo
     public IReadOnlyList<string> BooleanFields { get; init; } = [];
     /// <summary>Executable example patches, minimal first and guarded second.</summary>
     public IReadOnlyList<string> Examples { get; init; } = [];
+    /// <summary>Accepted explicit target ID kinds as lowercase words; empty skips document-independent kind validation.</summary>
+    public IReadOnlyList<string> AcceptedTargets { get; init; } = [];
     /// <summary>Omitted-field effective values as field=value tokens.</summary>
     public IReadOnlyList<string> FieldDefaults { get; init; } = [];
     /// <summary>Fields that must be integers greater than 0, plus the literal occurrence value all for replace-text.</summary>
