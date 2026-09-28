@@ -201,4 +201,72 @@ public static class PatchLintTests
         Assert.Contains("Exclusive fields (at most one):", topic, StringComparison.Ordinal);
         Assert.Contains("fill|clear", topic, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void NonPositiveOccurrenceFailsWithFieldPosition()
+    {
+        const string patchText = """
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            occurrence 0
+            end
+            """;
+        DocxLintResult lint = Lint(patchText);
+
+        Assert.False(lint.Success);
+        DocxDiagnostic diagnostic = Assert.Single(lint.Diagnostics);
+        Assert.Equal("E4205", diagnostic.Code);
+        Assert.Equal(7, diagnostic.Line);
+        Assert.Contains("greater than 0", diagnostic.Message, StringComparison.Ordinal);
+
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        DocxCheckResult check = RunCheck(input, patchText);
+        Assert.False(check.Success);
+        Assert.Contains(check.Diagnostics, static checkDiagnostic => checkDiagnostic.Code == "E4205");
+    }
+
+    [Fact]
+    public static void OccurrenceAllStaysAcceptedForReplaceText()
+    {
+        DocxLintResult lint = Lint("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence all\nend\n");
+
+        Assert.True(lint.Success, string.Join("|", lint.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void NegativeGuardFailsLintAndCheck()
+    {
+        const string patchText = """
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            expect-row-count -2
+            text West
+            end
+            """;
+        DocxLintResult lint = Lint(patchText);
+
+        Assert.False(lint.Success);
+        Assert.Contains(lint.Diagnostics, static diagnostic => diagnostic.Code == "E4205");
+
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        DocxCheckResult check = RunCheck(input, patchText);
+        Assert.False(check.Success);
+        Assert.Contains(check.Diagnostics, static diagnostic => diagnostic.Code == "E4205");
+    }
+
+    [Fact]
+    public static void FieldKindsAreMachineReadable()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-text", out DocxPatchOperationInfo replaceText));
+        Assert.Contains("occurrence", replaceText.IntegerFields);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-cell-shading", out DocxPatchOperationInfo shading));
+        Assert.Contains("clear", shading.BooleanFields);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-content-control-checkbox", out DocxPatchOperationInfo checkbox));
+        Assert.Contains("checked", checkbox.BooleanFields);
+    }
 }

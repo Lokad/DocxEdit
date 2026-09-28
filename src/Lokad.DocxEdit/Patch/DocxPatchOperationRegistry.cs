@@ -890,6 +890,8 @@ internal static partial class DocxPatchEngine
             ExclusiveAlternatives = registration.ExclusiveGroups.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             OptionalFields = registration.Fields.Where(field => !field.Required && !grouped.Contains(field.Name)).Select(static field => field.Name).ToArray(),
             RepeatableFields = registration.Fields.Where(static field => field.Repeatable).Select(static field => field.Name).ToArray(),
+            BooleanFields = registration.Fields.Where(static field => field.Kind == FieldValueKind.Boolean).Select(static field => field.Name).ToArray(),
+            IntegerFields = registration.Fields.Where(static field => field.Kind == FieldValueKind.Integer).Select(static field => field.Name).ToArray(),
             EmptyAllowedFields = registration.Fields.Where(static field => field.AllowEmpty).Select(static field => field.Name).ToArray(),
             TrackChangesSupportClass = registration.TrackSupportClass,
             TrackChangesSupport = registration.TrackSupport,

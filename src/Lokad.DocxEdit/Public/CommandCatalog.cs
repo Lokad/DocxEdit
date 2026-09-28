@@ -110,10 +110,13 @@ public sealed record DocxPatchOperationInfo
     /// <summary>Field groups of which at least one member is required. Every member is a real field name.</summary>
     public IReadOnlyList<IReadOnlyList<string>> RequiredAlternatives { get; init; } = [];
 
-    /// <summary>Fields that may repeat; every occurrence is kept in file order. Every other field must appear at most once per operation; repeating one fails patch parsing.</summary>
     /// <summary>Field groups of which at most one member may carry a value; every other combination fails patch validation.</summary>
     public IReadOnlyList<IReadOnlyList<string>> ExclusiveAlternatives { get; init; } = [];
-    /// <summary>Fields that may repeat; every occurrence is kept in file order.</summary>
+    /// <summary>Fields that must be true or false.</summary>
+    public IReadOnlyList<string> BooleanFields { get; init; } = [];
+    /// <summary>Fields that must be integers greater than 0, plus the literal occurrence value all for replace-text.</summary>
+    public IReadOnlyList<string> IntegerFields { get; init; } = [];
+    /// <summary>Fields that may repeat; every occurrence is kept in file order. Every other field must appear at most once per operation; repeating one fails patch parsing.</summary>
     public IReadOnlyList<string> RepeatableFields { get; init; } = [];
 
     /// <summary>Required fields that also accept a present-but-empty value (for example text deletion).</summary>

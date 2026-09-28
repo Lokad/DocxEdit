@@ -134,6 +134,14 @@ internal static class DocxPatchParser
                 }
 
                 // replace-text selects every match with the literal occurrence value all.
+                // Integer patch fields are counts and ordinals: execution rejects
+                // non-positive values with E4205, so the parser reports the same
+                // failure at the field position. The literal occurrence value all
+                // stays accepted for replace-text only.
+                if (operationDefinition.IntegerFields.Contains(key) && int.TryParse(value, out int integerValue) && integerValue <= 0)
+                {
+                    return Error("E4205", $"Field \u0027{key}\u0027 must be greater than 0.", fieldLineNumber, keyColumn);
+                }
                 if (operationDefinition.IntegerFields.Contains(key) && !int.TryParse(value, out _) && !IsAllOccurrence(operationName, key, value))
                 {
                     return Error("E2013", $"Field '{key}' must be an integer.", fieldLineNumber, keyColumn);

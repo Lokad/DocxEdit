@@ -44,6 +44,7 @@ Rules:
 - Field names are operation-specific. Unknown fields fail validation.
 - Boolean fields must be `true` or `false`.
 - Integer fields must parse as integers.
+- Integer fields are counts and ordinals and must be greater than 0; the literal occurrence value `all` is accepted for `replace-text` only. Non-positive integers fail parsing with `E4205`.
 - A field that is not documented as repeatable must appear at most once per
   operation; repeating it fails parsing with `E2015`. Repeated `cell` fields
   in row operations are preserved in file order.
