@@ -1041,6 +1041,24 @@ public static class CliTests
         Assert.Contains("label=\"3.\"", markup.Output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CliCheckFailureReportsOperationAndFieldLocation()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nexpect-text Stale text\nfind Revenue\nwith Margin\nend\n");
+
+        CliResult result = RunCli("check", input, patch);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("E3201", result.Error, StringComparison.Ordinal);
+        Assert.Contains("op=1", result.Error, StringComparison.Ordinal);
+        Assert.Contains("line=5", result.Error, StringComparison.Ordinal);
+        Assert.Contains("col=1", result.Error, StringComparison.Ordinal);
+    }
+
     internal static CliResult RunCli(params string[] args)
     {
         return RunInProcess(null, args);

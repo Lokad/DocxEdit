@@ -2,6 +2,8 @@
 
 Diagnostics have a severity, code, message, and optional target, part, story, feature, fallback, operation index, line, and column.
 
+Text-mode stderr renders severity, code, message, and whichever of target, part, operation, line, and column are present. JSON output carries the full records.
+
 Patch-operation findings reuse source positions: selector findings point at the target field, guard findings at the guard field, and find or anchor findings at the find or anchor-text field.
 
 Common code ranges:

@@ -274,6 +274,20 @@ public static class ProgramMain
                 message.Append(" part=").Append(diagnostic.PartName);
             }
 
+            if (diagnostic.OperationIndex is not null)
+            {
+                message.Append(" op=").Append(diagnostic.OperationIndex.Value);
+            }
+
+            if (diagnostic.Line is not null)
+            {
+                message.Append(" line=").Append(diagnostic.Line.Value);
+                if (diagnostic.Column is not null)
+                {
+                    message.Append(" col=").Append(diagnostic.Column.Value);
+                }
+            }
+
             Console.Error.WriteLine(message.ToString());
         }
     }
