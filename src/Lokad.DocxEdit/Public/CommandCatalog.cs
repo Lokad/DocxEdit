@@ -114,6 +114,8 @@ public sealed record DocxPatchOperationInfo
     public IReadOnlyList<IReadOnlyList<string>> ExclusiveAlternatives { get; init; } = [];
     /// <summary>Fields that must be true or false.</summary>
     public IReadOnlyList<string> BooleanFields { get; init; } = [];
+    /// <summary>Executable example patches, minimal first and guarded second.</summary>
+    public IReadOnlyList<string> Examples { get; init; } = [];
     /// <summary>Fields that must be integers greater than 0, plus the literal occurrence value all for replace-text.</summary>
     public IReadOnlyList<string> IntegerFields { get; init; } = [];
     /// <summary>Fields that may repeat; every occurrence is kept in file order. Every other field must appear at most once per operation; repeating one fails patch parsing.</summary>
@@ -512,6 +514,11 @@ public static class DocxHelp
             builder.Append("Exclusive fields (at most one): ").AppendLine(string.Join(", ", operation.ExclusiveAlternatives.Select(static group => string.Join("|", group))));
         }
         builder.Append("Track-change support: ").Append(operation.TrackChangesSupportClass).Append(" / ").Append(operation.TrackChangesSupport).Append(" - ").AppendLine(operation.TrackChangesNote);
+        foreach (string example in operation.Examples)
+        {
+            builder.AppendLine();
+            builder.AppendLine(example);
+        }
         return builder.ToString();
     }
 

@@ -1,3 +1,5 @@
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+
 namespace Lokad.DocxEdit.Tests;
 
 // D06: focused per-operation help renders from the shared catalog, and the
@@ -78,4 +80,46 @@ public static class HelpTopicTests
         Assert.DoesNotContain("Empty values allowed", DocxHelp.RenderTopic("set-style"), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void PatchOperationExamplesParseAndLintClean()
+    {
+        var editor = new DocxEditor();
+        int covered = 0;
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            foreach (string example in operation.Examples)
+            {
+                DocxPatch parsed = editor.ParsePatch(new StringReader(example));
+                Assert.True(parsed.Success, operation.Name + ":" + string.Join("|", parsed.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+                DocxLintResult lint = editor.Lint(new StringReader(example));
+                Assert.True(lint.Success, operation.Name + ":" + string.Join("|", lint.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+                covered++;
+            }
+        }
+
+        Assert.True(covered >= 22, "Expected at least 22 curated examples, found " + covered + ".");
+    }
+
+    [Fact]
+    public static void PatchOperationTopicRendersMinimalAndGuardedExamples()
+    {
+        string topic = DocxHelp.RenderTopic("replace-text");
+
+        Assert.Contains("# Minimal replace-text.", topic, StringComparison.Ordinal);
+        Assert.Contains("# Guarded replace-text:", topic, StringComparison.Ordinal);
+        Assert.Contains("op replace-text", topic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void MinimalReplaceTextExampleChecksClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-text", out DocxPatchOperationInfo replaceText));
+        string example = Assert.Single(replaceText.Examples, static candidate => candidate.Contains("# Minimal replace-text.", StringComparison.Ordinal));
+
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader(example);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
 }

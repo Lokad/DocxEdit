@@ -225,6 +225,7 @@ docxedit help patch
 ```
 
 The tables below group the same operations by editing area.
+Per-operation topics (docxedit help replace-text) carry minimal and guarded examples for common operations.
 
 ### Paragraphs And Blocks
 

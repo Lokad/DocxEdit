@@ -62,6 +62,8 @@ internal sealed record OperationRegistration(
     public bool IsAnnotation { get; init; }
     /// <summary>Field groups of which at most one member may carry a value; execution rejects combinations with E4205 or E4202.</summary>
     public string[][] ExclusiveGroups { get; init; } = [];
+    /// <summary>Executable example patches, minimal first and guarded second; empty when the operation has no curated example.</summary>
+    public string[] Examples { get; init; } = [];
 }
 
 /// <summary>Engine implementation of one patch operation.</summary>
@@ -107,7 +109,35 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
             "Replaces matching text inside one target; an ambiguous find without occurrence fails, occurrence N selects one match, occurrence all replaces every match",
-            ExecuteReplaceText),
+            ExecuteReplaceText) with
+        {
+            Examples =
+            [
+                """
+                # Minimal replace-text.
+                docxpatch 1
+
+                op replace-text
+                target M.P0001
+                find Alpha
+                with Omega
+                end
+                """,
+                """
+                # Guarded replace-text: expect-text must match before editing.
+                docxpatch 1
+
+                op replace-text
+                target M.P0001
+                expect-text <<<
+                Alpha Beta
+                >>>
+                find Alpha
+                with Omega
+                end
+                """,
+            ],
+        },
         Tracked(
             "replace-paragraph",
             [
@@ -122,7 +152,37 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit whole-paragraph w:del/w:ins for simple text replacements and add w:pPrChange when a compatible style change is included; complex shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
             "Replaces the paragraph text, optionally setting style",
-            ExecuteReplaceParagraph),
+            ExecuteReplaceParagraph) with
+        {
+            Examples =
+            [
+                """
+                # Minimal replace-paragraph.
+                docxpatch 1
+
+                op replace-paragraph
+                target M.P0001
+                text <<<
+                New paragraph text
+                >>>
+                end
+                """,
+                """
+                # Guarded replace-paragraph: expect-text must match before editing.
+                docxpatch 1
+
+                op replace-paragraph
+                target M.P0001
+                expect-text <<<
+                Old paragraph text
+                >>>
+                text <<<
+                New paragraph text
+                >>>
+                end
+                """,
+            ],
+        },
         Tracked(
             "insert-before",
             [
@@ -137,7 +197,35 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
             "Inserts a paragraph/block before the target",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal insert-before.
+                docxpatch 1
+
+                op insert-before
+                target M.P0001
+                text <<<
+                Inserted paragraph
+                >>>
+                end
+                """,
+                """
+                # Insert-before with style.
+                docxpatch 1
+
+                op insert-before
+                target M.P0001
+                style Normal
+                text <<<
+                Inserted paragraph
+                >>>
+                end
+                """,
+            ],
+        },
         Tracked(
             "insert-after",
             [
@@ -152,7 +240,35 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
             "Inserts a paragraph/block after the target",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal insert-after.
+                docxpatch 1
+
+                op insert-after
+                target M.P0001
+                text <<<
+                Inserted paragraph
+                >>>
+                end
+                """,
+                """
+                # Insert-after with style.
+                docxpatch 1
+
+                op insert-after
+                target M.P0001
+                style Normal
+                text <<<
+                Inserted paragraph
+                >>>
+                end
+                """,
+            ],
+        },
         Tracked(
             "delete-block",
             [
@@ -165,7 +281,31 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
             "Deletes the target block",
-            ExecuteDeleteBlock),
+            ExecuteDeleteBlock) with
+        {
+            Examples =
+            [
+                """
+                # Minimal delete-block.
+                docxpatch 1
+
+                op delete-block
+                target M.P0001
+                end
+                """,
+                """
+                # Guarded delete-block: expect-text must match before deleting.
+                docxpatch 1
+
+                op delete-block
+                target M.P0001
+                expect-text <<<
+                Remove this paragraph
+                >>>
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-style",
             [
@@ -179,7 +319,31 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit paragraph property revisions with w:pPrChange.",
             "Paragraphs And Blocks",
             "Sets paragraph style",
-            ExecuteSetStyle),
+            ExecuteSetStyle) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-style.
+                docxpatch 1
+
+                op set-style
+                target M.P0001
+                style Normal
+                end
+                """,
+                """
+                # Guarded set-style: expect-style must match before changing.
+                docxpatch 1
+
+                op set-style
+                target M.P0001
+                style Heading 2
+                expect-style Normal
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-content-control-text",
             [
@@ -193,7 +357,37 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside simple plain-text and guarded paragraph-only rich-text content controls while preserving wrappers, bindings, locks, and paragraph containers; complex content controls warn with W4002 or fail with E6002.",
             "Content Controls",
             "Plain-text controls are supported; guarded simple rich-text controls are supported when safe; picture/group controls fail with kind-specific guidance",
-            ExecuteSetContentControlText),
+            ExecuteSetContentControlText) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-content-control-text.
+                docxpatch 1
+
+                op set-content-control-text
+                target M.CC0001
+                text <<<
+                New control text
+                >>>
+                end
+                """,
+                """
+                # Guarded set-content-control-text: expect-text must match before editing.
+                docxpatch 1
+
+                op set-content-control-text
+                target M.CC0001
+                expect-text <<<
+                Old control text
+                >>>
+                text <<<
+                New control text
+                >>>
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "set-content-control-checkbox",
             [
@@ -264,7 +458,33 @@ internal static partial class DocxPatchEngine
             "Bookmark creation adds anchor metadata; Word has no useful generated revision range for the bookmark markers.",
             "Bookmarks",
             "Creates a guarded paragraph bookmark",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddBookmark(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddBookmark(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal add-bookmark.
+                docxpatch 1
+
+                op add-bookmark
+                target M.P0001
+                name MarkName
+                end
+                """,
+                """
+                # Guarded add-bookmark: expect-text must match before editing.
+                docxpatch 1
+
+                op add-bookmark
+                target M.P0001
+                expect-text <<<
+                Marked paragraph
+                >>>
+                name MarkName
+                end
+                """,
+            ],
+        },
         Tracked(
             "replace-bookmark-text",
             [
@@ -316,7 +536,37 @@ internal static partial class DocxPatchEngine
             "Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated.",
             "Comments",
             "Anchors a new comment to a modeled paragraph, or to one selected text span inside it",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddComment(package, operation, options, apply, cancellationToken), isAnnotation: true),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddComment(package, operation, options, apply, cancellationToken), isAnnotation: true) with
+        {
+            Examples =
+            [
+                """
+                # Minimal add-comment.
+                docxpatch 1
+
+                op add-comment
+                target M.P0001
+                text <<<
+                Review note
+                >>>
+                end
+                """,
+                """
+                # Guarded add-comment: expect-text must match before editing.
+                docxpatch 1
+
+                op add-comment
+                target M.P0001
+                expect-text <<<
+                Reviewed paragraph
+                >>>
+                text <<<
+                Review note
+                >>>
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-comment-text",
             [
@@ -517,7 +767,37 @@ internal static partial class DocxPatchEngine
             "Targets can be visual-grid cell IDs or merge-group IDs. Suggest/Require emit w:del/w:ins for simple text-only cells, including compatible multi-paragraph and horizontally merged cells; vertical-merge continuations, force, or complex cells warn with W4002 or fail with E6002.",
             "Tables",
             "Replaces one modeled cell by visual cell ID or merge-group ID",
-            ExecuteSetCell),
+            ExecuteSetCell) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-cell.
+                docxpatch 1
+
+                op set-cell
+                target M.T0001.R01.C01
+                text <<<
+                New cell text
+                >>>
+                end
+                """,
+                """
+                # Guarded set-cell: expect-text must match before editing.
+                docxpatch 1
+
+                op set-cell
+                target M.T0001.R01.C01
+                expect-text <<<
+                Old cell text
+                >>>
+                text <<<
+                New cell text
+                >>>
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-cell-shading",
             [
@@ -532,7 +812,32 @@ internal static partial class DocxPatchEngine
             "Sets or clears w:tcPr/w:shd fill on a visual-grid cell ID or merge-group ID. Suggest/Require emit cell property revisions with w:tcPrChange while preserving previous cell properties; vertical-merge continuations fail with E4301.",
             "Tables",
             "Sets or clears `w:tcPr/w:shd` fill",
-            ExecuteSetCellShading) with { ExclusiveGroups = [["fill", "clear"]] },
+            ExecuteSetCellShading) with
+        {
+            ExclusiveGroups = [["fill", "clear"]],
+            Examples =
+            [
+                """
+                # Minimal set-cell-shading.
+                docxpatch 1
+
+                op set-cell-shading
+                target M.T0001.R01.C01
+                fill 4472C4
+                end
+                """,
+                """
+                # Guarded set-cell-shading: expect-fill must match before editing.
+                docxpatch 1
+
+                op set-cell-shading
+                target M.T0001.R01.C01
+                expect-fill auto
+                fill 4472C4
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-table-style",
             [
@@ -888,6 +1193,7 @@ internal static partial class DocxPatchEngine
             RequiredFields = registration.Fields.Where(static field => field.Required).Select(static field => field.Name).ToArray(),
             RequiredAlternatives = registration.RequireOneOf.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             ExclusiveAlternatives = registration.ExclusiveGroups.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
+            Examples = registration.Examples.ToArray(),
             OptionalFields = registration.Fields.Where(field => !field.Required && !grouped.Contains(field.Name)).Select(static field => field.Name).ToArray(),
             RepeatableFields = registration.Fields.Where(static field => field.Repeatable).Select(static field => field.Name).ToArray(),
             BooleanFields = registration.Fields.Where(static field => field.Kind == FieldValueKind.Boolean).Select(static field => field.Name).ToArray(),
