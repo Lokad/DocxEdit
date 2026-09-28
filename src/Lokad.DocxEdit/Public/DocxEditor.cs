@@ -890,6 +890,35 @@ public sealed class DocxEditor
         }
     }
 
+    /// <summary>Validates patch shape without loading a document: syntax, required fields, alternative groups, and exclusive fields. Uses no cancellation.</summary>
+    public DocxLintResult Lint(
+        TextReader patchReader)
+    {
+        return Lint(patchReader, CancellationToken.None);
+    }
+
+    /// <summary>Validates patch shape without loading a document with explicit cancellation.</summary>
+    public DocxLintResult Lint(
+        TextReader patchReader,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(patchReader);
+        DocxPatch patch = ParsePatch(patchReader, new DocxEditOptions().MaxPatchChars, cancellationToken);
+        if (!patch.Success)
+        {
+            return new DocxLintResult { Success = false, Diagnostics = patch.Diagnostics };
+        }
+
+        IReadOnlyList<DocxDiagnostic> shape = DocxPatchEngine.ValidatePatchFields(patch);
+        return new DocxLintResult
+        {
+            Success = shape.All(static diagnostic => diagnostic.Severity != DocxSeverity.Error),
+            Diagnostics = shape,
+            OperationCount = patch.Operations.Count,
+            Operations = patch.Operations.Select(static operation => new DocxLintOperation(operation.Index, operation.OperationName)).ToArray(),
+        };
+    }
+
     /// <summary>Parses a patch. Uses no cancellation.</summary>
     public DocxPatch ParsePatch(
         TextReader patchReader)

@@ -145,6 +145,21 @@ public static class DocxTextRenderer
     }
 
     /// <summary>
+    /// Renders patch lint operations.
+    /// </summary>
+    public static string RenderLint(DocxLintResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var builder = new StringBuilder();
+        builder.Append("lint operations=").Append(result.OperationCount).AppendLine();
+        foreach (DocxLintOperation operation in result.Operations)
+        {
+            builder.Append("op ").Append(operation.Index).Append(" ").AppendLine(operation.Name);
+        }
+        return builder.ToString();
+    }
+
+    /// <summary>
     /// Renders the style inventory.
     /// </summary>
     public static string RenderStyles(DocxStylesResult result)

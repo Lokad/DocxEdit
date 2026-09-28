@@ -232,6 +232,20 @@ public sealed record DocxTemplateResult : DocxOperationResult
     public DocxTargetCapabilities? Capabilities { get; init; }
 }
 
+/// <summary>Document-independent patch shape validation. Reports missing fields, unsatisfied alternative groups, conflicting exclusive fields, and patch syntax errors without loading a document. Success leaves document-dependent targets, guards, assets, and shapes to check.</summary>
+public sealed record DocxLintResult : DocxOperationResult
+{
+    /// <summary>Number of parsed operations; zero when parsing failed.</summary>
+    public int OperationCount { get; init; }
+    /// <summary>Parsed operations in file order; empty when parsing failed.</summary>
+    public IReadOnlyList<DocxLintOperation> Operations { get; init; } = [];
+}
+
+/// <summary>One linted patch operation: its index and name.</summary>
+/// <param name="Index">1-based operation index matching the parser.</param>
+/// <param name="Name">Operation name as written.</param>
+public sealed record DocxLintOperation(int Index, string Name);
+
 /// <summary>Supported, conditional, and unsupported operations for one discovered target.</summary>
 /// <param name="TargetId">Canonical wire ID of the resolved target.</param>
 /// <param name="Kind">Target kind word (for example <c>paragraph</c>).</param>

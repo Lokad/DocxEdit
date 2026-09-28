@@ -111,6 +111,9 @@ public sealed record DocxPatchOperationInfo
     public IReadOnlyList<IReadOnlyList<string>> RequiredAlternatives { get; init; } = [];
 
     /// <summary>Fields that may repeat; every occurrence is kept in file order. Every other field must appear at most once per operation; repeating one fails patch parsing.</summary>
+    /// <summary>Field groups of which at most one member may carry a value; every other combination fails patch validation.</summary>
+    public IReadOnlyList<IReadOnlyList<string>> ExclusiveAlternatives { get; init; } = [];
+    /// <summary>Fields that may repeat; every occurrence is kept in file order.</summary>
     public IReadOnlyList<string> RepeatableFields { get; init; } = [];
 
     /// <summary>Required fields that also accept a present-but-empty value (for example text deletion).</summary>
@@ -500,6 +503,10 @@ public static class DocxHelp
         if (operation.EmptyAllowedFields.Count != 0)
         {
             builder.Append("Empty values allowed: ").AppendLine(string.Join(", ", operation.EmptyAllowedFields));
+        }
+        if (operation.ExclusiveAlternatives.Count != 0)
+        {
+            builder.Append("Exclusive fields (at most one): ").AppendLine(string.Join(", ", operation.ExclusiveAlternatives.Select(static group => string.Join("|", group))));
         }
         builder.Append("Track-change support: ").Append(operation.TrackChangesSupportClass).Append(" / ").Append(operation.TrackChangesSupport).Append(" - ").AppendLine(operation.TrackChangesNote);
         return builder.ToString();
@@ -996,6 +1003,33 @@ public static class DocxHelp
                     Examples =
                     [
                         "docxedit version",
+                    ]
+                },
+                new()
+                {
+                    Name = "lint",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
+                    Category = "patch",
+                    Summary = "Validate patch shape without loading a document",
+                    Usage = "docxedit lint edits.docxpatch [--json] [--compact] [--diagnostics <path>] [--strict]",
+                    Description = "Validate patch syntax, required fields, alternative groups, and exclusive fields without loading a document. Lint failures always predict check failures; lint success leaves document-dependent targets, guards, assets, and shapes to check.",
+                    Options =
+                    [
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
+                    ],
+                    OutputFields =
+                    [
+                        new("OperationCount", "Number of parsed operations; zero when parsing failed"),
+                        new("Operations", "Parsed operation indexes and names in file order")
+                    ],
+                    Examples =
+                    [
+                        "docxedit lint edits.docxpatch",
+                        "docxedit lint edits.docxpatch --json"
                     ]
                 },
                 new()

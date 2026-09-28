@@ -2752,6 +2752,18 @@ document problem was found.
 
 ---
 
+### 13.3 lint
+
+Lint validates patch shape without loading a document: syntax, required
+fields, alternative groups, and exclusive fields. It reuses the registry
+contracts and the same diagnostic codes check would produce for shape errors:
+E2010 and E2011 for unknown operations and fields, E2012 and E2013 for bad
+literals, E2015 for repeats, E4202 for missing fields and unsatisfied
+alternative groups, and E4205 for conflicting exclusive fields. Lint failures
+always predict check failures; lint success leaves document-dependent
+targets, guards, assets, and shapes to check. The result reports the parsed
+operation count with operation indexes and names.
+
 ## 14. Diagnostics
 
 Code meanings live in docs/diagnostics.md. This section states the code and record contracts.

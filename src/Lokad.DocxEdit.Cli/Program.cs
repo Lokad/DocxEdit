@@ -65,6 +65,7 @@ public static class ProgramMain
                 "context" => RunContext(options),
                 "capabilities" => RunCapabilities(options),
                 "template" => RunTemplate(options),
+                "lint" => RunLint(options),
                 "styles" => RunStyles(options),
                 "media" => RunMedia(options),
                 "validate" => RunValidate(options),
@@ -463,6 +464,29 @@ public static class ProgramMain
             static result => result.Diagnostics,
             static result => result.Success,
             result => Console.Write(DocxTextRenderer.RenderCapabilities(result)));
+    }
+
+    private static int RunLint(ParsedOptions options)
+    {
+        if (options.Positionals.Count != 1)
+        {
+            return InvalidUsage(CommandUsageError("lint"));
+        }
+
+        string patchPath = options.Positionals[0];
+        if (ValidateInputCollisions(options, patchPath) is { } lintCollision)
+        {
+            return InvalidUsage(lintCollision);
+        }
+
+        using TextReader patch = OpenPatchFile(patchPath);
+        DocxLintResult result = new DocxEditor().Lint(patch);
+        return FinishCommand(
+            options,
+            result,
+            static lintResult => lintResult.Diagnostics,
+            static lintResult => lintResult.Success,
+            lintResult => Console.Write(DocxTextRenderer.RenderLint(lintResult)));
     }
 
     private static int RunTemplate(ParsedOptions options)

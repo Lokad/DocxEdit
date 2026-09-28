@@ -90,6 +90,7 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 | `context` | Nearby target context | Inspect neighbors and attached metadata without broad text |
 | `capabilities` | Target editing capabilities | Supported, conditional, and unsupported edits for one target under a track-change policy |
 | `template` | Guarded patch template | Check-clean starter plus commented examples for one target |
+| `lint` | Patch shape validation | Syntax, required fields, and field groups without a document |
 | `styles` | Style inventory | Discover valid paragraph, character, and table styles |
 | `media` | Image inventory and extraction | List or extract embedded image parts |
 | `changes` | Existing markup inventory | Track changes, comments, anchors, and comment bodies without text by default |

@@ -60,6 +60,8 @@ internal sealed record OperationRegistration(
 {
     /// <summary>Whether the operation is intrinsic review or annotation markup that is permitted under Require without generated revisions.</summary>
     public bool IsAnnotation { get; init; }
+    /// <summary>Field groups of which at most one member may carry a value; execution rejects combinations with E4205 or E4202.</summary>
+    public string[][] ExclusiveGroups { get; init; } = [];
 }
 
 /// <summary>Engine implementation of one patch operation.</summary>
@@ -214,7 +216,7 @@ internal static partial class DocxPatchEngine
             "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet.",
             "Content Controls",
             "Selects a dropdown/combo item",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["value", "display-text"]] },
         PreserveOnly(
             "set-content-control-date",
             [
@@ -456,7 +458,7 @@ internal static partial class DocxPatchEngine
             "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
             "Hyperlinks",
             "Updates external URI or internal bookmark anchor",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["uri", "anchor"]] },
         Tracked(
             "set-hyperlink-text",
             [
@@ -488,7 +490,7 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.",
             "Hyperlinks",
             "Inserts a new hyperlink paragraph after the target",
-            ExecuteInsertHyperlinkAfter),
+            ExecuteInsertHyperlinkAfter) with { ExclusiveGroups = [["uri", "anchor"]] },
         PreserveOnly(
             "remove-hyperlink",
             [
@@ -530,7 +532,7 @@ internal static partial class DocxPatchEngine
             "Sets or clears w:tcPr/w:shd fill on a visual-grid cell ID or merge-group ID. Suggest/Require emit cell property revisions with w:tcPrChange while preserving previous cell properties; vertical-merge continuations fail with E4301.",
             "Tables",
             "Sets or clears `w:tcPr/w:shd` fill",
-            ExecuteSetCellShading),
+            ExecuteSetCellShading) with { ExclusiveGroups = [["fill", "clear"]] },
         Tracked(
             "set-table-style",
             [
@@ -885,6 +887,7 @@ internal static partial class DocxPatchEngine
             Name = registration.Name,
             RequiredFields = registration.Fields.Where(static field => field.Required).Select(static field => field.Name).ToArray(),
             RequiredAlternatives = registration.RequireOneOf.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
+            ExclusiveAlternatives = registration.ExclusiveGroups.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             OptionalFields = registration.Fields.Where(field => !field.Required && !grouped.Contains(field.Name)).Select(static field => field.Name).ToArray(),
             RepeatableFields = registration.Fields.Where(static field => field.Repeatable).Select(static field => field.Name).ToArray(),
             EmptyAllowedFields = registration.Fields.Where(static field => field.AllowEmpty).Select(static field => field.Name).ToArray(),
