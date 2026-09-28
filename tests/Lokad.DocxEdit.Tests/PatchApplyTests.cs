@@ -1355,4 +1355,109 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4203");
     }
 
+
+    [Fact]
+    public static void ApplyReplaceParagraphWithMultilineTextWritesBreakAndTabNodes()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            text "Line one\nLine two\tTab"
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(1, CountOccurrences(xml, "<w:br"));
+        Assert.Equal(1, CountOccurrences(xml, "<w:tab"));
+        Assert.DoesNotContain("Line one\nLine two", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Line one\nLine two\tTab", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextWithoutPreserveRunsWritesBreakNodes()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with "X\nY"
+            preserve-runs false
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(1, CountOccurrences(xml, "<w:br"));
+        output.Position = 0;
+        Assert.Equal("X\nY Beta", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyInsertAfterAndReplaceParagraphEmitEquivalentBreakStructure()
+    {
+        const string patchText = "docxpatch 1\n\nop OP\ntarget M.P0001\ntext LINE\nend\n";
+        using MemoryStream insertInput = CreateDocx("Alpha");
+        using var insertOutput = new MemoryStream();
+        using var insertPatch = new StringReader(patchText.Replace("OP", "insert-after").Replace("LINE", "\"A\\nB\""));
+        Assert.True(new DocxEditor().Apply(insertInput, insertPatch, insertOutput).Success);
+        insertOutput.Position = 0;
+        string insertXml = ReadDocumentXml(insertOutput);
+
+        using MemoryStream replaceInput = CreateDocx("Alpha");
+        using var replaceOutput = new MemoryStream();
+        using var replacePatch = new StringReader(patchText.Replace("OP", "replace-paragraph").Replace("LINE", "\"A\\nB\""));
+        Assert.True(new DocxEditor().Apply(replaceInput, replacePatch, replaceOutput).Success);
+        replaceOutput.Position = 0;
+        string replaceXml = ReadDocumentXml(replaceOutput);
+
+        Assert.Equal(CountOccurrences(insertXml, "<w:br"), CountOccurrences(replaceXml, "<w:br"));
+        insertOutput.Position = 0;
+        replaceOutput.Position = 0;
+        Assert.Equal("A\nB", new DocxEditor().Read(insertOutput).Paragraphs.Last().Text);
+        Assert.Equal("A\nB", Assert.Single(new DocxEditor().Read(replaceOutput).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyInsertAfterWithBlankLineKeepsSingleParagraph()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text <<<
+            A
+
+            B
+            >>>
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        IReadOnlyList<DocxParagraphInfo> paragraphs = new DocxEditor().Read(output).Paragraphs;
+        Assert.Equal(2, paragraphs.Count);
+        Assert.Equal("A\n\nB", paragraphs[1].Text);
+    }
+
 }

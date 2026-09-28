@@ -1178,13 +1178,10 @@ internal static partial class DocxPatchEngine
             run.Add(new XElement(firstRunProperties));
         }
 
-        var textElement = new XElement(OoxmlNs.W + "t", text);
-        if (RequiresPreserveSpace(text))
+        foreach (XNode node in CreateTextNodes(text))
         {
-            textElement.SetAttributeValue(OoxmlNs.Xml + "space", "preserve");
+            run.Add(node);
         }
-
-        run.Add(textElement);
         paragraph.Add(run);
     }
 

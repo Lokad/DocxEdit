@@ -40,6 +40,7 @@ Rules:
   ```
 
 - Single-line values wrapped in `"..."` decode escapes (`\"`, `\\`, `\n`, `\t`); other backslash sequences stay literal. Heredoc content stays raw.
+- `\n` in a text value is an inline line break and `\t` a tab; neither splits paragraphs. A blank line in a value stays a line break within one paragraph; real multi-paragraph insertion is a separate operation.
 - Field names are operation-specific. Unknown fields fail validation.
 - Boolean fields must be `true` or `false`.
 - Integer fields must parse as integers.
