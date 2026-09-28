@@ -345,6 +345,7 @@ docxedit help check
 docxedit help apply
 docxedit help catalog
 docxedit help patch
+docxedit help <operation> (for example: replace-text, set-cell, add-comment)
 ```
 
 `docxedit help patch` is generated from the shared library command catalog. It is

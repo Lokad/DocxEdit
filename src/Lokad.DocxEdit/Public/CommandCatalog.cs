@@ -266,6 +266,8 @@ public static class DocxHelp
         return builder.ToString();
     }
 
+    private const string UnsupportedSupportClass = "unsupported";
+
     /// <summary>Tries to render one help topic by name.</summary>
     public static bool TryRenderTopic(string topic, out string text)
     {
@@ -278,6 +280,12 @@ public static class DocxHelp
         if (TryGetCommand(topic, out DocxCommandInfo command))
         {
             text = RenderCommandHelp(command);
+            return true;
+        }
+
+        if (TryGetPatchOperation(topic, out DocxPatchOperationInfo patchOperation))
+        {
+            text = RenderPatchOperationHelp(patchOperation);
             return true;
         }
 
@@ -440,7 +448,13 @@ public static class DocxHelp
         builder.AppendLine(PatchExamples);
         builder.AppendLine();
         builder.AppendLine("Supported operations:");
-        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations)
+        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations.Where(static operation => operation.TrackChangesSupportClass != UnsupportedSupportClass))
+        {
+            builder.Append("  ").AppendLine(operation.RenderSummary());
+        }
+
+        builder.AppendLine("Recognized but unimplemented operations (check/apply fail; see notes):");
+        foreach (DocxPatchOperationInfo operation in Catalog.PatchOperations.Where(static operation => operation.TrackChangesSupportClass == UnsupportedSupportClass))
         {
             builder.Append("  ").AppendLine(operation.RenderSummary());
         }
@@ -469,6 +483,31 @@ public static class DocxHelp
         builder.AppendLine("Unsupported fields are rejected. expect-hash and preserve-size are not supported.");
         builder.AppendLine("Target lifetime: explicit paragraph/table/row/cell/section IDs bind to the input snapshot for one patch, so an earlier insert or delete never renumbers a later explicit ID; a deleted target fails instead of editing a neighbour, and newly inserted blocks are not addressable by pre-discovered IDs in the same patch. Semantic selectors resolve live; guards evaluate sequentially.");
         return builder.ToString();
+    }
+
+    /// <summary>Renders focused help for one patch operation from the shared catalog.</summary>
+    private static string RenderPatchOperationHelp(DocxPatchOperationInfo operation)
+    {
+        var builder = new StringBuilder();
+        builder.Append("op ").Append(operation.Name).Append(" (").Append(operation.Category).AppendLine(")");
+        builder.AppendLine();
+        builder.AppendLine(operation.Description);
+        builder.Append("Required fields: ").AppendLine(RenderTopicFields(operation, required: true));
+        builder.Append("Optional fields: ").AppendLine(RenderTopicFields(operation, required: false));
+        builder.Append("Track-change support: ").Append(operation.TrackChangesSupportClass).Append(" / ").Append(operation.TrackChangesSupport).Append(" - ").AppendLine(operation.TrackChangesNote);
+        return builder.ToString();
+    }
+
+    private static string RenderTopicFields(DocxPatchOperationInfo operation, bool required)
+    {
+        var tokens = new List<string>((required ? operation.RequiredFields : operation.OptionalFields)
+            .Select(field => operation.RepeatableFields.Contains(field, StringComparer.Ordinal) ? field + "+" : field));
+        if (required)
+        {
+            tokens.AddRange(operation.RequiredAlternatives.Select(group => string.Join("|", group)));
+        }
+
+        return tokens.Count == 0 ? "none" : string.Join(", ", tokens);
     }
 
     private static string EscapeMarkdownTableCell(string value)
