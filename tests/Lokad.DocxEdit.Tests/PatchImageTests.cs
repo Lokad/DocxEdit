@@ -738,4 +738,91 @@ public static class PatchImageTests
         XAttribute cy = extent.Attribute("cy") ?? throw new InvalidDataException("Test fixture image extent lacks cy.");
         return ((long)cx, (long)cy);
     }
+
+    [Fact]
+    public static void ApplySetImageAltWithMatchingExpectAltSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0001
+            expect-alt Old chart
+            alt Updated chart
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Contains("descr=" + (char)34 + "Updated chart" + (char)34, ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetImageAltWithMismatchedExpectAltFails()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0001
+            expect-alt Stale chart
+            alt Updated chart
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void ApplySetImageMetadataWithMatchingExpectNameSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-metadata
+            target M.I0001
+            expect-name Picture 1
+            name Revenue picture
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("Revenue picture", Assert.Single(new DocxEditor().Read(output).Images).Name);
+    }
+
+    [Fact]
+    public static void CheckSetImageMetadataWithMissingExpectTitleFails()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-metadata
+            target M.I0001
+            expect-title Some title
+            title New title
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
+    }
+
 }

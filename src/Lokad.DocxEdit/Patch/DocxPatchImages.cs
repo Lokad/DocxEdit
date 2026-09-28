@@ -397,6 +397,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? alt = ReadRequiredField(operation, "alt", diagnostics);
+        string? expectedAlt = operation.Fields.GetValueOrDefault("expect-alt");
         if (alt is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
@@ -423,6 +424,12 @@ internal static partial class DocxPatchEngine
             return [diagnostic];
         }
 
+        string? currentAlt = (string?)imageContainer.Element(OoxmlNs.Wp + "docPr")?.Attribute("descr");
+        if (expectedAlt is not null && !string.Equals(currentAlt, expectedAlt, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image alt " + "\u0027" + expectedAlt + "\u0027" + ", found " + "\u0027" + (currentAlt ?? "none") + "\u0027" + ".", operation, target, fieldName: "expect-alt")];
+        }
+
 
         SetImageAlt(imageContainer, alt, target);
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
@@ -440,6 +447,9 @@ internal static partial class DocxPatchEngine
         string? alt = operation.Fields.GetValueOrDefault("alt");
         string? title = operation.Fields.GetValueOrDefault("title");
         string? name = operation.Fields.GetValueOrDefault("name");
+        string? expectedAlt = operation.Fields.GetValueOrDefault("expect-alt");
+        string? expectedTitle = operation.Fields.GetValueOrDefault("expect-title");
+        string? expectedName = operation.Fields.GetValueOrDefault("expect-name");
         if (alt is null && title is null && name is null)
         {
             diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", "Operation 'set-image-metadata' requires at least one of 'alt', 'title', or 'name'.", operation, target));
@@ -469,6 +479,25 @@ internal static partial class DocxPatchEngine
         if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out DocxDiagnostic? diagnostic))
         {
             return [diagnostic];
+        }
+
+        XElement? metadataDocPr = imageContainer.Element(OoxmlNs.Wp + "docPr");
+        string? currentAlt = (string?)metadataDocPr?.Attribute("descr");
+        string? currentTitle = (string?)metadataDocPr?.Attribute("title");
+        string? currentMetadataName = (string?)metadataDocPr?.Attribute("name");
+        if (expectedAlt is not null && !string.Equals(currentAlt, expectedAlt, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image alt " + "\u0027" + expectedAlt + "\u0027" + ", found " + "\u0027" + (currentAlt ?? "none") + "\u0027" + ".", operation, target, fieldName: "expect-alt")];
+        }
+
+        if (expectedTitle is not null && !string.Equals(currentTitle, expectedTitle, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image title " + "\u0027" + expectedTitle + "\u0027" + ", found " + "\u0027" + (currentTitle ?? "none") + "\u0027" + ".", operation, target, fieldName: "expect-title")];
+        }
+
+        if (expectedName is not null && !string.Equals(currentMetadataName, expectedName, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image name " + "\u0027" + expectedName + "\u0027" + ", found " + "\u0027" + (currentMetadataName ?? "none") + "\u0027" + ".", operation, target, fieldName: "expect-name")];
         }
 
 

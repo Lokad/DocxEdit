@@ -244,6 +244,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? name = ReadRequiredField(operation, "name", diagnostics);
+        string? expectedName = operation.Fields.GetValueOrDefault("expect-name");
         if (name is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
@@ -274,6 +275,11 @@ internal static partial class DocxPatchEngine
         if (string.IsNullOrWhiteSpace(oldName))
         {
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' has no current name.", operation, target)];
+        }
+
+        if (expectedName is not null && !string.Equals(oldName, expectedName, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected bookmark name " + "\u0027" + expectedName + "\u0027" + ", found " + "\u0027" + oldName + "\u0027" + ".", operation, target, fieldName: "expect-name")];
         }
 
         if (string.Equals(oldName, name, StringComparison.Ordinal))

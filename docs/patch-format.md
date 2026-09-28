@@ -202,6 +202,9 @@ current content or structure is known.
 | `expect-caption` | `set-table-metadata` | Current table caption must match; missing and empty are equivalent |
 | `expect-description` | `set-table-metadata` | Current table description must match; missing and empty are equivalent |
 | `expect-header` | `set-row-header` | Current repeating-header flag must match |
+| `expect-name` | `rename-bookmark` | Current bookmark name must match |
+| `expect-alt` | Image metadata edits | Current DrawingML description must match; a missing description never equals a value |
+| `expect-title` | Image metadata edits | Current DrawingML title must match; a missing title never equals a value |
 | `expect-content-type` | Image operations | Current media content type must match |
 | `expect-code` | Field code edits | Normalized field code must match |
 | `expect-result` | Field result edits | Cached field result must match |
@@ -257,7 +260,7 @@ Controls with a lock value other than unlocked are rejected.
 | --- | --- | --- | --- |
 | `add-bookmark` | `target`, `name` | `expect-text` | Creates a guarded paragraph bookmark |
 | `replace-bookmark-text` | `target`, `text` | | Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot |
-| `rename-bookmark` | `target`, `name` | | Renames markers and same-story internal hyperlink anchors when unambiguous |
+| `rename-bookmark` | `target`, `name` | `expect-name` | Renames markers and same-story internal hyperlink anchors when unambiguous |
 | `delete-bookmark` | `target` | | Removes complete unreferenced bookmark markers, preserving content |
 
 Bookmark names must be non-empty and contain no whitespace. Duplicate new names
@@ -367,8 +370,8 @@ caption <<<
 | --- | --- | --- | --- |
 | `replace-image` | `target`, `asset` | `expect-content-type`, `alt` | Replaces media bytes and preserves supported drawing layout |
 | `insert-image-after` | `target`, `asset` | `expect-content-type`, `width`, `height`, `alt` | Inserts an inline image paragraph after a paragraph target |
-| `set-image-alt` | `target`, `alt` | `expect-content-type` | Updates DrawingML description |
-| `set-image-metadata` | `target` plus `alt`, `title`, or `name` | `expect-content-type` | Updates DrawingML `docPr` metadata |
+| `set-image-alt` | `target`, `alt` | `expect-content-type`, `expect-alt` | Updates DrawingML description |
+| `set-image-metadata` | `target` plus `alt`, `title`, or `name` | `expect-content-type`, `expect-alt`, `expect-title`, `expect-name` | Updates DrawingML `docPr` metadata |
 | `set-image-size` | `target` plus `width` or `height` | `expect-content-type` | Updates DrawingML extents |
 | `set-image-wrap` | `target` plus `mode` or one distance field (`dist-top`, `dist-bottom`, `dist-left`, `dist-right`) | `expect-content-type` | Anchored images only |
 | `set-image-position` | `target` plus one positioning field (`horizontal-relative`, `horizontal-offset`, `horizontal-align`, `vertical-relative`, `vertical-offset`, `vertical-align`) | `expect-content-type` | Anchored images only |

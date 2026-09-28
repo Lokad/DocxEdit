@@ -588,4 +588,49 @@ public static class PatchBookmarkTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E6001");
     }
 
+
+    [Fact]
+    public static void ApplyRenameBookmarkWithMatchingExpectNameSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op rename-bookmark
+            target M.B0001
+            expect-name ClientName
+            name RenamedClient
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("RenamedClient", Assert.Single(new DocxEditor().Read(output).Bookmarks).Name);
+    }
+
+    [Fact]
+    public static void CheckRenameBookmarkWithMismatchedExpectNameFails()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op rename-bookmark
+            target M.B0001
+            expect-name StaleName
+            name RenamedClient
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
 }
