@@ -715,4 +715,87 @@ public static class PatchCommentTests
         output.Position = 0;
         Assert.True(new DocxEditor().Validate(output).Success);
     }
+
+    [Fact]
+    public static void ApplyTrackedTextChangePlusCommentUnderRequireSucceeds()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream input = CreateDocx("Anchor paragraph.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Anchor
+            with Edited
+            end
+
+            op add-comment
+            target M.P0001
+            text Review note
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Empty(Assert.Single(result.Operations, static o => o.OperationName == "add-comment").GeneratedRevisionIds);
+        Assert.NotEmpty(Assert.Single(result.Operations, static o => o.OperationName == "replace-text").GeneratedRevisionIds);
+        output.Position = 0;
+        string documentXml = ReadDocumentXml(output);
+        Assert.Contains("<w:del", documentXml, StringComparison.Ordinal);
+        Assert.Contains("<w:ins", documentXml, StringComparison.Ordinal);
+        Assert.Contains("<w:commentRangeStart", documentXml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("Review note", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckTrackedTextChangePlusCommentUnderRequireSucceeds()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream input = CreateDocx("Anchor paragraph.");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Anchor
+            with Edited
+            end
+
+            op add-comment
+            target M.P0001
+            text Review note
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+    }
+
+    [Fact]
+    public static void ApplyAddCommentAloneUnderRequireSucceeds()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream input = CreateDocx("Anchor paragraph.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text Review note
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Contains("Review note", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
+    }
+
 }

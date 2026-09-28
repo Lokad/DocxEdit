@@ -280,7 +280,7 @@ Track-change modes:
 | `off` | Apply direct edits |
 | `preserve` | Apply direct edits while preserving existing tracked-change markup where possible |
 | `suggest` | Generate new revision markup for supported operations; warn and apply directly for preserve-only operations or unsupported shapes |
-| `require` | Require generated revision markup; fail preserve-only operations and unsupported tracked shapes |
+| `require` | Require generated revision markup for content edits while permitting declared annotation (comment) operations; fail other preserve-only operations and unsupported tracked shapes |
 
 Generated tracked output is intentionally narrow. It supports simple text
 replacement, whole-paragraph replacement, inserted/deleted paragraph text,

@@ -54,7 +54,11 @@ internal sealed record OperationRegistration(
     string TrackNote,
     string Category,
     string Description,
-    PatchOperationHandler Handler);
+    PatchOperationHandler Handler)
+{
+    /// <summary>Whether the operation is intrinsic review or annotation markup that is permitted under Require without generated revisions.</summary>
+    public bool IsAnnotation { get; init; }
+}
 
 /// <summary>Engine implementation of one patch operation.</summary>
 internal delegate IReadOnlyList<DocxDiagnostic> PatchOperationHandler(
@@ -307,7 +311,7 @@ internal static partial class DocxPatchEngine
             "Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated.",
             "Comments",
             "Anchors a new comment to a modeled paragraph, or to one selected text span inside it",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddComment(package, operation, options, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddComment(package, operation, options, apply, cancellationToken), isAnnotation: true),
         Tracked(
             "set-comment-text",
             [
@@ -330,7 +334,7 @@ internal static partial class DocxPatchEngine
             "Comment resolution changes review metadata, not visible document text.",
             "Comments",
             "Creates or updates modern resolution metadata for basic comments",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken), isAnnotation: true),
         PreserveOnly(
             "reopen-comment",
             [
@@ -340,7 +344,7 @@ internal static partial class DocxPatchEngine
             "Comment reopening changes review metadata, not visible document text.",
             "Comments",
             "Clears modern resolution metadata for basic comments",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken), isAnnotation: true),
         PreserveOnly(
             "delete-comment",
             [
@@ -350,7 +354,7 @@ internal static partial class DocxPatchEngine
             "Comment deletion removes review markup, not a separate generated tracked edit.",
             "Comments",
             "Removes body, range/reference markers, and matching extension records",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken), isAnnotation: true),
         PreserveOnly(
             "add-comment-reply",
             [
@@ -364,7 +368,7 @@ internal static partial class DocxPatchEngine
             "Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit.",
             "Comments",
             "Adds a modern threaded reply under a comment",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken), isAnnotation: true),
         PreserveOnly(
             "delete-comment-reply",
             [
@@ -374,7 +378,7 @@ internal static partial class DocxPatchEngine
             "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit.",
             "Comments",
             "Removes a leaf threaded reply",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken)),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken), isAnnotation: true),
         PreserveOnly(
             "set-field-dirty",
             [
@@ -884,6 +888,12 @@ internal static partial class DocxPatchEngine
         };
     }
 
+    internal static bool IsAnnotationOperation(string operationName)
+    {
+        return OperationsByName.TryGetValue(operationName, out OperationRegistration? registration) &&
+            registration.IsAnnotation;
+    }
+
     internal static bool SupportsTrackedChangeOutput(string operationName)
     {
         return OperationsByName.TryGetValue(operationName, out OperationRegistration? registration) &&
@@ -922,7 +932,8 @@ internal static partial class DocxPatchEngine
         string rationale,
         string category,
         string description,
-        PatchOperationHandler handler)
+        PatchOperationHandler handler,
+        bool isAnnotation = false)
     {
         return new OperationRegistration(
             name,
@@ -930,10 +941,13 @@ internal static partial class DocxPatchEngine
             requireOneOf,
             TrackClassPreserveOnly,
             "preserve-only",
-            $"{rationale} {PreserveOnlyTrackChangesNote}",
+            $"{rationale} {PreserveOnlyTrackChangesNote}" + (isAnnotation ? " Declared annotation operations stay permitted under Require." : ""),
             category,
             description,
-            handler);
+            handler)
+        {
+            IsAnnotation = isAnnotation
+        };
     }
 
     private static OperationRegistration Tracked(

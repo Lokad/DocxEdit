@@ -376,6 +376,7 @@ public static class PatchTrackedChangesTests
     [Fact]
     public static void CheckTrackChangesRequireMatchesCatalogSupportForEveryPatchOperation()
     {
+            string[] annotationOperations = ["add-comment", "resolve-comment", "reopen-comment", "delete-comment", "add-comment-reply", "delete-comment-reply"];
         foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
         {
             using MemoryStream input = CreateDocx("Anchor paragraph.");
@@ -390,7 +391,7 @@ public static class PatchTrackedChangesTests
             DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
             bool hasUnsupportedOperationDiagnostic = result.Diagnostics.Any(diagnostic => diagnostic.Code == "E6001");
-            Assert.Equal(!operation.GeneratesTrackedChanges, hasUnsupportedOperationDiagnostic);
+            Assert.Equal(!operation.GeneratesTrackedChanges && !annotationOperations.Contains(operation.Name), hasUnsupportedOperationDiagnostic);
             if (hasUnsupportedOperationDiagnostic)
             {
                 DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
@@ -3131,7 +3132,7 @@ public static class PatchTrackedChangesTests
     }
 
     [Fact]
-    public static void ApplyTrackChangesRequireRejectsCommentCreationAsPreserveOnly()
+    public static void ApplyTrackChangesRequirePermitsCommentCreationAsAnnotation()
     {
         using MemoryStream input = CreateDocx("Anchor paragraph.");
         using var output = new MemoryStream();
@@ -3147,13 +3148,12 @@ public static class PatchTrackedChangesTests
 
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
-        Assert.False(Assert.Single(result.Operations).Success);
-        Assert.Equal(0, output.Length);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Code == "E6001");
+        Assert.True(Assert.Single(result.Operations).Success);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.Contains("Review note", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -3296,7 +3296,7 @@ public static class PatchTrackedChangesTests
     [InlineData("resolve-comment", "")]
     [InlineData("reopen-comment", "")]
     [InlineData("delete-comment", "")]
-    public static void ApplyTrackChangesRequireRejectsCommentMutationsAsPreserveOnly(string operationName, string extraFields)
+    public static void ApplyTrackChangesRequirePermitsCommentMutationsAsAnnotation(string operationName, string extraFields)
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
             """
@@ -3319,14 +3319,11 @@ public static class PatchTrackedChangesTests
 
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6001");
-        Assert.Contains($"operation '{operationName}'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'preserve-only'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-no-revision-representation", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
-        Assert.False(Assert.Single(result.Operations).Success);
-        Assert.Equal(0, output.Length);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Code == "E6001");
+        Assert.True(Assert.Single(result.Operations).Success);
+        Assert.Empty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        Assert.NotEqual(0, output.Length);
     }
 
     [Fact]

@@ -35,6 +35,7 @@ Common code ranges:
   tracked-change output; the message includes the shared catalog support value.
   `Feature` is `track-changes-no-revision-representation` and `Fallback` is
   `require-failed`.
+  Declared annotation operations (comments) stay permitted and do not raise this error.
 - `E6002`: `TrackChangesMode.Require` error for a tracked-capable operation whose
   specific target shape cannot be represented as generated revision markup. The
   message includes the operation name, target ID, catalog support value, and

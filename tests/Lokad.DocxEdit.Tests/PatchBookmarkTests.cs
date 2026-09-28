@@ -564,4 +564,28 @@ public static class PatchBookmarkTests
         Assert.Contains("M.B0002", diagnostic.Message, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public static void CheckAddBookmarkUnderRequireStillFails()
+    {
+        var options = new DocxEditOptions { TrackChanges = TrackChangesMode.Require };
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Client paragraph</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-bookmark
+            target M.P0001
+            expect-text Client paragraph
+            name ClientParagraph
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E6001");
+    }
+
 }

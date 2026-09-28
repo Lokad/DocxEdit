@@ -2574,7 +2574,10 @@ In `Suggest`, these preserve-only operations apply directly and return `W4001`
 warnings. The diagnostic message includes the operation's shared catalog support
 value, such as `preserve-only`.
 
-In `Require`, they fail with `E6001`. The diagnostic message includes the
+In `Require`, they fail with `E6001`, except declared annotation operations
+(add-comment, resolve-comment, reopen-comment, delete-comment,
+add-comment-reply, delete-comment-reply), which stay permitted because a comment
+is already review markup. The diagnostic message includes the
 operation's shared catalog support value so integrations can distinguish
 preserve-only operations from unclassified operations.
 

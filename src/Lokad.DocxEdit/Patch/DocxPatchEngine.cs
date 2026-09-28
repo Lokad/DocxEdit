@@ -100,7 +100,10 @@ internal static partial class DocxPatchEngine
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
             DocxTargetId? resolvedBefore = CaptureResolvedTargetSnapshot(package, operation, cancellationToken);
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
-            if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges)
+            // D15: intrinsic review/annotation operations are permitted under Require:
+            // a comment is already review markup, so requiring generated text
+            // revisions for it is not the same policy as tracking content changes.
+            if (options.TrackChanges == TrackChangesMode.Require && !supportsTrackedChanges && !IsAnnotationOperation(operation.OperationName))
             {
                 operationDiagnostics.Add(Diagnostic(
                     DocxSeverity.Error,
