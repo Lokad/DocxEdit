@@ -415,6 +415,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? style = ReadRequiredField(operation, "style", diagnostics);
+        string? expectedStyle = operation.Fields.GetValueOrDefault("expect-style");
         if (style is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
@@ -431,15 +432,20 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        string? currentStyle = (string?)paragraphTarget.Paragraph
+            .Element(OoxmlNs.W + "pPr")
+            ?.Element(OoxmlNs.W + "pStyle")
+            ?.Attribute(OoxmlNs.W + "val");
+        if (expectedStyle is not null && !string.Equals(currentStyle, expectedStyle, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected paragraph style " + "\u0027" + expectedStyle + "\u0027" + ", found " + "\u0027" + (currentStyle ?? "none") + "\u0027" + ".", operation, target)];
+        }
+
         if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
         {
             return [styleDiagnostic];
         }
 
-        string? currentStyle = (string?)paragraphTarget.Paragraph
-            .Element(OoxmlNs.W + "pPr")
-            ?.Element(OoxmlNs.W + "pStyle")
-            ?.Attribute(OoxmlNs.W + "val");
         if (string.Equals(styleId, currentStyle, StringComparison.Ordinal))
         {
             return NoOpResult(operation, target, "Set-style for " + target + " leaves the style unchanged; nothing was written and no revisions were generated.");

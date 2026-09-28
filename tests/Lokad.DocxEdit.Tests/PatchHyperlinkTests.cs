@@ -299,4 +299,119 @@ public static class PatchHyperlinkTests
         Assert.DoesNotContain("https://docs.example/", relationships, StringComparison.Ordinal);
         Assert.DoesNotContain("/hyperlink", relationships, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public static void ApplySetHyperlinkTextWithMatchingExpectTextSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            expect-text Old link
+            text New link
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("New link", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void CheckSetHyperlinkTextWithMismatchedExpectTextFails()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            expect-text Stale link
+            text New link
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
+    }
+
+    [Fact]
+    public static void ApplySetHyperlinkTextIdenticalTextIsNoOp()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+            """);
+        using MemoryStream probe = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+            """);
+        string before = ReadDocumentXml(probe);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            text Old link
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+        output.Position = 0;
+        Assert.Equal(before, ReadDocumentXml(output));
+    }
+
 }

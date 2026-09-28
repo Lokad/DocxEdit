@@ -80,6 +80,7 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
         if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
@@ -97,6 +98,15 @@ internal static partial class DocxPatchEngine
         }
 
         string current = ReadVisibleText(hyperlinkTarget.Hyperlink);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected hyperlink text does not match current text.", operation, target)];
+        }
+
+        if (string.Equals(text, current, StringComparison.Ordinal))
+        {
+            return NoOpResult(operation, target, "Set-hyperlink-text for " + target + " leaves the text unchanged; nothing was written and no revisions were generated.");
+        }
         bool useTrackedChanges = IsTrackedMode(options);
         if (useTrackedChanges)
         {

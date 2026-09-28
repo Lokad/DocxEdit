@@ -192,13 +192,13 @@ current content or structure is known.
 
 | Guard | Typical operations | Meaning |
 | --- | --- | --- |
-| `expect-text` | Paragraphs, cells, comments, content controls | Visible text must match before editing |
+| `expect-text` | Paragraphs, cells, comments, content controls, hyperlinks | Visible text must match before editing |
 | `expect-row-count` | Table and row edits | Target table must have the expected number of rows |
 | `expect-column-count` | Table and row edits | Target table must have the expected logical column count |
 | `expect-cell-count` | Row insert/delete | Target row must have the expected physical cell count |
 | `expect-contains` | `delete-row` | Row text must contain the exact guard value |
 | `expect-fill` | `set-cell-shading` | Current cell shading fill must match a hex color, `auto`, or `none` |
-| `expect-style` | `set-table-style` | Current table style must match |
+| `expect-style` | `set-table-style`, `set-style` | Current table or paragraph style ID must match |
 | `expect-caption` | `set-table-metadata` | Current table caption must match; missing and empty are equivalent |
 | `expect-description` | `set-table-metadata` | Current table description must match; missing and empty are equivalent |
 | `expect-header` | `set-row-header` | Current repeating-header flag must match |
@@ -229,7 +229,7 @@ The tables below group the same operations by editing area.
 | `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target, embedded `style` accepts an ID or display name |
 | `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target, embedded `style` accepts an ID or display name |
 | `delete-block` | `target` | `expect-text` | Deletes the target block |
-| `set-style` | `target`, `style` | | Sets paragraph style |
+| `set-style` | `target`, `style` | `expect-style` | Sets paragraph style |
 
 For list-like insertions, use `copy-paragraph-properties true` with a paragraph
 target. The new paragraph copies the target paragraph properties, including list
@@ -306,7 +306,7 @@ formulas, mail merge data, date/time state, conditionals, or external state.
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `set-hyperlink-target` | `target` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history` | Updates external URI or internal bookmark anchor |
-| `set-hyperlink-text` | `target`, `text` | | Updates visible hyperlink text |
+| `set-hyperlink-text` | `target`, `text` | `expect-text` | Updates visible hyperlink text |
 | `insert-hyperlink-after` | `target`, `text` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history` | Inserts a new hyperlink paragraph after the target |
 | `remove-hyperlink` | `target` | | Removes hyperlink markup and preserves display runs |
 

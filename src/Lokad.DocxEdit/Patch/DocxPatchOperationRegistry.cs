@@ -163,6 +163,7 @@ internal static partial class DocxPatchEngine
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("style", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-style", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
             TrackClassParagraphProperty,
@@ -454,6 +455,7 @@ internal static partial class DocxPatchEngine
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
             TrackClassTextRun,

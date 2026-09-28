@@ -287,4 +287,56 @@ public static class PatchStyleTests
         Assert.DoesNotContain("w:pPrChange", ReadDocumentXml(output), StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public static void ApplySetStyleWithMatchingExpectStyleSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
+            """, """
+              <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Body</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target M.P0001
+            expect-style Normal
+            style Heading 2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Contains("w:val=" + (char)34 + "Heading2" + (char)34, ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckSetStyleWithMismatchedExpectStyleFails()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            """, """
+              <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:t>Body</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-style
+            target M.P0001
+            expect-style Heading2
+            style Normal
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
+    }
+
 }
