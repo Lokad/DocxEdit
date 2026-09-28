@@ -17,7 +17,7 @@ internal static class DocxPatchParser
 
         string normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         string[] lines = normalized.Split('\n');
-        int firstContentLine = Array.FindIndex(lines, line => line.Trim().Length != 0);
+        int firstContentLine = Array.FindIndex(lines, static line => IsPreambleCandidate(line));
         if (firstContentLine < 0)
         {
             return Error("E2001", "Patch is empty.", 1, 1);
@@ -80,7 +80,7 @@ internal static class DocxPatchParser
 
                 int leadingWhitespace = operationLine.Length - operationLine.TrimStart().Length;
                 string fieldLine = operationLine[leadingWhitespace..];
-                int separator = fieldLine.IndexOf(' ');
+                int separator = fieldLine.IndexOfAny([' ', '\t']);
                 if (separator <= 0)
                 {
                     return Error("E2007", $"Invalid field line '{operationTrimmed}'.", i + 1, 1);
@@ -178,6 +178,12 @@ internal static class DocxPatchParser
         return string.Equals(operationName, "replace-text", StringComparison.Ordinal) &&
             string.Equals(key, "occurrence", StringComparison.Ordinal) &&
             string.Equals(value, "all", StringComparison.Ordinal);
+    }
+
+    private static bool IsPreambleCandidate(string line)
+    {
+        string trimmed = line.Trim();
+        return trimmed.Length != 0 && !trimmed.StartsWith('#');
     }
 
     internal static string UnescapePatchValue(string value)

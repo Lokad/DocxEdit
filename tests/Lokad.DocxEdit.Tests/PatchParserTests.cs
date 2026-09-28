@@ -476,4 +476,45 @@ public static class PatchParserTests
         Assert.Contains(patch.Diagnostics, static diagnostic => diagnostic.Code == "E2013");
     }
 
+
+    [Fact]
+    public static void ParsePatchAllowsLeadingCommentsBeforePreamble()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            # Generated patch for review.
+
+            # Blank lines and comments are ignored up to the preamble.
+            docxpatch 1
+
+            # A comment between operations is ignored too.
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+            """));
+
+        Assert.True(patch.Success);
+        DocxPatchOperation operation = Assert.Single(patch.Operations);
+        Assert.Equal("M.P0001", operation.Fields["target"]);
+        Assert.Equal("Omega", operation.Fields["with"]);
+    }
+
+    [Fact]
+    public static void ParsePatchAllowsTabBetweenFieldNameAndValue()
+    {
+        var editor = new DocxEditor();
+
+        string patchText = "docxpatch 1\n\nop replace-text\ntarget\tM.P0001\nfind\tAlpha\nwith\tOmega\nend\n";
+        DocxPatch patch = editor.ParsePatch(new StringReader(patchText));
+
+        Assert.True(patch.Success);
+        DocxPatchOperation operation = Assert.Single(patch.Operations);
+        Assert.Equal("M.P0001", operation.Fields["target"]);
+        Assert.Equal("Alpha", operation.Fields["find"]);
+        Assert.Equal("Omega", operation.Fields["with"]);
+    }
+
 }

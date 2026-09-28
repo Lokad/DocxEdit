@@ -27,9 +27,9 @@ end
 
 Rules:
 
-- The first non-empty line must be `docxpatch 1`.
+- The first non-empty, non-comment line must be `docxpatch 1`. `#` comment lines are ignored anywhere outside heredoc values.
 - Each operation starts with `op <name>` and ends with `end`.
-- Field lines use `field value`.
+- Field lines use `field value`, separated by a space or tab.
 - Multi-line values use heredocs:
 
   ```text
