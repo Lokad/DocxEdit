@@ -522,10 +522,13 @@ Overlap policy:
   custom XML revision range markers are protected boundaries for generated text
   edits. `suggest` falls back to a direct edit with `W4002`; `require` fails with
   `E6002`.
-- Generic paragraph/cell text edits do not cross comment ranges, bookmarks,
-  content controls, fields, or hyperlinks. Use the dedicated comment, bookmark,
-  content-control, field-result, or hyperlink-text operation when the wrapper is
-  the intended edit surface.
+- Direct run-preserving paragraph text edits fail only when the matched span
+  crosses comment ranges, bookmarks, content controls, fields, hyperlinks, or
+  tracked revision markup; spans through plain text beside that markup succeed
+  and preserve it. Paragraph rewrites with preserve-runs false, tracked output,
+  and whole-container replacements keep the whole-paragraph rule. Use the
+  dedicated comment, bookmark, content-control, field-result, or hyperlink-text
+  operation when the wrapper is the intended edit surface.
 - Property revisions are not nested or replaced. If a target already owns the
   same tracked property revision shape, `suggest` falls back and `require` fails.
 

@@ -382,8 +382,13 @@ public static class PatchApplyTests
         Assert.False(revisionResult.Success);
         Assert.Contains(revisionResult.Diagnostics, diagnostic => diagnostic.Code == "E4305");
 
-        using MemoryStream commentInput = CreateDocxWithCommentAnchoredParagraph();
-        using var commentPatch = new StringReader("""
+    }
+
+    [Fact]
+    public static void CheckReplaceTextInsideCommentRangePreservesMarkers()
+    {
+        using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
+        using var patch = new StringReader("""
             docxpatch 1
 
             op replace-text
@@ -393,17 +398,29 @@ public static class PatchApplyTests
             end
             """);
 
-        DocxCheckResult commentResult = new DocxEditor().Check(commentInput, commentPatch);
+        DocxCheckResult check = new DocxEditor().Check(input, patch);
 
-        Assert.False(commentResult.Success);
-        Assert.Contains(commentResult.Diagnostics, diagnostic =>
-            diagnostic.Code == "E4305" &&
-            diagnostic.Message.Contains("protected OOXML boundary 'comment'", StringComparison.Ordinal));
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocxWithCommentAnchoredParagraph();
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Commented
+            with Updated
+            end
+            """);
+
+        Assert.True(new DocxEditor().Apply(applyInput, applyPatch, output).Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:t>Updated</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("commentRangeStart", xml, StringComparison.Ordinal);
+        Assert.Contains("commentRangeEnd", xml, StringComparison.Ordinal);
     }
-
-
-
-
 
     [Fact]
     public static void ApplyPreservesUnknownPartsAndUnrelatedMedia()
@@ -1845,8 +1862,16 @@ public static class PatchApplyTests
     [Fact]
     public static void CheckProtectedErrorCarriesTargetFieldLocation()
     {
-        using MemoryStream input = CreateDocxWithBody("""
-              <w:p><w:commentRangeStart w:id="0"/><w:r><w:t>Text</w:t></w:r><w:commentRangeEnd w:id="0"/></w:p>
+        using MemoryStream input = CreateDocxWithBodyAndRelationships("""
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Text</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """, """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External" />
+                </Relationships>
             """);
         using var patch = new StringReader("""
             docxpatch 1

@@ -77,15 +77,26 @@ internal static partial class DocxPatchEngine
             return NoOpResult(operation, target, "Replace-text for " + target + " leaves the text unchanged; nothing was written and no revisions were generated.");
         }
 
-        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+        // D05: direct run-preserving edits check the actual match spans against
+        // protected boundaries; paragraph rewrites and tracked output keep the
+        // whole-paragraph gate because they rebuild the container.
+        bool directPreserveRuns = shouldPreserveRuns &&
+            options.TrackChanges is TrackChangesMode.Off or TrackChangesMode.Preserve;
+        SpanEditPlan spanPlan = directPreserveRuns
+            ? PlanSpanEdit(paragraphTarget.Paragraph, current, matches)
+            : SpanEditPlan.Legacy;
+        string? protectedFeature = spanPlan.UseLegacyGate
+            ? TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string legacyFeature) ? legacyFeature : null
+            : spanPlan.ProtectedFeature;
+        if (protectedFeature is not null)
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
-                TrackUnsupportedShape(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics);
+                TrackUnsupportedShape(options, operation, target, "paragraph contains protected OOXML boundary " + Quote(protectedFeature), diagnostics);
                 return diagnostics;
             }
 
-            return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4305", "Text edit for " + target + " crosses protected OOXML boundary " + Quote(protectedFeature) + ".", operation, target)];
         }
 
         bool useTrackedChanges = options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;
@@ -111,9 +122,13 @@ internal static partial class DocxPatchEngine
 
         if (shouldPreserveRuns)
         {
-            if (!TryReplaceParagraphTextPreservingRuns(paragraphTarget.Paragraph, matches, replacement, out string? unsupportedReason))
+            string? unsupportedReason;
+            bool replaced = !spanPlan.UseLegacyGate && spanPlan.Positions is not null && spanPlan.DirectMatches is not null
+                ? ReplaceDirectTextRanges(paragraphTarget.Paragraph, spanPlan.Positions, spanPlan.DirectMatches, replacement, out unsupportedReason)
+                : TryReplaceParagraphTextPreservingRuns(paragraphTarget.Paragraph, matches, replacement, out unsupportedReason);
+            if (!replaced)
             {
-                return [Diagnostic(DocxSeverity.Error, "E4306", $"Run-preserving replacement is not supported for {target}: {unsupportedReason}. Use preserve-runs false to allow paragraph-level rewriting.", operation, target)];
+                return [Diagnostic(DocxSeverity.Error, "E4306", "Run-preserving replacement is not supported for " + target + ": " + unsupportedReason + ". Use preserve-runs false to allow paragraph-level rewriting.", operation, target)];
             }
         }
         else

@@ -1115,7 +1115,24 @@ internal static partial class DocxPatchEngine
             return false;
         }
 
-        TextPosition?[] positions = BuildTextPositions(paragraph);
+        return ReplaceDirectTextRanges(paragraph, BuildTextPositions(paragraph), matches, replacement, out unsupportedReason);
+    }
+
+    private static bool ReplaceDirectTextRanges(
+        XElement paragraph,
+        TextPosition?[] positions,
+        IReadOnlyList<TextRange> matches,
+        string replacement,
+        [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        // 9 and 10 encode tab and line feed; quote bytes stay out of this file.
+        if (replacement.Contains((char)9) || replacement.Contains((char)10))
+        {
+            unsupportedReason = "replacement contains tabs or line breaks";
+            return false;
+        }
+
         foreach (TextRange match in matches)
         {
             for (int i = match.Start; i < match.Start + match.Length; i++)

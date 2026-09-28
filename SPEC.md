@@ -1510,12 +1510,18 @@ Rules:
 * `find` must match exactly once unless `occurrence` selects one match (`occurrence N`) or requests every match (`occurrence all`). An ambiguous match without `occurrence` fails instead of replacing every match.
 * If replacement is within a single run, split the run and preserve run properties.
 * If replacement spans simple adjacent runs, preserve the first matched run’s properties for the replacement.
-* Fail if replacement crosses:
+* Fail if a direct run-preserving replacement span crosses:
 
   * field boundaries
   * hyperlink boundaries
   * comment range boundaries
   * structured document tag boundaries
+  * tracked revision boundaries
+
+* Spans through plain text beside those boundaries succeed and preserve them.
+  Paragraph rewrites with preserve-runs false, and tracked output in any mode,
+  keep the whole-paragraph rule: they fail when the paragraph contains any of
+  the boundaries above, because they rebuild the container.
   * unsupported revision boundaries
 * Preserve `xml:space="preserve"` when replacement text has leading/trailing spaces or repeated spaces.
 

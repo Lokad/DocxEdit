@@ -68,7 +68,8 @@ public static class ParagraphCapabilitiesTests
                 """);
             DocxTargetCapabilities capabilities = GetParagraphCapabilities(input, "M.P0001", mode);
 
-            Assert.Equal("unsupported", FindOperation(capabilities, "replace-text").Support);
+            string expectedText = mode == TrackChangesMode.Off ? "conditional" : "unsupported";
+            Assert.Equal(expectedText, FindOperation(capabilities, "replace-text").Support);
             Assert.Contains("hyperlink", FindOperation(capabilities, "replace-text").Reason, StringComparison.Ordinal);
             Assert.Equal("insert-after", FindOperation(capabilities, "replace-text").Alternative);
             Assert.Equal("unsupported", FindOperation(capabilities, "replace-paragraph").Support);
