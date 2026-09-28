@@ -872,7 +872,8 @@ internal static partial class DocxPatchEngine
 
     private static bool IsSupportedContentControlTargetShape(string target)
     {
-        return DocxTargetId.TryParse(target, out DocxTargetId contentcontrolId) && contentcontrolId.Kind == DocxTargetKind.ContentControl;
+        return (DocxTargetId.TryParse(target, out DocxTargetId contentcontrolId) && contentcontrolId.Kind == DocxTargetKind.ContentControl)
+            || target.StartsWith("content-control:", StringComparison.Ordinal);
     }
 
     private static bool IsSupportedFieldTargetShape(string target)
@@ -882,14 +883,30 @@ internal static partial class DocxPatchEngine
 
     private static bool IsSupportedBookmarkTargetShape(string target)
     {
-        return DocxTargetId.TryParse(target, out DocxTargetId bookmarkId) && bookmarkId.Kind == DocxTargetKind.Bookmark;
+        return (DocxTargetId.TryParse(target, out DocxTargetId bookmarkId) && bookmarkId.Kind == DocxTargetKind.Bookmark)
+            || target.StartsWith("bookmark:", StringComparison.Ordinal);
     }
 
     private static ContentControlTarget? ResolveContentControlTarget(
         OoxmlPackage package,
+        DocxPatchOperation operation,
         string target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
+        diagnostics = [];
+        if (TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? selectorDiagnostic)
+            && selector is ContentControlTargetSelector contentControlSelector)
+        {
+            return ResolveContentControlTargetByName(package, operation, target, contentControlSelector.Name, cancellationToken, out diagnostics);
+        }
+
+        if (selectorDiagnostic is not null)
+        {
+            diagnostics = [selectorDiagnostic];
+            return null;
+        }
+
         if (!DocxTargetId.TryParse(target, out DocxTargetId controlId) || controlId.Kind != DocxTargetKind.ContentControl)
         {
             return null;
@@ -1041,9 +1058,24 @@ internal static partial class DocxPatchEngine
 
     private static BookmarkTarget? ResolveBookmarkTarget(
         OoxmlPackage package,
+        DocxPatchOperation operation,
         string target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
+        diagnostics = [];
+        if (TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? selectorDiagnostic)
+            && selector is BookmarkTargetSelector bookmarkSelector)
+        {
+            return ResolveBookmarkTargetByName(package, operation, target, bookmarkSelector.Name, cancellationToken, out diagnostics);
+        }
+
+        if (selectorDiagnostic is not null)
+        {
+            diagnostics = [selectorDiagnostic];
+            return null;
+        }
+
         if (!DocxTargetId.TryParse(target, out DocxTargetId bookmarkId) || bookmarkId.Kind != DocxTargetKind.Bookmark)
         {
             return null;
@@ -1086,6 +1118,109 @@ internal static partial class DocxPatchEngine
                 .Descendants(OoxmlNs.W + "bookmarkEnd")
                 .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), ooxmlId, StringComparison.Ordinal));
         return start is null ? null : new BookmarkTarget(partName, document, start, end);
+    }
+
+    private static ContentControlTarget? ResolveContentControlTargetByName(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        string name,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        var matches = new List<ContentControlTarget>();
+        var matchIds = new List<string>();
+        IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
+        foreach (string partName in GetEditableStoryPartNames(package, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!prefixes.TryGetValue(partName, out string? prefix))
+            {
+                continue;
+            }
+
+            (char story, int storyPart) = DocxTargetId.ParseStoryPrefix(prefix);
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            int ordinal = 0;
+            foreach (XElement contentControl in document.Descendants(OoxmlNs.W + "sdt"))
+            {
+                ordinal++;
+                XElement? properties = contentControl.Element(OoxmlNs.W + "sdtPr");
+                string? tag = (string?)properties
+                    ?.Element(OoxmlNs.W + "tag")
+                    ?.Attribute(OoxmlNs.W + "val");
+                string? alias = (string?)properties
+                    ?.Element(OoxmlNs.W + "alias")
+                    ?.Attribute(OoxmlNs.W + "val");
+                if (!string.Equals(tag, name, StringComparison.Ordinal) && !string.Equals(alias, name, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var id = new DocxTargetId(story, storyPart, DocxTargetKind.ContentControl, ordinal, 0, 0);
+                matches.Add(new ContentControlTarget(partName, document, contentControl));
+                matchIds.Add(id.ToWireValue());
+            }
+        }
+
+        if (matches.Count > 1)
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1202", "Content-control name matched " + matches.Count + " controls: " + string.Join(", ", matchIds) + ". Use an explicit content-control ID.", operation, target)];
+            return null;
+        }
+
+        return matches.Count == 0 ? null : matches[0];
+    }
+
+    private static BookmarkTarget? ResolveBookmarkTargetByName(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        string name,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        var matches = new List<BookmarkTarget>();
+        var matchIds = new List<string>();
+        IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
+        foreach (string partName in GetEditableStoryPartNames(package, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!prefixes.TryGetValue(partName, out string? prefix))
+            {
+                continue;
+            }
+
+            (char story, int storyPart) = DocxTargetId.ParseStoryPrefix(prefix);
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            int ordinal = 0;
+            foreach (XElement start in document.Descendants(OoxmlNs.W + "bookmarkStart"))
+            {
+                ordinal++;
+                if (!string.Equals((string?)start.Attribute(OoxmlNs.W + "name"), name, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string? ooxmlId = (string?)start.Attribute(OoxmlNs.W + "id");
+                XElement? end = ooxmlId is null
+                    ? null
+                    : document.Descendants(OoxmlNs.W + "bookmarkEnd").FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), ooxmlId, StringComparison.Ordinal));
+                var id = new DocxTargetId(story, storyPart, DocxTargetKind.Bookmark, ordinal, 0, 0);
+                matches.Add(new BookmarkTarget(partName, document, start, end));
+                matchIds.Add(id.ToWireValue());
+            }
+        }
+
+        if (matches.Count > 1)
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1202", "Bookmark name matched " + matches.Count + " bookmarks: " + string.Join(", ", matchIds) + ". Use an explicit bookmark ID.", operation, target)];
+            return null;
+        }
+
+        return matches.Count == 0 ? null : matches[0];
     }
 
     private static HyperlinkTarget? ResolveHyperlinkTarget(

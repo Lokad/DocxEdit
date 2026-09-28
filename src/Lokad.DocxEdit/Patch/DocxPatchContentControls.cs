@@ -26,7 +26,12 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
@@ -141,7 +146,12 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
@@ -199,7 +209,12 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];
@@ -259,7 +274,12 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, target, cancellationToken);
+        ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (controlTarget is null && !IsSupportedContentControlTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported content-control target '{target}'. Expected a content control ID such as M.CC0001 or H001.CC0001.", operation, target)];

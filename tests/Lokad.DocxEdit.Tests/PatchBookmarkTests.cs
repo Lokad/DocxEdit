@@ -495,4 +495,73 @@ public static class PatchBookmarkTests
         Assert.Equal("E4311", diagnostic.Code);
         Assert.Contains("protected OOXML boundary 'hyperlink'", diagnostic.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public static void ApplyReplaceBookmarkTextWithNameSelector()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target bookmark:"ClientName"
+            text New Client
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("Before New Client After", new DocxEditor().Read(output).Paragraphs[0].Text);
+    }
+
+    [Fact]
+    public static void CheckReplaceBookmarkTextWithUnknownNameFails()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target bookmark:"Missing"
+            text New Client
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
+    [Fact]
+    public static void CheckReplaceBookmarkTextWithDuplicateNameFails()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="ClientName"/>
+                      <w:r><w:t>First</w:t></w:r></w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="2" w:name="ClientName"/>
+                      <w:r><w:t>Second</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target bookmark:"ClientName"
+            text New
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1202");
+        Assert.Contains("M.B0001", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("M.B0002", diagnostic.Message, StringComparison.Ordinal);
+    }
+
 }

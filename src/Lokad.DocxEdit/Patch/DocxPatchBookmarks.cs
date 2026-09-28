@@ -25,7 +25,12 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target, cancellationToken);
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
@@ -249,7 +254,12 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'name' must be a non-empty bookmark name without whitespace.", operation, target)];
         }
 
-        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target, cancellationToken);
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];
@@ -302,7 +312,12 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
-        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, target, cancellationToken);
+        BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
+        if (selectorDiagnostics.Count != 0)
+        {
+            return selectorDiagnostics;
+        }
+
         if (bookmarkTarget is null && !IsSupportedBookmarkTargetShape(target))
         {
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Unsupported bookmark target '{target}'. Expected a bookmark ID such as M.B0001 or H001.B0001.", operation, target)];

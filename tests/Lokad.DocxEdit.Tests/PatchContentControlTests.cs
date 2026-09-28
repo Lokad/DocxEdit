@@ -492,4 +492,147 @@ public static class PatchContentControlTests
             diagnostic.TargetId == "M.CC0001" &&
             diagnostic.Message.Contains("repeating-section item edits", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public static void ApplySetContentControlTextWithTagSelector()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="amount"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Old</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target content-control:"amount"
+            text New
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("New", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplySetContentControlTextWithAliasSelector()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="amount"/>
+                          <w:alias w:val="Amount due"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Old</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target content-control:"Amount due"
+            text New
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("New", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void CheckSetContentControlTextWithUnknownTagFails()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="amount"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Old</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target content-control:"missing"
+            text New
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
+    [Fact]
+    public static void CheckSetContentControlTextWithDuplicateTagFails()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="amount"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>First</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:text/>
+                          <w:tag w:val="amount"/>
+                        </w:sdtPr>
+                        <w:sdtContent>
+                          <w:r><w:t>Second</w:t></w:r>
+                        </w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target content-control:"amount"
+            text New
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1202");
+        Assert.Contains("M.CC0001", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("M.CC0002", diagnostic.Message, StringComparison.Ordinal);
+    }
+
 }

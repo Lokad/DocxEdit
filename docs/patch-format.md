@@ -247,6 +247,7 @@ numbering, while dropping copied `w:pPrChange` and `w:sectPr`. An explicit
 | `delete-repeating-section-item` | `target` | `index` | Recognized but fails with `E4315` |
 
 Content-control edits preserve the `w:sdt` wrapper and metadata when supported.
+Content-control operations accept an explicit control ID or a semantic tag-or-alias selector, resolved against every editable story; zero matches fail and multiple matches fail with candidate IDs.
 Controls with a lock value other than unlocked are rejected.
 
 ### Bookmarks
@@ -260,6 +261,7 @@ Controls with a lock value other than unlocked are rejected.
 
 Bookmark names must be non-empty and contain no whitespace. Duplicate new names
 are rejected.
+Bookmark operations accept an explicit bookmark ID or a semantic name selector, resolved against every editable story; zero matches fail and multiple matches fail with candidate IDs.
 
 ### Comments
 
