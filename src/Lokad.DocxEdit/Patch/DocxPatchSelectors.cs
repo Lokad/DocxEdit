@@ -10,9 +10,11 @@ namespace Lokad.DocxEdit;
 internal static partial class DocxPatchEngine
 {
     private static XElement? ResolveMainBlock(
+        OoxmlPackage package,
         XElement body,
         DocxPatchOperation operation,
         string target,
+        CancellationToken cancellationToken,
         out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         diagnostics = [];
@@ -24,7 +26,7 @@ internal static partial class DocxPatchEngine
 
         if (selector is not ExplicitIdTargetSelector explicitId)
         {
-            return ResolveMainParagraphElementBySelector(body, selector, operation, out diagnostics);
+            return ResolveMainParagraphElementBySelector(package, body, selector, operation, cancellationToken, out diagnostics);
         }
 
         if (explicitId.TargetId is not { } blockId)
@@ -63,7 +65,7 @@ internal static partial class DocxPatchEngine
         {
 
             XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
-            XElement? selectedBlock = ResolveMainBlock(mainBody, operation, target, out diagnostics);
+            XElement? selectedBlock = ResolveMainBlock(package, mainBody, operation, target, cancellationToken, out diagnostics);
             return selectedBlock is null
                 ? null
                 : new BlockTarget(package.MainDocumentPartName, mainDocument, selectedBlock);
@@ -138,7 +140,7 @@ internal static partial class DocxPatchEngine
 
 
         XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
-        XElement? selectedParagraph = ResolveMainParagraphElementBySelector(mainBody, selector, operation, out diagnostics);
+        XElement? selectedParagraph = ResolveMainParagraphElementBySelector(package, mainBody, selector, operation, cancellationToken, out diagnostics);
         return selectedParagraph is null
             ? null
             : new ParagraphTarget(package.MainDocumentPartName, mainDocument, selectedParagraph);
@@ -242,55 +244,65 @@ internal static partial class DocxPatchEngine
     }
 
     private static XElement? ResolveMainParagraphElementBySelector(
+        OoxmlPackage package,
         XElement body,
         TargetSelector selector,
         DocxPatchOperation operation,
+        CancellationToken cancellationToken,
         out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         diagnostics = [];
         if (selector is HeadingTargetSelector headingSelector)
         {
             return ResolveMainParagraphElementByPredicate(
+                package,
                 body,
                 paragraph =>
                 {
-                    int? headingLevel = ReadHeadingLevel(paragraph);
+                    int? headingLevel = DocxHeadingLevels.GetHeadingLevel(package, paragraph, cancellationToken);
                     return headingLevel is not null &&
                         (headingSelector.Level is null || headingSelector.Level == headingLevel) &&
                         string.Equals(ReadVisibleText(paragraph), headingSelector.Text, StringComparison.Ordinal);
                 },
                 selector.Raw,
                 operation,
+                cancellationToken,
                 out diagnostics);
         }
 
         if (selector is ParagraphTextTargetSelector paragraphTextSelector)
         {
             return ResolveMainParagraphElementByPredicate(
+                package,
                 body,
                 paragraph => ReadVisibleText(paragraph).Contains(paragraphTextSelector.Text, StringComparison.Ordinal),
                 selector.Raw,
                 operation,
+                cancellationToken,
                 out diagnostics);
         }
 
         if (selector is BookmarkTargetSelector bookmarkSelector)
         {
             return ResolveMainParagraphElementByPredicate(
+                package,
                 body,
                 paragraph => ParagraphHasBookmark(paragraph, bookmarkSelector.Name),
                 selector.Raw,
                 operation,
+                cancellationToken,
                 out diagnostics);
         }
 
         if (selector is ContentControlTargetSelector contentControlSelector)
         {
             return ResolveMainParagraphElementByPredicate(
+                package,
                 body,
                 paragraph => ParagraphHasContentControl(paragraph, contentControlSelector.Name),
                 selector.Raw,
                 operation,
+                cancellationToken,
                 out diagnostics);
         }
 
@@ -323,10 +335,12 @@ internal static partial class DocxPatchEngine
     }
 
     private static XElement? ResolveMainParagraphElementByPredicate(
+        OoxmlPackage package,
         XElement body,
         Func<XElement, bool> predicate,
         string rawSelector,
         DocxPatchOperation operation,
+        CancellationToken cancellationToken,
         out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         diagnostics = [];
@@ -367,7 +381,7 @@ internal static partial class DocxPatchEngine
                 Diagnostic(
                     DocxSeverity.Error,
                     "E1201",
-                    $"Selector matched 0 targets: {rawSelector}.{BuildNoMatchSuggestion(body, rawSelector)}",
+                    $"Selector matched 0 targets: {rawSelector}.{BuildNoMatchSuggestion(package, body, rawSelector, cancellationToken)}",
                     operation,
                     rawSelector)
             ];
@@ -377,11 +391,11 @@ internal static partial class DocxPatchEngine
         return matches[0].Paragraph;
     }
 
-    private static string BuildNoMatchSuggestion(XElement body, string rawSelector)
+    private static string BuildNoMatchSuggestion(OoxmlPackage package, XElement body, string rawSelector, CancellationToken cancellationToken)
     {
         string[] suggestions = rawSelector.StartsWith("heading:", StringComparison.Ordinal)
             ? EnumerateMainParagraphs(body)
-                .Select(match => (match.Id, HeadingLevel: ReadHeadingLevel(match.Paragraph)))
+                .Select(match => (match.Id, HeadingLevel: DocxHeadingLevels.GetHeadingLevel(package, match.Paragraph, cancellationToken)))
                 .Where(match => match.HeadingLevel is not null)
                 .Take(3)
                 .Select(match => $"{match.Id} heading level={match.HeadingLevel}")
@@ -414,23 +428,6 @@ internal static partial class DocxPatchEngine
             paragraphOrdinal++;
             yield return new ParagraphSelectorMatch($"M.P{paragraphOrdinal:0000}", entry.Block);
         }
-    }
-
-    private static int? ReadHeadingLevel(XElement paragraph)
-    {
-        string? styleId = (string?)paragraph
-            .Element(OoxmlNs.W + "pPr")
-            ?.Element(OoxmlNs.W + "pStyle")
-            ?.Attribute(OoxmlNs.W + "val");
-        if (styleId is null)
-        {
-            return null;
-        }
-
-        string digits = new(styleId.Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out int level) && level is >= 1 and <= 9
-            ? level
-            : null;
     }
 
     private static SectionTarget? ResolveMainSectionTarget(

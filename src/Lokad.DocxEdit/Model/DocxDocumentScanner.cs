@@ -107,7 +107,7 @@ internal static partial class DocxDocumentScanner
                 targets[block] = paragraphId.ToWireValue();
                 if (visible)
                 {
-                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, ref imageIndex));
+                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, ref imageIndex, cancellationToken));
                     sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
                 }
             }
@@ -153,7 +153,8 @@ internal static partial class DocxDocumentScanner
         DocxNumberingCatalog numbering,
         DocxNumberingLabeler numberingLabeler,
         List<DocxImageInfo> images,
-        ref int imageIndex)
+        ref int imageIndex,
+        CancellationToken cancellationToken)
     {
         DocxRunInfo[] runs = ReadRuns(paragraph, textView);
         foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
@@ -167,7 +168,7 @@ internal static partial class DocxDocumentScanner
             id,
             story,
             ReadText(paragraph, textView),
-            ReadHeadingLevel(paragraph),
+            DocxHeadingLevels.GetHeadingLevel(package, paragraph, cancellationToken),
             numberingLabeler.ApplyLabel(ReadListInfo(paragraph, styleId, stylesById, numbering)),
             runs)
         {
@@ -391,20 +392,6 @@ internal static partial class DocxDocumentScanner
     {
         return DateTimeOffset.TryParse(value, out DateTimeOffset parsed)
             ? parsed.ToUniversalTime()
-            : null;
-    }
-
-    private static int? ReadHeadingLevel(XElement paragraph)
-    {
-        string? styleId = ReadParagraphStyleId(paragraph);
-        if (styleId is null)
-        {
-            return null;
-        }
-
-        string digits = new(styleId.Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out int level) && level is >= 1 and <= 9
-            ? level
             : null;
     }
 

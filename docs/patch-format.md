@@ -155,6 +155,7 @@ Paragraph operations also support semantic selectors:
 - `text:"contained paragraph text"`.
 - `bookmark:"BookmarkName"`.
 - `content-control:"TagOrAlias"`.
+- Headings resolve by real outline levels (a direct outline level, the paragraph style chain, or the built-in Heading 1-9 styles), never by digits in a style ID.
 
 Ambiguous selectors fail with `E1202`; use an explicit ID from `read`,
 `context`, or `find`. Selectors with no match fail with `E1201`.

@@ -1026,7 +1026,7 @@ internal static class DocxTestFixtures
             AddEntry(archive, "word/styles.xml", """
                 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
                   <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
-                  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+                  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
                 </w:styles>
                 """);
         }

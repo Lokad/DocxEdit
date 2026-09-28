@@ -1388,6 +1388,7 @@ Selector rules:
 * A selector must resolve to exactly one target unless the operation explicitly supports multiple targets.
 * Case-sensitive exact matching by default.
 * Whitespace is normalized for semantic text selectors.
+* heading selectors match real outline levels (direct outline levels, style inheritance, or built-in Heading 1-9), not digits in style IDs.
 * On zero matches, return an error with nearest candidate targets.
 * On multiple matches, return an error listing the matched targets.
 
