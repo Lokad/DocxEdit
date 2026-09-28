@@ -384,7 +384,7 @@ internal static partial class DocxPatchEngine
                     "E3201",
                     $"Guard failed for {target}. Expected text does not match current text.",
                     operation,
-                    target)
+                    target, fieldName: "expect-text")
             ];
         }
 
@@ -495,7 +495,7 @@ internal static partial class DocxPatchEngine
         string? currentFill = ReadCellShadingFill(cellTarget.Cell);
         if (normalizedExpectedFill is not null && !CellShadingFillMatches(currentFill, normalizedExpectedFill))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected cell shading fill '{normalizedExpectedFill}', found '{currentFill ?? "none"}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected cell shading fill '{normalizedExpectedFill}', found '{currentFill ?? "none"}'.", operation, target, fieldName: "expect-fill")];
         }
 
 
@@ -543,7 +543,7 @@ internal static partial class DocxPatchEngine
         string? currentStyle = ReadTableStyleId(tableTarget.Table);
         if (expectedStyle is not null && !string.Equals(currentStyle, expectedStyle, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table style '{expectedStyle}', found '{currentStyle ?? "none"}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table style '{expectedStyle}', found '{currentStyle ?? "none"}'.", operation, target, fieldName: "expect-style")];
         }
 
         if (!TryResolveStyleId(package, style, "table", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
@@ -601,13 +601,13 @@ internal static partial class DocxPatchEngine
         string? currentCaption = ReadTableTextProperty(tableTarget.Table, "tblCaption");
         if (expectedCaption is not null && !TableMetadataEquals(currentCaption, expectedCaption))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table caption '{expectedCaption}', found '{currentCaption ?? "none"}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table caption '{expectedCaption}', found '{currentCaption ?? "none"}'.", operation, target, fieldName: "expect-caption")];
         }
 
         string? currentDescription = ReadTableTextProperty(tableTarget.Table, "tblDescription");
         if (expectedDescription is not null && !TableMetadataEquals(currentDescription, expectedDescription))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table description '{expectedDescription}', found '{currentDescription ?? "none"}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table description '{expectedDescription}', found '{currentDescription ?? "none"}'.", operation, target, fieldName: "expect-description")];
         }
 
 
@@ -649,7 +649,7 @@ internal static partial class DocxPatchEngine
         bool currentHeader = ReadTableRowHeader(rowTarget.Row);
         if (expectedHeader is not null && currentHeader != expectedHeader)
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row header '{expectedHeader.Value.ToString().ToLowerInvariant()}', found '{currentHeader.ToString().ToLowerInvariant()}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row header '{expectedHeader.Value.ToString().ToLowerInvariant()}', found '{currentHeader.ToString().ToLowerInvariant()}'.", operation, target, fieldName: "expect-header")];
         }
 
 
@@ -900,7 +900,7 @@ internal static partial class DocxPatchEngine
         string rowText = ReadVisibleText(rowTarget.Row);
         if (expectedContains is not null && !rowText.Contains(expectedContains, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row text to contain '{expectedContains}'.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected row text to contain '{expectedContains}'.", operation, target, fieldName: "expect-contains")];
         }
 
         XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
@@ -969,18 +969,18 @@ internal static partial class DocxPatchEngine
         int actualRowCount = table.Elements(OoxmlNs.W + "tr").Count();
         if (expectedRowCount is not null && actualRowCount != expectedRowCount)
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedRowCount} row(s), found {actualRowCount}.", operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedRowCount} row(s), found {actualRowCount}.", operation, target, fieldName: "expect-row-count"));
         }
 
         if (expectedColumnCount is not null)
         {
             if (!TryGetConsistentVisualColumnCount(table, out int actualColumnCount))
             {
-                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), but table does not have a consistent visual grid.", operation, target));
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), but table does not have a consistent visual grid.", operation, target, fieldName: "expect-column-count"));
             }
             else if (actualColumnCount != expectedColumnCount)
             {
-                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), found {actualColumnCount}.", operation, target));
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumnCount} column(s), found {actualColumnCount}.", operation, target, fieldName: "expect-column-count"));
             }
         }
 
@@ -988,14 +988,14 @@ internal static partial class DocxPatchEngine
         {
             if (row is null)
             {
-                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Field 'expect-cell-count' requires a row or cell target.", operation, target));
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Field 'expect-cell-count' requires a row or cell target.", operation, target, fieldName: "expect-cell-count"));
             }
             else
             {
                 int actualCellCount = row.Elements(OoxmlNs.W + "tc").Count();
                 if (actualCellCount != expectedCellCount)
                 {
-                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedCellCount} cell(s), found {actualCellCount}.", operation, target));
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedCellCount} cell(s), found {actualCellCount}.", operation, target, fieldName: "expect-cell-count"));
                 }
             }
         }

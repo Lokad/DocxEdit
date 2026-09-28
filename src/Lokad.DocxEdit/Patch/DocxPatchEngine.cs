@@ -1737,9 +1737,10 @@ internal static partial class DocxPatchEngine
         string code,
         string message,
         DocxPatchOperation operation,
-        string? targetId)
+        string? targetId,
+        string? fieldName = null)
     {
-        return Diagnostic(severity, code, message, operation, targetId, feature: null, fallback: null);
+        return Diagnostic(severity, code, message, operation, targetId, feature: null, fallback: null, fieldName: fieldName);
     }
 
     private static DocxDiagnostic Diagnostic(
@@ -1749,14 +1750,21 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         string? targetId,
         string? feature,
-        string? fallback)
+        string? fallback,
+        string? fieldName = null)
     {
+        string? locationField = fieldName ?? (targetId is null ? null : "target");
+        DocxPatchField? field = locationField is null
+            ? null
+            : operation.FieldValues.FirstOrDefault(candidate => string.Equals(candidate.Name, locationField, StringComparison.Ordinal));
         return new DocxDiagnostic(severity, code, message) with
         {
             TargetId = targetId,
             Feature = feature,
             Fallback = fallback,
-            OperationIndex = operation.Index
+            OperationIndex = operation.Index,
+            Line = field?.Line,
+            Column = field?.Column
         };
     }
 }

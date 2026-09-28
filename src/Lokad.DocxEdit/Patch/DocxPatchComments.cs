@@ -78,7 +78,7 @@ internal static partial class DocxPatchEngine
                     "E3201",
                     $"Guard failed for {target}. Expected text does not match current text.",
                     operation,
-                    target)
+                    target, fieldName: "expect-text")
             ];
         }
 
@@ -88,7 +88,7 @@ internal static partial class DocxPatchEngine
             IReadOnlyList<TextRange> matches = FindTextMatches(current, anchorText, occurrence);
             if (matches.Count == 0)
             {
-                return [Diagnostic(DocxSeverity.Error, "E4203", $"Anchor text was not found in {target}.", operation, target)];
+                return [Diagnostic(DocxSeverity.Error, "E4203", $"Anchor text was not found in {target}.", operation, target, fieldName: "anchor-text")];
             }
 
             if (occurrence is null && matches.Count > 1)

@@ -2,6 +2,8 @@
 
 Diagnostics have a severity, code, message, and optional target, part, story, feature, fallback, operation index, line, and column.
 
+Patch-operation findings reuse source positions: selector findings point at the target field, guard findings at the guard field, and find or anchor findings at the find or anchor-text field.
+
 Common code ranges:
 
 - `E0001`: expected document/package/XML failure normalized by the public API.

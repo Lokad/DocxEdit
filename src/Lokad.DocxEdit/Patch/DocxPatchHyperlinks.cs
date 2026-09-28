@@ -100,7 +100,7 @@ internal static partial class DocxPatchEngine
         string current = ReadVisibleText(hyperlinkTarget.Hyperlink);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected hyperlink text does not match current text.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected hyperlink text does not match current text.", operation, target, fieldName: "expect-text")];
         }
 
         if (string.Equals(text, current, StringComparison.Ordinal))

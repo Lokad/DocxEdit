@@ -57,14 +57,14 @@ internal static partial class DocxPatchEngine
                     "E3201",
                     $"Guard failed for {target}. Expected text does not match current text.",
                     operation,
-                    target)
+                    target, fieldName: "expect-text")
             ];
         }
 
         IReadOnlyList<TextRange> matches = FindTextMatches(current, find, replaceAll ? null : occurrence);
         if (matches.Count == 0)
         {
-            return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target, fieldName: "find")];
         }
 
         if (!replaceAll && occurrence is null && matches.Count > 1)
@@ -158,7 +158,7 @@ internal static partial class DocxPatchEngine
         string current = ReadVisibleText(paragraphTarget.Paragraph);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target, fieldName: "expect-text")];
         }
 
         string? styleId = null;
@@ -342,7 +342,7 @@ internal static partial class DocxPatchEngine
         {
             if (!string.Equals(current, expected, StringComparison.Ordinal))
             {
-                return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+                return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target, fieldName: "expect-text")];
             }
         }
 
@@ -438,7 +438,7 @@ internal static partial class DocxPatchEngine
             ?.Attribute(OoxmlNs.W + "val");
         if (expectedStyle is not null && !string.Equals(currentStyle, expectedStyle, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected paragraph style " + "\u0027" + expectedStyle + "\u0027" + ", found " + "\u0027" + (currentStyle ?? "none") + "\u0027" + ".", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected paragraph style " + "\u0027" + expectedStyle + "\u0027" + ", found " + "\u0027" + (currentStyle ?? "none") + "\u0027" + ".", operation, target, fieldName: "expect-style")];
         }
 
         if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))

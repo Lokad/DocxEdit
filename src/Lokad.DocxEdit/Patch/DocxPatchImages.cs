@@ -1332,7 +1332,7 @@ internal static partial class DocxPatchEngine
 
         if (!string.Equals(actualContentType, normalizedExpected, StringComparison.Ordinal))
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image content type '{normalizedExpected}', found '{actualContentType ?? "unknown"}'.", operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected image content type '{normalizedExpected}', found '{actualContentType ?? "unknown"}'.", operation, target, fieldName: "expect-content-type"));
         }
 
         return diagnostics.Count == 0;

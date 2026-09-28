@@ -197,7 +197,7 @@ internal static partial class DocxPatchEngine
         string current = ReadVisibleText(paragraphTarget.Paragraph);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target, fieldName: "expect-text")];
         }
 
         if (BookmarkNameExists(paragraphTarget.Document, name))

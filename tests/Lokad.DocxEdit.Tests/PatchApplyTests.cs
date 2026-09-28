@@ -1771,4 +1771,121 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
     }
 
+
+    [Fact]
+    public static void CheckSelectorErrorCarriesTargetFieldLocation()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Nope"
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1201");
+        Assert.Equal(4, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void CheckGuardErrorCarriesGuardFieldLocation()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            expect-text Stale text
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void CheckAmbiguityErrorCarriesTargetFieldLocation()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Revenue north</w:t></w:r></w:p>
+              <w:p><w:r><w:t>Revenue south</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Revenue"
+            find Revenue
+            with Sales
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1202");
+        Assert.Equal(4, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void CheckProtectedErrorCarriesTargetFieldLocation()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:commentRangeStart w:id="0"/><w:r><w:t>Text</w:t></w:r><w:commentRangeEnd w:id="0"/></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Text
+            with Changed
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E4305");
+        Assert.Equal(4, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void CheckFindNotFoundCarriesFindFieldLocation()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Missing
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E4203");
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
 }

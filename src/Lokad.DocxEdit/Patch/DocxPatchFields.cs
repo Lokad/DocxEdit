@@ -99,7 +99,7 @@ internal static partial class DocxPatchEngine
         string current = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
         if (expected is not null && !string.Equals(current, NormalizeFieldCodeForGuard(expected), StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target, fieldName: "expect-code")];
         }
 
 
@@ -157,7 +157,7 @@ internal static partial class DocxPatchEngine
             : ReadVisibleText(new XElement(OoxmlNs.W + "p", complexResultRuns));
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target, fieldName: "expect-result")];
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
@@ -241,13 +241,13 @@ internal static partial class DocxPatchEngine
         string currentCode = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
         if (expectedCode is not null && !string.Equals(currentCode, NormalizeFieldCodeForGuard(expectedCode), StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target, fieldName: "expect-code")];
         }
 
         string currentResult = ReadVisibleText(fieldTarget.Element);
         if (expectedResult is not null && !string.Equals(currentResult, expectedResult, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field result does not match current result.", operation, target, fieldName: "expect-result")];
         }
 
         if (TryReadQuoteFieldText(currentCode, out string? quoteText))

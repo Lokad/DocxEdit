@@ -146,7 +146,7 @@ internal static partial class DocxPatchEngine
             int actualColumns = ReadSectionColumnCount(sectionProperties);
             if (actualColumns != expectedColumns)
             {
-                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumns} section column(s), found {actualColumns}.", operation, target));
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected {expectedColumns} section column(s), found {actualColumns}.", operation, target, fieldName: "expect-columns"));
             }
         }
 
@@ -161,7 +161,7 @@ internal static partial class DocxPatchEngine
                 DocxOrientation actualOrientation = ReadSectionOrientation(sectionProperties);
                 if (actualOrientation != expectedOrientation)
                 {
-                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected section orientation '{expectedOrientation.ToWireValue()}', found '{actualOrientation.ToWireValue()}'.", operation, target));
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected section orientation '{expectedOrientation.ToWireValue()}', found '{actualOrientation.ToWireValue()}'.", operation, target, fieldName: "expect-orientation"));
                 }
             }
         }

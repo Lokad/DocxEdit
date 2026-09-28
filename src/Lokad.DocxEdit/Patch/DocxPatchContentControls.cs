@@ -64,7 +64,7 @@ internal static partial class DocxPatchEngine
         string current = ReadVisibleText(content);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
         {
-            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected content-control text does not match current text.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected content-control text does not match current text.", operation, target, fieldName: "expect-text")];
         }
 
         if (!isPlainText)
