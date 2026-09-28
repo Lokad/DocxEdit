@@ -808,6 +808,40 @@ public static class DocxHelp
                 },
                 new()
                 {
+                    Name = "template",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
+                    Category = "read",
+                    Summary = "Print a guarded patch template for one target",
+                    Usage = "docxedit template input.docx --id M.P0001 [--track-changes <mode>] [--json] [--compact] [--diagnostics <path>] [--strict]",
+                    Description = "Print a guarded patch template for one paragraph, content-control, cell, or merge-group target. The active block passes check under the requested policy and changes nothing visible; remaining supported operations follow as commented blocks. Templates are generated from target-specific capabilities, so unsupported operations are omitted and conditional ones carry their condition.",
+                    Options =
+                    [
+                        new("--id M.P0001", "Target ID from read, outline, find, or changes") { Flags = ["--id"] },
+                        new("--track-changes off|preserve|suggest|require", "Effective track-change policy the template is generated under") { Flags = ["--track-changes"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
+                    ],
+                    PrivacyNotes =
+                    [
+                        "Templates embed the current target text in expect-text guards; they are working material for one target, not broad document text."
+                    ],
+                    OutputFields =
+                    [
+                        new("TargetId", "Requested target echoed byte-identical"),
+                        new("Template", "Patch template text with one check-clean starter block and commented examples"),
+                        new("Capabilities", "Target capabilities the template was generated from")
+                    ],
+                    Examples =
+                    [
+                        "docxedit template report.docx --id M.P0004",
+                        "docxedit template report.docx --id M.T0001.R02.C03 --track-changes require"
+                    ]
+                },
+                new()
+                {
                     Name = "styles",
                     MinPositionals = 1,
                     MaxPositionals = 1,

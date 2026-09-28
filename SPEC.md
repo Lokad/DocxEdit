@@ -1309,6 +1309,22 @@ kind, story, and per-operation support, reason, help topic, and alternative.
 
 ---
 
+### 9.10 template
+
+Purpose: print a guarded patch template for one paragraph, content-control,
+cell, or merge-group target. The template carries the discovered target ID,
+exact expect-text guards with current values, one active block, and commented
+example blocks for the remaining supported operations. The active block passes
+check under the requested track-change policy and changes nothing visible;
+commented blocks use placeholder content and are enabled by removing the
+leading hash and space from each line. Unsupported operations are omitted and
+conditional ones carry their condition, following the capabilities verdicts in
+9.9. Templates embed current target text in guards; they are working material
+for one target, not broad document text. With JSON output, the result carries
+the template text plus the capabilities it was generated from.
+
+---
+
 ## 10. Patch DSL: `.docxpatch`
 
 Field sets and worked examples live in docs/patch-format.md; the operation registry is their machine owner. This section states the grammar and resolution contracts.

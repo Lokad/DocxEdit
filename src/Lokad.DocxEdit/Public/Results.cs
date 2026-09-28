@@ -221,6 +221,17 @@ public sealed record DocxCapabilitiesResult : DocxOperationResult
     public DocxTargetCapabilities? Capabilities { get; init; }
 }
 
+/// <summary>Guarded patch template for one target. The active block passes check under the requested policy and changes nothing visible; commented blocks cover the remaining supported operations. Check remains authoritative before apply.</summary>
+public sealed record DocxTemplateResult : DocxOperationResult
+{
+    /// <summary>Requested target, echoed byte-identical.</summary>
+    public string TargetId { get; init; } = string.Empty;
+    /// <summary>Patch template text; empty when the target was not found or has no capability model.</summary>
+    public string Template { get; init; } = string.Empty;
+    /// <summary>Capabilities the template was generated from; null on failure.</summary>
+    public DocxTargetCapabilities? Capabilities { get; init; }
+}
+
 /// <summary>Supported, conditional, and unsupported operations for one discovered target.</summary>
 /// <param name="TargetId">Canonical wire ID of the resolved target.</param>
 /// <param name="Kind">Target kind word (for example <c>paragraph</c>).</param>

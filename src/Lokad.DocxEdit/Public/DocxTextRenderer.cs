@@ -129,6 +129,22 @@ public static class DocxTextRenderer
     }
 
     /// <summary>
+    /// Renders a guarded patch template.
+    /// </summary>
+    public static string RenderTemplate(DocxTemplateResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (string.IsNullOrEmpty(result.Template))
+        {
+            return string.Empty;
+        }
+
+        return result.Template.EndsWith(Environment.NewLine, StringComparison.Ordinal)
+            ? result.Template
+            : result.Template + Environment.NewLine;
+    }
+
+    /// <summary>
     /// Renders the style inventory.
     /// </summary>
     public static string RenderStyles(DocxStylesResult result)

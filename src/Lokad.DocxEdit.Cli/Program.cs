@@ -64,6 +64,7 @@ public static class ProgramMain
                 "dump" => RunDump(options),
                 "context" => RunContext(options),
                 "capabilities" => RunCapabilities(options),
+                "template" => RunTemplate(options),
                 "styles" => RunStyles(options),
                 "media" => RunMedia(options),
                 "validate" => RunValidate(options),
@@ -462,6 +463,26 @@ public static class ProgramMain
             static result => result.Diagnostics,
             static result => result.Success,
             result => Console.Write(DocxTextRenderer.RenderCapabilities(result)));
+    }
+
+    private static int RunTemplate(ParsedOptions options)
+    {
+        if (options.Id is null)
+        {
+            return InvalidUsage(CommandUsageError("template"));
+        }
+
+        string id = options.Id;
+        return RunInputCommand(
+            options,
+            CommandUsageError("template"),
+            input => new DocxEditor().GetTemplate(input, id, new DocxTemplateOptions
+            {
+                TrackChanges = options.TrackChanges
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderTemplate(result)));
     }
 
     private static int RunStyles(ParsedOptions options)

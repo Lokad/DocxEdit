@@ -133,6 +133,17 @@ public sealed class DocxCapabilitiesOptions
     public bool LeaveInputOpen { get; init; } = true;
 }
 
+/// <summary>Options for a guarded patch template.</summary>
+public sealed class DocxTemplateOptions
+{
+    /// <summary>Effective track-change policy the template is generated under; the active block passes check under this policy.</summary>
+    public TrackChangesMode TrackChanges { get; init; } = TrackChangesMode.Off;
+    /// <summary>Package quotas: ZIP entry count, total uncompressed bytes, and single-part bytes.</summary>
+    public DocxPackageLimits Quotas { get; init; } = DocxPackageLimits.Default;
+    /// <summary>Whether to leave the input stream open; when false the input is disposed on every exit (success, failure, or cancellation).</summary>
+    public bool LeaveInputOpen { get; init; } = true;
+}
+
 /// <summary>Options for the change inventory.</summary>
 public sealed class DocxChangesOptions
 {

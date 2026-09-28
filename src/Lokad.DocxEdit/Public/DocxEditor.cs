@@ -488,6 +488,78 @@ public sealed class DocxEditor
         };
     }
 
+    /// <summary>Builds a guarded patch template for one target. Uses default options and no cancellation.</summary>
+    public DocxTemplateResult GetTemplate(
+        Stream input, string targetId)
+    {
+        return GetTemplate(input, targetId, new DocxTemplateOptions(), CancellationToken.None);
+    }
+
+    /// <summary>Builds a guarded patch template for one target. Uses no cancellation.</summary>
+    public DocxTemplateResult GetTemplate(
+        Stream input, string targetId, DocxTemplateOptions options)
+    {
+        return GetTemplate(input, targetId, options, CancellationToken.None);
+    }
+
+    /// <summary>Builds a guarded patch template for one target with explicit options and cancellation.</summary>
+    public DocxTemplateResult GetTemplate(
+        Stream input,
+        string targetId,
+        DocxTemplateOptions options,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
+        if (package is null)
+        {
+            return new DocxTemplateResult { Success = false, Diagnostics = diagnostics, TargetId = targetId };
+        }
+
+        if (!TryUnsupportedScan(package, TargetRequestsHeadersFooters(targetId), cancellationToken, out IReadOnlyList<DocxDiagnostic>? templateUnsupported, out IReadOnlyList<DocxDiagnostic> templateUnsupportedFailure))
+        {
+            return new DocxTemplateResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(templateUnsupportedFailure).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        if (!TryDocumentOperation(() => DocxPatchEngine.GetTargetTemplate(package, targetId, options.TrackChanges, cancellationToken), out DocxPatchEngine.TargetTemplateOutcome? outcome, out IReadOnlyList<DocxDiagnostic> templateFailure))
+        {
+            return new DocxTemplateResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(templateFailure).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        if (outcome is null || outcome.Template is null)
+        {
+            DocxDiagnostic missing = outcome is null || outcome.Error is null
+                ? new DocxDiagnostic(DocxSeverity.Error, "E1201", "Target " + ((char)39).ToString() + targetId + ((char)39).ToString() + " was not found.") with { TargetId = targetId }
+                : outcome.Error with { TargetId = targetId };
+            return new DocxTemplateResult
+            {
+                Success = false,
+                Diagnostics = diagnostics.Concat(templateUnsupported).Append(missing).ToArray(),
+                TargetId = targetId
+            };
+        }
+
+        return new DocxTemplateResult
+        {
+            Success = true,
+            Diagnostics = diagnostics.Concat(templateUnsupported).ToArray(),
+            TargetId = targetId,
+            Template = outcome.Template,
+            Capabilities = outcome.Capabilities
+        };
+    }
+
     /// <summary>Lists styles. Uses default options and no cancellation.</summary>
     public DocxStylesResult Styles(
         Stream input)
