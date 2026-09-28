@@ -345,4 +345,97 @@ public static class HelpTopicTests
         Assert.Contains("HelpTopic", File.ReadAllText(report), StringComparison.Ordinal);
         Assert.Contains("set-image-size", File.ReadAllText(report), StringComparison.Ordinal);
     }
+    [Fact]
+    public static void MinimalReplaceBookmarkTextExampleChecksClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-bookmark-text", out DocxPatchOperationInfo bookmark));
+        string example = Assert.Single(bookmark.Examples, static candidate => candidate.Contains("# Minimal replace-bookmark-text.", StringComparison.Ordinal));
+
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader(example);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void MinimalSetCommentTextExampleChecksClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("set-comment-text", out DocxPatchOperationInfo comment));
+        string example = Assert.Single(comment.Examples, static candidate => candidate.Contains("# Minimal set-comment-text.", StringComparison.Ordinal));
+
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader(example);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void MinimalSetHyperlinkTextExampleChecksClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("set-hyperlink-text", out DocxPatchOperationInfo hyperlink));
+        string example = Assert.Single(hyperlink.Examples, static candidate => candidate.Contains("# Minimal set-hyperlink-text.", StringComparison.Ordinal));
+
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader(example);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void MinimalAppendRowExampleChecksClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("append-row", out DocxPatchOperationInfo appendRow));
+        string example = Assert.Single(appendRow.Examples, static candidate => candidate.Contains("# Minimal append-row.", StringComparison.Ordinal));
+
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader(example);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
 }

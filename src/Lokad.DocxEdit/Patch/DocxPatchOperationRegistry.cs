@@ -514,7 +514,40 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside simple same-paragraph bookmark ranges while preserving bookmark markers; direct mode also supports guarded multi-paragraph and simple table-spanning text-slot replacements. Multi-paragraph/table-spanning tracked output or protected ranges warn with W4002 or fail with E6002.",
             "Bookmarks",
             "Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot",
-            ExecuteReplaceBookmarkText) with { AcceptedKinds = [DocxTargetKind.Bookmark] },
+            ExecuteReplaceBookmarkText) with
+        {
+            Examples =
+            [
+                """
+                # Minimal replace-bookmark-text.
+
+                docxpatch 1
+
+                op replace-bookmark-text
+                target M.B0001
+                text <<<
+                New bookmark text
+                >>>
+                end
+                """,
+                """
+                # Guarded replace-bookmark-text: expect-text must match before editing.
+
+                docxpatch 1
+
+                op replace-bookmark-text
+                target M.B0001
+                expect-text <<<
+                Old bookmark text
+                >>>
+                text <<<
+                New bookmark text
+                >>>
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Bookmark],
+        },
         PreserveOnly(
             "rename-bookmark",
             [
@@ -598,7 +631,33 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside simple paragraph-only comment bodies while preserving comment metadata; complex comment bodies warn with W4002 or fail with E6002.",
             "Comments",
             "Replaces one comment body",
-            ExecuteSetCommentText),
+            ExecuteSetCommentText) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-comment-text.
+
+                docxpatch 1
+
+                op set-comment-text
+                target comment:3
+                text New comment
+                end
+                """,
+                """
+                # Guarded set-comment-text: expect-text must match before editing.
+
+                docxpatch 1
+
+                op set-comment-text
+                target comment:3
+                expect-text Old comment
+                text New comment
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "resolve-comment",
             [
@@ -741,7 +800,34 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside the hyperlink wrapper for simple display text while preserving the relationship or anchor; protected or complex hyperlink content warns with W4002 or fails with E6002.",
             "Hyperlinks",
             "Updates visible hyperlink text",
-            ExecuteSetHyperlinkText) with { AcceptedKinds = [DocxTargetKind.Hyperlink] },
+            ExecuteSetHyperlinkText) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-hyperlink-text.
+
+                docxpatch 1
+
+                op set-hyperlink-text
+                target M.L0001
+                text New link
+                end
+                """,
+                """
+                # Guarded set-hyperlink-text: expect-text must match before editing.
+
+                docxpatch 1
+
+                op set-hyperlink-text
+                target M.L0001
+                expect-text Old link
+                text New link
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Hyperlink],
+        },
         Tracked(
             "insert-hyperlink-after",
             [
@@ -915,7 +1001,37 @@ internal static partial class DocxPatchEngine
             "Direct mode appends by cloning the last row shape when the table has a consistent visual grid and the last row does not contain vertical merge cells. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; visual-grid or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Appends by cloning the last row shape when the visual grid is consistent",
-            ExecuteAppendRow) with { AcceptedKinds = [DocxTargetKind.Table] },
+            ExecuteAppendRow) with
+        {
+            Examples =
+            [
+                """
+                # Minimal append-row.
+
+                docxpatch 1
+
+                op append-row
+                target M.T0001
+                cell A2
+                cell B2
+                end
+                """,
+                """
+                # Guarded append-row: expect-row-count and expect-column-count must match before editing.
+
+                docxpatch 1
+
+                op append-row
+                target M.T0001
+                expect-row-count 1
+                expect-column-count 2
+                cell A2
+                cell B2
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Table],
+        },
         Tracked(
             "insert-row-before",
             [
