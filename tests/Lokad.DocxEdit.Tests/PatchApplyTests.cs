@@ -1677,4 +1677,98 @@ public static class PatchApplyTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Code == "W5103");
     }
 
+
+    [Fact]
+    public static void CheckTextSelectorMatchesAcrossWhitespaceRuns()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t xml:space="preserve">Alpha  Beta</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Alpha Beta"
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("Omega  Beta", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void CheckTextSelectorStaysCaseSensitive()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"alpha"
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
+    [Fact]
+    public static void CheckHeadingSelectorMatchesAcrossWhitespaceRuns()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+            """, """
+              <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t xml:space="preserve">Executive  Summary</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target heading:"Executive Summary"
+            find Executive
+            with Revised
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("Revised  Summary", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void CheckGuardStaysExactWhenSelectorNormalizes()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t xml:space="preserve">Alpha  Beta</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Alpha Beta"
+            expect-text Alpha Beta
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
+    }
+
 }

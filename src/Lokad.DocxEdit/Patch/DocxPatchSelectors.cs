@@ -226,6 +226,33 @@ internal static partial class DocxPatchEngine
         return true;
     }
 
+    // SPEC 10.6: semantic text selectors (text:, heading:) match with whitespace
+    // normalized (every whitespace run collapses to one space, ends trimmed) while
+    // staying case-sensitive. Guards such as expect-text keep exact matching.
+    private static string NormalizeSelectorText(string value)
+    {
+        StringBuilder normalized = new(value.Length);
+        bool pendingSpace = false;
+        foreach (char ch in value)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                pendingSpace = normalized.Length != 0;
+                continue;
+            }
+
+            if (pendingSpace)
+            {
+                normalized.Append((char)32);
+                pendingSpace = false;
+            }
+
+            normalized.Append(ch);
+        }
+
+        return normalized.ToString();
+    }
+
     private static bool TryReadSelectorText(string value, out string selectorText)
     {
         selectorText = string.Empty;
@@ -255,6 +282,7 @@ internal static partial class DocxPatchEngine
         diagnostics = [];
         if (selector is HeadingTargetSelector headingSelector)
         {
+            string normalizedHeading = NormalizeSelectorText(headingSelector.Text);
             return ResolveMainParagraphElementByPredicate(
                 package,
                 body,
@@ -263,7 +291,7 @@ internal static partial class DocxPatchEngine
                     int? headingLevel = DocxHeadingLevels.GetHeadingLevel(package, paragraph, cancellationToken);
                     return headingLevel is not null &&
                         (headingSelector.Level is null || headingSelector.Level == headingLevel) &&
-                        string.Equals(ReadVisibleText(paragraph), headingSelector.Text, StringComparison.Ordinal);
+                        string.Equals(NormalizeSelectorText(ReadVisibleText(paragraph)), normalizedHeading, StringComparison.Ordinal);
                 },
                 selector.Raw,
                 operation,
@@ -273,10 +301,11 @@ internal static partial class DocxPatchEngine
 
         if (selector is ParagraphTextTargetSelector paragraphTextSelector)
         {
+            string normalizedSearch = NormalizeSelectorText(paragraphTextSelector.Text);
             return ResolveMainParagraphElementByPredicate(
                 package,
                 body,
-                paragraph => ReadVisibleText(paragraph).Contains(paragraphTextSelector.Text, StringComparison.Ordinal),
+                paragraph => NormalizeSelectorText(ReadVisibleText(paragraph)).Contains(normalizedSearch, StringComparison.Ordinal),
                 selector.Raw,
                 operation,
                 cancellationToken,
