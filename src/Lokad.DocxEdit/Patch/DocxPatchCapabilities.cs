@@ -35,19 +35,14 @@ internal static partial class DocxPatchEngine
         TrackChangesMode mode,
         CancellationToken cancellationToken)
     {
-        if (!DocxTargetId.TryParse(requestedTargetId, out DocxTargetId parsed) ||
-            parsed.Kind != DocxTargetKind.Paragraph)
+        if (!DocxTargetId.TryParse(requestedTargetId, out DocxTargetId parsed))
         {
-            return new ParagraphCapabilitiesOutcome
-            {
-                Error = new DocxDiagnostic(
-                    DocxSeverity.Error,
-                    "E1201",
-                    "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph IDs such as M.P0001.") with
-                {
-                    TargetId = requestedTargetId
-                }
-            };
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+
+        if (parsed.Kind != DocxTargetKind.Paragraph)
+        {
+            return GetNonParagraphCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
         }
 
         // 77 encodes M. Letter codes keep this file free of quote bytes,

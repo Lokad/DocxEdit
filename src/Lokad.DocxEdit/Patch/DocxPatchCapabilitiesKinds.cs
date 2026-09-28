@@ -1,0 +1,800 @@
+using System.Xml.Linq;
+using Lokad.DocxEdit.Model;
+using Lokad.DocxEdit.Ooxml;
+
+namespace Lokad.DocxEdit;
+
+// D17: capabilities for content-control, cell, and merge-group targets.
+// Like the paragraph surface, every verdict reuses the execution predicates,
+// so guidance cannot disagree with check. Patch-dependent details stay
+// conditional until the exact patch is checked.
+internal static partial class DocxPatchEngine
+{
+    private sealed record StoryDocument(StoryPartRef Story, string PartName, XDocument Document);
+
+    private sealed record ContentControlCapabilityFacts(
+        string Kind,
+        bool IsPlainText,
+        bool IsRichText,
+        string? LockValue,
+        bool HasContainer,
+        bool HasNonParagraphContent,
+        bool HasProtected,
+        string ProtectedFeature,
+        bool TrackedShapeOk,
+        string? TrackedShapeReason);
+
+    private sealed record CellCapabilityFacts(
+        bool IsContinuation,
+        string? RootCellId,
+        bool IsSimple,
+        bool TrackedShapeOk,
+        string? TrackedShapeReason);
+
+    internal static ParagraphCapabilitiesOutcome GetNonParagraphCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        if (parsed.Kind == DocxTargetKind.ContentControl)
+        {
+            return GetContentControlCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
+        if (parsed.Kind == DocxTargetKind.Cell)
+        {
+            return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: false, cancellationToken);
+        }
+
+        if (parsed.Kind == DocxTargetKind.MergeGroup)
+        {
+            return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
+        }
+
+        return new ParagraphCapabilitiesOutcome
+        {
+            Error = new DocxDiagnostic(
+                DocxSeverity.Error,
+                "E1201",
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, and merge-group IDs such as M.P0001.") with
+            {
+                TargetId = requestedTargetId
+            }
+        };
+    }
+
+    private static StoryDocument? TryResolveStoryDocument(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        CancellationToken cancellationToken)
+    {
+        // 77 encodes M. Letter codes keep this file free of quote bytes,
+        // which the authoring transport corrupts.
+        string wantedPrefix = parsed.Story == (char)77
+            ? "M"
+            : parsed.Story.ToString() + parsed.StoryPart.ToString("000");
+        StoryPartRef? story = null;
+        foreach (StoryPartRef candidate in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            if (string.Equals(candidate.Prefix, wantedPrefix, StringComparison.Ordinal))
+            {
+                story = candidate;
+                break;
+            }
+        }
+
+        if (story is null)
+        {
+            return null;
+        }
+
+        OoxmlPart? part = package.GetPart(story.PartName);
+        if (part is null)
+        {
+            return null;
+        }
+
+        using Stream stream = part.OpenRead();
+        XDocument document = SafeXml.Load(stream, cancellationToken);
+        return document.Root is null ? null : new StoryDocument(story, story.PartName, document);
+    }    private static ParagraphCapabilitiesOutcome GetContentControlCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        if (storyDocument is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+
+        XElement? control = storyDocument.Document.Descendants(OoxmlNs.W + "sdt").ElementAtOrDefault(parsed.Primary - 1);
+        if (control is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+
+        string kind = ReadContentControlKind(control);
+        bool isPlainText = IsPlainTextContentControl(control);
+        bool isRichText = IsRichTextContentControl(control);
+        XElement? content = control.Element(OoxmlNs.W + "sdtContent");
+        bool hasNonParagraphContent = false;
+        bool hasProtected = false;
+        string protectedFeature = string.Empty;
+        if (content is not null && isRichText)
+        {
+            hasNonParagraphContent = content.Elements().Any(element => element.Name != OoxmlNs.W + "p");
+            hasProtected = TryGetProtectedTextEditFeature(content, out protectedFeature);
+        }
+
+        bool trackedShapeOk = true;
+        string? trackedShapeReason = null;
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        if (isTracked && content is not null && (isPlainText || isRichText))
+        {
+            if (isRichText)
+            {
+                trackedShapeOk = TryGetTrackedRichTextContentControlParagraphs(content, string.Empty, out _, out trackedShapeReason);
+            }
+            else
+            {
+                trackedShapeOk = TryGetTrackedContentControlTextContainer(content, string.Empty, out _, out _, out trackedShapeReason);
+            }
+        }
+
+        var facts = new ContentControlCapabilityFacts(
+            kind,
+            isPlainText,
+            isRichText,
+            ReadContentControlLock(control),
+            content is not null,
+            hasNonParagraphContent,
+            hasProtected,
+            protectedFeature,
+            trackedShapeOk,
+            trackedShapeReason);
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            ContentControlTextCapability(facts, isTracked, isRequire),
+            ContentControlCheckboxCapability(facts, mode),
+            ContentControlChoiceCapability(facts, mode),
+            ContentControlDateCapability(facts, mode),
+        };
+
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "content-control",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+
+    // Mirrors the lock rule in ValidateContentControlUnlocked: a missing lock
+    // element or an explicit unlocked value edits freely; any other value,
+    // including a bare lock element, locks the control.
+    private static string? ReadContentControlLock(XElement control)
+    {
+        XElement? lockElement = control.Element(OoxmlNs.W + "sdtPr")?.Element(OoxmlNs.W + "lock");
+        if (lockElement is null)
+        {
+            return null;
+        }
+
+        string lockValue = (string?)lockElement.Attribute(OoxmlNs.W + "val") ?? "locked";
+        return string.Equals(lockValue, "unlocked", StringComparison.Ordinal) ? null : lockValue;
+    }
+
+    private static string ContentControlKindGuidance(string kind)
+    {
+        if (string.Equals(kind, "picture", StringComparison.Ordinal))
+        {
+            return "Picture content controls preserve a picture container; use read/media to inspect the contained image and target image operations when applicable.";
+        }
+
+        if (string.Equals(kind, "group", StringComparison.Ordinal))
+        {
+            return "Group content controls protect a container; target an editable child content control instead.";
+        }
+
+        if (string.Equals(kind, "repeating-section", StringComparison.Ordinal) || string.Equals(kind, "repeating-section-item", StringComparison.Ordinal))
+        {
+            return "Repeating-section subtree edits require cloning or deleting structured document tag subtrees, which currently fail with E4315.";
+        }
+
+        if (string.Equals(kind, "checkbox", StringComparison.Ordinal))
+        {
+            return "Use set-content-control-checkbox for checkbox state edits.";
+        }
+
+        if (string.Equals(kind, "dropdown-list", StringComparison.Ordinal) || string.Equals(kind, "combo-box", StringComparison.Ordinal))
+        {
+            return "Use set-content-control-choice for dropdown or combo-box selections.";
+        }
+
+        if (string.Equals(kind, "date", StringComparison.Ordinal))
+        {
+            return "Use set-content-control-date for date values.";
+        }
+
+        return "Choose an operation that matches the content-control kind.";
+    }
+    private static string? ContentControlKindAlternative(string kind)
+    {
+        if (string.Equals(kind, "checkbox", StringComparison.Ordinal))
+        {
+            return "set-content-control-checkbox";
+        }
+
+        if (string.Equals(kind, "dropdown-list", StringComparison.Ordinal) || string.Equals(kind, "combo-box", StringComparison.Ordinal))
+        {
+            return "set-content-control-choice";
+        }
+
+        if (string.Equals(kind, "date", StringComparison.Ordinal))
+        {
+            return "set-content-control-date";
+        }
+
+        if (string.Equals(kind, "plain-text", StringComparison.Ordinal) || string.Equals(kind, "rich-text", StringComparison.Ordinal))
+        {
+            return "set-content-control-text";
+        }
+
+        return null;
+    }
+
+    private static DocxOperationCapability? ContentControlLockCapability(string operation, string? lockValue)
+    {
+        if (lockValue is null)
+        {
+            return null;
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "unsupported",
+            "Content control is locked by w:lock=" + Quote(lockValue) + ". Lock values other than unlocked reject every content-control edit with E4310.",
+            operation,
+            null);
+    }
+
+    private static DocxOperationCapability ContentControlTextCapability(ContentControlCapabilityFacts facts, bool isTracked, bool isRequire)
+    {
+        const string operation = "set-content-control-text";
+        if (!facts.IsPlainText && !facts.IsRichText)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control is kind " + Quote(facts.Kind) + ", not a plain-text or rich-text content control. " + ContentControlKindGuidance(facts.Kind),
+                operation,
+                ContentControlKindAlternative(facts.Kind));
+        }
+
+        DocxOperationCapability? locked = ContentControlLockCapability(operation, facts.LockValue);
+        if (locked is not null)
+        {
+            return locked;
+        }
+
+        if (!facts.HasContainer)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control has no editable content container, so every content-control edit fails with E4310.",
+                operation,
+                null);
+        }
+
+        if (facts.IsRichText && facts.HasNonParagraphContent)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Rich-text content control contains non-paragraph content, so text replacement fails with E4310.",
+                operation,
+                null);
+        }
+
+        if (facts.IsRichText && facts.HasProtected)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Rich-text content control contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ", so text replacement fails with E4310.",
+                operation,
+                null);
+        }
+
+        if (isTracked && !facts.TrackedShapeOk)
+        {
+            if (isRequire)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "unsupported",
+                    "Content-control shape needs a direct rewrite (" + facts.TrackedShapeReason + "), so Require fails with E6002. Suggest falls back to a direct rewrite with W4002 and Off rewrites directly. Check remains authoritative for the exact replacement.",
+                    operation,
+                    null);
+            }
+
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Content-control shape needs a direct rewrite (" + facts.TrackedShapeReason + "), so tracked replacement falls back to a direct rewrite with W4002. The exact replacement decides whether tracked markup or a direct rewrite applies. Check remains authoritative.",
+                operation,
+                null);
+        }
+
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                isRequire
+                    ? "Simple replacements emit tracked delete and insert markup while preserving wrappers, bindings, locks, and paragraph containers; complex shapes fail with E6002 under Require. Check remains authoritative."
+                    : "Simple replacements emit tracked delete and insert markup while preserving wrappers, bindings, locks, and paragraph containers; complex shapes fall back to a direct rewrite with W4002. Check remains authoritative.",
+                operation,
+                null);
+        }
+
+        if (facts.IsRichText)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Direct rewrite replaces the control text and preserves wrappers, bindings, and locks. Rich-text replacement requires expect-text that matches the current content.",
+                operation,
+                null);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct rewrite replaces the control text and preserves wrappers, bindings, and locks.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability ContentControlCheckboxCapability(ContentControlCapabilityFacts facts, TrackChangesMode mode)
+    {
+        const string operation = "set-content-control-checkbox";
+        if (!string.Equals(facts.Kind, "checkbox", StringComparison.Ordinal))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control is kind " + Quote(facts.Kind) + ", not a checkbox content control. " + ContentControlKindGuidance(facts.Kind),
+                operation,
+                ContentControlKindAlternative(facts.Kind));
+        }
+
+        DocxOperationCapability? locked = ContentControlLockCapability(operation, facts.LockValue);
+        if (locked is not null)
+        {
+            return locked;
+        }
+
+        if (!facts.HasContainer)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control has no editable content container, so every content-control edit fails with E4310.",
+                operation,
+                null);
+        }
+
+        if (!SupportsTrackedChangeOutput(operation) && mode == TrackChangesMode.Require && !IsAnnotationOperation(operation))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Checkbox state updates metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Checkbox state and display symbol update together; the checked field is boolean.",
+            operation,
+            null);
+    }
+
+    private static DocxOperationCapability ContentControlChoiceCapability(ContentControlCapabilityFacts facts, TrackChangesMode mode)
+    {
+        const string operation = "set-content-control-choice";
+        if (!string.Equals(facts.Kind, "dropdown-list", StringComparison.Ordinal) && !string.Equals(facts.Kind, "combo-box", StringComparison.Ordinal))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control is kind " + Quote(facts.Kind) + ", not a dropdown or combo-box content control. " + ContentControlKindGuidance(facts.Kind),
+                operation,
+                ContentControlKindAlternative(facts.Kind));
+        }
+
+        DocxOperationCapability? locked = ContentControlLockCapability(operation, facts.LockValue);
+        if (locked is not null)
+        {
+            return locked;
+        }
+
+        if (!facts.HasContainer)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control has no editable content container, so every content-control edit fails with E4310.",
+                operation,
+                null);
+        }
+
+        if (!SupportsTrackedChangeOutput(operation) && mode == TrackChangesMode.Require && !IsAnnotationOperation(operation))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Dropdown and combo-box selections update list metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Exactly one of value or display-text selects a list item, and the item must exist or check fails. The item display text replaces the control content.",
+            operation,
+            null);
+    }
+
+    private static DocxOperationCapability ContentControlDateCapability(ContentControlCapabilityFacts facts, TrackChangesMode mode)
+    {
+        const string operation = "set-content-control-date";
+        if (!string.Equals(facts.Kind, "date", StringComparison.Ordinal))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control is kind " + Quote(facts.Kind) + ", not a date content control. " + ContentControlKindGuidance(facts.Kind),
+                operation,
+                ContentControlKindAlternative(facts.Kind));
+        }
+
+        DocxOperationCapability? locked = ContentControlLockCapability(operation, facts.LockValue);
+        if (locked is not null)
+        {
+            return locked;
+        }
+
+        if (!facts.HasContainer)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Content control has no editable content container, so every content-control edit fails with E4310.",
+                operation,
+                null);
+        }
+
+        if (!SupportsTrackedChangeOutput(operation) && mode == TrackChangesMode.Require && !IsAnnotationOperation(operation))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Date value updates metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Value sets the date metadata while display-text, or value when display-text is absent, replaces the control content.",
+            operation,
+            null);
+    }
+    private static ParagraphCapabilitiesOutcome GetCellCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        bool isMergeGroup,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        if (storyDocument is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+
+        XElement? root = storyDocument.Document.Root;
+        XElement container = root?.Element(OoxmlNs.W + "body") ?? root!;
+        XElement? table = DocxStoryBlocks.FindTableByPhysicalOrdinal(container, parsed.Primary);
+        if (table is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+
+        XElement? row = null;
+        XElement? cell = null;
+        int rowOrdinal = parsed.Secondary;
+        int visualColumn = parsed.Tertiary;
+        if (isMergeGroup)
+        {
+            if (!TryFindMergeGroupRoot(table, parsed.Secondary, out XElement? groupRow, out XElement? groupCell, out int groupColumn, out int groupRowOrdinal))
+            {
+                return ParagraphCapabilitiesNotFound(requestedTargetId);
+            }
+
+            row = groupRow;
+            cell = groupCell;
+            rowOrdinal = groupRowOrdinal;
+            visualColumn = groupColumn;
+        }
+        else
+        {
+            row = table.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(parsed.Secondary - 1);
+            cell = row is null ? null : FindCellByVisualColumn(row, parsed.Tertiary);
+            if (row is null || cell is null)
+            {
+                return ParagraphCapabilitiesNotFound(requestedTargetId);
+            }
+        }
+
+        if (row is null || cell is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+
+        bool isContinuation = IsVerticalMergeContinuation(cell);
+        string? rootCellId = null;
+        if (isContinuation)
+        {
+            rootCellId = FindMergeRootCellId(table, parsed, rowOrdinal, visualColumn);
+        }
+
+        bool trackedShapeOk = true;
+        string? trackedShapeReason = null;
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        if (isTracked)
+        {
+            trackedShapeOk = TryGetTrackedSetCellParagraphs(cell, string.Empty, out _, out trackedShapeReason);
+        }
+
+        var facts = new CellCapabilityFacts(
+            isContinuation,
+            rootCellId,
+            IsSimpleEditableCell(cell),
+            trackedShapeOk,
+            trackedShapeReason);
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            SetCellCapability(facts, parsed.ToWireValue(), isTracked, isRequire),
+            SetCellShadingCapability(facts, parsed.ToWireValue()),
+        };
+
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                isMergeGroup ? "merge-group" : "cell",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    // Live copy of the merge-group walk in ResolveMergeGroupCellTarget: finds
+    // the root cell of the Nth merge group in document order.
+    private static bool TryFindMergeGroupRoot(
+        XElement table,
+        int mergeGroupOrdinal,
+        out XElement? row,
+        out XElement? cell,
+        out int visualColumn,
+        out int rowOrdinal)
+    {
+        row = null;
+        cell = null;
+        visualColumn = 0;
+        rowOrdinal = 0;
+        if (mergeGroupOrdinal < 1)
+        {
+            return false;
+        }
+
+        int mergeGroupIndex = 1;
+        var activeVerticalMerges = new Dictionary<int, MergeGroupRootState>();
+        int currentRowOrdinal = 0;
+        foreach (XElement currentRow in table.Elements(OoxmlNs.W + "tr"))
+        {
+            currentRowOrdinal++;
+            int gridBefore = ReadTableRowGridOffset(currentRow, "gridBefore");
+            RemoveActiveMergeGroups(activeVerticalMerges, 1, gridBefore);
+            int columnIndex = 1 + gridBefore;
+            foreach (XElement currentCell in currentRow.Elements(OoxmlNs.W + "tc"))
+            {
+                int columnSpan = ReadTableCellColumnSpan(currentCell);
+                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(currentCell);
+                if (verticalMerge == DocxVerticalMerge.Restart)
+                {
+                    int currentMergeGroup = mergeGroupIndex++;
+                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
+                    if (currentMergeGroup == mergeGroupOrdinal)
+                    {
+                        row = currentRow;
+                        cell = currentCell;
+                        visualColumn = columnIndex;
+                        rowOrdinal = currentRowOrdinal;
+                        return true;
+                    }
+                }
+                else if (verticalMerge is not null)
+                {
+                    MergeGroupRootState? root = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan);
+                    if (root is null)
+                    {
+                        int currentMergeGroup = mergeGroupIndex++;
+                        if (currentMergeGroup == mergeGroupOrdinal)
+                        {
+                            row = currentRow;
+                            cell = currentCell;
+                            visualColumn = columnIndex;
+                            rowOrdinal = currentRowOrdinal;
+                            return true;
+                        }
+
+                        SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
+                    }
+                }
+                else
+                {
+                    RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, columnSpan);
+                    if (columnSpan > 1)
+                    {
+                        int currentMergeGroup = mergeGroupIndex++;
+                        if (currentMergeGroup == mergeGroupOrdinal)
+                        {
+                            row = currentRow;
+                            cell = currentCell;
+                            visualColumn = columnIndex;
+                            rowOrdinal = currentRowOrdinal;
+                            return true;
+                        }
+                    }
+                }
+
+                columnIndex += columnSpan;
+            }
+
+            int gridAfter = ReadTableRowGridOffset(currentRow, "gridAfter");
+            RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, gridAfter);
+        }
+
+        return false;
+    }
+
+    // Finds the vertical-merge root cell above a continuation cell in the same
+    // visual column, so the E4301 refusal can point at the editable root.
+    private static string? FindMergeRootCellId(
+        XElement table,
+        DocxTargetId parsed,
+        int rowOrdinal,
+        int visualColumn)
+    {
+        XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
+        for (int index = rowOrdinal - 2; index >= 0; index--)
+        {
+            XElement? covering = FindCellByVisualColumn(rows[index], visualColumn);
+            if (covering is null || IsVerticalMergeContinuation(covering))
+            {
+                continue;
+            }
+
+            int startColumn = 1 + ReadTableRowGridOffset(rows[index], "gridBefore");
+            foreach (XElement candidate in rows[index].Elements(OoxmlNs.W + "tc"))
+            {
+                if (ReferenceEquals(candidate, covering))
+                {
+                    break;
+                }
+
+                startColumn += ReadTableCellColumnSpan(candidate);
+            }
+
+            return new DocxTargetId(parsed.Story, parsed.StoryPart, DocxTargetKind.Cell, parsed.Primary, index + 1, startColumn).ToWireValue();
+        }
+
+        return null;
+    }
+    private static DocxOperationCapability SetCellCapability(CellCapabilityFacts facts, string targetId, bool isTracked, bool isRequire)
+    {
+        const string operation = "set-cell";
+        if (facts.IsContinuation)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Unsupported merged-cell target " + Quote(targetId) + ". Only the vertical-merge root holds the merged value, so editing a continuation fails with E4301. Target the vertical-merge root cell instead.",
+                operation,
+                facts.RootCellId);
+        }
+
+        if (isTracked && !facts.TrackedShapeOk)
+        {
+            if (isRequire)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "unsupported",
+                    "Cell shape needs a direct rewrite (" + facts.TrackedShapeReason + "), so Require fails with E6002; tracked set-cell also rejects force true under Require. Suggest falls back to a direct rewrite with W4002 and Off rewrites directly, with force true when the cell holds complex content. Check remains authoritative for the exact replacement.",
+                    operation,
+                    null);
+            }
+
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Cell shape needs a direct rewrite (" + facts.TrackedShapeReason + "): use force true to replace all cell content, otherwise check fails with E4302. Suggest warns with W4002 on fallback. Check remains authoritative for the exact replacement.",
+                operation,
+                null);
+        }
+
+        if (!isTracked && !facts.IsSimple)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Cell holds complex content such as multiple paragraphs, a nested table, a drawing, or a field, so direct replacement needs force true; otherwise check fails with E4302. Check remains authoritative for the exact replacement.",
+                operation,
+                null);
+        }
+
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Simple cell shapes emit paragraph-level tracked markup; replacements with tabs or line breaks, mixed formatting, drawings, fields, or protected boundaries fall back with W4002 under Suggest and fail with E6002 under Require. Check remains authoritative.",
+                operation,
+                null);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct rewrite replaces the cell text. Table guards such as expect-text, expect-row-count, expect-column-count, and expect-cell-count still apply to the patch.",
+            operation,
+            null);
+    }
+
+    private static DocxOperationCapability SetCellShadingCapability(CellCapabilityFacts facts, string targetId)
+    {
+        const string operation = "set-cell-shading";
+        if (facts.IsContinuation)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Unsupported merged-cell target " + Quote(targetId) + ". Only the vertical-merge root holds the merged value, so editing a continuation fails with E4301. Target the vertical-merge root cell instead.",
+                operation,
+                facts.RootCellId);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Cell shading updates the cell properties without touching cell text. Fill accepts a 6-digit hexadecimal color or auto, clear true removes shading, and expect-fill guards the current fill. Tracked modes record shading revision markup.",
+            operation,
+            null);
+    }
+}
