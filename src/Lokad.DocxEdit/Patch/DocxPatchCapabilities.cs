@@ -150,8 +150,8 @@ internal static partial class DocxPatchEngine
             {
                 return new DocxOperationCapability(
                     operation,
-                    "unsupported",
-                    "Paragraph contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ". Replace-text for this target fails with E4305 under Suggest and E6002 under Require, because tracked output rebuilds the container. Use insert-before or insert-after to add content without editing the protected span. Check remains authoritative for the exact find span.",
+                    "conditional",
+                    "Paragraph contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ". Tracked edits for spans that avoid that boundary preserve the surrounding markup; spans that cross it fail with E4305 under Suggest and E6002 under Require. Check remains authoritative for the exact find span and replacement.",
                     operation,
                     "insert-after");
             }

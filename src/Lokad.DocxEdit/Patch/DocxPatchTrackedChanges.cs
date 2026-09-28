@@ -546,6 +546,289 @@ internal static partial class DocxPatchEngine
         paragraph.Add(nodes);
     }
 
+    // D05: span-scoped validation for the preserving tracked rewrite below.
+    // Tab rules reuse the whole-paragraph messages; run-content rules apply to
+    // runs the replacement actually touches, while surrounding markup is
+    // preserved untouched.
+    private static bool TryValidateTrackedSpanReplacement(
+        List<VisibleCharEntry> map,
+        string current,
+        IReadOnlyList<TextRange> matches,
+        string replacement,
+        [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        if (TextContainsTrackedUnsupportedCharacters(replacement))
+        {
+            unsupportedReason = "replacement contains tabs or line breaks";
+            return false;
+        }
+
+        foreach (TextRange match in matches)
+        {
+            string deletedText = current.Substring(match.Start, match.Length);
+            if (TextContainsTrackedUnsupportedCharacters(deletedText))
+            {
+                unsupportedReason = "matched text contains tabs or line breaks";
+                return false;
+            }
+
+            if (!TryCheckTrackedSpanRuns(map, match, out unsupportedReason))
+            {
+                return false;
+            }
+
+            if (SpanHasMixedRunProperties(map, match))
+            {
+                unsupportedReason = "paragraph contains mixed direct run formatting";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Boundary runs keep unmatched siblings through splits, so only children
+    // positioned inside the match can be lost; interior runs are removed whole
+    // and keep no non-text children beyond text markers.
+    private static bool TryCheckTrackedSpanRuns(
+        List<VisibleCharEntry> map,
+        TextRange match,
+        [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        XElement startElement = map[match.Start].TextElement;
+        XElement endElement = map[match.Start + match.Length - 1].TextElement;
+        XElement? startRun = startElement.Parent;
+        XElement? endRun = endElement.Parent;
+        var seen = new HashSet<XElement>(ReferenceEqualityComparer.Instance);
+        for (int i = match.Start; i < match.Start + match.Length; i++)
+        {
+            VisibleCharEntry entry = map[i];
+            if (!entry.IsText)
+            {
+                continue;
+            }
+
+            XElement run = entry.TextElement.Parent!;
+            if (!seen.Add(run))
+            {
+                continue;
+            }
+
+            foreach (XElement child in SpanMatchedChildren(run, startElement, endElement, startRun, endRun))
+            {
+                if (child.Name == OoxmlNs.W + "rPr" ||
+                    child.Name == OoxmlNs.W + "t" ||
+                    child.Name == OoxmlNs.W + "tab" ||
+                    child.Name == OoxmlNs.W + "br")
+                {
+                    continue;
+                }
+
+                unsupportedReason = "paragraph contains unsupported run content " + Quote(child.Name.LocalName);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Children of one span run positioned inside the match: from the start
+    // element onward in the first run, up to the end element in the last run,
+    // and everything in between for interior runs.
+    private static IEnumerable<XElement> SpanMatchedChildren(
+        XElement run,
+        XElement startElement,
+        XElement endElement,
+        XElement? startRun,
+        XElement? endRun)
+    {
+        IEnumerable<XElement> children = run.Elements();
+        if (ReferenceEquals(run, startRun))
+        {
+            children = children.SkipWhile(child => !ReferenceEquals(child, startElement));
+        }
+
+        if (ReferenceEquals(run, endRun))
+        {
+            children = children.TakeWhile(child => !ReferenceEquals(child, endElement)).Concat([endElement]);
+        }
+
+        return children;
+    }
+
+    // Whether the match spans runs with different direct formatting; each
+    // replacement carries the first span run properties.
+    private static bool SpanHasMixedRunProperties(List<VisibleCharEntry> map, TextRange match)
+    {
+        string? firstSignature = null;
+        XElement? previousRun = null;
+        for (int i = match.Start; i < match.Start + match.Length; i++)
+        {
+            VisibleCharEntry entry = map[i];
+            if (!entry.IsText)
+            {
+                continue;
+            }
+
+            XElement run = entry.TextElement.Parent!;
+            if (previousRun is not null && ReferenceEquals(previousRun, run))
+            {
+                continue;
+            }
+
+            previousRun = run;
+            string signature = CanonicalRunPropertiesSignature(run.Element(OoxmlNs.W + "rPr"));
+            if (firstSignature is null)
+            {
+                firstSignature = signature;
+                continue;
+            }
+
+            if (!string.Equals(firstSignature, signature, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+
+    // Isolates exactly the runs covering one match by splitting boundary runs,
+    // preserving unmatched siblings and run properties in place. Each split
+    // relocates through a fresh map, so no detached references escape.
+    // Returns null when the span cannot be resolved to run boundaries.
+    private static List<XElement>? IsolateMatchRuns(XElement paragraph, TextRange match)
+    {
+        List<VisibleCharEntry> map = BuildVisibleTextMap(paragraph);
+        if (match.Start < 0 || match.Length <= 0 || match.Start + match.Length > map.Count)
+        {
+            return null;
+        }
+
+        VisibleCharEntry startEntry = map[match.Start];
+        if (!startEntry.IsText)
+        {
+            return null;
+        }
+
+        XElement? startRun = startEntry.TextElement.Parent;
+        if (startRun is null || startRun.Name != OoxmlNs.W + "r")
+        {
+            return null;
+        }
+
+        if (startEntry.OffsetInElement > 0)
+        {
+            SplitRunAtTextPosition(new TextPosition(startEntry.TextElement, startEntry.OffsetInElement));
+            map = BuildVisibleTextMap(paragraph);
+        }
+
+        VisibleCharEntry endEntry = map[match.Start + match.Length - 1];
+        if (!endEntry.IsText)
+        {
+            return null;
+        }
+
+        XElement? endRun = endEntry.TextElement.Parent;
+        if (endRun is null || endRun.Name != OoxmlNs.W + "r")
+        {
+            return null;
+        }
+
+        if (endEntry.OffsetInElement + 1 < endEntry.TextElement.Value.Length)
+        {
+            SplitRunAtTextPosition(new TextPosition(endEntry.TextElement, endEntry.OffsetInElement + 1));
+            map = BuildVisibleTextMap(paragraph);
+        }
+
+        VisibleCharEntry firstEntry = map[match.Start];
+        VisibleCharEntry lastEntry = map[match.Start + match.Length - 1];
+        if (!firstEntry.IsText || !lastEntry.IsText)
+        {
+            return null;
+        }
+
+        XElement? firstRun = firstEntry.TextElement.Parent;
+        XElement? lastRun = lastEntry.TextElement.Parent;
+        if (firstRun is null || lastRun is null)
+        {
+            return null;
+        }
+
+        var mids = new List<XElement>();
+        XElement? cursor = firstRun;
+        while (cursor is not null)
+        {
+            if (cursor.Name == OoxmlNs.W + "r" && cursor.Elements(OoxmlNs.W + "t").Any(static element => element.Value.Length != 0))
+            {
+                mids.Add(cursor);
+            }
+
+            if (ReferenceEquals(cursor, lastRun))
+            {
+                break;
+            }
+
+            cursor = cursor.ElementsAfterSelf().FirstOrDefault();
+        }
+
+        if (mids.Count == 0 || !ReferenceEquals(mids[mids.Count - 1], lastRun))
+        {
+            return null;
+        }
+
+        return mids;
+    }
+
+
+    // D05: tracked replacement that preserves surrounding markup in place.
+    // Matched spans become delete/insert revision runs; every other node keeps
+    // its position and content, so existing revisions, markers, and wrappers
+    // survive with their history intact.
+    private static bool ReplaceParagraphTextWithTrackedSpans(
+        OoxmlPackage package,
+        XElement paragraph,
+        string current,
+        IReadOnlyList<TextRange> matches,
+        string replacement,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken,
+        [NotNullWhen(false)] out string? unsupportedReason)
+    {
+        unsupportedReason = null;
+        string[] revisionIds = AllocateRevisionIds(package, matches.Count * 2, generatedRevisionIds, cancellationToken);
+        string author = GetRevisionAuthor(options);
+        string timestamp = GetRevisionTimestamp(options);
+        for (int i = matches.Count - 1; i >= 0; i--)
+        {
+            TextRange match = matches[i];
+            List<XElement>? mids = IsolateMatchRuns(paragraph, match);
+            if (mids is null || mids.Count == 0)
+            {
+                unsupportedReason = "match spans cannot be isolated to editable run boundaries";
+                return false;
+            }
+
+            XElement? spanProperties = mids[0].Element(OoxmlNs.W + "rPr");
+            string deletedText = current.Substring(match.Start, match.Length);
+            XElement deletedRun = CreateDeletedRun(deletedText, spanProperties is null ? null : new XElement(spanProperties), revisionIds[i * 2], author, timestamp);
+            XElement insertedRun = CreateInsertedRun(replacement, spanProperties is null ? null : new XElement(spanProperties), revisionIds[i * 2 + 1], author, timestamp);
+            mids[0].AddBeforeSelf(deletedRun);
+            mids[0].AddBeforeSelf(insertedRun);
+            foreach (XElement mid in mids)
+            {
+                mid.Remove();
+            }
+        }
+
+        return true;
+    }
+
     private static void ReplaceWholeParagraphTextWithTrackedChanges(
         OoxmlPackage package,
         XElement paragraph,

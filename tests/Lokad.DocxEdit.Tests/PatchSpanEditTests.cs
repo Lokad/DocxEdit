@@ -124,8 +124,10 @@ public static class PatchSpanEditTests
         DocxDiagnostic diagnostic = Assert.Single(overlap.Diagnostics);
         Assert.Equal("E4305", diagnostic.Code);
         Assert.Contains("tracked-insertion", diagnostic.Message, StringComparison.Ordinal);
-    }    [Fact]
-    public static void TrackedModeKeepsWholeParagraphGate()
+    }
+
+    [Fact]
+    public static void TrackedFollowUpEditSucceedsOnUntouchedSpan()
     {
         using MemoryStream first = CreateDocx("Alpha Alpha");
         using var firstPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\n");
@@ -137,10 +139,47 @@ public static class PatchSpanEditTests
         using var reviewed = new MemoryStream();
         tracked.CopyTo(reviewed);
         reviewed.Position = 0;
-        DocxCheckResult refused = RunCheck(reviewed, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n", TrackChangesMode.Require);
+        DocxCheckResult second = RunCheck(reviewed, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n", TrackChangesMode.Require);
 
-        Assert.False(refused.Success);
-        Assert.Contains(refused.Diagnostics, static diagnostic => diagnostic.Code == "E6002");
+        Assert.True(second.Success, string.Join("|", second.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        tracked.Position = 0;
+        using var reviewedApply = new MemoryStream();
+        tracked.CopyTo(reviewedApply);
+        reviewedApply.Position = 0;
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n");
+        DocxApplyResult secondApply = new DocxEditor().Apply(reviewedApply, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+        Assert.True(secondApply.Success);
+        Assert.Equal(["3", "4"], Assert.Single(secondApply.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:delText>Alpha</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Delta</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Omega</w:t>", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.True(new DocxEditor().Validate(output).Success);
+    }
+
+    [Fact]
+    public static void TrackedOverlapRefusesWithRequire()
+    {
+        using MemoryStream first = CreateDocx("Alpha Alpha");
+        using var firstPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\n");
+        using var tracked = new MemoryStream();
+        DocxApplyResult applied = new DocxEditor().Apply(first, firstPatch, tracked, new DocxEditOptions { TrackChanges = TrackChangesMode.Suggest });
+        Assert.True(applied.Success);
+
+        tracked.Position = 0;
+        using var reviewed = new MemoryStream();
+        tracked.CopyTo(reviewed);
+        reviewed.Position = 0;
+        DocxCheckResult overlap = RunCheck(reviewed, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Omega\nwith Omicron\nend\n", TrackChangesMode.Require);
+
+        Assert.False(overlap.Success);
+        DocxDiagnostic diagnostic = Assert.Single(overlap.Diagnostics);
+        Assert.Equal("E6002", diagnostic.Code);
+        Assert.Contains("tracked-insertion", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -190,5 +229,26 @@ public static class PatchSpanEditTests
         DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind See\nwith Look\nend\n\nop replace-text\ntarget M.P0001\nfind now\nwith soon\nend\n", TrackChangesMode.Off);
 
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+    [Fact]
+    public static void RequirePlainSpanBesideHyperlinkSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(HyperlinkBody, HyperlinkRels);
+        DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind See\nwith Look\nend\n", TrackChangesMode.Require);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocxWithBodyAndRelationships(HyperlinkBody, HyperlinkRels);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind See\nwith Look\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+        Assert.True(apply.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:delText>See</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Look</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:hyperlink", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Look link now", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
 }

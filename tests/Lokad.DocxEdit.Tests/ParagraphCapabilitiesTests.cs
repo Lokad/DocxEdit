@@ -68,8 +68,7 @@ public static class ParagraphCapabilitiesTests
                 """);
             DocxTargetCapabilities capabilities = GetParagraphCapabilities(input, "M.P0001", mode);
 
-            string expectedText = mode == TrackChangesMode.Off ? "conditional" : "unsupported";
-            Assert.Equal(expectedText, FindOperation(capabilities, "replace-text").Support);
+            Assert.Equal("conditional", FindOperation(capabilities, "replace-text").Support);
             Assert.Contains("hyperlink", FindOperation(capabilities, "replace-text").Reason, StringComparison.Ordinal);
             Assert.Equal("insert-after", FindOperation(capabilities, "replace-text").Alternative);
             Assert.Equal("unsupported", FindOperation(capabilities, "replace-paragraph").Support);
@@ -133,8 +132,7 @@ public static class ParagraphCapabilitiesTests
 
         using MemoryStream checkInput = CreateDocxWithBody(body);
         DocxCheckResult refused = RunCheck(checkInput, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\nend\n", TrackChangesMode.Require);
-        Assert.False(refused.Success);
-        Assert.Contains(refused.Diagnostics, static diagnostic => diagnostic.Code == "E6002");
+        Assert.True(refused.Success, string.Join("|", refused.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 {
   "id": "negative-tracked-mixed-formatting",
-  "description": "Rejects tracked text replacement through incompatible direct run formatting.",
+  "description": "Rejects tracked text replacement spanning incompatible direct run formatting.",
   "input": {
     "bodyXml": [
       "    <w:p>",
@@ -19,7 +19,7 @@
     "",
     "op replace-text",
     "target M.P0001",
-    "find increased",
+    "find Revenue increased",
     "with rose",
     "end"
   ],

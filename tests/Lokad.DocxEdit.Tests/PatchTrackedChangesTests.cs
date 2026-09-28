@@ -542,7 +542,7 @@ public static class PatchTrackedChangesTests
     }
 
     [Fact]
-    public static void CheckTrackChangesRequireRejectsMixedRunFormatting()
+    public static void CheckTrackChangesRequireAllowsUniformSpanInMixedParagraph()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -557,6 +557,30 @@ public static class PatchTrackedChangesTests
             target M.P0001
             find increased
             with rose
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsSpanAcrossMixedRunFormatting()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:rPr><w:b/></w:rPr><w:t>Revenue </w:t></w:r>
+                      <w:r><w:rPr><w:i/></w:rPr><w:t>increased</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Revenue increased
+            with Revenue rose
             end
             """);
 
@@ -1071,7 +1095,7 @@ public static class PatchTrackedChangesTests
     }
 
     [Fact]
-    public static void ApplyTrackChangesSuggestFallsBackForMixedRunFormatting()
+    public static void ApplyTrackChangesSuggestTracksUniformSpanInMixedParagraph()
     {
         using MemoryStream input = CreateDocxWithBody("""
                     <w:p>
@@ -1097,20 +1121,16 @@ public static class PatchTrackedChangesTests
         });
 
         Assert.True(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
-        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("target shape is unsupported: paragraph contains mixed direct run formatting", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("will apply operation 'replace-text' directly", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
-        Assert.Equal("direct-edit-preserve-existing-revisions", diagnostic.Fallback);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "W4002");
+        Assert.Equal(["1", "2"], Assert.Single(result.Operations).GeneratedRevisionIds);
         output.Position = 0;
         string xml = ReadDocumentXml(output);
-        Assert.DoesNotContain("<w:del ", xml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<w:ins ", xml, StringComparison.Ordinal);
-        Assert.Contains("<w:i", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:delText>increased</w:delText>", xml, StringComparison.Ordinal);
         Assert.Contains("<w:t>rose</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:b", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:i", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Revenue rose", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
 
     [Fact]
@@ -2134,7 +2154,7 @@ public static class PatchTrackedChangesTests
     }
 
     [Fact]
-    public static void CheckTrackChangesRequireRejectsTextReplacementThroughCommentAnchors()
+    public static void CheckTrackChangesRequireTracksTextInsideCommentRange()
     {
         using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
         using var patch = new StringReader("""
@@ -2149,11 +2169,28 @@ public static class PatchTrackedChangesTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.False(result.Success);
-        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
-        Assert.Contains("protected OOXML boundary 'comment'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
-        Assert.Equal("require-failed", diagnostic.Fallback);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocxWithCommentAnchoredParagraph();
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Commented
+            with Updated
+            end
+            """);
+
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+        Assert.True(apply.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:delText>Commented</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Updated</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("commentRangeStart", xml, StringComparison.Ordinal);
+        Assert.Contains("commentRangeEnd", xml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -2177,7 +2214,7 @@ public static class PatchTrackedChangesTests
                       <w:r><w:t> after</w:t></w:r>
                     </w:p>
         """)]
-    public static void CheckTrackChangesRequireRejectsTextReplacementAdjacentToFieldBoundaries(string shape, string bodyXml)
+    public static void CheckTrackChangesRequireAllowsTextReplacementAdjacentToFieldBoundaries(string shape, string bodyXml)
     {
         _ = shape;
         using MemoryStream input = CreateDocxWithBody(bodyXml);
@@ -2193,24 +2230,48 @@ public static class PatchTrackedChangesTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsTextReplacementInsideSimpleField()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:fldSimple w:instr=" DATE ">
+                        <w:r><w:t>June 12</w:t></w:r>
+                      </w:fldSimple>
+                      <w:r><w:t> after</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find June
+            with July
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
         Assert.False(result.Success);
         DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
-        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Contains("protected OOXML boundary 'field'", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
         Assert.Equal("require-failed", diagnostic.Fallback);
     }
 
     [Theory]
-    [InlineData("adjacent-insertion", "plain")]
-    [InlineData("overlapping-insertion", "Inserted")]
-    [InlineData("adjacent-deletion", "plain")]
-    public static void CheckTrackChangesRequireRejectsTextReplacementTouchingExistingRevisionParagraphs(string shape, string find)
+    [InlineData("adjacent-insertion")]
+    [InlineData("adjacent-deletion")]
+    public static void CheckTrackChangesRequireAllowsTextReplacementBesideExistingRevisions(string shape)
     {
         string bodyXml = shape switch
         {
-            "adjacent-insertion" or "overlapping-insertion" => """
+            "adjacent-insertion" => """
                     <w:p>
                       <w:ins w:id="1" w:author="A" w:date="2026-06-01T00:00:00Z">
                         <w:r><w:t>Inserted </w:t></w:r>
@@ -2225,15 +2286,41 @@ public static class PatchTrackedChangesTests
                       </w:del>
                       <w:r><w:t>plain text</w:t></w:r>
                     </w:p>
-                """
+                """,
         };
         using MemoryStream input = CreateDocxWithBody(bodyXml);
-        using var patch = new StringReader($"""
+        using var patch = new StringReader("""
             docxpatch 1
 
             op replace-text
             target M.P0001
-            find {find}
+            find plain
+            with edited
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void CheckTrackChangesRequireRejectsTextReplacementInsideInsertion()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:ins w:id="1" w:author="A" w:date="2026-06-01T00:00:00Z">
+                        <w:r><w:t>Inserted </w:t></w:r>
+                      </w:ins>
+                      <w:r><w:t>plain text</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Inserted
             with edited
             end
             """);
@@ -2242,10 +2329,7 @@ public static class PatchTrackedChangesTests
 
         Assert.False(result.Success);
         DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E6002");
-        Assert.Contains("operation 'replace-text'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("target 'M.P0001'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("catalog support is 'tracked-simple'", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains(shape.Contains("insertion", StringComparison.Ordinal) ? "tracked-insertion" : "tracked-deletion", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("tracked-insertion", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("track-changes-unsupported-target-shape", diagnostic.Feature);
         Assert.Equal("require-failed", diagnostic.Fallback);
     }

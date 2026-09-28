@@ -77,12 +77,12 @@ internal static partial class DocxPatchEngine
             return NoOpResult(operation, target, "Replace-text for " + target + " leaves the text unchanged; nothing was written and no revisions were generated.");
         }
 
-        // D05: direct run-preserving edits check the actual match spans against
-        // protected boundaries; paragraph rewrites and tracked output keep the
-        // whole-paragraph gate because they rebuild the container.
-        bool directPreserveRuns = shouldPreserveRuns &&
-            options.TrackChanges is TrackChangesMode.Off or TrackChangesMode.Preserve;
-        SpanEditPlan spanPlan = directPreserveRuns
+        // D05: run-preserving edits check the actual match spans against
+        // protected boundaries. Paragraph rewrites keep the whole-paragraph gate
+        // because they rebuild the container; tracked output preserves
+        // surrounding markup in place around the edited spans.
+        bool planSpans = shouldPreserveRuns;
+        SpanEditPlan spanPlan = planSpans
             ? PlanSpanEdit(paragraphTarget.Paragraph, current, matches)
             : SpanEditPlan.Legacy;
         string? protectedFeature = spanPlan.UseLegacyGate
@@ -102,9 +102,19 @@ internal static partial class DocxPatchEngine
         bool useTrackedChanges = options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;
         bool canUseTrackedChanges = true;
         string? trackedUnsupportedReason = null;
+        List<VisibleCharEntry>? spanMap = spanPlan.Map;
+        bool useSpanTrackedPath = useTrackedChanges && !spanPlan.UseLegacyGate && spanPlan.ProtectedFeature is null && spanMap is not null;
         if (useTrackedChanges)
         {
-            canUseTrackedChanges = TryValidateTrackedTextReplacement(paragraphTarget.Paragraph, current, matches, replacement, out trackedUnsupportedReason);
+            if (useSpanTrackedPath)
+            {
+                canUseTrackedChanges = TryValidateTrackedSpanReplacement(spanMap!, current, matches, replacement, out trackedUnsupportedReason);
+            }
+            else
+            {
+                canUseTrackedChanges = TryValidateTrackedTextReplacement(paragraphTarget.Paragraph, current, matches, replacement, out trackedUnsupportedReason);
+            }
+
             if (!canUseTrackedChanges && trackedUnsupportedReason is not null &&
                 !TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
             {
@@ -115,9 +125,28 @@ internal static partial class DocxPatchEngine
 
         if (useTrackedChanges && canUseTrackedChanges)
         {
-            ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement, options, generatedRevisionIds, cancellationToken);
-            SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
-            return [];
+            if (useSpanTrackedPath)
+            {
+                if (!ReplaceParagraphTextWithTrackedSpans(package, paragraphTarget.Paragraph, current, matches, replacement, options, generatedRevisionIds, cancellationToken, out trackedUnsupportedReason))
+                {
+                    if (!TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason ?? "tracked span replacement is not supported for this target shape", diagnostics))
+                    {
+                        return diagnostics;
+                    }
+
+                    canUseTrackedChanges = false;
+                }
+            }
+            else
+            {
+                ReplaceParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, matches, replacement, options, generatedRevisionIds, cancellationToken);
+            }
+
+            if (canUseTrackedChanges)
+            {
+                SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
+                return [];
+            }
         }
 
         if (shouldPreserveRuns)

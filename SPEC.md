@@ -1519,10 +1519,11 @@ Rules:
   * tracked revision boundaries
 
 * Spans through plain text beside those boundaries succeed and preserve them.
-  Paragraph rewrites with preserve-runs false, and tracked output in any mode,
-  keep the whole-paragraph rule: they fail when the paragraph contains any of
-  the boundaries above, because they rebuild the container.
-  * unsupported revision boundaries
+  Tracked edits for such spans preserve the surrounding markup in place and
+  record delete and insert revisions for the span.
+  Paragraph rewrites with preserve-runs false keep the whole-paragraph rule:
+  they fail when the paragraph contains any of the boundaries above, because
+  they rebuild the container.
 * Preserve `xml:space="preserve"` when replacement text has leading/trailing spaces or repeated spaces.
 
 Optional field:

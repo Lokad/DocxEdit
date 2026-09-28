@@ -26,6 +26,8 @@ internal static partial class DocxPatchEngine
         public TextPosition?[]? Positions { get; init; }
 
         public IReadOnlyList<TextRange>? DirectMatches { get; init; }
+
+        public List<VisibleCharEntry>? Map { get; init; }
     }
 
     internal static SpanEditPlan PlanSpanEdit(
@@ -96,7 +98,7 @@ internal static partial class DocxPatchEngine
             directMatches.Add(new TextRange(directIndexByVisible[match.Start], match.Length));
         }
 
-        return new SpanEditPlan { Positions = directPositions.ToArray(), DirectMatches = directMatches };
+        return new SpanEditPlan { Positions = directPositions.ToArray(), DirectMatches = directMatches, Map = map };
     }
 
     internal static List<VisibleCharEntry> BuildVisibleTextMap(XElement paragraph)
