@@ -1888,4 +1888,25 @@ public static class PatchApplyTests
         Assert.Equal(1, diagnostic.Column);
     }
 
+
+    [Fact]
+    public static void ApplyInsertAfterEmptyTextStillFails()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text ""
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
+    }
+
 }

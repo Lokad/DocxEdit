@@ -362,7 +362,7 @@ internal static partial class DocxPatchEngine
     {
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
-        string? text = ReadRequiredField(operation, "text", diagnostics, allowEmpty: true);
+        string? text = ReadRequiredField(operation, "text", diagnostics);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         bool force = ReadBooleanField(operation, "force", diagnostics) ?? false;
         if (text is null || target is null || diagnostics.Count != 0)

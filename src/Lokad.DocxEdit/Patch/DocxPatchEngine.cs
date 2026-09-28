@@ -372,9 +372,17 @@ internal static partial class DocxPatchEngine
     private static string? ReadRequiredField(
         DocxPatchOperation operation,
         string fieldName,
-        List<DocxDiagnostic> diagnostics,
-        bool allowEmpty = false)
+        List<DocxDiagnostic> diagnostics)
     {
+        // D10: empty-value policy lives in the registry alongside the other
+        // field contracts; handlers stay unaware of per-field allowances.
+        bool allowEmpty = false;
+        if (OperationsByName.TryGetValue(operation.OperationName, out OperationRegistration? registration))
+        {
+            OperationFieldDefinition? definition = registration.Fields.FirstOrDefault(field => string.Equals(field.Name, fieldName, StringComparison.Ordinal));
+            allowEmpty = definition?.AllowEmpty ?? false;
+        }
+
         if (operation.Fields.TryGetValue(fieldName, out string? value) && (value.Length != 0 || allowEmpty))
         {
             return value;
@@ -383,6 +391,7 @@ internal static partial class DocxPatchEngine
         diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4202", $"Operation '{operation.OperationName}' is missing required field '{fieldName}'.", operation));
         return null;
     }
+
     private static IReadOnlyList<string> GetEditableStoryPartNames(
         OoxmlPackage package,
         CancellationToken cancellationToken)

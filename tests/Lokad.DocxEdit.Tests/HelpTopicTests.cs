@@ -2,6 +2,7 @@ namespace Lokad.DocxEdit.Tests;
 
 // D06: focused per-operation help renders from the shared catalog, and the
 // patch overview separates recognized-but-unimplemented operations.
+[Collection("ConsoleCli")]
 public static class HelpTopicTests
 {
     [Fact]
@@ -69,4 +70,12 @@ public static class HelpTopicTests
             Assert.DoesNotContain("  " + operation + " ", supported, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public static void PatchOperationTopicReportsEmptyAllowedFields()
+    {
+        Assert.Contains("Empty values allowed: with", DocxHelp.RenderTopic("replace-text"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Empty values allowed", DocxHelp.RenderTopic("set-style"), StringComparison.Ordinal);
+    }
+
 }

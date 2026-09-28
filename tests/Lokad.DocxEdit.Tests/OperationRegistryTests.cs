@@ -158,4 +158,18 @@ public static class OperationRegistryTests
         Assert.Contains("left-percent|top-percent|right-percent|bottom-percent", patchHelp, StringComparison.Ordinal);
         Assert.DoesNotContain("target plus one crop percentage", patchHelp, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public static void CatalogExposesEmptyAllowedFields()
+    {
+        IReadOnlyDictionary<string, DocxPatchOperationInfo> catalogued = DocxHelp.Catalog.PatchOperations.ToDictionary(static operation => operation.Name);
+
+        Assert.Equal(["with"], catalogued["replace-text"].EmptyAllowedFields);
+        Assert.Equal(["text"], catalogued["replace-paragraph"].EmptyAllowedFields);
+        Assert.Equal(["text"], catalogued["set-cell"].EmptyAllowedFields);
+        Assert.Empty(catalogued["insert-after"].EmptyAllowedFields);
+        Assert.Empty(catalogued["set-style"].EmptyAllowedFields);
+        Assert.Empty(catalogued["add-comment"].EmptyAllowedFields);
+    }
+
 }

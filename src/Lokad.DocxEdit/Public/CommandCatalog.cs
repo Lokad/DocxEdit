@@ -113,6 +113,9 @@ public sealed record DocxPatchOperationInfo
     /// <summary>Fields that may repeat; every occurrence is kept in file order. Every other field must appear at most once per operation; repeating one fails patch parsing.</summary>
     public IReadOnlyList<string> RepeatableFields { get; init; } = [];
 
+    /// <summary>Required fields that also accept a present-but-empty value (for example text deletion).</summary>
+    public IReadOnlyList<string> EmptyAllowedFields { get; init; } = [];
+
     /// <summary>What the operation does. Markdown-flavored; may contain inline code spans.</summary>
     public string Description { get; init; } = string.Empty;
 
@@ -494,6 +497,10 @@ public static class DocxHelp
         builder.AppendLine(operation.Description);
         builder.Append("Required fields: ").AppendLine(RenderTopicFields(operation, required: true));
         builder.Append("Optional fields: ").AppendLine(RenderTopicFields(operation, required: false));
+        if (operation.EmptyAllowedFields.Count != 0)
+        {
+            builder.Append("Empty values allowed: ").AppendLine(string.Join(", ", operation.EmptyAllowedFields));
+        }
         builder.Append("Track-change support: ").Append(operation.TrackChangesSupportClass).Append(" / ").Append(operation.TrackChangesSupport).Append(" - ").AppendLine(operation.TrackChangesNote);
         return builder.ToString();
     }
