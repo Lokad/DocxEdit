@@ -295,6 +295,10 @@ public static class ProgramMain
             {
                 message.Append(" help=").Append(diagnostic.HelpTopic);
             }
+            if (diagnostic.MatchCount is not null)
+            {
+                message.Append(" matches=").Append(diagnostic.MatchCount.Value);
+            }
             Console.Error.WriteLine(message.ToString());
         }
     }

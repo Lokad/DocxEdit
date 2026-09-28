@@ -49,6 +49,12 @@ public sealed record DocxDiagnostic(
     /// <summary>Machine-readable fallback tag describing what was done instead.</summary>
     public string? Fallback { get; init; }
 
+    /// <summary>Number of matches for ambiguous or multi-match findings; null when the finding is not about match counts.</summary>
+    public int? MatchCount { get; init; }
+
+    /// <summary>Candidate target IDs for ambiguous selector or name matches; null when the finding names no candidates.</summary>
+    public IReadOnlyList<string>? CandidateIds { get; init; }
+
     /// <summary>Focused help topic for this finding, usually the patch operation name; null when no topic applies.</summary>
     public string? HelpTopic { get; init; }
 

@@ -69,7 +69,7 @@ internal static partial class DocxPatchEngine
 
         if (!replaceAll && occurrence is null && matches.Count > 1)
         {
-            return [Diagnostic(DocxSeverity.Error, "E1202", $"Find text matched {matches.Count} occurrences in {target}. Specify occurrence N to select one match or occurrence all to replace every match.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E1202", $"Find text matched {matches.Count} occurrences in {target}. Specify occurrence N to select one match or occurrence all to replace every match.", operation, target) with { MatchCount = matches.Count }];
         }
 
         if (string.Equals(ApplyTextReplacement(current, matches, replacement), current, StringComparison.Ordinal))

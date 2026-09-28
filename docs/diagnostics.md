@@ -1,8 +1,8 @@
 # Diagnostics
 
-Diagnostics have a severity, code, message, and optional target, part, story, feature, fallback, operation index, line, column, and help topic. Patch-operation findings carry the focused help topic for their operation (see help <operation>); findings without an operation leave it empty.
+Diagnostics have a severity, code, message, and optional target, part, story, feature, fallback, operation index, line, column, help topic, and, for ambiguous matches, match counts with candidate IDs. Patch-operation findings carry the focused help topic for their operation (see help <operation>); findings without an operation leave it empty.
 
-Text-mode stderr renders severity, code, message, and whichever of target, part, operation, line, column, and help topic are present. JSON output carries the full records.
+Text-mode stderr renders severity, code, message, and whichever of target, part, operation, line, column, help topic, and match count are present. JSON output carries the full records.
 
 Patch-operation findings reuse source positions: selector findings point at the target field, guard findings at the guard field, and find or anchor findings at the find or anchor-text field.
 

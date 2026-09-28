@@ -100,7 +100,7 @@ internal static partial class DocxPatchEngine
                         "E1202",
                         $"Anchor text matched {matches.Count} ranges in {target}. Specify occurrence to select one range.",
                         operation,
-                        target)
+                        target) with { MatchCount = matches.Count }
                 ];
             }
 

@@ -545,7 +545,7 @@ internal static partial class DocxPatchEngine
                     "E1202",
                     $"Selector matched {matches.Count} targets: {string.Join(", ", matches.Select(match => match.Id))}. Use a more specific selector or an explicit ID.",
                     operation,
-                    rawSelector)
+                    rawSelector) with { MatchCount = matches.Count, CandidateIds = matches.Select(match => match.Id).ToArray() }
             ];
             return null;
         }
@@ -1341,7 +1341,7 @@ internal static partial class DocxPatchEngine
 
         if (matches.Count > 1)
         {
-            diagnostics = [Diagnostic(DocxSeverity.Error, "E1202", "Content-control name matched " + matches.Count + " controls: " + string.Join(", ", matchIds) + ". Use an explicit content-control ID.", operation, target)];
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1202", "Content-control name matched " + matches.Count + " controls: " + string.Join(", ", matchIds) + ". Use an explicit content-control ID.", operation, target) with { MatchCount = matches.Count, CandidateIds = matchIds.ToArray() }];
             return null;
         }
 
@@ -1391,7 +1391,7 @@ internal static partial class DocxPatchEngine
 
         if (matches.Count > 1)
         {
-            diagnostics = [Diagnostic(DocxSeverity.Error, "E1202", "Bookmark name matched " + matches.Count + " bookmarks: " + string.Join(", ", matchIds) + ". Use an explicit bookmark ID.", operation, target)];
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1202", "Bookmark name matched " + matches.Count + " bookmarks: " + string.Join(", ", matchIds) + ". Use an explicit bookmark ID.", operation, target) with { MatchCount = matches.Count, CandidateIds = matchIds.ToArray() }];
             return null;
         }
 
