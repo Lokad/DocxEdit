@@ -350,4 +350,55 @@ public static class PatchReportTests
         Assert.Equal("Anchor", report.PreviewAfter);
         Assert.False(report.PreviewTruncated);
     }
+
+    [Fact]
+    public static void OperationsAfterFailureAreSkipped()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P9999
+            find Alpha
+            with Omega
+            end
+
+            op replace-text
+            target M.P0001
+            find Beta
+            with Gamma
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Equal(2, result.Operations.Count);
+        Assert.False(result.Operations[0].Success);
+        Assert.False(result.Operations[1].Success);
+        DocxDiagnostic skipped = Assert.Single(result.Operations[1].Diagnostics);
+        Assert.Equal("I0002", skipped.Code);
+        Assert.Equal(DocxSeverity.Info, skipped.Severity);
+        Assert.Empty(result.Operations[1].AffectedTargets);
+        Assert.Empty(result.Operations[1].GeneratedRevisionIds);
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
+    public static void SkippedOperationsAgreeBetweenCheckAndApply()
+    {
+        const string patchText = "docxpatch 1\n\nop replace-text\ntarget M.P9999\nfind Alpha\nwith Omega\nend\n\nop replace-text\ntarget M.P0001\nfind Beta\nwith Gamma\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha Beta");
+        DocxCheckResult check = new DocxEditor().Check(checkInput, new StringReader(patchText));
+        using MemoryStream applyInput = CreateDocx("Alpha Beta");
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patchText), output);
+        Assert.False(check.Success);
+        Assert.False(apply.Success);
+        Assert.Equal(check.Operations[1].Success, apply.Operations[1].Success);
+        Assert.Contains(check.Operations[1].Diagnostics, static d => d.Code == "I0002");
+        Assert.Contains(apply.Operations[1].Diagnostics, static d => d.Code == "I0002");
+    }
 }

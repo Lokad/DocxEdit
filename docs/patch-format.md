@@ -184,6 +184,7 @@ succeeds as a semantic no-op: nothing is written, no revision markup is generate
 whole-paragraph and cell rewrites with identical text, and property changes that set the already-current value. Under tracked modes a no-op generates no revisions, so it never blocks a later edit with phantom revision markup.
 
 Retries are not automatically safe: append and insert operations are not idempotent, and a failed stale guard stays failed. A host that retries after an uncertain response must re-discover targets against the current input and deduplicate at its own boundary; the patch text alone carries no execution identity. An empty patch (a preamble with no operations) succeeds trivially with no operation reports.
+Operations after the first failure are skipped with an informational diagnostic rather than simulated against the divergent package: repair the first error and resubmit.
 
 ## Guards
 

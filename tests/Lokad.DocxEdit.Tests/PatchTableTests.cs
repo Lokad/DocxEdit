@@ -463,7 +463,9 @@ public static class PatchTableTests
     [Fact]
     public static void CheckTablePropertyGuardsRejectMismatches()
     {
-        using MemoryStream input = CreateDocxWithBody("""
+        // Operations after the first failure are skipped rather than simulated,
+        // so every guard mismatch gets its own patch here.
+        const string bodyXml = """
                     <w:tbl>
                       <w:tblPr>
                         <w:tblStyle w:val="ExistingStyle"/>
@@ -474,8 +476,9 @@ public static class PatchTableTests
                         <w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc>
                       </w:tr>
                     </w:tbl>
-            """);
-        using var patch = new StringReader("""
+            """;
+        using MemoryStream shadingInput = CreateDocxWithBody(bodyXml);
+        using var shadingPatch = new StringReader("""
             docxpatch 1
 
             op set-cell-shading
@@ -483,18 +486,39 @@ public static class PatchTableTests
             expect-fill FFFFFF
             fill A1B2C3
             end
+            """);
+        DocxCheckResult shading = new DocxEditor().Check(shadingInput, shadingPatch);
+        Assert.False(shading.Success);
+        Assert.Contains(shading.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01.C01");
+        using MemoryStream styleInput = CreateDocxWithBody(bodyXml);
+        using var stylePatch = new StringReader("""
+            docxpatch 1
 
             op set-table-style
             target M.T0001
             expect-style OtherStyle
             style TableGrid
             end
+            """);
+        DocxCheckResult style = new DocxEditor().Check(styleInput, stylePatch);
+        Assert.False(style.Success);
+        Assert.Contains(style.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
+        using MemoryStream headerInput = CreateDocxWithBody(bodyXml);
+        using var headerPatch = new StringReader("""
+            docxpatch 1
 
             op set-row-header
             target M.T0001.R01
             expect-header false
             header false
             end
+            """);
+        DocxCheckResult header = new DocxEditor().Check(headerInput, headerPatch);
+        Assert.False(header.Success);
+        Assert.Contains(header.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
+        using MemoryStream captionInput = CreateDocxWithBody(bodyXml);
+        using var captionPatch = new StringReader("""
+            docxpatch 1
 
             op set-table-metadata
             target M.T0001
@@ -502,14 +526,9 @@ public static class PatchTableTests
             caption Updated caption
             end
             """);
-
-        DocxCheckResult result = new DocxEditor().Check(input, patch);
-
-        Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01.C01");
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001");
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E3201" && diagnostic.TargetId == "M.T0001.R01");
-        Assert.Contains(result.Diagnostics, diagnostic =>
+        DocxCheckResult caption = new DocxEditor().Check(captionInput, captionPatch);
+        Assert.False(caption.Success);
+        Assert.Contains(caption.Diagnostics, diagnostic =>
             diagnostic.Code == "E3201" &&
             diagnostic.TargetId == "M.T0001" &&
             diagnostic.Message.Contains("caption", StringComparison.Ordinal));

@@ -66,6 +66,7 @@ Common code ranges:
 - `E2014`: patch text exceeds the configured maximum patch size.
 - `E2015`: a non-repeatable patch field is specified more than once in one operation.
 - `I0001`: an operation completed as a semantic no-op: guards passed but the requested end state already held, so nothing was written, no revisions were generated, and fields were not marked dirty.
+- `I0002`: an operation was skipped after an earlier operation failed; nothing was attempted and nothing after the failure was simulated.
 - `E3201`: guard failed: an `expect-*` value differs from the current value.
 - `E4201`: operation is recognized but not supported in this mode.
 - `E4202`: required field or field combination is missing.

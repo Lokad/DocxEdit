@@ -160,4 +160,21 @@ public static class CheckApplyParityTests
             + "</Relationships>";
     }
 
+
+    [Fact]
+    public static void GuardedDependentEditsStillExecuteAfterSuccess()
+    {
+        const string patchText = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n\nop replace-text\ntarget M.P0001\nexpect-text Beta.\nfind Beta\nwith Gamma\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha.");
+        DocxCheckResult check = new DocxEditor().Check(checkInput, new StringReader(patchText));
+        using MemoryStream applyInput = CreateDocx("Alpha.");
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patchText), output);
+        Assert.Equal(apply.Success, check.Success);
+        Assert.True(check.Success);
+        Assert.All(check.Operations, static operation => Assert.True(operation.Success));
+        output.Position = 0;
+        Assert.Equal("Gamma.", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
 }

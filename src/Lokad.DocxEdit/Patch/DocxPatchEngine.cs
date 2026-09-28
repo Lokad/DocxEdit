@@ -91,10 +91,33 @@ internal static partial class DocxPatchEngine
         // their own ID ranges out of it below.
         var revisionIds = new RevisionIdTracker();
         bool anyMutation = false;
+        bool priorFailure = false;
         var reports = new List<DocxPatchOperationReport>();
         foreach (DocxPatchOperation operation in patch.Operations)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (priorFailure)
+            {
+                // D14: operations after the first failure are skipped, never simulated
+                // against the divergent disposable package. The overall failure plus
+                // the first error already tell the repair story.
+                var skippedDiagnostics = new List<DocxDiagnostic>
+                {
+                    Diagnostic(DocxSeverity.Info, SkippedDiagnosticCode, "Operation skipped after an earlier operation failed; nothing was attempted.", operation, operation.Fields.GetValueOrDefault("target"))
+                };
+                diagnostics.AddRange(skippedDiagnostics);
+                reports.Add(new DocxPatchOperationReport(
+                    operation.Index,
+                    operation.OperationName,
+                    operation.Fields.GetValueOrDefault("target"),
+                    false,
+                    skippedDiagnostics)
+                {
+                    AffectedTargets = [],
+                    GeneratedRevisionIds = []
+                });
+                continue;
+            }
             var operationDiagnostics = new List<DocxDiagnostic>();
             int revisionMark = revisionIds.Count;
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
@@ -143,6 +166,7 @@ internal static partial class DocxPatchEngine
             bool operationMutated = operationSuccess && operationDiagnostics.All(diagnostic => diagnostic.Code != NoOpDiagnosticCode);
             var (previewBeforeText, previewAfterText, previewTruncated) = FinalizePreview(package, operation, options, previewBefore, operationSuccess, cancellationToken);
             anyMutation |= operationMutated;
+            priorFailure |= !operationSuccess;
             diagnostics.AddRange(operationDiagnostics);
             reports.Add(new DocxPatchOperationReport(
                 operation.Index,
@@ -1737,6 +1761,7 @@ internal static partial class DocxPatchEngine
     // it to tell mutating operations apart for field-refresh decisions and
     // affected-target reporting.
     internal const string NoOpDiagnosticCode = "I0001";
+    internal const string SkippedDiagnosticCode = "I0002";
 
     private static IReadOnlyList<DocxDiagnostic> NoOpResult(DocxPatchOperation operation, string? target, string message)
     {
