@@ -8,7 +8,8 @@ internal static class DocxPatchParser
         .ToDictionary(registration => registration.Name, registration => new OperationDefinition(
             registration.Fields.Select(static field => field.Name).ToArray(),
             registration.Fields.Where(static field => field.Kind == FieldValueKind.Boolean).Select(static field => field.Name).ToArray(),
-            registration.Fields.Where(static field => field.Kind == FieldValueKind.Integer).Select(static field => field.Name).ToArray()), StringComparer.Ordinal);
+            registration.Fields.Where(static field => field.Kind == FieldValueKind.Integer).Select(static field => field.Name).ToArray(),
+            registration.Fields.Where(static field => field.Repeatable).Select(static field => field.Name).ToArray()), StringComparer.Ordinal);
 
     public static DocxPatch Parse(string text)
     {
@@ -97,6 +98,11 @@ internal static class DocxPatchParser
                 if (!operationDefinition.AllowedFields.Contains(key))
                 {
                     return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", fieldLineNumber, keyColumn);
+                }
+
+                if (fields.ContainsKey(key) && !operationDefinition.RepeatableFields.Contains(key))
+                {
+                    return Error("E2015", $"Field '{key}' is specified more than once in operation '{operationName}'. Only fields documented as repeatable may repeat.", fieldLineNumber, keyColumn);
                 }
 
                 string value = rawValue;
@@ -205,13 +211,15 @@ internal static class DocxPatchParser
     private sealed record OperationDefinition(
         IReadOnlySet<string> AllowedFields,
         IReadOnlySet<string> BooleanFields,
-        IReadOnlySet<string> IntegerFields)
+        IReadOnlySet<string> IntegerFields,
+        IReadOnlySet<string> RepeatableFields)
     {
-        public OperationDefinition(string[] allowedFields, string[] booleanFields, string[] integerFields)
+        public OperationDefinition(string[] allowedFields, string[] booleanFields, string[] integerFields, string[] repeatableFields)
             : this(
                 new HashSet<string>(allowedFields, StringComparer.Ordinal),
                 new HashSet<string>(booleanFields, StringComparer.Ordinal),
-                new HashSet<string>(integerFields, StringComparer.Ordinal))
+                new HashSet<string>(integerFields, StringComparer.Ordinal),
+                new HashSet<string>(repeatableFields, StringComparer.Ordinal))
         {
         }
     }

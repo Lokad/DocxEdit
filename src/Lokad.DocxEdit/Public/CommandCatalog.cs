@@ -110,7 +110,7 @@ public sealed record DocxPatchOperationInfo
     /// <summary>Field groups of which at least one member is required. Every member is a real field name.</summary>
     public IReadOnlyList<IReadOnlyList<string>> RequiredAlternatives { get; init; } = [];
 
-    /// <summary>Fields that may repeat; every occurrence is kept in file order. All other fields are last-value-wins.</summary>
+    /// <summary>Fields that may repeat; every occurrence is kept in file order. Every other field must appear at most once per operation; repeating one fails patch parsing.</summary>
     public IReadOnlyList<string> RepeatableFields { get; init; } = [];
 
     /// <summary>What the operation does. Markdown-flavored; may contain inline code spans.</summary>

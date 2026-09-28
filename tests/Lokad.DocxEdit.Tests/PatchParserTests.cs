@@ -365,4 +365,74 @@ public static class PatchParserTests
         Assert.Equal(6, operation.FieldValues[2].Line);
     }
 
+
+    [Fact]
+    public static void ParsePatchRejectsRepeatedTargetField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            target M.P0002
+            text Changed
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2015", diagnostic.Code);
+        Assert.Equal(5, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsRepeatedFindField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            find Beta
+            with Omega
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2015", diagnostic.Code);
+        Assert.Equal(6, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsRepeatedGuardField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            expect-text Alpha
+            expect-text Beta
+            find Alpha
+            with Omega
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2015", diagnostic.Code);
+        Assert.Equal(6, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
 }

@@ -43,8 +43,9 @@ Rules:
 - Field names are operation-specific. Unknown fields fail validation.
 - Boolean fields must be `true` or `false`.
 - Integer fields must parse as integers.
-- Repeated fields are preserved for operations that need them, such as repeated
-  `cell` fields in row operations.
+- A field that is not documented as repeatable must appear at most once per
+  operation; repeating it fails parsing with `E2015`. Repeated `cell` fields
+  in row operations are preserved in file order.
 - `expect-hash` and `preserve-size` are not supported.
 
 ## Minimal Examples

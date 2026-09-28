@@ -58,6 +58,7 @@ Common code ranges:
 - `E2012`: boolean field value must be true or false.
 - `E2013`: integer field value must be an integer.
 - `E2014`: patch text exceeds the configured maximum patch size.
+- `E2015`: a non-repeatable patch field is specified more than once in one operation.
 - `E3201`: guard failed: an `expect-*` value differs from the current value.
 - `E4201`: operation is recognized but not supported in this mode.
 - `E4202`: required field or field combination is missing.
