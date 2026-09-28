@@ -247,4 +247,36 @@ public static class HelpTopicTests
         Assert.False(cropResult.Success);
         Assert.Contains(cropResult.Diagnostics, static diagnostic => diagnostic.Code == "E5208");
     }
+    [Fact]
+    public static void PositionEnumsAreMachineReadable()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-position", out DocxPatchOperationInfo position));
+        Assert.Contains("horizontal-relative=page|margin|column|character|leftMargin|rightMargin|insideMargin|outsideMargin", position.AllowedValues);
+        Assert.Contains("horizontal-align=left|center|right|inside|outside", position.AllowedValues);
+        Assert.Contains("vertical-relative=page|margin|paragraph|line|topMargin|bottomMargin|insideMargin|outsideMargin", position.AllowedValues);
+        Assert.Contains("vertical-align=top|center|bottom|inside|outside", position.AllowedValues);
+    }
+
+    [Fact]
+    public static void HelpRendersPositionEnums()
+    {
+        string topic = DocxHelp.RenderTopic("set-image-position");
+        Assert.Contains("Allowed values:", topic, StringComparison.Ordinal);
+        Assert.Contains("horizontal-align=left|center|right|inside|outside", topic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void BadPositionEnumsStillRejectedByExecution()
+    {
+        using MemoryStream alignInput = CreateDocxWithAnchoredImage();
+        using var alignPatch = new StringReader("docxpatch 1\n\nop set-image-position\ntarget M.I0001\nhorizontal-align sideways\nend\n");
+        DocxCheckResult alignResult = new DocxEditor().Check(alignInput, alignPatch);
+        Assert.False(alignResult.Success);
+        Assert.Contains(alignResult.Diagnostics, static diagnostic => diagnostic.Code == "E5210");
+        using MemoryStream relativeInput = CreateDocxWithAnchoredImage();
+        using var relativePatch = new StringReader("docxpatch 1\n\nop set-image-position\ntarget M.I0001\nvertical-relative nowhere\nend\n");
+        DocxCheckResult relativeResult = new DocxEditor().Check(relativeInput, relativePatch);
+        Assert.False(relativeResult.Success);
+        Assert.Contains(relativeResult.Diagnostics, static diagnostic => diagnostic.Code == "E5210");
+    }
 }
