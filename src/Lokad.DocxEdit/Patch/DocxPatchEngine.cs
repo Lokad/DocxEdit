@@ -80,6 +80,13 @@ internal static partial class DocxPatchEngine
         }
 
         Dictionary<string, int> rangeBaseline = CaptureRangeStructureBaseline(package, cancellationToken);
+        // D01: bind explicit paragraph/table/row/cell/section IDs to the input
+        // snapshot for this patch; semantic selectors keep resolving live.
+        // Untouched parts are restored byte-identical afterwards, so snapshot
+        // bookkeeping never rewrites output the patch did not edit.
+        Dictionary<string, byte[]> snapshotOriginals = RecordStoryPartBytes(package, cancellationToken);
+        CaptureTargetSnapshot(package, cancellationToken);
+        UnmarkStoryParts(package, cancellationToken);
         // One shared revision-ID allocator per execution; per-operation reports slice
         // their own ID ranges out of it below.
         var revisionIds = new RevisionIdTracker();
@@ -145,6 +152,10 @@ internal static partial class DocxPatchEngine
                 revisionIds.Invalidate();
             }
         }
+
+        // D01: strip snapshot marks before field refresh, validation, and
+        // publication so transient IDs never reach validators or output.
+        StripTargetSnapshot(package, snapshotOriginals, cancellationToken);
 
         bool shouldMarkFieldsDirty = options.MarkFieldsDirtyWhenEditing &&
             patch.Operations.Count != 0 &&

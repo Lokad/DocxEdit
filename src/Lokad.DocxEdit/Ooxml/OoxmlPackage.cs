@@ -250,6 +250,14 @@ internal sealed class OoxmlPackage
         touchedPartNames.Add(normalized);
     }
 
+    // D01: snapshot bookkeeping must not mark otherwise-untouched parts as edited.
+    // Capture annotates story parts transiently; untouched parts are restored
+    // byte-identical afterwards so output preserves original bytes.
+    internal void UnmarkPartTouched(string partName)
+    {
+        touchedPartNames.Remove(OoxmlPath.NormalizePartName(partName));
+    }
+
     internal void AddPart(string partName, string contentType, byte[] bytes, CancellationToken cancellationToken)
     {
         string normalized = OoxmlPath.NormalizePartName(partName);

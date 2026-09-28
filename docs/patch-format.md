@@ -157,6 +157,21 @@ Paragraph operations also support semantic selectors:
 Ambiguous selectors fail with `E1202`; use an explicit ID from `read`,
 `context`, or `find`. Selectors with no match fail with `E1201`.
 
+## Target lifetime
+
+Explicit paragraph, table, row, cell, and section IDs bind to the input
+snapshot for the duration of one patch. An earlier insert or delete never
+renumbers a later explicit ID: the later operation edits the originally
+discovered element. A target deleted earlier in the same patch fails with
+E1201 instead of silently editing a neighbour. Blocks inserted by the patch
+itself carry no snapshot identity and cannot be addressed by pre-discovered
+explicit IDs in the same patch; point a follow-up operation at the new content
+with a semantic selector or a follow-up patch. Semantic selectors resolve live
+against current content, and guards evaluate sequentially, so a later operation
+can still assert text produced by an earlier one. IDs do not establish identity
+across independently modified input versions: re-discover targets and keep
+guards (xpect-text, counts) on every patch.
+
 ## Guards
 
 Guard fields make patches reviewable and safer to rerun. Prefer them whenever the

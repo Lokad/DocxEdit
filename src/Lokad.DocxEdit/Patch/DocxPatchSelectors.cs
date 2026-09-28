@@ -9,16 +9,6 @@ namespace Lokad.DocxEdit;
 
 internal static partial class DocxPatchEngine
 {
-    private static XElement? FindTable(XElement body, int tableOrdinal)
-    {
-        return DocxStoryBlocks.FindTableByPhysicalOrdinal(body, tableOrdinal);
-    }
-
-    private static XElement? FindParagraph(XElement body, int paragraphOrdinal)
-    {
-        return DocxStoryBlocks.FindParagraphByPhysicalOrdinal(body, paragraphOrdinal);
-    }
-
     private static XElement? ResolveMainBlock(
         XElement body,
         DocxPatchOperation operation,
@@ -44,12 +34,12 @@ internal static partial class DocxPatchEngine
 
         if (blockId is { Story: 'M', Kind: DocxTargetKind.Paragraph })
         {
-            return FindParagraph(body, blockId.Primary);
+            return FindSnapshotElementInContainer(body, OoxmlNs.W + "p", blockId.ToWireValue());
         }
 
         if (blockId is { Story: 'M', Kind: DocxTargetKind.Table })
         {
-            return FindTable(body, blockId.Primary);
+            return FindSnapshotElementInContainer(body, OoxmlNs.W + "tbl", blockId.ToWireValue());
         }
 
         return null;
@@ -84,7 +74,7 @@ internal static partial class DocxPatchEngine
             if (blockId is { Story: 'M', Kind: DocxTargetKind.Paragraph })
             {
                 XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-                XElement? paragraph = FindParagraph(body, blockId.Primary);
+                XElement? paragraph = FindSnapshotElementInContainer(body, OoxmlNs.W + "p", blockId.ToWireValue());
                 return paragraph is null
                     ? null
                     : new BlockTarget(package.MainDocumentPartName, document, paragraph);
@@ -93,7 +83,7 @@ internal static partial class DocxPatchEngine
             if (blockId is { Story: 'M', Kind: DocxTargetKind.Table })
             {
                 XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-                XElement? table = FindTable(body, blockId.Primary);
+                XElement? table = FindSnapshotElementInContainer(body, OoxmlNs.W + "tbl", blockId.ToWireValue());
                 return table is null
                     ? null
                     : new BlockTarget(package.MainDocumentPartName, document, table);
@@ -104,8 +94,7 @@ internal static partial class DocxPatchEngine
             if (isStoryBlock)
             {
                 string relationshipType = blockId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
-                XName blockName = blockId.Kind == DocxTargetKind.Paragraph ? OoxmlNs.W + "p" : OoxmlNs.W + "tbl";
-                return ResolveRelatedStoryBlockTarget(package, relationshipType, blockId.StoryPart, blockName, blockId.Primary, cancellationToken);
+                return ResolveRelatedStoryBlockTarget(package, relationshipType, blockId, cancellationToken);
             }
         }
 
@@ -131,7 +120,7 @@ internal static partial class DocxPatchEngine
             if (paragraphId is { Story: 'M', Kind: DocxTargetKind.Paragraph })
             {
                 XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-                XElement? paragraph = FindParagraph(body, paragraphId.Primary);
+                XElement? paragraph = FindSnapshotElementInContainer(body, OoxmlNs.W + "p", paragraphId.ToWireValue());
                 return paragraph is null
                     ? null
                     : new ParagraphTarget(package.MainDocumentPartName, document, paragraph);
@@ -141,7 +130,7 @@ internal static partial class DocxPatchEngine
             if (isStoryParagraph)
             {
                 string relationshipType = paragraphId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
-                return ResolveRelatedStoryParagraphTarget(package, relationshipType, paragraphId.StoryPart, paragraphId.Primary, cancellationToken);
+                return ResolveRelatedStoryParagraphTarget(package, relationshipType, paragraphId, cancellationToken);
             }
 
             return null;
@@ -457,39 +446,18 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-        int currentOrdinal = 0;
-        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            XElement block = entry.Block;
-            XElement? element = block.Name == OoxmlNs.W + "p"
-                ? block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr")
-                : block.Name == OoxmlNs.W + "sectPr"
-                    ? block
-                    : null;
-            if (element is null)
-            {
-                continue;
-            }
-
-            currentOrdinal++;
-            if (currentOrdinal == sectionId.Primary)
-            {
-                return new SectionTarget(document, element);
-            }
-        }
-
-        return null;
+        // D01: sections bind to the input snapshot, not live ordinals.
+        XElement? element = FindSnapshotElement(document, OoxmlNs.W + "sectPr", sectionId.ToWireValue());
+        return element is null ? null : new SectionTarget(document, element);
     }
 
     private static ParagraphTarget? ResolveRelatedStoryParagraphTarget(
         OoxmlPackage package,
         string relationshipType,
-        int storyOrdinal,
-        int paragraphOrdinal,
+        DocxTargetId paragraphId,
         CancellationToken cancellationToken)
     {
-        if (storyOrdinal < 1)
+        if (paragraphId.StoryPart < 1 || paragraphId.Primary < 1)
         {
             return null;
         }
@@ -498,42 +466,43 @@ internal static partial class DocxPatchEngine
             .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
             .Where(relationship => relationship.Type == relationshipType)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .ElementAtOrDefault(storyOrdinal - 1);
+            .ElementAtOrDefault(paragraphId.StoryPart - 1);
         if (relationship is null)
         {
             return null;
         }
 
         XDocument document = LoadDocumentPart(package, relationship.ResolvedTarget, cancellationToken, out XElement root);
-        XElement? paragraph = FindParagraph(root, paragraphOrdinal);
+        // D01: explicit IDs bind to the input snapshot.
+        XElement? paragraph = FindSnapshotElement(document, OoxmlNs.W + "p", paragraphId.ToWireValue());
         return paragraph is null ? null : new ParagraphTarget(relationship.ResolvedTarget, document, paragraph);
     }
 
     private static BlockTarget? ResolveRelatedStoryBlockTarget(
         OoxmlPackage package,
         string relationshipType,
-        int storyOrdinal,
-        XName blockName,
-        int blockOrdinal,
+        DocxTargetId blockId,
         CancellationToken cancellationToken)
     {
-        if (storyOrdinal < 1 || blockOrdinal < 1)
+        if (blockId.StoryPart < 1 || blockId.Primary < 1)
         {
             return null;
         }
 
+        XName blockName = blockId.Kind == DocxTargetKind.Paragraph ? OoxmlNs.W + "p" : OoxmlNs.W + "tbl";
         ResolvedOoxmlRelationship? relationship = package
             .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
             .Where(relationship => relationship.Type == relationshipType)
             .OrderBy(relationship => relationship.Id, StringComparer.Ordinal)
-            .ElementAtOrDefault(storyOrdinal - 1);
+            .ElementAtOrDefault(blockId.StoryPart - 1);
         if (relationship is null)
         {
             return null;
         }
 
         XDocument document = LoadDocumentPart(package, relationship.ResolvedTarget, cancellationToken, out XElement root);
-        XElement? block = DocxStoryBlocks.FindBlockByPhysicalOrdinal(root, blockName, blockOrdinal);
+        // D01: explicit IDs bind to the input snapshot.
+        XElement? block = FindSnapshotElement(document, blockName, blockId.ToWireValue());
         return block is null ? null : new BlockTarget(relationship.ResolvedTarget, document, block);
     }
 
@@ -574,7 +543,7 @@ internal static partial class DocxPatchEngine
         if (tableId.Story == 'M')
         {
             XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? table = FindTable(body, tableId.Primary);
+            XElement? table = FindSnapshotElementInContainer(body, OoxmlNs.W + "tbl", tableId.ToWireValue());
             return table is null
                 ? null
                 : new TableTarget(package.MainDocumentPartName, document, table);
@@ -583,7 +552,7 @@ internal static partial class DocxPatchEngine
         if (tableId.Story is 'H' or 'F')
         {
             string relationshipType = tableId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
-            return ResolveRelatedStoryTableTarget(package, relationshipType, tableId.StoryPart, tableId.Primary, cancellationToken);
+            return ResolveRelatedStoryTableTarget(package, relationshipType, tableId, cancellationToken);
         }
 
         return null;
@@ -607,11 +576,42 @@ internal static partial class DocxPatchEngine
         DocxTargetId rowId,
         CancellationToken cancellationToken)
     {
-        TableTarget? tableTarget = ResolveTableTarget(package, rowId.TableId, cancellationToken);
-        XElement? row = tableTarget?.Table.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(rowId.Secondary - 1);
-        return tableTarget is null || row is null
-            ? null
-            : new RowTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row);
+        // D01: rows bind to the input snapshot.
+        string wireId = rowId.ToWireValue();
+        if (rowId.Story == 'M')
+        {
+            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+            XElement? row = FindSnapshotElement(document, OoxmlNs.W + "tr", wireId);
+            if (row is null)
+            {
+                return null;
+            }
+
+            XElement? table = row.Parent?.Name == OoxmlNs.W + "tbl" ? row.Parent : row.Ancestors(OoxmlNs.W + "tbl").FirstOrDefault();
+            return table is null ? null : new RowTarget(package.MainDocumentPartName, document, table, row);
+        }
+
+        if (rowId.Story is 'H' or 'F')
+        {
+            string relationshipType = rowId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, rowId.StoryPart, cancellationToken);
+            if (partName is null)
+            {
+                return null;
+            }
+
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
+            XElement? row = FindSnapshotElement(document, OoxmlNs.W + "tr", wireId);
+            if (row is null)
+            {
+                return null;
+            }
+
+            XElement? table = row.Parent?.Name == OoxmlNs.W + "tbl" ? row.Parent : row.Ancestors(OoxmlNs.W + "tbl").FirstOrDefault();
+            return table is null ? null : new RowTarget(partName, document, table, row);
+        }
+
+        return null;
     }
 
     private static CellTarget? ResolveCellTarget(
@@ -627,15 +627,48 @@ internal static partial class DocxPatchEngine
 
         if (cellId.Kind == DocxTargetKind.MergeGroup)
         {
-            TableTarget? tableTarget = ResolveTableTarget(package, cellId.TableId, cancellationToken);
-            return tableTarget is null ? null : ResolveMergeGroupCellTarget(tableTarget, cellId.Secondary);
+            TableTarget? mergeTableTarget = ResolveTableTarget(package, cellId.TableId, cancellationToken);
+            return mergeTableTarget is null ? null : ResolveMergeGroupCellTarget(mergeTableTarget, cellId.Secondary);
         }
 
-        RowTarget? rowTarget = ResolveRowTarget(package, cellId.RowId, cancellationToken);
-        XElement? cell = rowTarget is null ? null : FindCellByVisualColumn(rowTarget.Row, cellId.Tertiary);
-        return rowTarget is null || cell is null
-            ? null
-            : new CellTarget(rowTarget.PartName, rowTarget.Document, rowTarget.Table, rowTarget.Row, cell, cellId.Tertiary);
+        // D01: cells bind to the input snapshot.
+        string cellWireId = cellId.ToWireValue();
+        if (cellId.Story == 'M')
+        {
+            XDocument cellDocument = LoadMainDocument(package, cancellationToken, out XElement cellBody);
+            XElement? cell = FindSnapshotCellByVisualColumn(cellDocument, cellId);
+            if (cell is null)
+            {
+                return null;
+            }
+
+            XElement? row = cell.Parent?.Name == OoxmlNs.W + "tr" ? cell.Parent : cell.Ancestors(OoxmlNs.W + "tr").FirstOrDefault();
+            XElement? table = row?.Parent?.Name == OoxmlNs.W + "tbl" ? row.Parent : row?.Ancestors(OoxmlNs.W + "tbl").FirstOrDefault();
+            return row is null || table is null ? null : new CellTarget(package.MainDocumentPartName, cellDocument, table, row, cell, cellId.Tertiary);
+        }
+
+        if (cellId.Story is 'H' or 'F')
+        {
+            string relationshipType = cellId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
+            string? partName = ResolveRelatedStoryPartName(package, relationshipType, cellId.StoryPart, cancellationToken);
+            if (partName is null)
+            {
+                return null;
+            }
+
+            XDocument cellDocument = LoadDocumentPart(package, partName, cancellationToken, out XElement cellRoot);
+            XElement? cell = FindSnapshotCellByVisualColumn(cellDocument, cellId);
+            if (cell is null)
+            {
+                return null;
+            }
+
+            XElement? row = cell.Parent?.Name == OoxmlNs.W + "tr" ? cell.Parent : cell.Ancestors(OoxmlNs.W + "tr").FirstOrDefault();
+            XElement? table = row?.Parent?.Name == OoxmlNs.W + "tbl" ? row.Parent : row?.Ancestors(OoxmlNs.W + "tbl").FirstOrDefault();
+            return row is null || table is null ? null : new CellTarget(partName, cellDocument, table, row, cell, cellId.Tertiary);
+        }
+
+        return null;
     }
 
     private static XElement? FindCellByVisualColumn(XElement row, int visualColumnIndex)
@@ -773,11 +806,10 @@ internal static partial class DocxPatchEngine
     private static TableTarget? ResolveRelatedStoryTableTarget(
         OoxmlPackage package,
         string relationshipType,
-        int storyOrdinal,
-        int tableOrdinal,
+        DocxTargetId tableId,
         CancellationToken cancellationToken)
     {
-        BlockTarget? blockTarget = ResolveRelatedStoryBlockTarget(package, relationshipType, storyOrdinal, OoxmlNs.W + "tbl", tableOrdinal, cancellationToken);
+        BlockTarget? blockTarget = ResolveRelatedStoryBlockTarget(package, relationshipType, tableId, cancellationToken);
         return blockTarget is null ? null : new TableTarget(blockTarget.PartName, blockTarget.Document, blockTarget.Block);
     }
 

@@ -59,8 +59,11 @@ public enum DocxTargetKind
 /// <para>
 /// IDs enumerate physical document order at inspection time and are stable for
 /// the same document bytes and scanner version, but they are not permanently
-/// stable: within a patch, operations resolve sequentially, so an earlier
-/// structural edit shifts later positional IDs (SPEC section 8.2).
+/// stable across independently modified inputs. Within one patch, explicit
+/// paragraph/table/row/cell/section IDs bind to the input snapshot: earlier
+/// structural edits never renumber a later explicit ID, deleted targets fail
+/// instead of retargeting, and newly inserted blocks are not addressable by
+/// pre-discovered IDs in the same patch (SPEC section 8.2).
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(DocxTargetIdJsonConverter))]

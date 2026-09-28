@@ -30,8 +30,13 @@ parser, catalog, and engine dispatch all project from.
 
 - Target identity (scanners, resolvers, and the change map via Model/DocxStoryBlocks.cs): IDs
   enumerate physical document order and resolve to the same element across read, dump, context,
-  find, changes, and patch resolution. They are stable for the same bytes, not permanently stable: a
-  patch resolves operations sequentially, so an earlier structural edit shifts later positional IDs.
+  find, changes, and patch resolution. They are stable for the same bytes, not permanently stable.
+  Within one patch, explicit paragraph/table/row/cell/section IDs bind to the input snapshot:
+  an earlier insert or delete never renumbers a later explicit ID, a deleted target fails
+  instead of editing a neighbour, and newly inserted blocks are not addressable by
+  pre-discovered IDs in the same patch. Semantic selectors (	ext:, heading:, ...)
+  keep resolving live against current content. Guards still evaluate sequentially, so
+  dependent replacements can assert state produced by a preceding operation.
 - Check and apply parity (DocxPatchEngine.cs): both paths execute the same mutations against the
   disposable package; only apply saves. Check reports keep GeneratedRevisionIds empty by design.
 - Range-structure safety (DocxPatchEngine.cs): deleting a block or row that would newly orphan a

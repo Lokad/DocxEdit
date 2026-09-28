@@ -11,9 +11,10 @@ namespace Lokad.DocxEdit.Model;
 // blocks (leaving gaps), an Original view omits inserted blocks, and Markup
 // reports everything. Patch resolvers use the same physical enumeration, so a
 // discovered ID always resolves to the same element instead of sliding onto a
-// neighbour. IDs are positional within the current package bytes and shift when
-// earlier structural operations insert or delete blocks in the same patch;
-// resolve order is the operation order against the evolving package.
+// neighbour. IDs are positional within the current package bytes. Within one patch,
+// explicit paragraph/table/row/cell/section IDs bind to the input snapshot, so an
+// earlier structural insert or delete never renumbers a later explicit ID;
+// semantic selectors still resolve live in operation order against the evolving package.
 internal static class DocxStoryBlocks
 {
     internal readonly record struct StoryBlock(XElement Block, XElement? Wrapper);
