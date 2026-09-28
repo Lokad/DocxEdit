@@ -352,6 +352,9 @@ public sealed record DocxCheckResult : DocxOperationResult
     /// <summary>Effective author recorded on generated revisions: the requested <c>Author</c> trimmed. Present on failed results too.</summary>
     public string Author { get; init; } = "docxedit";
 
+    /// <summary>Effective track-change policy the patch ran under. Present on failed results too.</summary>
+    public TrackChangesMode TrackChanges { get; init; } = TrackChangesMode.Off;
+
     /// <summary>Effective UTC timestamp used for generated revisions: the requested <c>TimestampUtc</c> converted to UTC. Present on failed results too.</summary>
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
@@ -367,6 +370,9 @@ public sealed record DocxApplyResult : DocxOperationResult
 
     /// <summary>Effective author recorded on generated revisions: the requested <c>Author</c> trimmed. Present on failed results too.</summary>
     public string Author { get; init; } = "docxedit";
+
+    /// <summary>Effective track-change policy the patch ran under. Present on failed results too.</summary>
+    public TrackChangesMode TrackChanges { get; init; } = TrackChangesMode.Off;
 
     /// <summary>Effective UTC timestamp used for generated revisions: the requested <c>TimestampUtc</c> converted to UTC. Present on failed results too.</summary>
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;

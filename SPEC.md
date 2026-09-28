@@ -2674,11 +2674,15 @@ Affected table targets may also include visual-grid metadata (`visual-column-end
 `grid-before`, `grid-after`), merge-group IDs, and nested-table paths so agents can
 audit edits against complex table topology without inspecting raw OOXML.
 
+Check reports record the effective track-change policy, author, timestamp, and tool version on success and failure alike, so a report pins the policy it ran under.
+
 ### 13.2 `apply`
 
 `Apply` must do everything `Check` does and then write a new `.docx` to the output stream.
 
 It must never modify the input stream.
+
+Apply reports record the same effective policy, author, timestamp, and tool version on success and failure alike.
 
 ### 13.3 Internal validation
 
@@ -2752,7 +2756,7 @@ document problem was found.
 
 ---
 
-### 13.3 lint
+### 13.4 lint
 
 Lint validates patch shape without loading a document: syntax, required
 fields, alternative groups, and exclusive fields. It reuses the registry

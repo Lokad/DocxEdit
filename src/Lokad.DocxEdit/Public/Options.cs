@@ -223,6 +223,53 @@ public enum TrackChangesMode
     Require
 }
 
+/// <summary>
+/// Converts <see cref="TrackChangesMode"/> to and from its lowercase wire form.
+/// </summary>
+public static class TrackChangesModeExtensions
+{
+    /// <summary>
+    /// Returns the lowercase wire form (<c>off</c>, <c>preserve</c>, <c>suggest</c>, or <c>require</c>).
+    /// </summary>
+    public static string ToWireValue(this TrackChangesMode mode)
+    {
+        return mode switch
+        {
+            TrackChangesMode.Off => "off",
+            TrackChangesMode.Preserve => "preserve",
+            TrackChangesMode.Suggest => "suggest",
+            TrackChangesMode.Require => "require",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), $"Unsupported track-changes mode '{mode}'."),
+        };
+    }
+
+    /// <summary>
+    /// Tries to parse the lowercase wire form with an ordinal, case-sensitive comparison.
+    /// A null or unrecognized value returns <c>false</c> and yields <see cref="TrackChangesMode.Off"/>.
+    /// </summary>
+    public static bool TryParseWireValue(string? value, out TrackChangesMode mode)
+    {
+        switch (value)
+        {
+            case "off":
+                mode = TrackChangesMode.Off;
+                return true;
+            case "preserve":
+                mode = TrackChangesMode.Preserve;
+                return true;
+            case "suggest":
+                mode = TrackChangesMode.Suggest;
+                return true;
+            case "require":
+                mode = TrackChangesMode.Require;
+                return true;
+            default:
+                mode = TrackChangesMode.Off;
+                return false;
+        }
+    }
+}
+
 /// <summary>Which text to read.</summary>
 public enum DocxTextView
 {

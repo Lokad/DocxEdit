@@ -998,7 +998,14 @@ public sealed class DocxEditor
             DocxPatch patch = ParsePatch(patchReader, options.MaxPatchChars, cancellationToken);
             if (!patch.Success)
             {
-                return new DocxCheckResult { Success = false, Diagnostics = patch.Diagnostics, Author = effectiveOptions.Author, TimestampUtc = effectiveOptions.TimestampUtc };
+                return new DocxCheckResult
+                {
+                    Success = false,
+                    Diagnostics = patch.Diagnostics,
+                    Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
             }
 
             OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
@@ -1009,6 +1016,7 @@ public sealed class DocxEditor
                     Success = false,
                     Diagnostics = diagnostics,
                     Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
                     TimestampUtc = effectiveOptions.TimestampUtc
                 };
             }
@@ -1020,6 +1028,7 @@ public sealed class DocxEditor
                     Success = false,
                     Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
                     Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
                     TimestampUtc = effectiveOptions.TimestampUtc
                 };
             }
@@ -1030,6 +1039,7 @@ public sealed class DocxEditor
                 Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
                 Operations = execution.Reports,
                     Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
                     TimestampUtc = effectiveOptions.TimestampUtc
             };
         }
@@ -1083,13 +1093,27 @@ public sealed class DocxEditor
             DocxPatch patch = ParsePatch(patchReader, options.MaxPatchChars, cancellationToken);
             if (!patch.Success)
             {
-                return new DocxApplyResult { Success = false, Diagnostics = patch.Diagnostics, Author = effectiveOptions.Author, TimestampUtc = effectiveOptions.TimestampUtc };
+                return new DocxApplyResult
+                {
+                    Success = false,
+                    Diagnostics = patch.Diagnostics,
+                    Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
             }
 
             OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: options.AllowMacroEnabledDocuments), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
             if (package is null)
             {
-                return new DocxApplyResult { Success = false, Diagnostics = diagnostics, Author = effectiveOptions.Author, TimestampUtc = effectiveOptions.TimestampUtc };
+                return new DocxApplyResult
+                {
+                    Success = false,
+                    Diagnostics = diagnostics,
+                    Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
+                    TimestampUtc = effectiveOptions.TimestampUtc
+                };
             }
 
             if (!TryDocumentOperation(() => DocxPatchEngine.Apply(package, patch, effectiveOptions, cancellationToken), out PatchExecutionResult? execution, out IReadOnlyList<DocxDiagnostic> executionDiagnostics))
@@ -1099,6 +1123,7 @@ public sealed class DocxEditor
                     Success = false,
                     Diagnostics = diagnostics.Concat(executionDiagnostics).ToArray(),
                     Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
                     TimestampUtc = effectiveOptions.TimestampUtc
                 };
             }
@@ -1111,6 +1136,7 @@ public sealed class DocxEditor
                     Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
                     Operations = execution.Reports,
                     Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
                     TimestampUtc = effectiveOptions.TimestampUtc
                 };
             }
@@ -1122,6 +1148,7 @@ public sealed class DocxEditor
                 Diagnostics = diagnostics.Concat(execution.Diagnostics).ToArray(),
                 Operations = execution.Reports,
                     Author = effectiveOptions.Author,
+                    TrackChanges = effectiveOptions.TrackChanges,
                     TimestampUtc = effectiveOptions.TimestampUtc
             };
         }

@@ -19,7 +19,7 @@ public static class ProgramMain
         return new JsonSerializerOptions
         {
             WriteIndented = writeIndented,
-            Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter() }
+            Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter(), new TrackChangesModeJsonConverter() }
         };
     }
 
@@ -637,7 +637,7 @@ public static class ProgramMain
             static result => result.Success,
             result =>
             {
-                Console.WriteLine($"{(result.Success ? "docxedit check: OK" : "docxedit check: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O})");
+                Console.WriteLine($"{(result.Success ? "docxedit check: OK" : "docxedit check: FAILED")} (author={result.Author} timestamp={result.TimestampUtc:O} track-changes={result.TrackChanges.ToWireValue()})");
                 Console.Write(DocxTextRenderer.RenderOperationSummary(result.Operations));
             },
             result => WriteReport(options.ReportPath, result, JsonOptionsFor(options)));
@@ -684,7 +684,7 @@ public static class ProgramMain
             WriteReport(options.ReportPath, binaryResult, JsonOptionsFor(options));
             WriteDiagnostics(options.DiagnosticsPath, binaryResult.Diagnostics, JsonOptionsFor(options));
             WriteErrorDiagnostics(binaryResult.Diagnostics, options.Strict);
-            Console.Error.WriteLine($"{(binaryResult.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={binaryResult.Author} timestamp={binaryResult.TimestampUtc:O})");
+            Console.Error.WriteLine($"{(binaryResult.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={binaryResult.Author} timestamp={binaryResult.TimestampUtc:O} track-changes={binaryResult.TrackChanges.ToWireValue()})");
             Console.Error.Write(DocxTextRenderer.RenderOperationSummary(binaryResult.Operations));
             return ExitCode(binaryResult.Success, binaryResult.Diagnostics, options.Strict);
         }
@@ -720,7 +720,7 @@ public static class ProgramMain
                 static applyResult => applyResult.Success,
                 applyResult =>
                 {
-                    Console.WriteLine($"{(applyResult.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={applyResult.Author} timestamp={applyResult.TimestampUtc:O})");
+                    Console.WriteLine($"{(applyResult.Success ? "docxedit apply: OK" : "docxedit apply: FAILED")} (author={applyResult.Author} timestamp={applyResult.TimestampUtc:O} track-changes={applyResult.TrackChanges.ToWireValue()})");
                     Console.Write(DocxTextRenderer.RenderOperationSummary(applyResult.Operations));
                 });
         }
@@ -850,6 +850,25 @@ public static class ProgramMain
         }
 
         public override void Write(Utf8JsonWriter writer, DocxOrientation value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.ToWireValue());
+        }
+    }
+
+    private sealed class TrackChangesModeJsonConverter : JsonConverter<TrackChangesMode>
+    {
+        public override TrackChangesMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            string? value = reader.GetString();
+            if (TrackChangesModeExtensions.TryParseWireValue(value, out TrackChangesMode mode))
+            {
+                return mode;
+            }
+
+            throw new JsonException($"Unsupported track-changes mode: {value}. Expected off, preserve, suggest, or require.");
+        }
+
+        public override void Write(Utf8JsonWriter writer, TrackChangesMode value, JsonSerializerOptions options)
         {
             writer.WriteStringValue(value.ToWireValue());
         }
