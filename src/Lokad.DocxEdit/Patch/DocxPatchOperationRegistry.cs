@@ -30,12 +30,14 @@ internal enum FieldValueKind
 /// <param name="Repeatable">Whether the field may repeat; every occurrence is kept in file order.</param>
 /// <param name="Required">Whether the field is required on every invocation.</param>
 /// <param name="AllowEmpty">Whether a present-but-empty value is accepted (for example text deletion); absence still fails requiredness.</param>
+/// <param name="DefaultValue">Effective value when the field is omitted; null when omission has no default value.</param>
 internal sealed record OperationFieldDefinition(
     string Name,
     FieldValueKind Kind,
     bool Repeatable,
     bool Required,
-    bool AllowEmpty = false);
+    bool AllowEmpty = false,
+    string? DefaultValue = null);
 
 /// <summary>Canonical registry row for one patch operation (see file remarks).</summary>
 /// <param name="Name">Operation name as written in the patch file.</param>
@@ -100,7 +102,7 @@ internal static partial class DocxPatchEngine
                 new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("find", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("with", FieldValueKind.Text, Repeatable: false, Required: true, AllowEmpty: true),
-                new("preserve-runs", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("preserve-runs", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "true"),
                 new("occurrence", FieldValueKind.Integer, Repeatable: false, Required: false),
             ],
             [],
@@ -188,7 +190,7 @@ internal static partial class DocxPatchEngine
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("style", FieldValueKind.Text, Repeatable: false, Required: false),
-                new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
             ],
             [],
@@ -231,7 +233,7 @@ internal static partial class DocxPatchEngine
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("style", FieldValueKind.Text, Repeatable: false, Required: false),
-                new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
             ],
             [],
@@ -759,7 +761,7 @@ internal static partial class DocxPatchEngine
                 new("expect-row-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true, AllowEmpty: true),
-                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
             ],
             [],
             TrackClassTextRun,
@@ -804,7 +806,7 @@ internal static partial class DocxPatchEngine
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("expect-fill", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("fill", FieldValueKind.Text, Repeatable: false, Required: false),
-                new("clear", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("clear", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
             ],
             [["fill", "clear"]],
             TrackClassCellProperty,
@@ -903,7 +905,7 @@ internal static partial class DocxPatchEngine
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-cell-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("cell", FieldValueKind.Text, Repeatable: true, Required: true),
-                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
             ],
             [],
             TrackClassRowStructure,
@@ -920,7 +922,7 @@ internal static partial class DocxPatchEngine
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-cell-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("cell", FieldValueKind.Text, Repeatable: true, Required: true),
-                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
             ],
             [],
             TrackClassRowStructure,
@@ -937,7 +939,7 @@ internal static partial class DocxPatchEngine
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-cell-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-contains", FieldValueKind.Text, Repeatable: false, Required: false),
-                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false),
+                new("force", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
             ],
             [],
             TrackClassRowStructure,
@@ -1194,6 +1196,7 @@ internal static partial class DocxPatchEngine
             RequiredAlternatives = registration.RequireOneOf.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             ExclusiveAlternatives = registration.ExclusiveGroups.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             Examples = registration.Examples.ToArray(),
+            FieldDefaults = registration.Fields.Where(static field => field.DefaultValue is not null).Select(static field => field.Name + "=" + field.DefaultValue).ToArray(),
             OptionalFields = registration.Fields.Where(field => !field.Required && !grouped.Contains(field.Name)).Select(static field => field.Name).ToArray(),
             RepeatableFields = registration.Fields.Where(static field => field.Repeatable).Select(static field => field.Name).ToArray(),
             BooleanFields = registration.Fields.Where(static field => field.Kind == FieldValueKind.Boolean).Select(static field => field.Name).ToArray(),

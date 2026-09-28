@@ -226,6 +226,7 @@ docxedit help patch
 
 The tables below group the same operations by editing area.
 Per-operation topics (docxedit help replace-text) carry minimal and guarded examples for common operations.
+Omitted optional boolean fields use documented defaults (for example preserve-runs defaults to true, force to false); topics list them under Defaults.
 
 ### Paragraphs And Blocks
 

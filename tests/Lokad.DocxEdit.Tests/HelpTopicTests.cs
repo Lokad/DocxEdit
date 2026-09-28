@@ -122,4 +122,40 @@ public static class HelpTopicTests
 
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
+    [Fact]
+    public static void PatchOperationTopicReportsFieldDefaults()
+    {
+        Assert.Contains("Defaults: preserve-runs=true", DocxHelp.RenderTopic("replace-text"), StringComparison.Ordinal);
+        Assert.Contains("Defaults: force=false", DocxHelp.RenderTopic("set-cell"), StringComparison.Ordinal);
+        Assert.Contains("Defaults: clear=false", DocxHelp.RenderTopic("set-cell-shading"), StringComparison.Ordinal);
+        Assert.Contains("Defaults: copy-paragraph-properties=false", DocxHelp.RenderTopic("insert-after"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Defaults:", DocxHelp.RenderTopic("delete-block"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void FieldDefaultsAreMachineReadable()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-text", out DocxPatchOperationInfo replaceText));
+        Assert.Contains("preserve-runs=true", replaceText.FieldDefaults);
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-block", out DocxPatchOperationInfo deleteBlock));
+        Assert.Empty(deleteBlock.FieldDefaults);
+    }
+
+    [Fact]
+    public static void OmittedPreserveRunsBehavesAsTrue()
+    {
+        using MemoryStream omittedInput = CreateDocxWithRuns("Alpha ", "Beta");
+        using var omittedPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\nend\n");
+        using var omittedOutput = new MemoryStream();
+        DocxApplyResult omitted = new DocxEditor().Apply(omittedInput, omittedPatch, omittedOutput);
+        Assert.True(omitted.Success);
+
+        using MemoryStream explicitInput = CreateDocxWithRuns("Alpha ", "Beta");
+        using var explicitPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\npreserve-runs true\nend\n");
+        using var explicitOutput = new MemoryStream();
+        DocxApplyResult explicitResult = new DocxEditor().Apply(explicitInput, explicitPatch, explicitOutput);
+        Assert.True(explicitResult.Success);
+
+        Assert.Equal(ReadEntryBytes(omittedOutput, "word/document.xml"), ReadEntryBytes(explicitOutput, "word/document.xml"));
+    }
 }
