@@ -169,6 +169,13 @@ internal static partial class DocxPatchEngine
 
         bool useTrackedChanges = IsTrackedMode(options);
         XElement[]? trackedParagraphs = null;
+
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string current = ReadVisibleText(commentTarget.Comment);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target, fieldName: "expect-text")];
+        }
         if (useTrackedChanges &&
             !TryGetTrackedCommentParagraphs(commentTarget.Comment, text, out trackedParagraphs, out string? trackedUnsupportedReason))
         {

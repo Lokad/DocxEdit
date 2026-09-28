@@ -265,7 +265,7 @@ Controls with a lock value other than unlocked are rejected.
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `add-bookmark` | `target`, `name` | `expect-text` | Creates a guarded paragraph bookmark |
-| `replace-bookmark-text` | `target`, `text` | | Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot |
+| `replace-bookmark-text` | `target`, `text` | `expect-text` | Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot |
 | `rename-bookmark` | `target`, `name` | `expect-name` | Renames markers and same-story internal hyperlink anchors when unambiguous |
 | `delete-bookmark` | `target` | | Removes complete unreferenced bookmark markers, preserving content |
 
@@ -278,7 +278,7 @@ Bookmark operations accept an explicit bookmark ID or a semantic name selector, 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `add-comment` | `target`, `text` | `expect-text`, `anchor-text`, `occurrence`, `author`, `initials`, `date` | Anchors a new comment to a modeled paragraph, or to one selected text span inside it |
-| `set-comment-text` | `target`, `text` | | Replaces one comment body |
+| `set-comment-text` | `target`, `text` | `expect-text` | Replaces one comment body |
 | `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
 | `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
 | `delete-comment` | `target` | | Removes body, range/reference markers, and matching extension records |

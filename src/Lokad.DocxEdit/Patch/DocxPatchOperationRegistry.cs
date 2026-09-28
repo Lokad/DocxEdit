@@ -505,6 +505,7 @@ internal static partial class DocxPatchEngine
             "replace-bookmark-text",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
             ],
             [],
@@ -588,6 +589,7 @@ internal static partial class DocxPatchEngine
             "set-comment-text",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
             ],
             [],

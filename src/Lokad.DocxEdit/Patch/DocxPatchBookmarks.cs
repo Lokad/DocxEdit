@@ -87,6 +87,13 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' replacement would remove protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string current = ReadVisibleText(new XElement(OoxmlNs.W + "p", nodes));
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target, fieldName: "expect-text")];
+        }
+
         string[]? structuredReplacementLines = null;
         if (structuredTextSlots is not null)
         {

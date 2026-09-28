@@ -798,4 +798,78 @@ public static class PatchCommentTests
         Assert.Contains("Review note", ReadEntry(output, "word/comments.xml"), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CheckSetCommentTextGuardMismatchFails()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-comment-text
+            target comment:3
+            expect-text Stale comment
+            text Updated comment
+            end
+            """);
+
+        DocxCheckResult check = new DocxEditor().Check(input, patch);
+        Assert.False(check.Success);
+        DocxDiagnostic failure = Assert.Single(check.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal("set-comment-text", failure.HelpTopic);
+        Assert.Equal(5, failure.Line);
+    }
+
+    [Fact]
+    public static void ApplySetCommentTextGuardMatchSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-comment-text
+            target comment:3
+            expect-text Old comment
+            text Updated comment
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string commentsXml = ReadEntry(output, "word/comments.xml");
+        Assert.Contains("Updated comment", commentsXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old comment", commentsXml, StringComparison.Ordinal);
+    }
 }
