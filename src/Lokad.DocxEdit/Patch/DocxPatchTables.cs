@@ -541,14 +541,19 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected table style '{expectedStyle}', found '{currentStyle ?? "none"}'.", operation, target)];
         }
 
+        if (!TryResolveStyleId(package, style, "table", cancellationToken, out string? styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+        {
+            return [styleDiagnostic];
+        }
+
 
         if (IsTrackedMode(options))
         {
-            SetTableStyleWithTrackedChange(package, tableTarget.Table, style, options, generatedRevisionIds, cancellationToken);
+            SetTableStyleWithTrackedChange(package, tableTarget.Table, styleId, options, generatedRevisionIds, cancellationToken);
         }
         else
         {
-            SetTableStyle(tableTarget.Table, style);
+            SetTableStyle(tableTarget.Table, styleId);
         }
 
         SaveDocumentPart(package, tableTarget.PartName, tableTarget.Document);

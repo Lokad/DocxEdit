@@ -212,10 +212,10 @@ The tables below group the same operations by editing area.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text | without `occurrence` the find text must match exactly once (`occurrence N` selects one match, `occurrence all` replaces every match)
-| `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style |
-| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target |
-| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target |
+| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text; without `occurrence` the find text must match exactly once (`occurrence N` selects one match, `occurrence all` replaces every match)
+| `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style, `style` accepts an ID or display name |
+| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target, embedded `style` accepts an ID or display name |
+| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target, embedded `style` accepts an ID or display name |
 | `delete-block` | `target` | `expect-text` | Deletes the target block |
 | `set-style` | `target`, `style` | | Sets paragraph style |
 
@@ -306,7 +306,7 @@ are rejected. Internal links use bookmark `anchor` values.
 | --- | --- | --- | --- |
 | `set-cell` | `target`, `text` | `expect-text`, `expect-row-count`, `expect-column-count`, `force` | Replaces one modeled cell by visual cell ID or merge-group ID; an empty `text` clears the cell |
 | `set-cell-shading` | `target` plus `fill` or `clear` true | `expect-fill` | Sets or clears `w:tcPr/w:shd` fill |
-| `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle` |
+| `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle`, `style` accepts a table style ID or display name |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
 | `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `cell+` | Appends by cloning the last row shape when the visual grid is consistent |

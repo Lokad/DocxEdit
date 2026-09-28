@@ -720,7 +720,8 @@ internal static partial class DocxPatchEngine
     {
         styleId = null;
         diagnostic = null;
-        IReadOnlyList<DocxStyleInfo> styles = DocxStyleScanner.Scan(package, cancellationToken)
+        IReadOnlyList<DocxStyleInfo> allStyles = DocxStyleScanner.Scan(package, cancellationToken);
+        IReadOnlyList<DocxStyleInfo> styles = allStyles
             .Where(style => style.Type == styleType)
             .ToArray();
         DocxStyleInfo? byId = styles.FirstOrDefault(style => string.Equals(style.StyleId, requestedStyle, StringComparison.Ordinal));
@@ -739,9 +740,29 @@ internal static partial class DocxPatchEngine
             return true;
         }
 
-        diagnostic = byName.Length > 1
-            ? Diagnostic(DocxSeverity.Error, "E7102", $"Style name '{requestedStyle}' is ambiguous.", operation, target)
-            : Diagnostic(DocxSeverity.Error, "E7101", $"Style '{requestedStyle}' was not found.", operation, target);
+        if (byName.Length > 1)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E7102", $"Style name '{requestedStyle}' is ambiguous.", operation, target);
+            return false;
+        }
+
+        DocxStyleInfo? idOfAnotherKind = allStyles.FirstOrDefault(style => style.Type != styleType && string.Equals(style.StyleId, requestedStyle, StringComparison.Ordinal));
+        if (idOfAnotherKind is not null)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E7103", $"Style '{requestedStyle}' is a {idOfAnotherKind.Type} style, not a {styleType} style.", operation, target);
+            return false;
+        }
+
+        DocxStyleInfo[] namesOfAnotherKind = allStyles
+            .Where(style => style.Type != styleType && string.Equals(style.Name, requestedStyle, StringComparison.Ordinal))
+            .ToArray();
+        if (namesOfAnotherKind.Length == 1)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E7103", $"Style name '{requestedStyle}' identifies the {namesOfAnotherKind[0].Type} style '{namesOfAnotherKind[0].StyleId}', not a {styleType} style.", operation, target);
+            return false;
+        }
+
+        diagnostic = Diagnostic(DocxSeverity.Error, "E7101", $"Style '{requestedStyle}' was not found.", operation, target);
         return false;
     }
 

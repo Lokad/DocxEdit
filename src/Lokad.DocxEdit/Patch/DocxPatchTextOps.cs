@@ -178,12 +178,21 @@ internal static partial class DocxPatchEngine
         }
 
 
+        string? styleId = null;
+        if (style is not null)
+        {
+            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+            {
+                return [styleDiagnostic];
+            }
+        }
+
         if (useTrackedChanges)
         {
             ReplaceWholeParagraphTextWithTrackedChanges(package, paragraphTarget.Paragraph, current, text, options, generatedRevisionIds, cancellationToken);
-            if (style is not null)
+            if (styleId is not null)
             {
-                SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, style, options, generatedRevisionIds, cancellationToken);
+                SetParagraphStyleWithTrackedChange(package, paragraphTarget.Paragraph, styleId, options, generatedRevisionIds, cancellationToken);
             }
 
             SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
@@ -191,9 +200,9 @@ internal static partial class DocxPatchEngine
         }
 
         ReplaceParagraphText(paragraphTarget.Paragraph, text);
-        if (style is not null)
+        if (styleId is not null)
         {
-            SetParagraphStyle(paragraphTarget.Paragraph, style);
+            SetParagraphStyle(paragraphTarget.Paragraph, styleId);
         }
 
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
@@ -245,12 +254,21 @@ internal static partial class DocxPatchEngine
         }
 
 
+        string? styleId = null;
+        if (style is not null)
+        {
+            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out styleId, out DocxDiagnostic? styleDiagnostic, operation, target))
+            {
+                return [styleDiagnostic];
+            }
+        }
+
         XElement? paragraphProperties = copyParagraphProperties
             ? CloneParagraphPropertiesForInsertion(blockTarget.Block.Element(OoxmlNs.W + "pPr"))
             : null;
         XElement paragraph = useTrackedChanges
-            ? CreateTrackedInsertedParagraph(package, text, style, paragraphProperties, options, generatedRevisionIds, cancellationToken)
-            : CreateSimpleParagraph(text, style, paragraphProperties);
+            ? CreateTrackedInsertedParagraph(package, text, styleId, paragraphProperties, options, generatedRevisionIds, cancellationToken)
+            : CreateSimpleParagraph(text, styleId, paragraphProperties);
         if (insertAfter)
         {
             blockTarget.Block.AddAfterSelf(paragraph);

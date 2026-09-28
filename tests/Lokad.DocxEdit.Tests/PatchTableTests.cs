@@ -324,7 +324,9 @@ public static class PatchTableTests
     [Fact]
     public static void ApplySetTableStyleAndRowHeaderFlag()
     {
-        using MemoryStream input = CreateDocxWithBody("""
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
+            """, """
                     <w:tbl>
                       <w:tr>
                         <w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc>

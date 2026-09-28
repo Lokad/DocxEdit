@@ -1500,6 +1500,7 @@ Rules:
 
 * Target must be a paragraph.
 * Preserve paragraph properties unless `style` is supplied.
+* `style` may be a style ID or display name, resolved like `set-style`; unknown, ambiguous, or wrong-kind styles fail before publication.
 * Replace paragraph content with one or more runs.
 * Preserve bookmarks and comment anchors only when safe; otherwise fail with diagnostic.
 
@@ -1524,6 +1525,7 @@ Rules:
   paragraph `w:pPr`, including style and numbering properties, but excludes copied
   `w:pPrChange` and `w:sectPr`.
 * `style`, when supplied, overrides the copied or default paragraph style.
+* An embedded `style` may be a style ID or display name, resolved like `set-style`; unknown, ambiguous, or wrong-kind styles fail before publication.
 
 ### 11.4 `insert-after`
 
@@ -1545,6 +1547,7 @@ Rules:
   paragraph `w:pPr`, including style and numbering properties, but excludes copied
   `w:pPrChange` and `w:sectPr`.
 * `style`, when supplied, overrides the copied or default paragraph style.
+* An embedded `style` may be a style ID or display name, resolved like `set-style`; unknown, ambiguous, or wrong-kind styles fail before publication.
 * If target is a paragraph with section properties, do not insert after the section break incorrectly; insert before the section break if necessary and warn.
 
 ### 11.5 `delete-block`
@@ -1981,6 +1984,7 @@ Rules:
 * Target must be a table.
 * `expect-style` is an optional guard against the current `w:tblStyle` value.
 * Create `w:tblPr` and `w:tblStyle` when missing.
+* `style` may be a table style ID or display name, resolved like `set-style`; unknown, ambiguous, or wrong-kind styles fail before publication.
 * Preserve table grid, rows, cells, and existing table properties.
 * Under tracked output, record the previous table properties in `w:tblPrChange`.
 

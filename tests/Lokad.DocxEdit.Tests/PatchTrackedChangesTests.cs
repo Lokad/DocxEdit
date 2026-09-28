@@ -1192,7 +1192,11 @@ public static class PatchTrackedChangesTests
     [Fact]
     public static void CheckTrackChangesRequireAllowsReplaceParagraphTextAndStyleCombination()
     {
-        using MemoryStream input = CreateDocx("Revenue increased.");
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Heading 1"/></w:style>
+            """, """
+              <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>
+            """);
         using var patch = new StringReader("""
             docxpatch 1
 
@@ -1212,7 +1216,11 @@ public static class PatchTrackedChangesTests
     [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForReplaceParagraphTextAndStyleCombination()
     {
-        using MemoryStream input = CreateDocx("Revenue increased.");
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Heading 1"/></w:style>
+            """, """
+              <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>
+            """);
         using var output = new MemoryStream();
         using var patch = new StringReader("""
             docxpatch 1
@@ -3373,7 +3381,20 @@ public static class PatchTrackedChangesTests
     [Fact]
     public static void CheckTrackChangesRequireAllowsTableCellAndRowPropertyRevisions()
     {
-        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
+            """, """
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
         using var patch = new StringReader("""
             docxpatch 1
 
@@ -3402,7 +3423,9 @@ public static class PatchTrackedChangesTests
     [Fact]
     public static void ApplyTrackChangesSuggestGeneratesTableCellAndRowPropertyRevisions()
     {
-        using MemoryStream input = CreateDocxWithBody("""
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
+            """, """
                     <w:tbl>
                       <w:tblPr>
                         <w:tblStyle w:val="OldStyle"/>

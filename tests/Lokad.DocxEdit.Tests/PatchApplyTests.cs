@@ -441,7 +441,9 @@ public static class PatchApplyTests
     [Fact]
     public static void ApplyReplaceParagraphUpdatesTextAndStyle()
     {
-        using MemoryStream input = CreateDocxWithBody("""
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """, """
                     <w:p>
                       <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
                       <w:r><w:t>Old heading</w:t></w:r>
@@ -720,7 +722,9 @@ public static class PatchApplyTests
     [Fact]
     public static void ApplyInsertAfterTableAddsParagraphAfterTable()
     {
-        using MemoryStream input = CreateDocxWithBody("""
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            """, """
                     <w:p><w:r><w:t>One</w:t></w:r></w:p>
                     <w:tbl>
                       <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
