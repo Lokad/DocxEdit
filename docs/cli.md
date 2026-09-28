@@ -64,6 +64,7 @@ Find or inspect the target:
 docxedit find report.docx "old wording"
 docxedit dump report.docx --id M.P0004 --runs
 docxedit context report.docx --id M.P0004
+docxedit capabilities report.docx --id M.P0004
 ```
 
 Write an `edits.docxpatch`, then validate it before producing a new document:
@@ -86,6 +87,7 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 | `find` | Text search | Locate stable paragraph or cell targets from visible text |
 | `dump` | Detailed target view | Inspect one target, optionally with run-level markup |
 | `context` | Nearby target context | Inspect neighbors and attached metadata without broad text |
+| `capabilities` | Target editing capabilities | Supported, conditional, and unsupported edits for one target under a track-change policy |
 | `styles` | Style inventory | Discover valid paragraph, character, and table styles |
 | `media` | Image inventory and extraction | List or extract embedded image parts |
 | `changes` | Existing markup inventory | Track changes, comments, anchors, and comment bodies without text by default |
@@ -108,7 +110,7 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 | `--max-text N` | Text reads | Limit body text per field in text and structured/JSON output (0 drops; IDs, counts, and structural metadata retained) |
 | `--headers-footers` | Read commands | Include modeled header and footer stories |
 | `--report path` | `check`, `apply` | Write full operation report JSON |
-| `--track-changes mode` | `check`, `apply` | Control generated revision markup |
+| `--track-changes mode` | `check`, `apply`, `capabilities` | Control generated revision markup (effective policy for capabilities) |
 | `--author name` | `check`, `apply` | Author used for generated revisions |
 | `--timestamp-utc instant` | `check`, `apply` | ISO-8601 UTC timestamp for generated revisions (e.g. `2026-01-01T00:00:00Z`) |
 | `--max-preview-chars N` | `check`, `apply` | Bounded before/after preview text per operation report side (0 disables previews and keeps reports metadata-only) |

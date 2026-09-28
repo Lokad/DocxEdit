@@ -775,6 +775,39 @@ public static class DocxHelp
                 },
                 new()
                 {
+                    Name = "capabilities",
+                    MinPositionals = 1,
+                    MaxPositionals = 1,
+                    Category = "read",
+                    Summary = "Show supported, conditional, and unsupported edits for one target",
+                    Usage = "docxedit capabilities input.docx --id M.P0001 [--track-changes <mode>] [--json] [--compact] [--diagnostics <path>] [--strict]",
+                    Description = "Describe supported, conditional, and unsupported edits for one paragraph, content-control, cell, or merge-group target under an effective track-change policy. Each operation carries an actionable reason, a help topic, and a safe alternative when one exists. Output is metadata-only guidance: capabilities can change after an edit, and check remains authoritative for a patch.",
+                    Options =
+                    [
+                        new("--id M.P0001", "Target ID from read, outline, find, or changes") { Flags = ["--id"] },
+                        new("--track-changes off|preserve|suggest|require", "Effective track-change policy the capabilities describe") { Flags = ["--track-changes"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
+                    ],
+                    PrivacyNotes =
+                    [
+                        "Capabilities output carries no document body text; reasons name only short OOXML boundary, kind, and lock values."
+                    ],
+                    OutputFields =
+                    [
+                        new("TargetId", "Requested target echoed byte-identical"),
+                        new("Capabilities", "Resolved target kind and story plus per-operation support, reason, help topic, and alternative")
+                    ],
+                    Examples =
+                    [
+                        "docxedit capabilities report.docx --id M.P0004",
+                        "docxedit capabilities report.docx --id M.T0001.R02.C03 --track-changes require --json"
+                    ]
+                },
+                new()
+                {
                     Name = "styles",
                     MinPositionals = 1,
                     MaxPositionals = 1,

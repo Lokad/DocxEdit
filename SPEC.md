@@ -1278,6 +1278,37 @@ after M.P0005 paragraph story="main" text=""
 
 ---
 
+### 9.9 capabilities
+
+Purpose: describe supported, conditional, and unsupported edits for one
+paragraph, content-control, cell, or merge-group target under an effective
+track-change policy (--track-changes off, preserve, suggest, or require).
+Each operation carries an actionable reason, a help topic naming the operation
+reference, and a safe alternative operation or target form when one exists.
+
+Example text output:
+
+    target M.P0001 paragraph main
+    supported replace-text: Plain paragraph text. ...
+    unsupported add-bookmark alternative=add-comment: Paragraph contains a protected hyperlink boundary, so bookmark creation fails with E4311. ...
+
+Support values reuse the execution predicates, so guidance agrees with check:
+protected boundaries, lock and kind gates, merge shape, section properties,
+orphaned ranges, and tracked-shape validation come from the same checks that
+gate patch execution. Verdicts distinguish target-level facts from
+patch-dependent conditions: whether a particular text span, replacement,
+style name, anchor-text span, or force flag succeeds depends on the exact
+patch, and is reported as conditional until checked. An unknown target, or a
+target kind without a capability model, fails with E1201.
+
+Capabilities output is metadata-only: it carries no document body text.
+Capabilities describe the inspected document state and can change after an
+edit; inspection is guidance, while check remains authoritative for a patch.
+With JSON output, the Capabilities object exposes the resolved target ID,
+kind, story, and per-operation support, reason, help topic, and alternative.
+
+---
+
 ## 10. Patch DSL: `.docxpatch`
 
 Field sets and worked examples live in docs/patch-format.md; the operation registry is their machine owner. This section states the grammar and resolution contracts.

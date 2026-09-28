@@ -93,6 +93,42 @@ public static class DocxTextRenderer
     }
 
     /// <summary>
+    /// Renders editing capabilities for one target.
+    /// </summary>
+    public static string RenderCapabilities(DocxCapabilitiesResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.Capabilities is null)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        DocxTargetCapabilities capabilities = result.Capabilities;
+        builder.Append("target ")
+            .Append(capabilities.TargetId)
+            .Append(" ")
+            .Append(capabilities.Kind)
+            .Append(" ")
+            .Append(capabilities.Story)
+            .AppendLine();
+        foreach (DocxOperationCapability operation in capabilities.Operations)
+        {
+            builder.Append(operation.Support)
+                .Append(" ")
+                .Append(operation.Operation);
+            if (operation.Alternative is not null)
+            {
+                builder.Append(" alternative=").Append(operation.Alternative);
+            }
+
+            builder.Append(": ").AppendLine(operation.Reason);
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
     /// Renders the style inventory.
     /// </summary>
     public static string RenderStyles(DocxStylesResult result)

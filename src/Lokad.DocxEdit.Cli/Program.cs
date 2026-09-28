@@ -63,6 +63,7 @@ public static class ProgramMain
                 "find" => RunFind(options),
                 "dump" => RunDump(options),
                 "context" => RunContext(options),
+                "capabilities" => RunCapabilities(options),
                 "styles" => RunStyles(options),
                 "media" => RunMedia(options),
                 "validate" => RunValidate(options),
@@ -441,6 +442,26 @@ public static class ProgramMain
             static result => result.Diagnostics,
             static result => result.Success,
             result => Console.Write(DocxTextRenderer.RenderContext(result)));
+    }
+
+    private static int RunCapabilities(ParsedOptions options)
+    {
+        if (options.Id is null)
+        {
+            return InvalidUsage(CommandUsageError("capabilities"));
+        }
+
+        string id = options.Id;
+        return RunInputCommand(
+            options,
+            CommandUsageError("capabilities"),
+            input => new DocxEditor().GetCapabilities(input, id, new DocxCapabilitiesOptions
+            {
+                TrackChanges = options.TrackChanges
+            }),
+            static result => result.Diagnostics,
+            static result => result.Success,
+            result => Console.Write(DocxTextRenderer.RenderCapabilities(result)));
     }
 
     private static int RunStyles(ParsedOptions options)
