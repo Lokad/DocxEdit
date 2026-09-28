@@ -196,4 +196,55 @@ public static class HelpTopicTests
         Assert.False(contentTypeResult.Success);
         Assert.Contains(contentTypeResult.Diagnostics, static diagnostic => diagnostic.Code == "E4205");
     }
+    [Fact]
+    public static void UnitHintsAreMachineReadable()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-size", out DocxPatchOperationInfo size));
+        Assert.Contains("width=positive-dimension:emu|in|cm|pt|px", size.UnitHints);
+        Assert.Contains("height=positive-dimension:emu|in|cm|pt|px", size.UnitHints);
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-image-after", out DocxPatchOperationInfo insert));
+        Assert.Contains("width=dimension:emu|in|cm|pt|px", insert.UnitHints);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-wrap", out DocxPatchOperationInfo wrap));
+        Assert.Contains("dist-top=dimension:emu|in|cm|pt|px", wrap.UnitHints);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-position", out DocxPatchOperationInfo position));
+        Assert.Contains("horizontal-offset=signed-dimension:emu|in|cm|pt|px", position.UnitHints);
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-crop", out DocxPatchOperationInfo crop));
+        Assert.Contains("left-percent=percent:0-100", crop.UnitHints);
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-text", out DocxPatchOperationInfo replaceText));
+        Assert.Empty(replaceText.UnitHints);
+    }
+
+    [Fact]
+    public static void HelpRendersUnitHints()
+    {
+        string topic = DocxHelp.RenderTopic("set-image-crop");
+        Assert.Contains("Units:", topic, StringComparison.Ordinal);
+        Assert.Contains("left-percent=percent:0-100", topic, StringComparison.Ordinal);
+        Assert.DoesNotContain("Units:", DocxHelp.RenderTopic("replace-text"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void BadDimensionsStillRejectedByExecution()
+    {
+        using MemoryStream sizeInput = CreateDocxWithAnchoredImage();
+        using var sizePatch = new StringReader("docxpatch 1\n\nop set-image-size\ntarget M.I0001\nwidth enormous\nend\n");
+        DocxCheckResult sizeResult = new DocxEditor().Check(sizeInput, sizePatch);
+        Assert.False(sizeResult.Success);
+        Assert.Contains(sizeResult.Diagnostics, static diagnostic => diagnostic.Code == "E5206");
+        using MemoryStream wrapInput = CreateDocxWithAnchoredImage();
+        using var wrapPatch = new StringReader("docxpatch 1\n\nop set-image-wrap\ntarget M.I0001\nmode square\ndist-top lots\nend\n");
+        DocxCheckResult wrapResult = new DocxEditor().Check(wrapInput, wrapPatch);
+        Assert.False(wrapResult.Success);
+        Assert.Contains(wrapResult.Diagnostics, static diagnostic => diagnostic.Code == "E5209");
+        using MemoryStream positionInput = CreateDocxWithAnchoredImage();
+        using var positionPatch = new StringReader("docxpatch 1\n\nop set-image-position\ntarget M.I0001\nhorizontal-offset far\nend\n");
+        DocxCheckResult positionResult = new DocxEditor().Check(positionInput, positionPatch);
+        Assert.False(positionResult.Success);
+        Assert.Contains(positionResult.Diagnostics, static diagnostic => diagnostic.Code == "E5210");
+        using MemoryStream cropInput = CreateDocxWithAnchoredImage();
+        using var cropPatch = new StringReader("docxpatch 1\n\nop set-image-crop\ntarget M.I0001\nleft-percent 200\nend\n");
+        DocxCheckResult cropResult = new DocxEditor().Check(cropInput, cropPatch);
+        Assert.False(cropResult.Success);
+        Assert.Contains(cropResult.Diagnostics, static diagnostic => diagnostic.Code == "E5208");
+    }
 }
