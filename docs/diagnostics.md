@@ -42,7 +42,7 @@ Common code ranges:
   authors are rejected with `Feature = track-changes-revision-metadata` and
   `Fallback = no-output-written`.
 - `E1201`: selector matched no targets, a target ID was not found, or the target shape is wrong for the operation.
-- `E1202`: selector matched multiple targets ambiguously; the message lists candidate IDs.
+- `E1202`: selector matched multiple targets ambiguously (the message lists candidate IDs), or find/anchor text matched multiple ranges; the message reports the match count and how to select one match or every match.
 - `E1203`: selector text is malformed.
 - `E2001`: patch text is empty.
 - `E2002`: patch is missing the required `docxpatch 1` preamble.

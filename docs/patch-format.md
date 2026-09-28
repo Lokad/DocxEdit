@@ -212,7 +212,7 @@ The tables below group the same operations by editing area.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text |
+| `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text | without `occurrence` the find text must match exactly once (`occurrence N` selects one match, `occurrence all` replaces every match)
 | `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style |
 | `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target |
 | `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target |

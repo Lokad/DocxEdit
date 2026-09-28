@@ -435,4 +435,45 @@ public static class PatchParserTests
         Assert.Equal(1, diagnostic.Column);
     }
 
+
+    [Fact]
+    public static void ParsePatchAcceptsOccurrenceAllForReplaceText()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            occurrence all
+            end
+            """));
+
+        Assert.True(patch.Success);
+        Assert.Equal("all", Assert.Single(patch.Operations).Fields["occurrence"]);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsOccurrenceAllForAddComment()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text Note
+            anchor-text Alpha
+            occurrence all
+            end
+            """));
+
+        Assert.False(patch.Success);
+        Assert.Contains(patch.Diagnostics, static diagnostic => diagnostic.Code == "E2013");
+    }
+
 }

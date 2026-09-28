@@ -133,7 +133,8 @@ internal static class DocxPatchParser
                     return Error("E2012", $"Field '{key}' must be true or false.", fieldLineNumber, keyColumn);
                 }
 
-                if (operationDefinition.IntegerFields.Contains(key) && !int.TryParse(value, out _))
+                // replace-text selects every match with the literal occurrence value all.
+                if (operationDefinition.IntegerFields.Contains(key) && !int.TryParse(value, out _) && !IsAllOccurrence(operationName, key, value))
                 {
                     return Error("E2013", $"Field '{key}' must be an integer.", fieldLineNumber, keyColumn);
                 }
@@ -170,6 +171,13 @@ internal static class DocxPatchParser
 
             return fieldValue;
         }
+    }
+
+    private static bool IsAllOccurrence(string operationName, string key, string value)
+    {
+        return string.Equals(operationName, "replace-text", StringComparison.Ordinal) &&
+            string.Equals(key, "occurrence", StringComparison.Ordinal) &&
+            string.Equals(value, "all", StringComparison.Ordinal);
     }
 
     internal static string UnescapePatchValue(string value)

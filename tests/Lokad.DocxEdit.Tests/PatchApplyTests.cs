@@ -1253,4 +1253,102 @@ public static class PatchApplyTests
         Assert.Equal("", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
 
+
+    [Fact]
+    public static void ApplyReplaceTextAmbiguousWithoutOccurrenceFails()
+    {
+        const string patchText = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha Alpha");
+        DocxCheckResult check = new DocxEditor().Check(checkInput, new StringReader(patchText));
+        Assert.False(check.Success);
+        Assert.Contains(check.Diagnostics, static diagnostic => diagnostic.Code == "E1202");
+        using MemoryStream applyInput = CreateDocx("Alpha Alpha");
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patchText), output);
+        Assert.False(apply.Success);
+        DocxDiagnostic diagnostic = Assert.Single(apply.Diagnostics, static d => d.Code == "E1202");
+        Assert.Contains("2 occurrences", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextOccurrenceSelectsSingleMatch()
+    {
+        using MemoryStream firstInput = CreateDocx("Alpha Alpha");
+        using var firstOutput = new MemoryStream();
+        using var firstPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            occurrence 1
+            end
+            """);
+        Assert.True(new DocxEditor().Apply(firstInput, firstPatch, firstOutput).Success);
+        firstOutput.Position = 0;
+        Assert.Equal("Omega Alpha", Assert.Single(new DocxEditor().Read(firstOutput).Paragraphs).Text);
+
+        using MemoryStream secondInput = CreateDocx("Alpha Alpha");
+        using var secondOutput = new MemoryStream();
+        using var secondPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            occurrence 2
+            end
+            """);
+        Assert.True(new DocxEditor().Apply(secondInput, secondPatch, secondOutput).Success);
+        secondOutput.Position = 0;
+        Assert.Equal("Alpha Omega", Assert.Single(new DocxEditor().Read(secondOutput).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextOccurrenceAllReplacesEveryMatch()
+    {
+        using MemoryStream input = CreateDocx("Alpha Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            occurrence all
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal("Omega Omega", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextOccurrenceBeyondMatchesFails()
+    {
+        using MemoryStream input = CreateDocx("Alpha Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            occurrence 3
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4203");
+    }
+
 }

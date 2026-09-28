@@ -23,7 +23,8 @@ internal static partial class DocxPatchEngine
         string? replacement = ReadRequiredField(operation, "with", diagnostics, allowEmpty: true);
         string? expected = operation.Fields.GetValueOrDefault("expect-text");
         bool? preserveRuns = ReadBooleanField(operation, "preserve-runs", diagnostics);
-        int? occurrence = ReadPositiveOccurrence(operation, diagnostics);
+        bool replaceAll = string.Equals(operation.Fields.GetValueOrDefault("occurrence"), "all", StringComparison.Ordinal);
+        int? occurrence = replaceAll ? null : ReadPositiveOccurrence(operation, diagnostics);
         if (find is null || replacement is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
@@ -71,10 +72,15 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4305", $"Text edit for {target} crosses protected OOXML boundary '{protectedFeature}'.", operation, target)];
         }
 
-        IReadOnlyList<TextRange> matches = FindTextMatches(current, find, occurrence);
+        IReadOnlyList<TextRange> matches = FindTextMatches(current, find, replaceAll ? null : occurrence);
         if (matches.Count == 0)
         {
             return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target)];
+        }
+
+        if (!replaceAll && occurrence is null && matches.Count > 1)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1202", $"Find text matched {matches.Count} occurrences in {target}. Specify occurrence N to select one match or occurrence all to replace every match.", operation, target)];
         }
 
         bool useTrackedChanges = options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;

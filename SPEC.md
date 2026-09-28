@@ -1459,7 +1459,7 @@ Rules:
 
 * Target must be a paragraph.
 * `expect-text` is optional but strongly recommended.
-* `find` must occur exactly once unless `occurrence` is specified.
+* `find` must match exactly once unless `occurrence` selects one match (`occurrence N`) or requests every match (`occurrence all`). An ambiguous match without `occurrence` fails instead of replacing every match.
 * If replacement is within a single run, split the run and preserve run properties.
 * If replacement spans simple adjacent runs, preserve the first matched run’s properties for the replacement.
 * Fail if replacement crosses:
@@ -1475,6 +1475,7 @@ Optional field:
 
 ```text
 occurrence 2
+occurrence all
 preserve-runs true
 ```
 

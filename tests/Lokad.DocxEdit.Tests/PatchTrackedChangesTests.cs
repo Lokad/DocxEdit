@@ -935,6 +935,7 @@ public static class PatchTrackedChangesTests
             target M.P0001
             find foo
             with bar
+            occurrence all
             end
             """);
 
@@ -965,6 +966,7 @@ public static class PatchTrackedChangesTests
             target M.P0001
             find alpha
             with beta
+            occurrence all
             end
             """);
 

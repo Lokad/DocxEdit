@@ -98,7 +98,7 @@ internal static partial class DocxPatchEngine
             "tracked-simple",
             "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
-            "Replaces matching text inside one target",
+            "Replaces matching text inside one target; an ambiguous find without occurrence fails, occurrence N selects one match, occurrence all replaces every match",
             ExecuteReplaceText),
         Tracked(
             "replace-paragraph",
