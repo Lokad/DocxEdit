@@ -637,6 +637,47 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewAgreesBetweenCheckAndApplyForEveryPreviewOperation()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        (string Name, Func<MemoryStream> Fixture, string Patch)[] cases =
+        [
+            ("replace-text", static () => CreateDocx("Alpha Beta"), "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\nend\n"),
+            ("replace-paragraph", static () => CreateDocx("Alpha"), "docxpatch 1\n\nop replace-paragraph\ntarget M.P0001\ntext Omega\nend\n"),
+            ("set-cell", static () => CreateDocxWithSimpleTwoByTwoTable(), "docxpatch 1\n\nop set-cell\ntarget M.T0001.R01.C01\ntext Changed\nend\n"),
+            ("set-style", static () => CreateDocxWithStylesAndBody("<w:style w:type=\"paragraph\" w:styleId=\"Heading2\"><w:name w:val=\"Heading 2\"/></w:style>", "<w:p><w:r><w:t>Title</w:t></w:r></w:p>"), "docxpatch 1\n\nop set-style\ntarget M.P0001\nstyle Heading 2\nend\n"),
+            ("set-hyperlink-text", static () => CreateDocxWithBody("<w:p xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:hyperlink r:id=\"rLink\"><w:r><w:t>External</w:t></w:r></w:hyperlink></w:p>", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rLink\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"https://example.test/report\" TargetMode=\"External\"/></Relationships>", null), "docxpatch 1\n\nop set-hyperlink-text\ntarget M.L0001\ntext New label\nend\n"),
+            ("set-cell-shading", static () => CreateDocxWithSimpleTwoByTwoTable(), "docxpatch 1\n\nop set-cell-shading\ntarget M.T0001.R01.C01\nfill 4472C4\nend\n"),
+            ("set-table-style", static () => CreateDocxWithStylesAndBody("<w:style w:type=\"table\" w:styleId=\"TableGrid\"><w:name w:val=\"Table Grid\"/></w:style>", "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"), "docxpatch 1\n\nop set-table-style\ntarget M.T0001\nstyle TableGrid\nend\n"),
+            ("set-row-header", static () => CreateDocxWithSimpleTwoByTwoTable(), "docxpatch 1\n\nop set-row-header\ntarget M.T0001.R01\nheader true\nend\n"),
+            ("set-content-control-text", static () => CreateDocxWithBody("<w:p><w:sdt><w:sdtPr><w:id w:val=\"77\"/><w:alias w:val=\"Client Name\"/><w:tag w:val=\"client_name\"/><w:text/></w:sdtPr><w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent></w:sdt></w:p>"), "docxpatch 1\n\nop set-content-control-text\ntarget M.CC0001\ntext Acme Corp\nend\n"),
+            ("set-image-alt", static () => CreateDocxWithImage("png", "image/png", "old-png"), "docxpatch 1\n\nop set-image-alt\ntarget M.I0001\nexpect-alt Old chart\nalt Updated chart\nend\n"),
+            ("set-field-result", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-result\ntarget M.F0001\nexpect-result Old cached result\ntext New cached result\nend\n"),
+            ("delete-block", static () => CreateDocxWithBody("<w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Beta</w:t></w:r></w:p>"), "docxpatch 1\n\nop delete-block\ntarget M.P0001\nend\n"),
+            ("set-section-columns", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-columns\ntarget M.S0001\ncount 2\nend\n"),
+            ("set-section-orientation", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-orientation\ntarget M.S0001\norientation landscape\nend\n"),
+            ("set-hyperlink-target", static () => CreateDocxWithBody("<w:p xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:hyperlink r:id=\"rLink\"><w:r><w:t>External</w:t></w:r></w:hyperlink></w:p>", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rLink\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"https://example.test/report\" TargetMode=\"External\"/></Relationships>", null), "docxpatch 1\n\nop set-hyperlink-target\ntarget M.L0001\nuri https://example.test/new\nend\n"),
+            ("set-field-dirty", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-dirty\ntarget M.F0001\ndirty true\nend\n"),
+            ("set-field-lock", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-lock\ntarget M.F0001\nlocked true\nend\n"),
+        ];
+        foreach ((string name, Func<MemoryStream> fixture, string patchText) in cases)
+        {
+            using MemoryStream checkInput = fixture();
+            DocxCheckResult checkResult = new DocxEditor().Check(checkInput, new StringReader(patchText), options);
+            Assert.True(checkResult.Success, name);
+            using MemoryStream applyInput = fixture();
+            using var output = new MemoryStream();
+            DocxApplyResult applyResult = new DocxEditor().Apply(applyInput, new StringReader(patchText), output, options);
+            Assert.True(applyResult.Success, name);
+            DocxPatchOperationReport check = Assert.Single(checkResult.Operations);
+            DocxPatchOperationReport apply = Assert.Single(applyResult.Operations);
+            Assert.True(string.Equals(check.PreviewBefore, apply.PreviewBefore, StringComparison.Ordinal), name);
+            Assert.True(string.Equals(check.PreviewAfter, apply.PreviewAfter, StringComparison.Ordinal), name);
+            Assert.True(check.PreviewTruncated == apply.PreviewTruncated, name);
+        }
+    }
+
+    [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
