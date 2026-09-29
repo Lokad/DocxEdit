@@ -1,0 +1,32 @@
+{
+  "id": "invalid-orientation-guard",
+  "description": "Refuses an orientation guard outside portrait and landscape with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Section text</w:t></w:r></w:p>",
+      "    <w:sectPr>",
+      "      <w:pgSz w:w=\"12240\" w:h=\"15840\"/>",
+      "      <w:cols w:num=\"1\"/>",
+      "    </w:sectPr>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-section-orientation",
+    "target M.S0001",
+    "expect-orientation sideways",
+    "orientation landscape",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "portrait or landscape"
+    ]
+  }
+}
