@@ -15,16 +15,22 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         OoxmlPackage package,
         IReadOnlySet<string>? commentsBefore,
+        IReadOnlyDictionary<string, int>? bookmarkCountsBefore,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is "insert-before" or "insert-after")
+        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after")
         {
             return CreatedInsertParagraphId(operation, package, cancellationToken);
         }
 
-        if (operation.OperationName == "add-comment" && commentsBefore is not null)
+        if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null)
         {
             return CreatedCommentIds(package, commentsBefore, cancellationToken);
+        }
+
+        if (operation.OperationName == "add-bookmark" && bookmarkCountsBefore is not null)
+        {
+            return CreatedBookmarkIds(package, bookmarkCountsBefore, cancellationToken);
         }
 
         return [];
@@ -48,7 +54,7 @@ internal static partial class DocxPatchEngine
         }
 
         bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
-        int count = operation.FieldValues.Count(static field => field.Name == "text");
+        int count = Math.Max(1, operation.FieldValues.Count(static field => field.Name == "text"));
         List<XElement> created = insertAfter
             ? anchor.Block.ElementsAfterSelf(OoxmlNs.W + "p").Take(count).ToList()
             : anchor.Block.ElementsBeforeSelf(OoxmlNs.W + "p").TakeLast(count).ToList();
@@ -56,18 +62,12 @@ internal static partial class DocxPatchEngine
         {
             return [];
         }
-        if (!DocxPartRoles.GetStoryPrefixes(package, cancellationToken).TryGetValue(anchor.PartName, out string? prefix) || prefix is null || prefix.Length == 0)
+        if (!DocxPartRoles.GetStoryPrefixes(package, cancellationToken).TryGetValue(anchor.PartName, out string? prefix) || !TryParseStoryPrefix(prefix, out char story, out int storyPart))
         {
             return [];
         }
 
-        int storyPart = 0;
-        if (prefix.Length > 1 && !int.TryParse(prefix.Substring(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out storyPart))
-        {
-            return [];
-        }
-
-        return created.Select(element => new DocxTargetId(prefix[0], storyPart, DocxTargetKind.Paragraph, element.ElementsBeforeSelf(OoxmlNs.W + "p").Count() + 1, 0, 0).ToWireValue()).ToArray();
+        return created.Select(element => new DocxTargetId(story, storyPart, DocxTargetKind.Paragraph, element.ElementsBeforeSelf(OoxmlNs.W + "p").Count() + 1, 0, 0).ToWireValue()).ToArray();
     }
 
     private static IReadOnlyList<string> CreatedCommentIds(
@@ -104,5 +104,66 @@ internal static partial class DocxPatchEngine
         }
 
         return ids;
+    }
+
+    private static bool TryParseStoryPrefix(string? prefix, out char story, out int storyPart)
+    {
+        story = (char)77;
+        storyPart = 0;
+        if (string.IsNullOrEmpty(prefix))
+        {
+            return false;
+        }
+
+        story = prefix[0];
+        if (prefix.Length > 1 && !int.TryParse(prefix.Substring(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out storyPart))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static Dictionary<string, int> CountBookmarkStarts(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        Dictionary<string, int> counts = new(StringComparer.Ordinal);
+        foreach (string partName in GetEditableStoryPartNames(package, cancellationToken))
+        {
+            if (package.GetPart(partName) is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            counts[partName] = document.Descendants(OoxmlNs.W + "bookmarkStart").Count();
+        }
+
+        return counts;
+    }
+
+    private static IReadOnlyList<string> CreatedBookmarkIds(
+        OoxmlPackage package,
+        IReadOnlyDictionary<string, int> bookmarksBefore,
+        CancellationToken cancellationToken)
+    {
+        Dictionary<string, int> after = CountBookmarkStarts(package, cancellationToken);
+        IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
+        List<string> created = [];
+        foreach ((string partName, int count) in after)
+        {
+            if (count - bookmarksBefore.GetValueOrDefault(partName) != 1)
+            {
+                continue;
+            }
+
+            if (!prefixes.TryGetValue(partName, out string? prefix) || !TryParseStoryPrefix(prefix, out char story, out int storyPart))
+            {
+                continue;
+            }
+
+            created.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Bookmark, count, 0, 0).ToWireValue());
+        }
+
+        return created;
     }
 }

@@ -567,4 +567,79 @@ public static class PatchReportTests
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
         Assert.Equal(new[] { "M.P0002", "M.P0003" }, Assert.Single(result.Operations).CreatedTargetIds);
     }
+    [Fact]
+    public static void InsertImageAfterReportsCreatedParagraph()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        var assets = new MemoryAssetProvider("chart.png", CreatePngBytes(4, 3), null, "chart.png");
+        var options = new DocxEditOptions { AssetProvider = assets };
+        using var patch = new StringReader("docxpatch 1\n\nop insert-image-after\ntarget M.P0001\nasset chart.png\nend\n");
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void AddBookmarkReportsCreatedBookmarkId()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader("docxpatch 1\n\nop add-bookmark\ntarget M.P0001\nname Mark\nend\n");
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.B0001" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void AddSecondBookmarkReportsNextId()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+              <w:p><w:bookmarkStart w:id="1" w:name="A"/><w:r><w:t>Beta</w:t></w:r><w:bookmarkEnd w:id="1"/></w:p>
+            """);
+        using var patch = new StringReader("docxpatch 1\n\nop add-bookmark\ntarget M.P0001\nname B\nend\n");
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.B0002" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void AddCommentReplyReportsCreatedCommentId()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment-reply
+            target comment:3
+            text Thanks
+            author Reviewer
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "comment:4" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
 }
