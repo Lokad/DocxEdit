@@ -23,3 +23,11 @@
 - Changed merge-group and merge-root-cell IDs from `string` to the `DocxTargetId` struct across scanners, snapshots, and DTOs, sharing one internal allocator (twin helpers deleted); text and JSON wire values are unchanged.
 - Fixed quoted single-line patch values being treated verbatim: surrounding quotes are stripped and the documented escapes decode, so quoted styles match and escaped newlines insert real line breaks; heredoc content stays raw.
 - Fixed image assets whose file extension disagrees with the magic bytes being embedded under the wrong content type: extension/content mismatches now fail with `E5203`.
+- Added named result bindings for created objects: creation operations accept `as` and later operations address them as `@name`, with created target IDs in operation reports; same-anchor insertion order is documented.
+- Added per-target editing capabilities for every target kind and guarded patch templates for every kind, both reusing execution predicates so guidance agrees with check.
+- Added executable minimal examples (plus guarded variants where guards exist) for every supported patch operation in built-in help.
+- Added bookmark targets to `dump` and `context`, including the anchor-paragraph neighborhood.
+- Fixed unknown-style errors to suggest the nearest style ID or name.
+- Fixed failed apply to preserve any pre-existing destination file byte-for-byte.
+- Made patch parsing tolerate CRLF line endings and a leading UTF-8 BOM.
+- Documented that semantic selectors search the main story and that `occurrence` selects find/anchor-text matches rather than selector targets.
