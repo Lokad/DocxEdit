@@ -151,3 +151,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 7 commands, 1 failing check, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so workflow ease is not a fresh-agent signal. A paragraph with a doubled space was addressed through a single-spaced text selector and resolved correctly; the single-spaced expect-text guard failed with E3201 while the exact-spaced guard passed, and the applied edit replaced only the find span with spacing preserved. The D09 normalized-match versus exact-guard contract from patch-format.md behaves as documented, matching existing unit coverage.
+### 2026-09-29 — markup-inventory (synthetic self-run) — completed
+
+- Commands: apply, changes, read
+- Diagnostics: none
+- Target IDs: main-story paragraph IDs; one comment anchored to M.P0002
+- Markup types: deleted-run and inserted-run pairs plus comment range markup
+- Counts: 5 commands, 0 failing checks, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: synthetic document with two revision pairs plus one anchored comment. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Default changes output inventories markup by type, author, part, and story with no document text; a byte scan of the 40-line output found no revision or comment text. Read summary gives shape counts without text. No usability gap observed on this surface.
