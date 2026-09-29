@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, section, hyperlink, and field targets.
+// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, and image targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -53,6 +53,11 @@ internal static partial class DocxPatchEngine
             return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Image)
+        {
+            return GetImageCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         if (parsed.Kind == DocxTargetKind.Field)
         {
             return GetFieldCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
@@ -88,7 +93,7 @@ internal static partial class DocxPatchEngine
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, and field IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, and image IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -1021,6 +1026,139 @@ internal static partial class DocxPatchEngine
             operation,
             "unsupported",
             "Field refresh does not support field type " + Quote(facts.FieldType) + ": deterministic refresh covers REF, PAGEREF, NOTEREF, and QUOTE, so refresh-field-result fails with E4313.",
+            operation,
+            null);
+    }
+    // D17: image capabilities reuse the drawing-shape predicates from the image engine.
+    private sealed record ImageCapabilityFacts(
+        bool HasDrawing,
+        bool HasContainer,
+        bool IsAnchored,
+        string? ContentType);
+    internal static ParagraphCapabilitiesOutcome GetImageCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        ImageBlipTarget? imageTarget = storyDocument is null
+            ? null
+            : FindImageBlipTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+        if (storyDocument is null || imageTarget is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
+        XElement? container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
+            ?? drawing?.Descendants(OoxmlNs.Wp + "anchor").FirstOrDefault();
+        var facts = new ImageCapabilityFacts(
+            drawing is not null,
+            container is not null,
+            container is not null && container.Name == OoxmlNs.Wp + "anchor",
+            imageTarget.Part.ContentType);
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            ImageReplaceCapability(isRequire),
+            ImageDrawingCapability("set-image-alt", facts, isRequire, needsAnchor: false),
+            ImageDrawingCapability("set-image-metadata", facts, isRequire, needsAnchor: false),
+            ImageDrawingCapability("set-image-size", facts, isRequire, needsAnchor: false),
+            ImageDrawingCapability("set-image-wrap", facts, isRequire, needsAnchor: true),
+            ImageDrawingCapability("set-image-position", facts, isRequire, needsAnchor: true),
+            ImageDrawingCapability("set-image-crop", facts, isRequire, needsAnchor: false),
+            ImageDeleteCapability(facts, isRequire),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "image",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    private static DocxOperationCapability ImageReplaceCapability(bool isRequire)
+    {
+        const string operation = "replace-image";
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Image replacement updates DrawingML and package media without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "The asset must be readable and its content type must match the existing media part, otherwise check fails with E5204; an optional alt update needs editable DrawingML properties. Guards expect-content-type can assert the current media type. Check remains authoritative for the exact asset.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability ImageDrawingCapability(string operation, ImageCapabilityFacts facts, bool isRequire, bool needsAnchor)
+    {
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Image DrawingML updates carry no tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        if (!facts.HasContainer)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Image does not have editable DrawingML properties, so " + operation + " fails with E5205.",
+                operation,
+                null);
+        }
+        if (needsAnchor && !facts.IsAnchored)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Image is inline; this metadata is only editable on anchored images, so " + operation + " fails with E5205.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct edit updates the DrawingML metadata; value fields and the expect-content-type guard are decided by check.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability ImageDeleteCapability(ImageCapabilityFacts facts, bool isRequire)
+    {
+        const string operation = "delete-image";
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Image deletion removes DrawingML and package media without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        if (!facts.HasDrawing)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Image does not have an editable DrawingML object, so delete-image fails with E5205.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Deletion removes the DrawingML object and drops the media relationship and part when nothing else uses them.",
             operation,
             null);
     }
