@@ -485,7 +485,7 @@ public static class DocxHelp
         builder.Append(RenderPatchTrackChangesSupportTable());
 
         builder.AppendLine();
-        builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for paragraph targets.");
+        builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for main-story paragraph targets; header/footer text needs explicit H/F IDs.");
         builder.AppendLine("add-comment targets a modeled paragraph; optional anchor-text selects one direct text span inside it, and occurrence disambiguates repeated anchor text.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
         builder.AppendLine("add-comment-reply creates modern commentsExtended/commentsIds metadata; delete-comment-reply removes leaf replies and fails with E4314 when deletion would change child thread topology.");

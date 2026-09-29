@@ -160,6 +160,7 @@ Paragraph operations also support semantic selectors:
 - `content-control:"TagOrAlias"`.
 - Headings resolve by real outline levels (a direct outline level, the paragraph style chain, or the built-in Heading 1-9 styles), never by digits in a style ID.
 - Semantic text selectors match with whitespace normalized (every whitespace run counts as one space); matching stays case-sensitive. Guards such as `expect-text` compare exact visible text without normalization.
+Semantic selectors search the main story; header and footer text needs explicit H001/F001 IDs (discover them with read or find `--headers-footers`).
 
 Ambiguous selectors fail with `E1202`; use an explicit ID from `read`,
 `context`, or `find`. Selectors with no match fail with `E1201`.

@@ -1,0 +1,23 @@
+{
+  "id": "story-scope-selector",
+  "title": "Recover A Header-Only Match With An Explicit Story ID",
+  "tags": ["private", "patch", "selectors", "headers-footers"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, work with a document whose header holds text that does not appear in the main story.",
+    "Show that a main-story text selector does not match the header text and record the diagnostic.",
+    "Discover the header paragraph ID with read or find using headers-footers coverage.",
+    "Recover with an explicit H001 paragraph ID plus a guard, running check before apply, and validate the output."
+  ],
+  "successCriteria": [
+    "Shows the main-story selector failing with E1201 on header-only text.",
+    "Produces an output .docx with only the header paragraph changed.",
+    "Uses check before apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Did the agent find the headers-footers discovery flag without hints?",
+    "Was the main-story scope of semantic selectors legible from help or docs?",
+    "Could the agent verify that only the header changed?"
+  ]
+}

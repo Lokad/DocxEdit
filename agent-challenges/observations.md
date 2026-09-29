@@ -160,3 +160,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 5 commands, 0 failing checks, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: synthetic document with two revision pairs plus one anchored comment. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Default changes output inventories markup by type, author, part, and story with no document text; a byte scan of the 40-line output found no revision or comment text. Read summary gives shape counts without text. No usability gap observed on this surface.
+### 2026-09-29 — story-scope-selector (synthetic self-run) — completed
+
+- Commands: read, find, check, apply, validate
+- Diagnostics: E1201 on the main-story text selector against header-only text; none on the explicit-ID path
+- Target IDs: H001.P0001 discovered through headers-footers coverage; main-story suggestion pointed at M.P0001
+- Markup types: none (untracked edit)
+- Counts: 7 commands, 1 failing check, 0 retries after the working recovery
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: synthetic main-plus-header document built with archive tooling since docxedit has no create command. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Semantic text selectors search only the main story while find needs its headers-footers flag for the same text; the E1201 nearby-paragraph suggestion stayed main-story scoped. Recovery through the explicit H001 ID with check before apply changed only the header paragraph, and structural validation passed. The story scope is now documented in patch-format.md and help patch.
