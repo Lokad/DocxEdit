@@ -1,0 +1,28 @@
+{
+  "id": "find-text-missing",
+  "description": "Refuses replacement when the find text is absent from the target.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Gamma",
+    "with Delta",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4203"
+    ],
+    "diagnosticMessagesContain": [
+      "was not found"
+    ]
+  }
+}
