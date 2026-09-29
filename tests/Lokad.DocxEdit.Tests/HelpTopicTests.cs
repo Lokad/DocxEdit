@@ -106,6 +106,14 @@ public static class HelpTopicTests
     }
 
     [Fact]
+    public static void ChangesHelpDocumentsEmptyMarkupLine()
+    {
+        string help = DocxHelp.RenderTopic("changes");
+
+        Assert.Contains("No changes line", help, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void PatchOperationTopicReportsEmptyAllowedFields()
     {
         Assert.Contains("Empty values allowed: with", DocxHelp.RenderTopic("replace-text"), StringComparison.Ordinal);
