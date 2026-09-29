@@ -1,0 +1,31 @@
+{
+  "id": "set-hyperlink-target",
+  "description": "Retargets an external hyperlink; the display text is unchanged.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>External</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>"
+    ],
+    "hyperlink": "https://example.test/report"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-hyperlink-target",
+    "target M.L0001",
+    "uri https://example.test/new",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "External"
+    ],
+    "hyperlinkUris": [
+      "https://example.test/new"
+    ]
+  }
+}
