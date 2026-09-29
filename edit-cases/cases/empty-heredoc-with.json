@@ -1,0 +1,25 @@
+{
+  "id": "empty-heredoc-with",
+  "description": "Deletes matched text with an empty heredoc replacement value.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with <<<",
+    ">>>",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      " Beta"
+    ]
+  }
+}
