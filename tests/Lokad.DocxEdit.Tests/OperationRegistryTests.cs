@@ -172,4 +172,31 @@ public static class OperationRegistryTests
         Assert.Empty(catalogued["add-comment"].EmptyAllowedFields);
     }
 
+    [Fact]
+    public static void PatchFormatDocumentsEveryOperation()
+    {
+        string tick = ((char)96).ToString();
+        string doc = File.ReadAllText(Path.Combine(FindRepoRoot(), "docs", "patch-format.md"));
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            Assert.Contains(tick + operation.Name + tick, doc, StringComparison.Ordinal);
+        }
+    }
+    [Fact]
+    public static void PatchFormatAliasListMatchesRegistry()
+    {
+        string doc = File.ReadAllText(Path.Combine(FindRepoRoot(), "docs", "patch-format.md"));
+        int section = doc.IndexOf("## Result aliases", StringComparison.Ordinal);
+        Assert.True(section >= 0);
+        int next = doc.IndexOf("## ", section + 1, StringComparison.Ordinal);
+        string aliases = next < 0 ? doc.Substring(section) : doc.Substring(section, next - section);
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            if (operation.OptionalFields.Contains("as"))
+            {
+                Assert.Contains(operation.Name, aliases, StringComparison.Ordinal);
+            }
+        }
+    }
+
 }
