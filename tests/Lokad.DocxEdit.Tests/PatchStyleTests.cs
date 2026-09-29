@@ -339,4 +339,105 @@ public static class PatchStyleTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
     }
 
+    [Fact]
+    public static void CheckSetStyleNotFoundSuggestsNearestId()
+    {
+        using MemoryStream input = CreateDocxWithStyles("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+            op set-style
+            target M.P0001
+            style heading2
+            end
+            """);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E7101");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Heading2", diagnostic.Message, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void CheckSetStyleNotFoundSuggestsNearestNameCaseVariant()
+    {
+        using MemoryStream input = CreateDocxWithStyles("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+            op set-style
+            target M.P0001
+            style heading 2
+            end
+            """);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E7101");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Heading 2", diagnostic.Message, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void CheckSetStyleNotFoundWithoutNearMatchStaysSilent()
+    {
+        using MemoryStream input = CreateDocxWithStyles("""
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+            op set-style
+            target M.P0001
+            style Zzz Qqq
+            end
+            """);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E7101");
+        Assert.DoesNotContain("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void CheckSetTableStyleNotFoundSuggestsNearestId()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="table" w:styleId="GridA"><w:name w:val="Grid A"/></w:style>
+            """, """
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+            op set-table-style
+            target M.T0001
+            style grida
+            end
+            """);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E7101");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("GridA", diagnostic.Message, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void CheckSetStyleAmbiguousMessageUnchanged()
+    {
+        using MemoryStream input = CreateDocxWithStyles("""
+              <w:style w:type="paragraph" w:styleId="Custom1"><w:name w:val="Custom"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Custom2"><w:name w:val="Custom"/></w:style>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+            op set-style
+            target M.P0001
+            style Custom
+            end
+            """);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "E7102");
+        Assert.DoesNotContain("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+    }
+
 }

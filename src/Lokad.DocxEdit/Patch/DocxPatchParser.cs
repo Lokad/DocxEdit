@@ -232,7 +232,7 @@ internal static class DocxPatchParser
         return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message) with { Line = line, Column = column, HelpTopic = helpTopic }]);
     }
 
-    private static string? SuggestNearestName(string value, IEnumerable<string> candidates)
+    internal static string? SuggestNearestName(string value, IEnumerable<string> candidates)
     {
         string? best = null;
         int bestDistance = 4;

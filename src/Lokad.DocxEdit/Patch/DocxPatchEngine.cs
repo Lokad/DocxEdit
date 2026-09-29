@@ -843,7 +843,8 @@ internal static partial class DocxPatchEngine
             return false;
         }
 
-        diagnostic = Diagnostic(DocxSeverity.Error, "E7101", $"Style '{requestedStyle}' was not found.", operation, target);
+        string? styleSuggestion = DocxPatchParser.SuggestNearestName(requestedStyle, styles.Select(static style => style.StyleId).OrderBy(static id => id, StringComparer.Ordinal).Concat(styles.Select(static style => style.Name).OrderBy(static name => name, StringComparer.Ordinal)));
+        diagnostic = Diagnostic(DocxSeverity.Error, "E7101", "Style " + Quote(requestedStyle) + " was not found." + (styleSuggestion is null ? string.Empty : " Did you mean " + Quote(styleSuggestion) + "?"), operation, target);
         return false;
     }
 

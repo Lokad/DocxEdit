@@ -112,7 +112,7 @@ Common code ranges:
 - `E5210`: image position axis is invalid.
 - `E6201`: section column count must be between 1 and 4.
 - `E6202`: section orientation must be portrait or landscape.
-- `E7101`: style was not found.
+- `E7101`: style was not found; names the closest style ID or name when within edit distance 3.
 - `E7102`: style name is ambiguous.
 - `E7103`: style reference is the wrong kind (for example a table style where a paragraph style is required).
 - `E9001`: post-edit validation failed.
