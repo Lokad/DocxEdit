@@ -74,3 +74,25 @@ Every push and pull request runs `.github/workflows/agent-tooling.yml`: it build
 the solution and exercises the runner without launching Codex (`-List`, per-challenge
 `-DryRun`, plus one fixture-stand-in `-PrepareOnly` with run-containment, path-guard,
 and summary-sanitizer assertions). Live `codex exec` probes stay manual and local-only.
+
+## Reusable local input variants
+
+The fixture stand-in under private-cases/ is intentionally minimal (2 paragraphs,
+no tables, images, headers, or markup), so several challenges only reach partial
+by design against it. The following ignored local variants were derived from the
+public smoke fixture (edit-cases/fixtures/word-smoke.docx) and unblock the full
+flows; regenerate them with the same steps rather than committing binaries:
+
+- table-sample.docx: plain 2 by 2 table plus the 2 fixture paragraphs, packaged
+  by inserting a table block before the section properties. Used for
+  table-guarded-edit and unsupported-recovery.
+- header-sample.docx: one header paragraph plus the 2 fixture paragraphs, wired
+  through a header part, content-type override, document rel, and section
+  header reference. Used for story-scope-selector.
+- image-sample.docx: inline PNG with a known description inserted after the
+  first paragraph through insert-image-after with an explicit alt field. Used
+  for image-alt-edit.
+- markup-sample.docx: tracked replace-text plus add-comment applied under
+  require with explicit author and timestamp. Used for markup-targeting.
+
+Validate any regenerated variant with docxedit validate and read before running.
