@@ -1,0 +1,31 @@
+{
+  "id": "guard-header-mismatch",
+  "description": "Fails a row header edit on a mismatched expect-header guard with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-row-header",
+    "target M.T0001.R01",
+    "expect-header true",
+    "header true",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Guard failed"
+    ]
+  }
+}
