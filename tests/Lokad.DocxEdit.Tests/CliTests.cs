@@ -1176,6 +1176,7 @@ public static class CliTests
             RedirectStandardInput = standardInput is not null
         };
         startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add("--no-build");
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
         startInfo.ArgumentList.Add("--");
@@ -1224,6 +1225,7 @@ public static class CliTests
             RedirectStandardInput = standardInput is not null
         };
         startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add("--no-build");
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
         startInfo.ArgumentList.Add("--");
