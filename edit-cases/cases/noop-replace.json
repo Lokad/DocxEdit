@@ -1,0 +1,32 @@
+{
+  "id": "noop-replace",
+  "description": "Replaces text with identical text under require; succeeds as a no-op without revisions.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Alpha",
+    "end"
+  ],
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "I0001"
+    ],
+    "paragraphs": [
+      "Alpha Beta"
+    ]
+  }
+}
