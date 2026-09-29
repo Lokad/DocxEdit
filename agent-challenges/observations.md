@@ -209,3 +209,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 0 effective commands; run abandoned after several minutes of unresponsive tool execution
 - Artifacts: private run directory private-cases/_runs/ambiguity-recovery/20260929T134140Z (no sanitized summary; runner had not finalized)
 - Notes: third live codex-exec run (ephemeral, prompt-only) on the public fixture stand-in. The agent reported shell execution unresponsive including basic directory checks, stopped its pending requests, made no edits, and disclosed no text. No product signal: the failure is in agent tool execution, not docxedit behavior, and the two prior live runs on the same substrate succeeded. Possible confounds: observer polled the run directory aggressively during the run, and the agent process burned about 10 minutes of CPU while producing only its final response. Do not read this as evidence about ambiguity recovery itself, which remains assessed only in synthetic self-runs; a rerun with wider observer polling gaps would test flakiness versus a systematic problem.
+
+### 2026-09-29 — ambiguity-recovery (live codex run) — completed
+
+- Commands: help, read, check, apply, read, validate
+- Diagnostics: E1202 on the ambiguous selector; none on the recovery path
+- Target IDs: selector matched M.P0001 and M.P0003 with matches 2; recovery targeted M.P0003 with a guard
+- Markup types: none (untracked edit)
+- Counts: 16 commands, 1 failing check, 0 retries after the working recovery; about 302k input tokens with about 270k cached
+- Artifacts: artifacts/agent-challenges/ambiguity-recovery/20260929T135222Z/summary.json
+- Notes: rerun after the earlier tooling-blocked attempt on the same challenge; with wider observer polling gaps it completed cleanly, supporting flake over systematic for the prior failure. The agent manufactured ambiguity in a separate working copy with the input hash identical throughout, hit E1202 with both candidates named, and recovered through the explicit ID plus expect-text without touching occurrence. Verified only the chosen paragraph changed; structural validation clean. No agent-reported weaknesses; no text disclosed.
