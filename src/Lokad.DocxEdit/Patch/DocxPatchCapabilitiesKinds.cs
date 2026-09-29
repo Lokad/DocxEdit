@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, and merge-group targets.
+// D17: capabilities for content-control, cell, merge-group, and bookmark targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -53,12 +53,17 @@ internal static partial class DocxPatchEngine
             return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Bookmark)
+        {
+            return GetBookmarkCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         return new ParagraphCapabilitiesOutcome
         {
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, and merge-group IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, and bookmark IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -500,6 +505,203 @@ internal static partial class DocxPatchEngine
             operation,
             "supported",
             "Value sets the date metadata while display-text, or value when display-text is absent, replaces the control content.",
+            operation,
+            null);
+    }
+    // D17: bookmark capabilities reuse the range-shape, protection, hyperlink-reference, and track-support predicates from the bookmark engine.
+    private sealed record BookmarkCapabilityFacts(
+        string? Name,
+        bool HasEnd,
+        bool ParagraphBounded,
+        bool SameParagraph,
+        bool HasProtected,
+        string ProtectedFeature,
+        bool ReferencedByHyperlink,
+        bool RenameAmbiguous);
+    internal static ParagraphCapabilitiesOutcome GetBookmarkCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        BookmarkTarget? bookmarkTarget = storyDocument is null
+            ? null
+            : FindBookmarkTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+        if (storyDocument is null || bookmarkTarget is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        string? name = (string?)bookmarkTarget.Start.Attribute(OoxmlNs.W + "name");
+        XElement? end = bookmarkTarget.End;
+        bool paragraphBounded = end is not null &&
+            bookmarkTarget.Start.Parent is not null &&
+            bookmarkTarget.Start.Parent.Name == OoxmlNs.W + "p" &&
+            end.Parent is not null &&
+            end.Parent.Name == OoxmlNs.W + "p";
+        bool sameParagraph = paragraphBounded &&
+            end is not null &&
+            bookmarkTarget.Start.Parent == end.Parent;
+        bool hasProtected = false;
+        string protectedFeature = string.Empty;
+        if (sameParagraph)
+        {
+            XNode[] nodes = bookmarkTarget.Start.NodesAfterSelf().TakeWhile(node => node != bookmarkTarget.End).ToArray();
+            hasProtected = ContainsProtectedBookmarkReplacementNode(nodes, out string? feature);
+            protectedFeature = feature ?? string.Empty;
+        }
+        string currentName = name ?? string.Empty;
+        bool referenced = !string.IsNullOrWhiteSpace(currentName) && HasInternalHyperlinkAnchor(bookmarkTarget.Document, currentName);
+        bool renameAmbiguous = !string.IsNullOrWhiteSpace(currentName) &&
+            CountBookmarkName(bookmarkTarget.Document, currentName) > 1 &&
+            HasInternalHyperlinkAnchor(bookmarkTarget.Document, currentName);
+        var facts = new BookmarkCapabilityFacts(
+            name,
+            bookmarkTarget.End is not null,
+            paragraphBounded,
+            sameParagraph,
+            hasProtected,
+            protectedFeature,
+            referenced,
+            renameAmbiguous);
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            BookmarkReplaceCapability(facts, isTracked, isRequire),
+            BookmarkRenameCapability(facts, mode),
+            BookmarkDeleteCapability(facts, mode),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "bookmark",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    private static DocxOperationCapability BookmarkReplaceCapability(BookmarkCapabilityFacts facts, bool isTracked, bool isRequire)
+    {
+        const string operation = "replace-bookmark-text";
+        if (!facts.ParagraphBounded)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark range is not a complete paragraph-bounded range, so text replacement fails with E4311.",
+                operation,
+                null);
+        }
+        if (facts.HasProtected)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark range contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ", so text replacement fails with E4311.",
+                operation,
+                null);
+        }
+        if (!facts.SameParagraph)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Multi-paragraph ranges rewrite directly with guarded replacements, and table-spanning ranges need one replacement line per visible text slot; tracked multi-paragraph output falls back to a direct rewrite with W4002 under Suggest and fails with E6002 under Require. Check remains authoritative for the exact replacement.",
+                operation,
+                null);
+        }
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                isRequire
+                    ? "Simple run-only ranges emit tracked delete and insert markup while preserving markers; complex shapes fail with E6002 under Require. The exact replacement decides. Check remains authoritative."
+                    : "Simple run-only ranges emit tracked delete and insert markup while preserving markers; complex shapes fall back to a direct rewrite with W4002. The exact replacement decides. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct rewrite replaces the range text and preserves bookmark markers. A guarded replacement needs expect-text that matches the current content.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability BookmarkRenameCapability(BookmarkCapabilityFacts facts, TrackChangesMode mode)
+    {
+        const string operation = "rename-bookmark";
+        string currentName = facts.Name ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(currentName))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark has no current name, so rename fails with E4311.",
+                operation,
+                null);
+        }
+        if (facts.RenameAmbiguous)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark name " + Quote(currentName) + " is duplicated with same-part hyperlink anchors, so rename fails with E4311 as ambiguous.",
+                operation,
+                null);
+        }
+        if (!SupportsTrackedChangeOutput(operation) && mode == TrackChangesMode.Require && !IsAnnotationOperation(operation))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark rename changes anchor metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Rename updates markers and same-story internal hyperlink anchors when unambiguous. The new name must be non-empty without whitespace and unique in the part; expect-name can guard the current name.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability BookmarkDeleteCapability(BookmarkCapabilityFacts facts, TrackChangesMode mode)
+    {
+        const string operation = "delete-bookmark";
+        if (!facts.HasEnd)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark is incomplete and cannot be deleted safely, so deletion fails with E4311.",
+                operation,
+                null);
+        }
+        if (facts.ReferencedByHyperlink)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark is referenced by same-part hyperlink anchors, so deletion fails with E4311. Update or remove those hyperlinks first.",
+                operation,
+                null);
+        }
+        if (!SupportsTrackedChangeOutput(operation) && mode == TrackChangesMode.Require && !IsAnnotationOperation(operation))
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Bookmark deletion removes anchor metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Deletion removes complete unreferenced markers and preserves content.",
             operation,
             null);
     }
