@@ -1,0 +1,25 @@
+{
+  "id": "tab-rewrite",
+  "description": "Rewrites a paragraph with tab replacement text through paragraph-level rewriting.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "preserve-runs false",
+    "with \"A\\tB\"",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "A\tB Beta"
+    ]
+  }
+}
