@@ -321,34 +321,7 @@ public static class EditCaseTests
 
         if (!expectedApplySuccess)
         {
-            var checkArgs = new List<string> { "check", inputPath, patchPath, "--json" };
-            if (applyOptions.ValueKind == JsonValueKind.Object)
-            {
-                if (applyOptions.TryGetProperty("author", out JsonElement checkAuthor) && checkAuthor.ValueKind == JsonValueKind.String)
-                {
-                    checkArgs.Add("--author");
-                    checkArgs.Add(checkAuthor.GetString() ?? string.Empty);
-                }
-
-                if (applyOptions.TryGetProperty("timestampUtc", out JsonElement checkTimestamp) && checkTimestamp.ValueKind == JsonValueKind.String)
-                {
-                    checkArgs.Add("--timestamp-utc");
-                    checkArgs.Add(checkTimestamp.GetString() ?? string.Empty);
-                }
-
-                if (mode is not null)
-                {
-                    checkArgs.Add("--track-changes");
-                    checkArgs.Add(mode);
-                }
-            }
-            else if (mode is not null)
-            {
-                checkArgs.Add("--track-changes");
-                checkArgs.Add(mode);
-            }
-
-            CliTests.CliResult check = CliTests.RunCli(checkArgs.ToArray());
+            CliTests.CliResult check = CliTests.RunCli(BuildCheckArgs(inputPath, patchPath, applyOptions, mode).ToArray());
             Assert.True(check.ExitCode != 0, "Case " + manifestId + " check success mismatch.");
             Assert.False(string.IsNullOrWhiteSpace(check.Output), "Case " + manifestId + " check did not emit JSON output.");
             using JsonDocument checkJson = JsonDocument.Parse(check.Output);
@@ -362,6 +335,11 @@ public static class EditCaseTests
             }
 
             return;
+        }
+
+        {
+            CliTests.CliResult successCheck = CliTests.RunCli(BuildCheckArgs(inputPath, patchPath, applyOptions, mode).ToArray());
+            Assert.True(successCheck.ExitCode == 0, "Case " + manifestId + " check success mismatch.");
         }
         CliTests.CliResult read = CliTests.RunCli("read", outputPath, "--json");
         Assert.True(read.ExitCode == 0, "Case " + manifestId + " readback failed.");
@@ -487,6 +465,38 @@ public static class EditCaseTests
             using JsonDocument bookmarkStateJson = JsonDocument.Parse(bookmarkState.Output);
             AssertStringArraysEqual(manifestId, "Bookmark names", bookmarkNames.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), bookmarkStateJson.RootElement.GetProperty("Bookmarks").EnumerateArray().Select(item => item.GetProperty("Name").GetString() ?? string.Empty).ToList());
         }
+    }
+
+    private static List<string> BuildCheckArgs(string inputPath, string patchPath, JsonElement applyOptions, string? mode)
+    {
+        var checkArgs = new List<string> { "check", inputPath, patchPath, "--json" };
+        if (applyOptions.ValueKind == JsonValueKind.Object)
+        {
+            if (applyOptions.TryGetProperty("author", out JsonElement checkAuthor) && checkAuthor.ValueKind == JsonValueKind.String)
+            {
+                checkArgs.Add("--author");
+                checkArgs.Add(checkAuthor.GetString() ?? string.Empty);
+            }
+
+            if (applyOptions.TryGetProperty("timestampUtc", out JsonElement checkTimestamp) && checkTimestamp.ValueKind == JsonValueKind.String)
+            {
+                checkArgs.Add("--timestamp-utc");
+                checkArgs.Add(checkTimestamp.GetString() ?? string.Empty);
+            }
+
+            if (mode is not null)
+            {
+                checkArgs.Add("--track-changes");
+                checkArgs.Add(mode);
+            }
+        }
+        else if (mode is not null)
+        {
+            checkArgs.Add("--track-changes");
+            checkArgs.Add(mode);
+        }
+
+        return checkArgs;
     }
 
     private static void AssertStringArraysEqual(string caseId, string label, IReadOnlyList<string> expected, IReadOnlyList<string> actual)
