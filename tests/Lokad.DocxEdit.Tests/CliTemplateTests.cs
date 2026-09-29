@@ -81,6 +81,23 @@ public static class CliTemplateTests
     }
 
     [Fact]
+    public static void CliRequireTemplateOutputPassesCheck()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        using MemoryStream docx = CreateDocx("Alpha Beta");
+        string input = WriteFixture(temp, "input.docx", docx);
+
+        CliTests.CliResult template = CliTests.RunCli("template", input, "--id", "M.P0001", "--track-changes", "require");
+        Assert.Equal(0, template.ExitCode);
+        string patchPath = Path.Combine(temp.Path, "template.docxpatch");
+        File.WriteAllText(patchPath, template.Output);
+
+        CliTests.CliResult check = CliTests.RunCli("check", input, patchPath, "--track-changes", "require", "--author", "Reviewer", "--timestamp-utc", "2026-06-11T12:00:00Z");
+
+        Assert.Equal(0, check.ExitCode);
+    }
+
+    [Fact]
     public static void CliTemplateJsonEmitsTemplateAndCapabilities()
     {
         using TempDirectory temp = TempDirectory.Create();
