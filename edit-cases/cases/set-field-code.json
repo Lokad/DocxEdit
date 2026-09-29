@@ -1,0 +1,31 @@
+{
+  "id": "set-field-code",
+  "description": "Replaces a simple field instruction under a guard; the cached result text is unchanged.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF ClientName \\h \">",
+      "        <w:r><w:t>Old cached result</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-code",
+    "target M.F0001",
+    "expect-code REF ClientName \\h",
+    "code REF NewBookmark \\h",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "W5103"
+    ],
+    "paragraphs": [
+      "Old cached result"
+    ]
+  }
+}
