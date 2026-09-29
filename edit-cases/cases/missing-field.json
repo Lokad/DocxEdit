@@ -1,0 +1,27 @@
+{
+  "id": "missing-field",
+  "description": "Rejects a patch with a missing required field while accepting empty values elsewhere.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4202"
+    ],
+    "diagnosticMessagesContain": [
+      "with"
+    ]
+  }
+}
