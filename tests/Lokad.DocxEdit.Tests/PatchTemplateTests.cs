@@ -319,6 +319,44 @@ public static class PatchTemplateTests
     }
 
     [Fact]
+    public static void FieldTemplateStarterPassesCheck()
+    {
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithRefField())
+        {
+            template = GetTemplate(input, "M.F0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-field-result", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithRefField();
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+    [Fact]
+    public static void ImageTemplateStarterPassesCheck()
+    {
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png"))
+        {
+            template = GetTemplate(input, "M.I0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-image-alt", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithImage("png", "image/png", "old-png");
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+    [Fact]
+    public static void RequireImageTemplateHasNoActiveBlock()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        DocxTemplateResult template = GetTemplate(input, "M.I0001", TrackChangesMode.Require);
+        Assert.Equal(0, CountActiveOps(template.Template));
+        Assert.Contains("No check-clean starter", template.Template, StringComparison.Ordinal);
+        Assert.DoesNotContain("# op ", template.Template, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void UnknownTargetTemplateFailsWithE1201()
     {
         using MemoryStream input = CreateDocx("Alpha");

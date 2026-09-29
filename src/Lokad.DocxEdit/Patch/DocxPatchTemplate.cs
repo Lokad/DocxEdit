@@ -52,6 +52,8 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.Row => BuildRowTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Section => BuildSectionTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Hyperlink => BuildHyperlinkTemplate(storyDocument, parsed, capabilities, mode),
+            DocxTargetKind.Field => BuildFieldTemplate(storyDocument, parsed, capabilities, mode),
+            DocxTargetKind.Image => BuildImageTemplate(storyDocument, parsed, capabilities, mode, package, cancellationToken),
             DocxTargetKind.Bookmark => BuildBookmarkTemplate(storyDocument, parsed, capabilities, mode),
             _ => null,
         };
@@ -672,6 +674,153 @@ internal static partial class DocxPatchEngine
         AppendOpBlock(builder, capabilities, "remove-hyperlink", SupportOf(capabilities, "remove-hyperlink"), active: false, block =>
         {
             block.AppendLine("op remove-hyperlink");
+            block.AppendLine("target " + target);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
+    private static string? BuildFieldTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode)
+    {
+        XElement? root = storyDocument.Document.Root;
+        if (root is null || parsed.Primary < 1)
+        {
+            return null;
+        }
+        XElement scope = root.Element(OoxmlNs.W + "body") ?? root;
+        XElement? element = FindFields(scope).ElementAtOrDefault(parsed.Primary - 1);
+        if (element is null)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        bool simple = element.Name == OoxmlNs.W + "fldSimple";
+        string current = string.Empty;
+        if (simple)
+        {
+            current = ReadVisibleText(element);
+        }
+        else if (TryGetSimpleComplexFieldResultRuns(element, out _, out XElement[] resultRuns, out _))
+        {
+            current = ReadVisibleText(new XElement(OoxmlNs.W + "p", resultRuns));
+        }
+        string code = simple
+            ? NormalizeFieldCodeForGuard((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty)
+            : "New code";
+        string resultSupport = SupportOf(capabilities, "set-field-result");
+        bool activeResult = string.Equals(resultSupport, "supported", StringComparison.Ordinal) && current.Length != 0;
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeResult);
+        if (activeResult)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op set-field-result");
+                block.AppendLine("target " + target);
+                AppendHeredoc(block, "expect-result", current);
+                AppendHeredoc(block, "text", current);
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "set-field-result", resultSupport, activeResult, block =>
+        {
+            block.AppendLine("op set-field-result");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "expect-result", current);
+            AppendHeredoc(block, "text", "New result text");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-field-code", SupportOf(capabilities, "set-field-code"), active: false, block =>
+        {
+            block.AppendLine("op set-field-code");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "code", code);
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-field-dirty", SupportOf(capabilities, "set-field-dirty"), active: false, block =>
+        {
+            block.AppendLine("op set-field-dirty");
+            block.AppendLine("target " + target);
+            block.AppendLine("dirty true");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-field-lock", SupportOf(capabilities, "set-field-lock"), active: false, block =>
+        {
+            block.AppendLine("op set-field-lock");
+            block.AppendLine("target " + target);
+            block.AppendLine("locked true");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "refresh-field-result", SupportOf(capabilities, "refresh-field-result"), active: false, block =>
+        {
+            block.AppendLine("op refresh-field-result");
+            block.AppendLine("target " + target);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
+    private static string? BuildImageTemplate(
+        StoryDocument storyDocument,
+        DocxTargetId parsed,
+        DocxTargetCapabilities capabilities,
+        TrackChangesMode mode,
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        ImageBlipTarget? imageTarget = FindImageBlipTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+        if (imageTarget is null)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        XElement? drawing = imageTarget.Blip.Ancestors(OoxmlNs.W + "drawing").FirstOrDefault();
+        XElement? container = drawing?.Descendants(OoxmlNs.Wp + "inline").FirstOrDefault()
+            ?? drawing?.Descendants(OoxmlNs.Wp + "anchor").FirstOrDefault();
+        string? alt = (string?)container?.Element(OoxmlNs.Wp + "docPr")?.Attribute("descr");
+        string altSupport = SupportOf(capabilities, "set-image-alt");
+        bool activeAlt = string.Equals(altSupport, "supported", StringComparison.Ordinal) && alt is not null;
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeAlt);
+        if (activeAlt)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op set-image-alt");
+                block.AppendLine("target " + target);
+                AppendHeredoc(block, "alt", alt!);
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "set-image-alt", altSupport, activeAlt, block =>
+        {
+            block.AppendLine("op set-image-alt");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "alt", alt ?? "New alt text");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "replace-image", SupportOf(capabilities, "replace-image"), active: false, block =>
+        {
+            block.AppendLine("op replace-image");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "asset", "new-image.png");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-image-size", SupportOf(capabilities, "set-image-size"), active: false, block =>
+        {
+            block.AppendLine("op set-image-size");
+            block.AppendLine("target " + target);
+            block.AppendLine("width 5cm");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-image-crop", SupportOf(capabilities, "set-image-crop"), active: false, block =>
+        {
+            block.AppendLine("op set-image-crop");
+            block.AppendLine("target " + target);
+            block.AppendLine("left-percent 10");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "delete-image", SupportOf(capabilities, "delete-image"), active: false, block =>
+        {
+            block.AppendLine("op delete-image");
             block.AppendLine("target " + target);
             block.AppendLine("end");
         });
