@@ -2217,6 +2217,92 @@ public static class OfficeGateTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationImageSizeRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateDocx(inputPath, "Anchor");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op insert-image-after
+                target M.P0001
+                asset chart.png
+                alt Office chart
+                end
+
+                op set-image-size
+                target M.I0001
+                width 2in
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+                {
+                    AssetProvider = new MemoryAssetProvider("chart.png", MinimalPng(), "chart.png")
+                });
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            long? libraryWidth;
+            long? libraryHeight;
+            using (FileStream preWord = File.OpenRead(outputPath))
+            {
+                DocxImageInfo preImage = Assert.Single(new DocxEditor().Read(preWord).Images);
+                libraryWidth = preImage.WidthEmu;
+                libraryHeight = preImage.HeightEmu;
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            DocxImageInfo image = Assert.Single(read.Images);
+            Assert.Equal(libraryWidth, image.WidthEmu);
+            Assert.Equal(libraryHeight, image.HeightEmu);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
