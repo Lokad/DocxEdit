@@ -439,3 +439,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 23 commands, 1 failing check, check before each apply plus output validation; about 417k input tokens with about 383k cached
 - Artifacts: artifacts/agent-challenges/iterative-tracked-edit/20260929T181232Z/summary.json
 - Notes: fourth independent-model run, covering the D05 iterative workflow with close agreement to the default-model baseline: two disjoint guarded replacements under require preserving the first revision pair, then a safe E6002 refusal on the overlap probe with no rejected output. Repeat notes: check omits future revision IDs by design, and read and dump print document text so reporting needs manual care. New stylistic note only: E6002 wording uses implementation-level boundary terminology. No text disclosed.
+
+### 2026-09-29 — alias-compose-probe (cross-model gpt-5.5 run) — completed
+
+- Commands: help, changes, read, dump, check, apply, validate
+- Diagnostics: style-name casing failure on the first check; none after the correction
+- Target IDs: M.P0002 anchor; created paragraph addressed only through alias insertedProbe
+- Markup types: not applicable
+- Counts: 13 commands, 1 failing check, check before apply plus output validation; about 222k input tokens with about 190k cached
+- Artifacts: artifacts/agent-challenges/alias-compose-probe/20260929T184813Z/summary.json
+- Notes: fifth independent-model run, covering D13 result-alias composition. Insert-after with an as binding, then set-style plus replace-text through the at-name alias; created positional IDs stayed in reports, never in patch targets. The initial casing failure recovered through the diagnostic suggestion, which live-validates the style-name suggestion path. No agent-reported weaknesses. No text disclosed.
