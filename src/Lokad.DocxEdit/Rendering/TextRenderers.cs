@@ -12,7 +12,7 @@ internal static class TextRenderers
         var builder = new StringBuilder();
         foreach (DocxSectionInfo section in model.Sections)
         {
-            builder.Append(section.Id.ToWireValue()).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation.ToWireValue()).AppendLine();
+            builder.AppendLine(RenderSectionLine(section));
         }
 
         foreach (DocxParagraphInfo paragraph in model.Paragraphs)
@@ -490,6 +490,13 @@ internal static class TextRenderers
             : $"{match.TargetId}{list} text=\"{XmlValues.EscapeText(match.Text)}\"";
     }
 
+    private static string RenderSectionLine(DocxSectionInfo section)
+    {
+        var builder = new StringBuilder();
+        builder.Append(section.Id.ToWireValue()).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation.ToWireValue());
+        return builder.ToString();
+    }
+
     private static string RenderBookmarkLine(DocxBookmarkInfo bookmark)
     {
         string ooxmlId = bookmark.OoxmlId is null ? string.Empty : " ooxml-id=" + XmlValues.EscapeText(bookmark.OoxmlId);
@@ -587,6 +594,23 @@ internal static class TextRenderers
         {
             var builder = new StringBuilder();
             builder.AppendJoin(Environment.NewLine, groupCells.Select(cell => cell.Id.ToWireValue() + ": " + Truncate(cell.Text, maxText)));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
+        DocxSectionInfo? section = model.Sections.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (section is not null)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(RenderSectionLine(section));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+        DocxImageInfo? image = model.Images.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (image is not null)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(RenderImage(image, maxText));
             AppendTargetChanges(builder, changes, targetId);
             return builder.ToString();
         }

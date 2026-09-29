@@ -135,6 +135,32 @@ public static class ReadInspectTests
     }
 
     [Fact]
+    public static void DumpShowsSectionLine()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.S0001");
+        Assert.True(result.Success);
+        Assert.Contains("M.S0001 section columns=1 orientation=portrait", result.Text, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void DumpShowsImageLine()
+    {
+        using MemoryStream stream = CreateDocxWithImage("png", "image/png", "old-png");
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.I0001");
+        Assert.True(result.Success);
+        Assert.Contains("M.I0001 image", result.Text, StringComparison.Ordinal);
+        Assert.Contains("content-type=image/png", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DumpShowsMergeGroupMembers()
     {
         using MemoryStream stream = CreateDocxWithBody("""
