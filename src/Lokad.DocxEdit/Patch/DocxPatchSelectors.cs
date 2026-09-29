@@ -584,26 +584,84 @@ internal static partial class DocxPatchEngine
 
     private static string BuildNoMatchSuggestion(OoxmlPackage package, XElement body, string rawSelector, CancellationToken cancellationToken)
     {
-        string[] suggestions = rawSelector.StartsWith("heading:", StringComparison.Ordinal)
-            ? EnumerateMainParagraphs(body)
-                .Select(match => (match.Id, HeadingLevel: DocxHeadingLevels.GetHeadingLevel(package, match.Paragraph, cancellationToken)))
-                .Where(match => match.HeadingLevel is not null)
-                .Take(3)
-                .Select(match => $"{match.Id} heading level={match.HeadingLevel}")
-                .ToArray()
-            : EnumerateMainParagraphs(body)
-                .Take(3)
-                .Select(match => match.Id)
-                .ToArray();
-        if (suggestions.Length == 0)
+        string query = ExtractSelectorQuery(rawSelector);
+        if (rawSelector.StartsWith("heading:", StringComparison.Ordinal))
         {
-            return " No nearby paragraph targets are available.";
+            string[] headings = EnumerateMainParagraphs(body)
+                .Select((match, order) => (match.Id, match.Paragraph, Order: order, HeadingLevel: DocxHeadingLevels.GetHeadingLevel(package, match.Paragraph, cancellationToken)))
+                .Where(match => match.HeadingLevel is not null)
+                .Select(match => (Label: match.Id + " heading level=" + match.HeadingLevel, Score: ScoreParagraphMatch(ReadVisibleText(match.Paragraph), query), match.Order))
+                .OrderByDescending(match => match.Score.Contains)
+                .ThenByDescending(match => match.Score.Overlap)
+                .ThenBy(match => match.Order)
+                .Take(3)
+                .Select(match => match.Label)
+                .ToArray();
+            return headings.Length == 0
+                ? " No nearby paragraph targets are available."
+                : "Nearby headings: " + string.Join(", ", headings) + ".";
         }
 
-        string label = rawSelector.StartsWith("heading:", StringComparison.Ordinal)
-            ? "Nearby headings"
-            : "Nearby paragraphs";
-        return $" {label}: {string.Join(", ", suggestions)}.";
+        string[] paragraphs = EnumerateMainParagraphs(body)
+            .Select((match, order) => (match.Id, Score: ScoreParagraphMatch(ReadVisibleText(match.Paragraph), query), Order: order))
+            .OrderByDescending(match => match.Score.Contains)
+            .ThenByDescending(match => match.Score.Overlap)
+            .ThenBy(match => match.Order)
+            .Take(3)
+            .Select(match => match.Id)
+            .ToArray();
+        return paragraphs.Length == 0
+            ? " No nearby paragraph targets are available."
+            : "Nearby paragraphs: " + string.Join(", ", paragraphs) + ".";
+    }
+
+    private static string ExtractSelectorQuery(string rawSelector)
+    {
+        int first = rawSelector.IndexOf(":");
+        if (first < 0)
+        {
+            return rawSelector.Trim();
+        }
+
+        string rest = rawSelector.Substring(first + 1).Trim();
+        int second = rest.IndexOf(":");
+        if (second > 0 && int.TryParse(rest.Substring(0, second).Trim(), out _))
+        {
+            return UnquoteSelectorText(rest.Substring(second + 1));
+        }
+
+        return UnquoteSelectorText(rest);
+    }
+
+    private static string UnquoteSelectorText(string value)
+    {
+        string trimmed = value.Trim();
+        return trimmed.Length >= 2 && trimmed.StartsWith((char)34) && trimmed.EndsWith((char)34)
+            ? trimmed.Substring(1, trimmed.Length - 2)
+            : trimmed;
+    }
+
+    private static (bool Contains, int Overlap) ScoreParagraphMatch(string text, string query)
+    {
+        if (query.Length == 0)
+        {
+            return (false, 0);
+        }
+
+        bool contains = text.Contains(query, StringComparison.OrdinalIgnoreCase);
+        HashSet<string> queryWords = new(
+            query.Split([" ", "\t", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.OrdinalIgnoreCase);
+        int overlap = 0;
+        foreach (string word in text.Split([" ", "\t", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (queryWords.Contains(word))
+            {
+                overlap++;
+            }
+        }
+
+        return (contains, overlap);
     }
 
     private static IEnumerable<ParagraphSelectorMatch> EnumerateMainParagraphs(XElement body)

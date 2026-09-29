@@ -2102,4 +2102,64 @@ public static class PatchApplyTests
         string xml = ReadDocumentXml(output);
         Assert.Equal(3, CountOccurrences(xml, "w:numId w:val=\"9\""));
     }
+    [Fact]
+    public static void CheckTextSelectorSuggestsTextuallyNearestParagraphs()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Alpha unrelated</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Zebra unrelated</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Revenue quarterly results</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"QUARTERLY"
+            find Quarterly
+            with Annual
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E1201", diagnostic.Code);
+        Assert.Contains("Nearby paragraphs: M.P0003, M.P0001, M.P0002", diagnostic.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue", diagnostic.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("quarterly", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckHeadingSelectorSuggestsNearestHeading()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Alpha overview</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Beta quarterly review</w:t></w:r>
+                    </w:p>
+                    <w:p><w:r><w:t>Quarterly body text</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target heading:"quarterly summary"
+            find quarterly
+            with annual
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E1201", diagnostic.Code);
+        Assert.Contains("M.P0002 heading level=1", diagnostic.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Beta", diagnostic.Message, StringComparison.Ordinal);
+    }
 }
