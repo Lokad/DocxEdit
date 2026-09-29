@@ -136,6 +136,25 @@ public static class ParagraphCapabilitiesTests
     }
 
     [Fact]
+    public static void RevisedParagraphReportsSpanDependentVerdicts()
+    {
+        const string body = """
+                <w:p>
+                  <w:ins w:id="1" w:author="R" w:date="2026-06-01T00:00:00Z"><w:r><w:t>New</w:t></w:r></w:ins>
+                  <w:r><w:t> text</w:t></w:r>
+                </w:p>
+            """;
+        using MemoryStream input = CreateDocxWithBody(body);
+        DocxTargetCapabilities capabilities = GetParagraphCapabilities(input, "M.P0001", TrackChangesMode.Require);
+
+        Assert.Equal("conditional", FindOperation(capabilities, "replace-text").Support);
+        Assert.Equal("unsupported", FindOperation(capabilities, "replace-paragraph").Support);
+        Assert.Equal("supported", FindOperation(capabilities, "insert-after").Support);
+        Assert.Equal("conditional", FindOperation(capabilities, "add-comment").Support);
+    }
+
+
+    [Fact]
     public static void OrphanedBookmarkFailsDeleteInEveryMode()
     {
         const string body = """
