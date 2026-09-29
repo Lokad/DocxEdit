@@ -573,7 +573,8 @@ public static class HelpTopicTests
             """;
         Assert.True(DocxHelp.TryGetPatchOperation("set-hyperlink-target", out DocxPatchOperationInfo target));
         Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo remove));
-        foreach (string example in target.Examples.Concat(remove.Examples))
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-hyperlink-after", out DocxPatchOperationInfo insert));
+        foreach (string example in target.Examples.Concat(remove.Examples).Concat(insert.Examples))
         {
             using MemoryStream input = CreateDocxWithBody(body);
             using var patch = new StringReader(example);

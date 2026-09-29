@@ -1102,7 +1102,23 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit the inserted hyperlink display text as w:ins inside the hyperlink wrapper while preserving relationship or anchor metadata; text with tabs or line breaks warns with W4002 or fails with E6002.",
             "Hyperlinks",
             "Inserts a new hyperlink paragraph after the target",
-            ExecuteInsertHyperlinkAfter) with { ExclusiveGroups = [["uri", "anchor"]], AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table] },
+            ExecuteInsertHyperlinkAfter) with
+        {
+            ExclusiveGroups = [["uri", "anchor"]],
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
+            Examples =
+            [
+                """
+                # Minimal insert-hyperlink-after.
+                docxpatch 1
+                op insert-hyperlink-after
+                target M.P0001
+                text Read more
+                uri https://example.test/more
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "remove-hyperlink",
             [
