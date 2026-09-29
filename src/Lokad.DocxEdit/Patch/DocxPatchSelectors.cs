@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "set-field-code" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "set-field-code" or "set-comment-text" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
         {
             return null;
         }
@@ -344,6 +344,12 @@ internal static partial class DocxPatchEngine
         {
             FieldTarget? codeTarget = ResolveFieldTarget(package, target, cancellationToken);
             return codeTarget is null ? null : (string?)codeTarget.Element.Attribute(OoxmlNs.W + "instr");
+        }
+
+        if (operation.OperationName == "set-comment-text")
+        {
+            CommentTarget? commentTarget = ResolveCommentTarget(package, target, operation, cancellationToken, out _);
+            return commentTarget is null ? null : ReadVisibleText(commentTarget.Comment);
         }
 
         if (operation.OperationName == "delete-block")
