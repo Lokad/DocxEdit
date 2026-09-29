@@ -25,6 +25,9 @@
     "diagnosticCount": 0,
     "paragraphs": [
       "Before Old Client After"
+    ],
+    "bookmarkNames": [
+      "RenamedClient"
     ]
   }
 }

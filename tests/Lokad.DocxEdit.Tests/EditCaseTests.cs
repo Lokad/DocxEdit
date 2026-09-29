@@ -434,6 +434,14 @@ public static class EditCaseTests
                 Assert.True(actualResolved.Count == commentResolved.EnumerateObject().Count(), "Case " + manifestId + " comment resolved count mismatch.");
             }
         }
+
+        if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("bookmarkNames", out JsonElement bookmarkNames))
+        {
+            CliTests.CliResult bookmarkState = CliTests.RunCli("read", outputPath, "--json");
+            Assert.True(bookmarkState.ExitCode == 0, "Case " + manifestId + " bookmark readback failed.");
+            using JsonDocument bookmarkStateJson = JsonDocument.Parse(bookmarkState.Output);
+            AssertStringArraysEqual(manifestId, "Bookmark names", bookmarkNames.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), bookmarkStateJson.RootElement.GetProperty("Bookmarks").EnumerateArray().Select(item => item.GetProperty("Name").GetString() ?? string.Empty).ToList());
+        }
     }
 
     private static void AssertStringArraysEqual(string caseId, string label, IReadOnlyList<string> expected, IReadOnlyList<string> actual)
