@@ -727,7 +727,21 @@ internal static partial class DocxPatchEngine
             "Field dirty flags are field metadata and have no useful generated visible revision representation.",
             "Fields",
             "`target` can be a field ID or `all`",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "dirty", "dirty", apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-field-dirty.
+                docxpatch 1
+                op set-field-dirty
+                target M.F0001
+                dirty true
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Field],
+        },
         PreserveOnly(
             "set-field-lock",
             [
@@ -738,7 +752,21 @@ internal static partial class DocxPatchEngine
             "Field lock flags are field metadata and have no useful generated visible revision representation.",
             "Fields",
             "`target` can be a field ID or `all`",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldFlag(package, operation, "locked", "fldLock", apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-field-lock.
+                docxpatch 1
+                op set-field-lock
+                target M.F0001
+                locked true
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Field],
+        },
         PreserveOnly(
             "set-field-code",
             [
@@ -750,7 +778,30 @@ internal static partial class DocxPatchEngine
             "Field codes are instruction metadata; generated revisions for field instructions are not modeled yet.",
             "Fields",
             "Simple `w:fldSimple` fields only",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldCode(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetFieldCode(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-field-code.
+                docxpatch 1
+                op set-field-code
+                target M.F0001
+                code REF ClientName
+                end
+                """,
+                """
+                # Guarded set-field-code: expect-code must match before editing.
+                docxpatch 1
+                op set-field-code
+                target M.F0001
+                expect-code REF ClientName \h
+                code PAGEREF ClientName
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Field],
+        },
         Tracked(
             "set-field-result",
             [
@@ -764,7 +815,30 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit w:del/w:ins inside simple w:fldSimple cached result text while preserving the field instruction; direct mode also supports simple same-paragraph complex field result runs. Complex-field tracked output or unsafe topologies warn with W4002 or fail with E6002/E4313.",
             "Fields",
             "Simple `w:fldSimple` cached result or validated simple same-paragraph complex result",
-            ExecuteSetFieldResult) with { AcceptedKinds = [DocxTargetKind.Field] },
+            ExecuteSetFieldResult) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-field-result.
+                docxpatch 1
+                op set-field-result
+                target M.F0001
+                text New cached result
+                end
+                """,
+                """
+                # Guarded set-field-result: expect-result must match before editing.
+                docxpatch 1
+                op set-field-result
+                target M.F0001
+                expect-result Old cached result
+                text New cached result
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Field],
+        },
         PreserveOnly(
             "refresh-field-result",
             [
@@ -776,7 +850,28 @@ internal static partial class DocxPatchEngine
             "Field refresh updates cached result text from modeled document state for REF/PAGEREF/NOTEREF bookmark fields and QUOTE literal fields; unsupported refresh types return categorized E4313 diagnostics. Generated revision markup for the refresh is not modeled yet.",
             "Fields",
             "Limited refresh for simple REF/PAGEREF/NOTEREF bookmark fields and simple QUOTE literal fields",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Field] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRefreshFieldResult(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal refresh-field-result.
+                docxpatch 1
+                op refresh-field-result
+                target M.F0001
+                end
+                """,
+                """
+                # Guarded refresh-field-result: expect-code must match before editing.
+                docxpatch 1
+                op refresh-field-result
+                target M.F0001
+                expect-code REF ClientName \h
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Field],
+        },
         PreserveOnly(
             "set-hyperlink-target",
             [

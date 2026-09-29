@@ -514,4 +514,21 @@ public static class HelpTopicTests
         }
     }
 
+    [Fact]
+    public static void FieldExamplesCheckClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("set-field-dirty", out DocxPatchOperationInfo dirty));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-field-lock", out DocxPatchOperationInfo locked));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-field-code", out DocxPatchOperationInfo code));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-field-result", out DocxPatchOperationInfo result));
+        Assert.True(DocxHelp.TryGetPatchOperation("refresh-field-result", out DocxPatchOperationInfo refresh));
+        foreach (string example in dirty.Examples.Concat(locked.Examples).Concat(code.Examples).Concat(result.Examples).Concat(refresh.Examples))
+        {
+            using MemoryStream input = CreateDocxWithRefField();
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+
 }
