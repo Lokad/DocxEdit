@@ -368,6 +368,89 @@ public static class OfficeGateTests
             }
         }
     }
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationTrackedPropertyRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreatePropertyDocx(inputPath);
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op set-cell-shading
+                target M.T0001.R01.C01
+                expect-fill none
+                fill 4472C4
+                end
+
+                op set-section-columns
+                target M.S0001
+                count 2
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+                {
+                    TrackChanges = TrackChangesMode.Require,
+                    Author = "Office Reviewer",
+                    TimestampUtc = DateTimeOffset.Parse("2026-06-11T12:00:00Z").ToUniversalTime()
+                });
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Equal(2, Assert.Single(read.Sections).Columns);
+
+            using FileStream savedChanges = File.OpenRead(outputPath);
+            DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
+            Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Contains(changes.Summary, summary => summary.Type == "cell-properties-change" && summary.Count == 1);
+            Assert.Contains(changes.Summary, summary => summary.Type == "section-properties-change" && summary.Count == 1);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
@@ -488,6 +571,44 @@ public static class OfficeGateTests
             """);
         AddEntry(archive, "word/comments.xml", """
             <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+            """);
+    }
+
+    private static void CreatePropertyDocx(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:tbl>
+                  <w:tr>
+                    <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+                    <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>
+                  </w:tr>
+                </w:tbl>
+                <w:sectPr>
+                  <w:pgSz w:w="12240" w:h="15840"/>
+                  <w:cols w:num="1"/>
+                </w:sectPr>
+              </w:body>
+            </w:document>
             """);
     }
 
