@@ -40,5 +40,32 @@ Copy the template for each run and keep every field sanitized.
 
 ## Runs
 
-No runs recorded yet.
+### 2026-09-29 — tracked-replace-probe (synthetic self-run) — completed
 
+- Commands: read, capabilities, help, lint, check, apply, changes
+- Diagnostics: E3201 on a deliberate guard-mismatch probe; none on the success path
+- Target IDs: main-story paragraph IDs; one hyperlink ID observed during discovery and avoided for the tracked edit
+- Markup types: deleted-run, inserted-run
+- Counts: 9 commands, 1 deliberate failing check, 0 retries on the success path
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: synthetic 3-paragraph document with a hyperlink in the middle paragraph. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Capabilities verdicts identified the safe plain-text paragraph. Check reported the resolved paragraph; apply recorded the requested author and timestamp; changes showed one deleted-run and one inserted-run pair. The deliberate guard mismatch failed with code, target, operation, line, column, and help pointer.
+
+### 2026-09-29 — table-guarded-edit (synthetic self-run) — completed
+
+- Commands: read, help, lint, check, apply, changes
+- Diagnostics: none
+- Target IDs: table, row, and cell IDs
+- Markup types: none (untracked edit)
+- Counts: 6 commands, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: synthetic 2-row 2-column table document. The help starter pattern transferred directly with added row-count and column-count guards. Check reported the resolved cell with row, column, and before/after counts. No tailored examples were needed.
+
+### 2026-09-29 — preserve-edit (synthetic self-run) — completed
+
+- Commands: check, apply, read, changes
+- Diagnostics: none
+- Target IDs: main-story paragraph IDs
+- Markup types: none asserted (preserve mode)
+- Counts: 4 commands, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: insert-after on the first paragraph with preserve mode. Check reported the created paragraph ID; readback showed the hyperlink record moved with its paragraph as positions shifted. Input document still validates.
