@@ -321,6 +321,46 @@ public static class EditCaseTests
 
         if (!expectedApplySuccess)
         {
+            var checkArgs = new List<string> { "check", inputPath, patchPath, "--json" };
+            if (applyOptions.ValueKind == JsonValueKind.Object)
+            {
+                if (applyOptions.TryGetProperty("author", out JsonElement checkAuthor) && checkAuthor.ValueKind == JsonValueKind.String)
+                {
+                    checkArgs.Add("--author");
+                    checkArgs.Add(checkAuthor.GetString() ?? string.Empty);
+                }
+
+                if (applyOptions.TryGetProperty("timestampUtc", out JsonElement checkTimestamp) && checkTimestamp.ValueKind == JsonValueKind.String)
+                {
+                    checkArgs.Add("--timestamp-utc");
+                    checkArgs.Add(checkTimestamp.GetString() ?? string.Empty);
+                }
+
+                if (mode is not null)
+                {
+                    checkArgs.Add("--track-changes");
+                    checkArgs.Add(mode);
+                }
+            }
+            else if (mode is not null)
+            {
+                checkArgs.Add("--track-changes");
+                checkArgs.Add(mode);
+            }
+
+            CliTests.CliResult check = CliTests.RunCli(checkArgs.ToArray());
+            Assert.True(check.ExitCode != 0, "Case " + manifestId + " check success mismatch.");
+            Assert.False(string.IsNullOrWhiteSpace(check.Output), "Case " + manifestId + " check did not emit JSON output.");
+            using JsonDocument checkJson = JsonDocument.Parse(check.Output);
+            List<string> checkCodes = checkJson.RootElement.GetProperty("Diagnostics").EnumerateArray().Select(diagnostic => diagnostic.GetProperty("Code").GetString() ?? string.Empty).ToList();
+            if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("diagnosticCodes", out JsonElement checkCodesExpected))
+            {
+                foreach (JsonElement code in checkCodesExpected.EnumerateArray())
+                {
+                    Assert.Contains(code.GetString() ?? string.Empty, checkCodes);
+                }
+            }
+
             return;
         }
         CliTests.CliResult read = CliTests.RunCli("read", outputPath, "--json");
