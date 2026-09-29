@@ -1,0 +1,28 @@
+{
+  "id": "unsupported-version",
+  "description": "Refuses an unsupported docxpatch major version with E2003.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 2",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Omega",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2003"
+    ],
+    "diagnosticMessagesContain": [
+      "major version"
+    ]
+  }
+}
