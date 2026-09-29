@@ -416,6 +416,23 @@ public static class EditCaseTests
                 Assert.True(actual == expected.Value.GetInt32(), "Case " + manifestId + " change summary mismatch.");
             }
         }
+
+        if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("commentResolved", out JsonElement commentResolved))
+        {
+            CliTests.CliResult commentState = CliTests.RunCli("changes", outputPath, "--json");
+            Assert.True(commentState.ExitCode == 0, "Case " + manifestId + " comment state readback failed.");
+            using JsonDocument commentStateJson = JsonDocument.Parse(commentState.Output);
+            var actualResolved = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (JsonElement summary in commentStateJson.RootElement.GetProperty("CommentSummary").EnumerateArray())
+            {
+                actualResolved[summary.GetProperty("CommentId").GetString() ?? string.Empty] = summary.GetProperty("Resolved").GetBoolean();
+            }
+
+            foreach (JsonProperty expected in commentResolved.EnumerateObject())
+            {
+                Assert.True(actualResolved.TryGetValue(expected.Name, out bool resolved) && resolved == expected.Value.GetBoolean(), "Case " + manifestId + " comment resolved mismatch.");
+            }
+        }
     }
 
     private static void AssertStringArraysEqual(string caseId, string label, IReadOnlyList<string> expected, IReadOnlyList<string> actual)
