@@ -1,0 +1,26 @@
+{
+  "id": "missing-preamble",
+  "description": "Refuses a patch without the docxpatch preamble with E2002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Omega",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2002"
+    ],
+    "diagnosticMessagesContain": [
+      "missing required"
+    ]
+  }
+}
