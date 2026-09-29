@@ -87,3 +87,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 6 commands, 0 failing checks, 1 CLI usage error on a wrong changes flag, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so workflow ease is not a fresh-agent signal. One patch carried a guarded text replacement plus a comment under require policy: check passed, apply recorded generated revision IDs with created-target-ids comment:0, markup readback showed the revision pair, changes showed the runs plus the comment under separate authors, and structural validation passed. The D15 atomic review workflow behaves as documented, and a positive require-mode edit case now locks the behavior in.
+### 2026-09-29 — semantic-anchor-edit (synthetic self-run) — completed
+
+- Commands: read, check, apply, capabilities, dump, validate
+- Diagnostics: E1201 from capabilities and dump against a bookmark ID; none on the patch path
+- Target IDs: main-story paragraph IDs; created bookmark M.B0001; semantic selector bookmark:ReviewAnchor for the edit
+- Markup types: none (untracked edit); bookmark markers preserved complete around the replacement
+- Counts: 9 commands, 0 failing checks, 2 inspection refusals, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so discovery ease is not a fresh-agent signal. The fixture had no semantic anchors, so the run bootstrapped one with a guarded add-bookmark, then replaced its text through bookmark:ReviewAnchor with an expect-text guard; readback kept the markers complete and structural validation passed. Gap found: capabilities and dump refuse bookmark IDs, so semantic anchors are discoverable only through read; bookmark inspection and capability verdicts would close the D17 loop. A guarded selector edit case now locks the supported path in.

@@ -1,0 +1,28 @@
+{
+  "id": "bookmark-selector-guarded",
+  "description": "Replaces guarded bookmark text addressed through a semantic name selector.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"7\" w:name=\"ReviewAnchor\"/>",
+      "      <w:r><w:t>Revenue increased.</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"7\"/>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-bookmark-text",
+    "target bookmark:ReviewAnchor",
+    "text Revenue rose.",
+    "expect-text Revenue increased.",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Revenue rose."
+    ]
+  }
+}
