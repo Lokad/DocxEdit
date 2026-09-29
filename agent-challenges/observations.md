@@ -339,3 +339,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 13 commands, 1 failing check, 0 applies, 0 retries; about 154k input tokens with about 127k cached
 - Artifacts: artifacts/agent-challenges/table-guarded-edit/20260929T145422Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the tableless public fixture stand-in. The agent verified structure inventory plus validation, probed a guarded set-cell check that correctly returned E1201 zero targets, and stopped without applying or creating output. Runner reports harness success; challenge outcome partial by design. No agent-reported weaknesses; no text disclosed.
+
+### 2026-09-29 — markup-targeting (live codex run) — partial
+
+- Commands: changes, help, read, dump
+- Diagnostics: none (all commands exit 0, inspection Success true)
+- Target IDs: M.P0001 and M.P0002 resolved with runs and markup views; both report null markup, revision, and comment metadata
+- Markup types: none present (0 changes, 0 comment summaries in inventory)
+- Counts: 8 commands, 0 failing, 0 retries; about 110k input tokens with about 89k cached
+- Artifacts: artifacts/agent-challenges/markup-targeting/20260929T171527Z/summary.json
+- Notes: first attempt on this challenge stalled at model capacity (exit 1, zero commands, run 20260929T171423Z); retry clean. The agent self-reported completed false because the markup-free stand-in input has no markup-affected target to find. Read-to-dump navigation verified; markup-inventory-to-context navigation remains unassessed live. Privacy hygiene exemplary (max-text 1 throughout). Finding: this challenge needs a markup-bearing input to assess its actual question. No text disclosed.
