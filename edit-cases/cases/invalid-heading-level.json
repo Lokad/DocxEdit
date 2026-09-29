@@ -1,0 +1,28 @@
+{
+  "id": "invalid-heading-level",
+  "description": "Refuses a heading selector level outside 1 to 9 with E1203.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target heading:10:\"Summary\"",
+    "find Summary",
+    "with Overview",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1203"
+    ],
+    "diagnosticMessagesContain": [
+      "between 1 and 9"
+    ]
+  }
+}
