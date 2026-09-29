@@ -399,3 +399,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 14 commands, 1 failing check, check before apply plus output validation; about 191k input tokens with about 161k cached
 - Artifacts: artifacts/agent-challenges/story-scope-selector/20260929T174010Z/summary.json
 - Notes: ran against a local header-bearing input (one header paragraph plus 2 main paragraphs, packaged from the public fixture) resolving the prior partial-by-design on the headerless stand-in. The E1201 zero-match diagnostic carried the main-story scope sentence with match count, candidates, and help topic, and the agent followed that pointer to the explicit H001 ID. Output validation confirms only the header paragraph changed. The prior finding on scope discoverability is now verified fixed in the live path. No text disclosed.
+
+### 2026-09-29 — markup-targeting (cross-model gpt-5.5 run) — completed
+
+- Commands: changes, dump
+- Diagnostics: W1001 and W1004 informational on the markup dump; no errors
+- Target IDs: M.P0001 selected from the inventory; comment range, reference, and record IDs resolved through dump runs
+- Markup types: comment, comment-range-start, comment-range-end, comment-reference
+- Counts: 8 commands, 0 failing, 0 retries; about 149k input tokens with about 125k cached
+- Artifacts: artifacts/agent-challenges/markup-targeting/20260929T174608Z/summary.json
+- Notes: first independent-model run (codex-cli 0.155.1 with model gpt-5.5 against the markup-bearing input). Slow cold start of about 4 minutes idle before the first events, then clean. Cross-model contrast: this agent took the comment-anchored paragraph path while the default-model run took the revision-pair path; both completed. Agent-reported weaknesses: changes JSON carries snippet-capable fields so privacy-safe use needs redirection or selective parsing; comment records need the anchor and reference fields, not just the record TargetId, to jump back to main context; max-text 0 still emits the markup warnings. No text disclosed.
