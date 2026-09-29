@@ -1,0 +1,32 @@
+{
+  "id": "control-selector-guarded",
+  "description": "Sets guarded control text addressed through a semantic tag selector.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:text/>",
+      "          <w:tag w:val=\"amount\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Old</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target content-control:\"amount\"",
+    "text New",
+    "expect-text Old",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New"
+    ]
+  }
+}
