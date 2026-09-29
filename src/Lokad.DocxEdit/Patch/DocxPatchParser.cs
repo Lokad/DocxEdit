@@ -56,11 +56,6 @@ internal static class DocxPatchParser
             }
 
             string operationName = trimmed[3..].Trim();
-            if (operationName.Length == 0)
-            {
-                return Error("E2006", "Operation name is required.", i + 1, 4);
-            }
-
             if (!OperationDefinitions.TryGetValue(operationName, out OperationDefinition? operationDefinition))
             {
                 string? operationSuggestion = SuggestNearestName(operationName, OperationDefinitions.Keys.OrderBy(static name => name, StringComparer.Ordinal));

@@ -1,0 +1,24 @@
+{
+  "id": "bare-operation",
+  "description": "Refuses a bare operation line with E2005.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op "
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2005"
+    ],
+    "diagnosticMessagesContain": [
+      "Unexpected patch line"
+    ]
+  }
+}
