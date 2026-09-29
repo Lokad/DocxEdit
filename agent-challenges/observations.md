@@ -259,3 +259,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 16 commands, 1 failing check, 0 applies, 0 retries; about 192k input tokens with about 174k cached
 - Artifacts: artifacts/agent-challenges/unsupported-recovery/20260929T140556Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the tableless public fixture stand-in. The agent correctly declined to fabricate a table, probed the E4316 refusal path with its reason and help pointer, identified the guarded set-cell recovery while explaining why it could not perform it, and stopped without applying. Runner reports harness success; challenge outcome partial by design. Finding: E4316 fires even when the table target does not exist, masking target-existence feedback behind the unsupported-operation refusal; whether refusal precedence should yield to selector validation is a design call. No text disclosed.
+
+### 2026-09-29 — whitespace-selector (live codex run) — completed
+
+- Commands: help, changes, dump, read, check, apply, validate
+- Diagnostics: E3201 on the normalized guard probe; none elsewhere
+- Target IDs: main-story paragraph IDs; edited M.P0002
+- Markup types: none (untracked edit)
+- Counts: 23 commands, 1 failing check, 0 retries; about 348k input tokens with about 313k cached
+- Artifacts: artifacts/agent-challenges/whitespace-selector/20260929T141009Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The fixture had no repeated whitespace, so the agent prepared a separate doubled-space baseline with docxedit, then proved the D09 contract live: a single-spaced text selector resolved while the single-spaced guard failed E3201 and the exact-spaced guard passed, with only the find span changed and spacing preserved. It wrote its own machine-checked verification summary plus a verifier script. Finding: help patch never states the normalized-selector versus exact-guard whitespace contract generally (patch-format.md does); the agent succeeded anyway. No text disclosed.
