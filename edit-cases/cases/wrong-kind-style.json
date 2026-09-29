@@ -1,0 +1,31 @@
+{
+  "id": "wrong-kind-style",
+  "description": "Refuses a table style on a paragraph edit with E7103.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"table\" w:styleId=\"TableGridCustom\"><w:name w:val=\"Custom Grid\"/></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-paragraph",
+    "target M.P0001",
+    "text Changed",
+    "style TableGridCustom",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E7103"
+    ],
+    "diagnosticMessagesContain": [
+      "not a paragraph style"
+    ]
+  }
+}
