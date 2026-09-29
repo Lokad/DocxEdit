@@ -43,6 +43,9 @@
     "diagnosticCount": 0,
     "paragraphs": [
       "Commented"
-    ]
+    ],
+    "commentResolved": {
+      "3": false
+    }
   }
 }
