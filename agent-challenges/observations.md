@@ -329,3 +329,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 7 commands, 0 failing checks, 0 retries; about 81k input tokens with about 57k cached
 - Artifacts: artifacts/agent-challenges/semantic-anchor-edit/20260929T145007Z/summary.json
 - Notes: live codex-exec retry after the earlier tooling stall on the same challenge; this time clean. The agent found no semantic anchors and stopped as instructed without creating a patch, notably without inventing anchor names or bootstrapping a bookmark it was not asked to create. Runner reports success; recorded completed per the agent reading, with the anchor-edit flow itself still unassessed live. No text disclosed.
+
+### 2026-09-29 — table-guarded-edit (live codex run) — partial
+
+- Commands: help, read, outline, changes, validate, check
+- Diagnostics: E1201 on the guarded set-cell probe (M.T0001.R01.C01 matched 0 targets); nothing else
+- Target IDs: none usable (2 paragraphs, 0 tables)
+- Markup types: not applicable
+- Counts: 13 commands, 1 failing check, 0 applies, 0 retries; about 154k input tokens with about 127k cached
+- Artifacts: artifacts/agent-challenges/table-guarded-edit/20260929T145422Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the tableless public fixture stand-in. The agent verified structure inventory plus validation, probed a guarded set-cell check that correctly returned E1201 zero targets, and stopped without applying or creating output. Runner reports harness success; challenge outcome partial by design. No agent-reported weaknesses; no text disclosed.
