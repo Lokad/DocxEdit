@@ -713,4 +713,20 @@ public static class HelpTopicTests
         }
     }
 
+    [Fact]
+    public static void EverySupportedOperationHasAnExample()
+    {
+        int covered = 0;
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            if (string.Equals(operation.TrackChangesSupportClass, "unsupported", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            Assert.NotEmpty(operation.Examples);
+            covered++;
+        }
+        Assert.True(covered >= 50, "Expected at least 50 supported operations with examples, found " + covered + ".");
+    }
+
 }
