@@ -754,6 +754,21 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliCheckRejectsSameReportAndDiagnosticsPath()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        string same = Path.Combine(temp.Path, "same.json");
+        CreateTextOnlyDocx(input);
+        File.WriteAllText(patch, "docxpatch 1" + "\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Margin\nend\n");
+        CliResult result = RunCli("check", input, patch, "--report", same, "--diagnostics", same);
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("must differ", result.Error, StringComparison.Ordinal);
+        Assert.False(File.Exists(same));
+    }
+
+    [Fact]
     public static void CliApplyRejectsOutputSameAsInput()
     {
         using TempDirectory temp = TempDirectory.Create();
