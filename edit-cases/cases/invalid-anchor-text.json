@@ -1,0 +1,28 @@
+{
+  "id": "invalid-anchor-text",
+  "description": "Refuses an empty comment anchor-text field with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Commented</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op add-comment",
+    "target M.P0001",
+    "text Note",
+    "anchor-text \"\"",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "anchor-text"
+    ]
+  }
+}
