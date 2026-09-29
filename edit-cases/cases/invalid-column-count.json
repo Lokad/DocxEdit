@@ -1,0 +1,31 @@
+{
+  "id": "invalid-column-count",
+  "description": "Refuses a section column count outside 1 to 4 with E6201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Section text</w:t></w:r></w:p>",
+      "    <w:sectPr>",
+      "      <w:pgSz w:w=\"12240\" w:h=\"15840\"/>",
+      "      <w:cols w:num=\"1\"/>",
+      "    </w:sectPr>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-section-columns",
+    "target M.S0001",
+    "count 5",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6201"
+    ],
+    "diagnosticMessagesContain": [
+      "between 1 and 4"
+    ]
+  }
+}
