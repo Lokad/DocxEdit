@@ -1,0 +1,24 @@
+{
+  "id": "tracked-review-workflow",
+  "title": "Apply A Tracked Change Plus A Comment In One Patch",
+  "tags": ["private", "track-changes", "replace-text", "add-comment", "review"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Create an edited output document in the run directory using docxedit only.",
+    "In one patch, make a small guarded visible text replacement and add a review comment anchored to the same paragraph.",
+    "Use replace-text with expect-text and apply with --track-changes require, --author \"DocxEdit Challenge\", and --timestamp-utc \"2026-01-01T00:00:00Z\".",
+    "Run docxedit check before apply. If check fails, recover using only docxedit inspection commands and help.",
+    "Validate the output with docxedit read, docxedit changes with comment text included, and docxedit validate."
+  ],
+  "successCriteria": [
+    "Uses one patch with replace-text, expect-text, and add-comment under --track-changes require.",
+    "Uses check before apply.",
+    "Produces an output .docx with a new inserted-run/deleted-run pair and a new comment.",
+    "Does not quote private text in the final response."
+  ],
+  "observerQuestions": [
+    "Did the agent express the text change plus comment as one atomic patch?",
+    "Did require-mode handling of the annotation operation feel predictable?",
+    "Could the agent verify both halves from docxedit output alone?"
+  ]
+}

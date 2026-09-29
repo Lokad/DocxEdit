@@ -1,0 +1,41 @@
+{
+  "id": "reviewed-tracked-change",
+  "description": "Applies a tracked text replacement plus a comment in one patch under require policy.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find increased",
+    "with rose",
+    "expect-text Revenue increased.",
+    "end",
+    "",
+    "op add-comment",
+    "target M.P0001",
+    "text Please verify this figure.",
+    "author Public Reviewer",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Revenue rose."
+    ],
+    "changeSummary": {
+      "deleted-run": 1,
+      "inserted-run": 1,
+      "comment": 1
+    }
+  }
+}

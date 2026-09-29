@@ -78,3 +78,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 13 commands, 1 failing check, 1 CLI usage error on capabilities arguments, 1 recovery retry
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so discovery ease is not a fresh-agent signal. The alias flow worked end to end: check reported created-target-ids M.P0003 plus affected targets, and apply agreed with identical reporting. The first check failed because the patch used display name Heading 2 while the fixture names it heading 2; the E7101 diagnostic carried code, target, operation, line, column, and help pointer, and the styles listing gave the exact styleId for the retry. Gap found during the run: help patch lists as per operation but had no Result-aliases concept section, so the @name mechanism was only documented in patch-format.md and per-operation help; a help overview addition is committed alongside this run.
+### 2026-09-29 — tracked-review-workflow (synthetic self-run) — completed
+
+- Commands: check, apply, read, changes, validate
+- Diagnostics: none
+- Target IDs: main-story paragraph IDs; the comment was created as comment:0
+- Markup types: deleted-run, inserted-run, comment with range and reference markup
+- Counts: 6 commands, 0 failing checks, 1 CLI usage error on a wrong changes flag, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so workflow ease is not a fresh-agent signal. One patch carried a guarded text replacement plus a comment under require policy: check passed, apply recorded generated revision IDs with created-target-ids comment:0, markup readback showed the revision pair, changes showed the runs plus the comment under separate authors, and structural validation passed. The D15 atomic review workflow behaves as documented, and a positive require-mode edit case now locks the behavior in.
