@@ -1,0 +1,33 @@
+{
+  "id": "guard-hyperlink-text-mismatch",
+  "description": "Fails a hyperlink text edit on a mismatched expect-text guard with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>External</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>"
+    ],
+    "hyperlink": "https://example.test/report"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-hyperlink-text",
+    "target M.L0001",
+    "expect-text Wrong label",
+    "text New label",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Guard failed"
+    ]
+  }
+}
