@@ -359,3 +359,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 3 commands, 0 failing, 0 retries; about 57k input tokens with about 35k cached
 - Artifacts: artifacts/agent-challenges/markup-targeting/20260929T172017Z/summary.json
 - Notes: ran against a local markup-bearing input (tracked replace plus comment generated from the public fixture through the require workflow) resolving the prior partial, where the markup-free stand-in had nothing to find. The agent went changes to dump with no view comparison and judged target IDs sufficient for inventory-to-context navigation. Agent-reported weakness: dump JSON carries change IDs inside a formatted Text report rather than a structured Changes array. No text disclosed.
+
+### 2026-09-29 — table-guarded-edit (live codex run) — completed
+
+- Commands: help, read, changes, dump, check, apply
+- Diagnostics: none (zero diagnostics on check and apply)
+- Target IDs: M.T0001 explored; M.T0001.R02.C02 edited under guards
+- Markup types: none (plain table, no tracked revisions)
+- Counts: 15 commands, 0 failing, check before apply plus output validation; about 211k input tokens with about 182k cached
+- Artifacts: artifacts/agent-challenges/table-guarded-edit/20260929T172925Z/summary.json
+- Notes: ran against a local table-bearing input (plain 2 by 2 table with 2 paragraphs, packaged from the public fixture) resolving the prior partial-by-design on the tableless stand-in. Guarded set-cell with expect-text plus row and column count guards, strict check before apply, then agent-side before/after dump comparison and table-structure-unchanged verification. Post-checks green. No agent-reported weaknesses. No text disclosed.
