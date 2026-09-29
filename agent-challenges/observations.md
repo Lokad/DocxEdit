@@ -429,3 +429,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 14 commands, 1 failing check, check before each apply plus output validation; about 222k input tokens with about 191k cached
 - Artifacts: artifacts/agent-challenges/ambiguity-recovery/20260929T180653Z/summary.json
 - Notes: third independent-model run, covering the ambiguity-recovery path after the earlier cold-start stall on the same challenge; this time the agent started within about 2 minutes. Same arc as the default-model baseline: arrange duplicate, E1202 with both candidates named, recover through explicit ID plus guard, verify only M.P0002 changed. Mild agent-reported notes only: a short selector-focused help example would ease discovery, and PartNames in read and validate output read as mildly noisy. No text disclosed.
+
+### 2026-09-29 — iterative-tracked-edit (cross-model gpt-5.5 run) — completed
+
+- Commands: help, changes, read, dump, check, apply, validate
+- Diagnostics: E6002 on the deliberate overlap probe; none on the two disjoint edits
+- Target IDs: main-story paragraph IDs; revision pairs 1 and 2, then 3 and 4
+- Markup types: deleted-run and inserted-run pairs with requested author and timestamp
+- Counts: 23 commands, 1 failing check, check before each apply plus output validation; about 417k input tokens with about 383k cached
+- Artifacts: artifacts/agent-challenges/iterative-tracked-edit/20260929T181232Z/summary.json
+- Notes: fourth independent-model run, covering the D05 iterative workflow with close agreement to the default-model baseline: two disjoint guarded replacements under require preserving the first revision pair, then a safe E6002 refusal on the overlap probe with no rejected output. Repeat notes: check omits future revision IDs by design, and read and dump print document text so reporting needs manual care. New stylistic note only: E6002 wording uses implementation-level boundary terminology. No text disclosed.
