@@ -1,0 +1,24 @@
+{
+  "id": "add-bookmark",
+  "description": "Wraps a guarded paragraph in a new bookmark; paragraph text is unchanged.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Client paragraph</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op add-bookmark",
+    "target M.P0001",
+    "expect-text Client paragraph",
+    "name ClientParagraph",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Client paragraph"
+    ]
+  }
+}
