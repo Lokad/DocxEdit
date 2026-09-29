@@ -1,0 +1,30 @@
+{
+  "id": "copy-properties-refusal",
+  "description": "Refuses paragraph property copying against a non-paragraph target with E4307.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.T0001",
+    "text Added",
+    "copy-paragraph-properties true",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4307"
+    ],
+    "diagnosticMessagesContain": [
+      "requires paragraph target"
+    ]
+  }
+}
