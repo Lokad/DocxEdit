@@ -47,6 +47,20 @@ public static class EditCaseTests
         return value.ValueKind == JsonValueKind.String ? value.GetString() ?? string.Empty : string.Empty;
     }
 
+    private static string ReadMediaProperty(JsonElement input, string propertyName)
+    {
+        if (input.ValueKind == JsonValueKind.Object
+            && input.TryGetProperty("media", out JsonElement mediaValue)
+            && mediaValue.ValueKind == JsonValueKind.Object
+            && mediaValue.TryGetProperty(propertyName, out JsonElement propertyValue)
+            && propertyValue.ValueKind == JsonValueKind.String)
+        {
+            return propertyValue.GetString() ?? string.Empty;
+        }
+
+        return string.Empty;
+    }
+
     private static bool IsFilenameSafeId(string value)
     {
         if (value.Length == 0 || !IsAsciiLetterOrDigit(value[0]))
@@ -61,12 +75,13 @@ public static class EditCaseTests
     {
         return value is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
     }
-    private static void BuildCaseDocx(string path, string bodyXml, string headerXml, string footerXml, string stylesXml, string commentsXml)
+    private static void BuildCaseDocx(string path, string bodyXml, string headerXml, string footerXml, string stylesXml, string commentsXml, string mediaFileName, string mediaContentType, string mediaText)
     {
         bool header = !string.IsNullOrWhiteSpace(headerXml);
         bool footer = !string.IsNullOrWhiteSpace(footerXml);
         bool styles = !string.IsNullOrWhiteSpace(stylesXml);
         bool comments = !string.IsNullOrWhiteSpace(commentsXml);
+        bool media = !string.IsNullOrWhiteSpace(mediaFileName);
         string headerOverride = header ? """<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>""" : string.Empty;
         string footerOverride = footer ? """<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>""" : string.Empty;
         string stylesOverride = styles ? """<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>""" : string.Empty;
@@ -75,13 +90,16 @@ public static class EditCaseTests
         string footerRelationship = footer ? """<Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>""" : string.Empty;
         string stylesRelationship = styles ? """<Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>""" : string.Empty;
         string commentsRelationship = comments ? """<Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>""" : string.Empty;
+        string mediaExtension = media ? mediaFileName.Substring(mediaFileName.LastIndexOf(".") + 1) : string.Empty;
+        string mediaDefault = media ? "<Default Extension=\"" + mediaExtension + "\" ContentType=\"" + mediaContentType + "\"/>" : string.Empty;
+        string mediaRelationship = media ? "<Relationship Id=\"rImage\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/" + mediaFileName + "\"/>" : string.Empty;
         using var archive = new ZipArchive(File.Create(path), ZipArchiveMode.Create);
         AddEntry(archive, "[Content_Types].xml", """
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
               <Default Extension="xml" ContentType="application/xml"/>
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-            """ + headerOverride + footerOverride + stylesOverride + commentsOverride + """
+            """ + headerOverride + footerOverride + stylesOverride + commentsOverride + mediaDefault + """
             </Types>
             """);
         AddEntry(archive, "_rels/.rels", """
@@ -91,7 +109,7 @@ public static class EditCaseTests
             """);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-            """ + headerRelationship + footerRelationship + stylesRelationship + commentsRelationship + """
+            """ + headerRelationship + footerRelationship + stylesRelationship + commentsRelationship + mediaRelationship + """
             </Relationships>
             """);
         AddEntry(archive, "word/document.xml", """
@@ -132,6 +150,11 @@ public static class EditCaseTests
         {
             AddEntry(archive, "word/comments.xml", commentsXml);
         }
+
+        if (media)
+        {
+            AddEntry(archive, "word/media/" + mediaFileName, mediaText);
+        }
     }
 
     [Theory]
@@ -167,6 +190,9 @@ public static class EditCaseTests
         string footerXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("footerXml", out JsonElement footerValue) ? GetManifestText(footerValue) : string.Empty;
         string stylesXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("stylesXml", out JsonElement stylesValue) ? GetManifestText(stylesValue) : string.Empty;
         string commentsXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("commentsXml", out JsonElement commentsValue) ? GetManifestText(commentsValue) : string.Empty;
+        string mediaFileName = ReadMediaProperty(input, "fileName");
+        string mediaContentType = ReadMediaProperty(input, "contentType");
+        string mediaText = ReadMediaProperty(input, "text");
         Assert.True(!string.IsNullOrWhiteSpace(fixture) || !string.IsNullOrWhiteSpace(bodyXml), "Case " + manifestId + " must define input.bodyXml or input.fixture.");
         using TempDirectory temp = TempDirectory.Create();
         string inputPath = Path.Combine(temp.Path, "input.docx");
@@ -203,7 +229,7 @@ public static class EditCaseTests
         }
         else
         {
-            BuildCaseDocx(inputPath, bodyXml, headerXml, footerXml, stylesXml, commentsXml);
+            BuildCaseDocx(inputPath, bodyXml, headerXml, footerXml, stylesXml, commentsXml, mediaFileName, mediaContentType, mediaText);
         }
 
         File.WriteAllText(patchPath, patchText + Environment.NewLine, Encoding.UTF8);
@@ -308,6 +334,11 @@ public static class EditCaseTests
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("images", out JsonElement images))
         {
             AssertStringArraysEqual(manifestId, "Images", images.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("Images").EnumerateArray().Select(item => item.GetProperty("PartName").GetString() ?? string.Empty).ToList());
+        }
+
+        if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("imageDescriptions", out JsonElement imageDescriptions))
+        {
+            AssertStringArraysEqual(manifestId, "Image descriptions", imageDescriptions.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("Images").EnumerateArray().Select(item => item.GetProperty("Description").GetString() ?? string.Empty).ToList());
         }
 
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("allStoryParagraphs", out JsonElement allStoryParagraphs))
