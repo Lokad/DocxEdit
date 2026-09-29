@@ -225,7 +225,7 @@ internal static partial class DocxPatchEngine
 
     private static bool PreviewValueMayBeAbsent(string operationName)
     {
-        return operationName == "set-style";
+        return operationName is "set-style" or "set-cell-shading" or "set-table-style";
     }
 
     private static (string? Before, string? After, bool Truncated) FinalizePreview(
@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style"))
         {
             return null;
         }
@@ -292,6 +292,18 @@ internal static partial class DocxPatchEngine
         {
             HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
             return hyperlinkTarget is null ? null : ReadVisibleText(hyperlinkTarget.Hyperlink);
+        }
+
+        if (operation.OperationName == "set-cell-shading")
+        {
+            CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+            return cellTarget is null ? null : ReadCellShadingFill(cellTarget.Cell);
+        }
+
+        if (operation.OperationName == "set-table-style")
+        {
+            TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
+            return tableTarget is null ? null : ReadTableStyleId(tableTarget.Table);
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);

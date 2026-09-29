@@ -310,6 +310,60 @@ public static class PatchReportTests
         Assert.Equal("Changed", report.PreviewAfter);
         Assert.False(report.PreviewTruncated);
     }
+    [Fact]
+    public static void PreviewReportsShadingChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell-shading
+            target M.T0001.R01.C01
+            fill 4472C4
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Null(report.PreviewBefore);
+        Assert.Equal("4472C4", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsTableStyleChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+              <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
+            """, """
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-style
+            target M.T0001
+            style TableGrid
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Null(report.PreviewBefore);
+        Assert.Equal("TableGrid", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
 
     [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
