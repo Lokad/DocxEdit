@@ -199,3 +199,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 11 commands, 0 failing checks, 0 retries; about 180k input tokens with about 151k cached
 - Artifacts: artifacts/agent-challenges/tracked-replace-probe/20260929T133836Z/summary.json
 - Notes: second live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent led with help patch and apply, discovered the target through read plus dump runs, wrote a fully guarded tracked replacement with explicit author and timestamp under require, and verified through changes (0 to 2 records), dump, and input-hash comparison. Post-checks confirm the output reads and changes cleanly. No agent-reported weaknesses; no text disclosed. Caveat: single clean-path run on a simple paragraph; ambiguity and overlap recovery remain assessed only in synthetic self-runs.
+
+### 2026-09-29 — ambiguity-recovery (live codex run) — failed
+
+- Commands: help patch attempted with no result; no docxedit edit commands ran
+- Diagnostics: none observed (E1202 recovery untested)
+- Target IDs: none discovered
+- Markup types: none observed
+- Counts: 0 effective commands; run abandoned after several minutes of unresponsive tool execution
+- Artifacts: private run directory private-cases/_runs/ambiguity-recovery/20260929T134140Z (no sanitized summary; runner had not finalized)
+- Notes: third live codex-exec run (ephemeral, prompt-only) on the public fixture stand-in. The agent reported shell execution unresponsive including basic directory checks, stopped its pending requests, made no edits, and disclosed no text. No product signal: the failure is in agent tool execution, not docxedit behavior, and the two prior live runs on the same substrate succeeded. Possible confounds: observer polled the run directory aggressively during the run, and the agent process burned about 10 minutes of CPU while producing only its final response. Do not read this as evidence about ambiguity recovery itself, which remains assessed only in synthetic self-runs; a rerun with wider observer polling gaps would test flakiness versus a systematic problem.
