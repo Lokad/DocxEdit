@@ -17,6 +17,7 @@
     "",
     "op delete-bookmark",
     "target M.B0001",
+    "expect-name ClientName",
     "end"
   ],
   "expect": {

@@ -300,7 +300,7 @@ Controls with a lock value other than unlocked are rejected.
 | `add-bookmark` | `target`, `name` | `expect-text`, `as` | Creates a guarded paragraph bookmark |
 | `replace-bookmark-text` | `target`, `text` | `expect-text` | Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot |
 | `rename-bookmark` | `target`, `name` | `expect-name` | Renames markers and same-story internal hyperlink anchors when unambiguous |
-| `delete-bookmark` | `target` | | Removes complete unreferenced bookmark markers, preserving content |
+| `delete-bookmark` | `target` | `expect-name` | Removes complete unreferenced bookmark markers, preserving content |
 
 Bookmark names must be non-empty and contain no whitespace. Duplicate new names
 are rejected.

@@ -635,6 +635,7 @@ internal static partial class DocxPatchEngine
             "delete-bookmark",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-name", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
             "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal.",
@@ -649,6 +650,14 @@ internal static partial class DocxPatchEngine
                 docxpatch 1
                 op delete-bookmark
                 target M.B0001
+                end
+                """,
+                """
+                # Guarded delete-bookmark: expect-name must match before deleting.
+                docxpatch 1
+                op delete-bookmark
+                target M.B0001
+                expect-name ClientName
                 end
                 """,
             ],

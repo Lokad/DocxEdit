@@ -1781,7 +1781,7 @@ Rules:
   `w:name`, and rewrites same-story `w:hyperlink/@w:anchor` values that referenced
   the old name when that old name is unambiguous.
 * `delete-bookmark` removes only the `w:bookmarkStart` and matching `w:bookmarkEnd`
-  markers for complete bookmarks. It fails if same-story internal hyperlink anchors
+  markers for complete bookmarks. It accepts optional `expect-name`, which must match the current bookmark name (`E3201` on mismatch). It fails if same-story internal hyperlink anchors
   still reference the bookmark name.
 
 ### 11.6b Comment body operations

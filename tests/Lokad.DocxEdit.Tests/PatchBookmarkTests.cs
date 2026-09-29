@@ -334,6 +334,67 @@ public static class PatchBookmarkTests
     }
 
     [Fact]
+    public static void CheckDeleteBookmarkGuardMismatchFails()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-bookmark
+            target M.B0001
+            expect-name StaleName
+            end
+            """);
+
+        DocxCheckResult check = new DocxEditor().Check(input, patch);
+        Assert.False(check.Success);
+        DocxDiagnostic failure = Assert.Single(check.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal("delete-bookmark", failure.HelpTopic);
+        Assert.Equal(5, failure.Line);
+    }
+
+    [Fact]
+    public static void ApplyDeleteBookmarkGuardMatchSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-bookmark
+            target M.B0001
+            expect-name ClientName
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.DoesNotContain("bookmarkStart", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("bookmarkEnd", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Equal("Before Old Client After", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+
+    [Fact]
     public static void CheckRenameBookmarkRejectsDuplicateName()
     {
         using MemoryStream input = CreateDocxWithBody("""

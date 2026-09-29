@@ -341,6 +341,13 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        string? expectedName = operation.Fields.GetValueOrDefault("expect-name");
+        string? currentName = (string?)bookmarkTarget.Start.Attribute(OoxmlNs.W + "name");
+        if (expectedName is not null && !string.Equals(currentName, expectedName, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected bookmark name \u0027{expectedName}\u0027, found \u0027{currentName}\u0027.", operation, target, fieldName: "expect-name")];
+        }
+
         if (bookmarkTarget.End is null)
         {
             return [Diagnostic(DocxSeverity.Error, "E4311", $"Bookmark '{target}' is incomplete and cannot be deleted safely.", operation, target)];
