@@ -1,0 +1,33 @@
+{
+  "id": "resolve-bodyless-comment",
+  "description": "Refuses resolution for a comment without a body paragraph.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:commentRangeStart w:id=\"3\"/>",
+      "      <w:r><w:t>Commented</w:t></w:r>",
+      "      <w:commentRangeEnd w:id=\"3\"/>",
+      "      <w:r><w:commentReference w:id=\"3\"/></w:r>",
+      "    </w:p>"
+    ],
+    "commentsXml": [
+      "    <w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">",
+      "      <w:comment w:id=\"3\" w:author=\"Reviewer\" w:initials=\"RV\" w:date=\"2026-06-07T12:00:00Z\"/>",
+      "    </w:comments>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op resolve-comment",
+    "target comment:3",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4312"
+    ]
+  }
+}
