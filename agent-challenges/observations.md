@@ -419,3 +419,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 15 commands, 0 failing, check before apply plus changes and dump verification; about 207k input tokens with about 174k cached
 - Artifacts: artifacts/agent-challenges/tracked-replace-probe/20260929T175024Z/summary.json
 - Notes: second independent-model run, covering the edit path on the stand-in input. Fully guarded tracked replacement under require with explicit author and timestamp; verified through changes record counts and run-level dump. Notable privacy behavior: the agent passed max-preview-chars 0 to keep preview text out of report files. Agent-reported weaknesses, both verified as designed: PairedChangeId links range starts to ends only, not replacement siblings; check reports no generated revision IDs because allocation happens at apply. No text disclosed.
+
+### 2026-09-29 — ambiguity-recovery (cross-model gpt-5.5 run) — completed
+
+- Commands: help, changes, read, check, apply, validate
+- Diagnostics: E1202 on the ambiguous selector probe with match count 2; none on the recovery path
+- Target IDs: duplicate arranged as M.P0003; recovery through explicit M.P0002 with an expect-text guard and no occurrence selector
+- Markup types: not applicable
+- Counts: 14 commands, 1 failing check, check before each apply plus output validation; about 222k input tokens with about 191k cached
+- Artifacts: artifacts/agent-challenges/ambiguity-recovery/20260929T180653Z/summary.json
+- Notes: third independent-model run, covering the ambiguity-recovery path after the earlier cold-start stall on the same challenge; this time the agent started within about 2 minutes. Same arc as the default-model baseline: arrange duplicate, E1202 with both candidates named, recover through explicit ID plus guard, verify only M.P0002 changed. Mild agent-reported notes only: a short selector-focused help example would ease discovery, and PartNames in read and validate output read as mildly noisy. No text disclosed.
