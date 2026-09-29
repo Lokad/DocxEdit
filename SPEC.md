@@ -3526,24 +3526,27 @@ Usage:
   docxedit <command> [options]
 
 Read / explore:
-  read      Produce an agent-friendly structural view of a .docx
-  outline   Show headings, tables, images, sections, headers, footers
-  find      Find text and print stable edit targets
-  dump      Dump one target in detail
-  context   Show nearby structure around one target without broad text
-  styles    List paragraph, character, and table styles
-  media     List embedded images
-  validate  Validate package and WordprocessingML invariants
-  changes   List tracked-change and comment markup; comment text is opt-in
-  catalog   Print the machine-readable command and patch-operation catalog
-  version   Print the docxedit version
+  read         Produce an agent-friendly structural view of a .docx
+  outline      Show headings, tables, images, sections, headers, footers
+  find         Find text and print stable edit targets
+  dump         Dump one target in detail
+  context      Show nearby structure around one target without broad text
+  capabilities Show supported, conditional, and unsupported edits for one target
+  template     Print a guarded patch template for one target
+  styles       List paragraph, character, and table styles
+  media        List embedded images
+  validate     Validate package and WordprocessingML invariants
+  changes      List tracked-change and comment markup; comment text is opt-in
+  catalog      Print the machine-readable command and patch-operation catalog
+  version      Print the docxedit version
 
 Patch:
+  lint      Validate patch shape without loading a document
   check     Validate a .docxpatch file without writing output
   apply     Apply a .docxpatch file and write a new .docx
 
 Help:
-  help read|outline|find|dump|context|styles|media|validate|changes|catalog|version|check|apply|patch
+  help read|outline|find|dump|context|capabilities|template|styles|media|validate|changes|catalog|version|lint|check|apply|patch
 
 Examples:
   docxedit read report.docx [--view final|original|markup]
@@ -3575,10 +3578,13 @@ Command-specific help must exist for:
 ```text
 docxedit help dump
 docxedit help context
+docxedit help capabilities
+docxedit help template
 docxedit help changes
 docxedit help validate
 docxedit help check
 docxedit help apply
+docxedit help lint
 docxedit help patch
 ```
 
@@ -3603,6 +3609,12 @@ operation annotations, and the explicit `--include-comment-text` /
 dump run IDs are separate from `changes` change IDs.
 
 `docxedit help context` must state that default `--max-text` is `0`.
+
+`docxedit help capabilities` must describe support, reason, and alternative verdicts per operation under an effective track-change policy, and must state that check remains authoritative for a patch.
+
+`docxedit help template` must describe the check-clean starter block and the commented example blocks generated from target capabilities.
+
+`docxedit help lint` must describe document-independent shape validation and state that lint failures predict check failures while lint success leaves document-dependent targets, guards, assets, and shapes to check.
 
 `docxedit help validate` must describe structural package validation, WordprocessingML
 invariants, JSON diagnostics, and the fact that diagnostics include stable codes and

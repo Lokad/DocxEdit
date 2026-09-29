@@ -436,10 +436,12 @@ public static class DocxHelp
     {
         builder.AppendLine();
         builder.AppendLine(title + ":");
-        foreach (DocxCommandInfo command in Catalog.Commands.Where(command =>
-                     string.Equals(command.Category, category, StringComparison.Ordinal)))
+        List<DocxCommandInfo> group = Catalog.Commands.Where(command =>
+            string.Equals(command.Category, category, StringComparison.Ordinal)).ToList();
+        int width = Math.Max(10, group.Select(static command => command.Name.Length).DefaultIfEmpty(0).Max() + 1);
+        foreach (DocxCommandInfo command in group)
         {
-            builder.Append("  ").Append(command.Name.PadRight(10)).AppendLine(command.Summary);
+            builder.Append("  ").Append(command.Name.PadRight(width)).AppendLine(command.Summary);
         }
     }
 
@@ -571,9 +573,10 @@ public static class DocxHelp
 
         builder.AppendLine();
         builder.AppendLine("JSON output includes:");
+        int width = Math.Max(14, fields.Select(static field => field.Name.Length).DefaultIfEmpty(0).Max() + 1);
         foreach (DocxOutputFieldInfo field in fields)
         {
-            builder.Append("  ").Append(field.Name.PadRight(14)).AppendLine(field.Description);
+            builder.Append("  ").Append(field.Name.PadRight(width)).AppendLine(field.Description);
         }
     }
 
@@ -588,7 +591,7 @@ public static class DocxHelp
         builder.AppendLine("Options:");
         foreach (DocxOptionInfo option in options)
         {
-            builder.Append("  ").Append(option.Syntax.PadRight(28)).AppendLine(option.Description);
+            builder.Append("  ").Append(option.Syntax.PadRight(Math.Max(28, options.Select(static option => option.Syntax.Length).DefaultIfEmpty(0).Max() + 1))).AppendLine(option.Description);
         }
     }
 

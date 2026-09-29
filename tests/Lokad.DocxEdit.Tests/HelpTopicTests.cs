@@ -438,4 +438,34 @@ public static class HelpTopicTests
 
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
+    [Fact]
+    public static void HelpOverviewSeparatesLongCommandNames()
+    {
+        string overview = DocxHelp.RenderOverview();
+
+        Assert.Contains("capabilities Show supported", overview, StringComparison.Ordinal);
+        Assert.Contains("template     Print a guarded patch template", overview, StringComparison.Ordinal);
+        Assert.Contains("lint      Validate patch shape", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("capabilitiesShow", overview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void LintHelpSeparatesLongFieldNames()
+    {
+        string topic = DocxHelp.RenderTopic("lint");
+
+        Assert.Contains("OperationCount Number", topic, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void SpecHelpRequirementsCoverNewCommands()
+    {
+        string root = FindRepoRoot();
+        string spec = File.ReadAllText(Path.Combine(root, "SPEC.md"));
+
+        Assert.Contains("docxedit help capabilities", spec, StringComparison.Ordinal);
+        Assert.Contains("docxedit help template", spec, StringComparison.Ordinal);
+        Assert.Contains("docxedit help lint", spec, StringComparison.Ordinal);
+        Assert.Contains("capabilities|template", spec, StringComparison.Ordinal);
+    }
 }
