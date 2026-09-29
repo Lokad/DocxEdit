@@ -561,4 +561,47 @@ public static class HelpTopicTests
         Assert.True(deleted.Success, deleteExample + ":" + string.Join("|", deleted.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
 
+    [Fact]
+    public static void HyperlinkManagementExamplesCheckClean()
+    {
+        const string body = """
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Destination"/>
+                      <w:bookmarkEnd w:id="1"/>
+                      <w:hyperlink w:anchor="Destination"><w:r><w:t>Old Link</w:t></w:r></w:hyperlink>
+                    </w:p>
+            """;
+        Assert.True(DocxHelp.TryGetPatchOperation("set-hyperlink-target", out DocxPatchOperationInfo target));
+        Assert.True(DocxHelp.TryGetPatchOperation("remove-hyperlink", out DocxPatchOperationInfo remove));
+        foreach (string example in target.Examples.Concat(remove.Examples))
+        {
+            using MemoryStream input = CreateDocxWithBody(body);
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+    [Fact]
+    public static void TablePropertyExamplesCheckClean()
+    {
+        const string styles = """
+              <w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
+            """;
+        const string body = """
+                    <w:tbl>
+                      <w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblCaption w:val="Ledger"/></w:tblPr>
+                      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """;
+        Assert.True(DocxHelp.TryGetPatchOperation("set-table-style", out DocxPatchOperationInfo style));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-table-metadata", out DocxPatchOperationInfo metadata));
+        foreach (string example in style.Examples.Concat(metadata.Examples))
+        {
+            using MemoryStream input = CreateDocxWithStylesAndBody(styles, body);
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+
 }

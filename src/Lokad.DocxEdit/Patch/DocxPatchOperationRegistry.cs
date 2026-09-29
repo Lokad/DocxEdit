@@ -948,7 +948,22 @@ internal static partial class DocxPatchEngine
             "Hyperlink target updates modify relationship or anchor metadata, not visible text.",
             "Hyperlinks",
             "Updates external URI or internal bookmark anchor",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["uri", "anchor"]], AcceptedKinds = [DocxTargetKind.Hyperlink] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetHyperlinkTarget(package, operation, apply, cancellationToken)) with
+        {
+            ExclusiveGroups = [["uri", "anchor"]],
+            AcceptedKinds = [DocxTargetKind.Hyperlink],
+            Examples =
+            [
+                """
+                # Minimal set-hyperlink-target.
+                docxpatch 1
+                op set-hyperlink-target
+                target M.L0001
+                uri https://example.test/new
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-hyperlink-text",
             [
@@ -1018,7 +1033,18 @@ internal static partial class DocxPatchEngine
             "Hyperlink removal changes wrapper and relationship metadata while preserving display text.",
             "Hyperlinks",
             "Removes hyperlink markup and preserves display runs",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Hyperlink] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRemoveHyperlink(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Hyperlink],
+            Examples =
+            [
+                """
+                # Minimal remove-hyperlink.
+                docxpatch 1
+                op remove-hyperlink
+                target M.L0001
+                end
+                """,
+            ],
+        },
         Tracked(
             "set-cell",
             [
@@ -1121,7 +1147,30 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit table property revisions with w:tblPrChange while preserving previous table properties.",
             "Tables",
             "Updates `w:tblStyle`",
-            ExecuteSetTableStyle) with { AcceptedKinds = [DocxTargetKind.Table] },
+            ExecuteSetTableStyle) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-table-style.
+                docxpatch 1
+                op set-table-style
+                target M.T0001
+                style TableGrid
+                end
+                """,
+                """
+                # Guarded set-table-style: expect-style must match before editing.
+                docxpatch 1
+                op set-table-style
+                target M.T0001
+                expect-style TableGrid
+                style TableGrid
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Table],
+        },
         PreserveOnly(
             "set-table-metadata",
             [
@@ -1135,7 +1184,30 @@ internal static partial class DocxPatchEngine
             "Table caption and description updates are table metadata, not visible document text.",
             "Tables",
             "Sets or clears table caption/description",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetTableMetadata(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Table] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetTableMetadata(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-table-metadata.
+                docxpatch 1
+                op set-table-metadata
+                target M.T0001
+                caption Ledger
+                end
+                """,
+                """
+                # Guarded set-table-metadata: expect-caption must match before editing.
+                docxpatch 1
+                op set-table-metadata
+                target M.T0001
+                expect-caption Ledger
+                description Quarterly figures
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Table],
+        },
         Tracked(
             "set-row-header",
             [
