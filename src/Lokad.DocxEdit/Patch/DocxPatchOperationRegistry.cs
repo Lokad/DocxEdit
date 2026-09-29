@@ -791,6 +791,7 @@ internal static partial class DocxPatchEngine
             "delete-comment",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
             "Comment deletion removes review markup, not a separate generated tracked edit.",
@@ -805,6 +806,14 @@ internal static partial class DocxPatchEngine
                 docxpatch 1
                 op delete-comment
                 target comment:3
+                end
+                """,
+                """
+                # Guarded delete-comment: expect-text must match before deleting.
+                docxpatch 1
+                op delete-comment
+                target comment:3
+                expect-text Comment body
                 end
                 """,
             ],

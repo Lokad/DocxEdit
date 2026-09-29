@@ -314,7 +314,7 @@ Bookmark operations accept an explicit bookmark ID or a semantic name selector, 
 | `set-comment-text` | `target`, `text` | `expect-text` | Replaces one comment body |
 | `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
 | `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
-| `delete-comment` | `target` | | Removes body, range/reference markers, and matching extension records |
+| `delete-comment` | `target` | `expect-text` | Removes body, range/reference markers, and matching extension records |
 | `add-comment-reply` | `target`, `text` | `author`, `initials`, `date`, `as` | Adds a modern threaded reply under a comment |
 | `delete-comment-reply` | `target` | | Removes a leaf threaded reply |
 

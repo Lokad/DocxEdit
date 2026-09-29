@@ -283,6 +283,12 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 comments: {target}.", operation, target)];
         }
 
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string current = ReadVisibleText(commentTarget.Comment);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected text does not match current text.", operation, target, fieldName: "expect-text")];
+        }
 
         string commentId = (string?)commentTarget.Comment.Attribute(OoxmlNs.W + "id") ?? string.Empty;
         RemoveCommentExtensionRecords(package, commentTarget.Comment, cancellationToken);

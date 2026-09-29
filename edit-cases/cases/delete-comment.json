@@ -23,6 +23,7 @@
     "",
     "op delete-comment",
     "target comment:3",
+    "expect-text Old comment",
     "end"
   ],
   "expect": {

@@ -1853,7 +1853,7 @@ Rules:
   `w15:paraId`, creates `/word/commentsExtended.xml` and the main-document
   relationship/content-type override when needed, and appends a matching
   `w15:commentEx` record. Unsupported body shapes fail with `E4312`.
-* `delete-comment` removes the comment body and matching `commentRangeStart`,
+* `delete-comment` accepts optional `expect-text`, which must match the current body text (`E3201` on mismatch); deletion removes the comment body and matching `commentRangeStart`,
   `commentRangeEnd`, and `commentReference` markers from document stories, plus
   matching `commentsExtended.xml` records when present.
 * `add-comment-reply` creates a simple threaded reply in `comments.xml`, ensures
