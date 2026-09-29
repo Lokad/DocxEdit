@@ -1,0 +1,29 @@
+{
+  "id": "invalid-occurrence-type",
+  "description": "Refuses a non-integer occurrence selector with E2013.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Omega",
+    "occurrence many",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2013"
+    ],
+    "diagnosticMessagesContain": [
+      "must be an integer"
+    ]
+  }
+}
