@@ -1098,6 +1098,16 @@ public static class ReadApiTests
     }
 
     [Fact]
+    public static void RenderChangesWithNoChangesReportsExplicitZero()
+    {
+        using MemoryStream stream = CreateDocx("Alpha");
+
+        string rendered = DocxTextRenderer.RenderChanges(new DocxEditor().Changes(stream));
+
+        Assert.Contains("No changes.", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ChangesExposeCommentResolutionMetadata()
     {
         using MemoryStream stream = CreateDocxWithBodyAndComments(

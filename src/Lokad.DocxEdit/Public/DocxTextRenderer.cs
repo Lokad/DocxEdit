@@ -486,6 +486,11 @@ public static class DocxTextRenderer
                 .AppendLine();
         }
 
+        if (builder.Length == 0)
+        {
+            builder.AppendLine("No changes.");
+        }
+
         return builder.ToString();
 
         static string FormatTypeSummary(IReadOnlyList<DocxChangeSummary> summaries)
