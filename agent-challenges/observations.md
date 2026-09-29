@@ -189,3 +189,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 10 commands, 0 failing checks, 0 retries; about 108k input tokens with about 87k cached
 - Artifacts: artifacts/agent-challenges/markup-inventory/20260929T133603Z/summary.json
 - Notes: first live codex-exec run in this thread (ephemeral, prompt-only, codex-cli 0.155.1) using the public fixture stand-in, whose hash was identical before and after. The agent consulted focused help before each new command class, stayed within docxedit with no forbidden inspection, and disclosed no text. Finding: empty changes and read results lack explicit zero totals and scanned-story coverage, forcing interpretation of empty arrays. Caveat: the fixture carries no markup, so populated-inventory usability remains unassessed; model, usage, and thread are recorded in the summary.
+
+### 2026-09-29 — tracked-replace-probe (live codex run) — completed
+
+- Commands: help, read, changes, dump, check, apply, changes, dump
+- Diagnostics: none
+- Target IDs: main-story paragraph IDs; edited M.P0002
+- Markup types: deleted-run, inserted-run (one pair with requested author and timestamp)
+- Counts: 11 commands, 0 failing checks, 0 retries; about 180k input tokens with about 151k cached
+- Artifacts: artifacts/agent-challenges/tracked-replace-probe/20260929T133836Z/summary.json
+- Notes: second live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent led with help patch and apply, discovered the target through read plus dump runs, wrote a fully guarded tracked replacement with explicit author and timestamp under require, and verified through changes (0 to 2 records), dump, and input-hash comparison. Post-checks confirm the output reads and changes cleanly. No agent-reported weaknesses; no text disclosed. Caveat: single clean-path run on a simple paragraph; ambiguity and overlap recovery remain assessed only in synthetic self-runs.
