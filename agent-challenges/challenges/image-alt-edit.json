@@ -1,0 +1,24 @@
+{
+  "id": "image-alt-edit",
+  "title": "Update An Image Description With Guards",
+  "tags": ["private", "images", "guards", "patch"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, inspect the document for an image that can be safely edited.",
+    "Create a .docxpatch using set-image-alt with expect-alt guarding the current description.",
+    "Run docxedit check before apply and write the edited .docx under the run directory.",
+    "If the image description cannot be determined or the shape is unsupported, stop after check attempts and report the relevant diagnostics.",
+    "Validate any successful output with docxedit read and docxedit validate."
+  ],
+  "successCriteria": [
+    "Uses a stable image ID.",
+    "Uses the expect-alt guard.",
+    "Runs check before apply.",
+    "Does not inspect raw OOXML package parts."
+  ],
+  "observerQuestions": [
+    "Was the image ID easy to discover?",
+    "Was the expect-alt guard clear enough to use without tailored examples?",
+    "Did the preview report the description change usefully?"
+  ]
+}

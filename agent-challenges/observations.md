@@ -169,3 +169,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 7 commands, 1 failing check, 0 retries after the working recovery
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: synthetic main-plus-header document built with archive tooling since docxedit has no create command. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Semantic text selectors search only the main story while find needs its headers-footers flag for the same text; the E1201 nearby-paragraph suggestion stayed main-story scoped. Recovery through the explicit H001 ID with check before apply changed only the header paragraph, and structural validation passed. The story scope is now documented in patch-format.md and help patch.
+
+### 2026-09-29 — image-alt-edit (synthetic self-run) — completed
+
+- Commands: read, help, check, apply, read, validate
+- Diagnostics: E3201 on a deliberate guard-mismatch probe; none on the success path
+- Target IDs: image ID M.I0001 discovered through read; containing paragraph M.P0001 observed
+- Markup types: none (untracked metadata edit)
+- Counts: 7 commands, 1 deliberate failing check, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: synthetic single-image document built with archive tooling since docxedit has no create command. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Focused help gave minimal plus guarded examples that transferred verbatim; the mismatch diagnostic carried code, both values, target, operation, line, column, and help pointer. Check with a preview budget showed before/after identically through check and apply; default reports stay metadata-only unless the budget is set. Readback plus structural validation confirmed the result.
