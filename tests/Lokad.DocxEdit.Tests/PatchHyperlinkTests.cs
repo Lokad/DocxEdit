@@ -198,6 +198,39 @@ public static class PatchHyperlinkTests
     }
 
     [Fact]
+    public static void ApplyRemoveHyperlinkGuardMismatchWritesNothing()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op remove-hyperlink
+            target M.L0001
+            expect-text Stale link
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
     public static void CheckRemoveHyperlinkGuardMismatchFails()
     {
         using MemoryStream input = CreateDocxWithBodyAndRelationships(

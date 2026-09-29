@@ -334,6 +334,35 @@ public static class PatchBookmarkTests
     }
 
     [Fact]
+    public static void ApplyDeleteBookmarkGuardMismatchWritesNothing()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Before </w:t></w:r>
+                      <w:bookmarkStart w:id="4" w:name="ClientName"/>
+                      <w:r><w:t>Old Client</w:t></w:r>
+                      <w:bookmarkEnd w:id="4"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-bookmark
+            target M.B0001
+            expect-name StaleName
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
     public static void CheckDeleteBookmarkGuardMismatchFails()
     {
         using MemoryStream input = CreateDocxWithBody("""

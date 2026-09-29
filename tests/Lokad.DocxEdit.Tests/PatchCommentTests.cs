@@ -873,6 +873,42 @@ public static class PatchCommentTests
         Assert.DoesNotContain("Old comment", commentsXml, StringComparison.Ordinal);
     }
     [Fact]
+    public static void ApplyDeleteCommentGuardMismatchWritesNothing()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-comment
+            target comment:3
+            expect-text Stale comment
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal(0, output.Length);
+    }
+
+    [Fact]
     public static void CheckDeleteCommentGuardMismatchFails()
     {
         using MemoryStream input = CreateDocxWithBodyAndComments(
