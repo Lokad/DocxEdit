@@ -61,24 +61,27 @@ public static class EditCaseTests
     {
         return value is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
     }
-    private static void BuildCaseDocx(string path, string bodyXml, string headerXml, string footerXml, string stylesXml)
+    private static void BuildCaseDocx(string path, string bodyXml, string headerXml, string footerXml, string stylesXml, string commentsXml)
     {
         bool header = !string.IsNullOrWhiteSpace(headerXml);
         bool footer = !string.IsNullOrWhiteSpace(footerXml);
         bool styles = !string.IsNullOrWhiteSpace(stylesXml);
+        bool comments = !string.IsNullOrWhiteSpace(commentsXml);
         string headerOverride = header ? """<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>""" : string.Empty;
         string footerOverride = footer ? """<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>""" : string.Empty;
         string stylesOverride = styles ? """<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>""" : string.Empty;
+        string commentsOverride = comments ? """<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>""" : string.Empty;
         string headerRelationship = header ? """<Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>""" : string.Empty;
         string footerRelationship = footer ? """<Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>""" : string.Empty;
         string stylesRelationship = styles ? """<Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>""" : string.Empty;
+        string commentsRelationship = comments ? """<Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>""" : string.Empty;
         using var archive = new ZipArchive(File.Create(path), ZipArchiveMode.Create);
         AddEntry(archive, "[Content_Types].xml", """
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
               <Default Extension="xml" ContentType="application/xml"/>
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-            """ + headerOverride + footerOverride + stylesOverride + """
+            """ + headerOverride + footerOverride + stylesOverride + commentsOverride + """
             </Types>
             """);
         AddEntry(archive, "_rels/.rels", """
@@ -88,7 +91,7 @@ public static class EditCaseTests
             """);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-            """ + headerRelationship + footerRelationship + stylesRelationship + """
+            """ + headerRelationship + footerRelationship + stylesRelationship + commentsRelationship + """
             </Relationships>
             """);
         AddEntry(archive, "word/document.xml", """
@@ -124,6 +127,11 @@ public static class EditCaseTests
                 </w:styles>
                 """);
         }
+
+        if (comments)
+        {
+            AddEntry(archive, "word/comments.xml", commentsXml);
+        }
     }
 
     [Theory]
@@ -158,6 +166,7 @@ public static class EditCaseTests
         string headerXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("headerXml", out JsonElement headerValue) ? GetManifestText(headerValue) : string.Empty;
         string footerXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("footerXml", out JsonElement footerValue) ? GetManifestText(footerValue) : string.Empty;
         string stylesXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("stylesXml", out JsonElement stylesValue) ? GetManifestText(stylesValue) : string.Empty;
+        string commentsXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("commentsXml", out JsonElement commentsValue) ? GetManifestText(commentsValue) : string.Empty;
         Assert.True(!string.IsNullOrWhiteSpace(fixture) || !string.IsNullOrWhiteSpace(bodyXml), "Case " + manifestId + " must define input.bodyXml or input.fixture.");
         using TempDirectory temp = TempDirectory.Create();
         string inputPath = Path.Combine(temp.Path, "input.docx");
@@ -194,7 +203,7 @@ public static class EditCaseTests
         }
         else
         {
-            BuildCaseDocx(inputPath, bodyXml, headerXml, footerXml, stylesXml);
+            BuildCaseDocx(inputPath, bodyXml, headerXml, footerXml, stylesXml, commentsXml);
         }
 
         File.WriteAllText(patchPath, patchText + Environment.NewLine, Encoding.UTF8);
