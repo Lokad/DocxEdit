@@ -35,6 +35,36 @@ public static class PatchAliasTests
         Assert.Equal(new[] { "Alpha", "Final" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
         Assert.Equal("M.P0002", Assert.Single(result.Operations[1].AffectedTargets).Id.ToWireValue());
     }
+    [Fact]
+    public static void CommentTargetsInsertedParagraphViaAlias()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Drafted
+            as sec1
+            end
+
+            op add-comment
+            target @sec1
+            text Review drafted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha", "Drafted" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
+        output.Position = 0;
+        DocxCommentThreadSummary thread = Assert.Single(new DocxEditor().Changes(output).CommentSummary);
+        Assert.Equal("M.P0002", thread.AnchorTargetId);
+    }
+
 
     [Fact]
     public static void CommentBindsAliasForReply()
