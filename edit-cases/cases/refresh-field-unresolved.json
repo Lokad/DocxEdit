@@ -1,0 +1,30 @@
+{
+  "id": "refresh-field-unresolved",
+  "description": "Refuses field refresh when the referenced bookmark cannot be resolved.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF Missing \\h \">",
+      "        <w:r><w:t>Old cached result</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op refresh-field-result",
+    "target M.F0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4313"
+    ],
+    "diagnosticMessagesContain": [
+      "cannot resolve bookmark"
+    ]
+  }
+}
