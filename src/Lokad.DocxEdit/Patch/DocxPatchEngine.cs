@@ -11,8 +11,8 @@ internal static partial class DocxPatchEngine
 {
     private const string SettingsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
     private const string CommentsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml";
-    private const string CommentsExtendedContentType = "application/vnd.ms-word.commentsExtended+xml";
-    private const string CommentsIdsContentType = "application/vnd.ms-word.commentsIds+xml";
+    private const string CommentsExtendedContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml";
+    private const string CommentsIdsContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml";
 
     private static readonly IReadOnlyDictionary<XName, string> ProtectedTextEditElements = new Dictionary<XName, string>
     {

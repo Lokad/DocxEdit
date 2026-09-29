@@ -367,7 +367,7 @@ public static class PatchCommentTests
         output.Position = 0;
         Assert.Contains("relationships/commentsExtended", ReadEntry(output, "word/_rels/document.xml.rels"), StringComparison.Ordinal);
         output.Position = 0;
-        Assert.Contains("vnd.ms-word.commentsExtended+xml", ReadEntry(output, "[Content_Types].xml"), StringComparison.Ordinal);
+        Assert.Contains("vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml", ReadEntry(output, "[Content_Types].xml"), StringComparison.Ordinal);
     }
 
     [Fact]

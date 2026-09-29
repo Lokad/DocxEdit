@@ -33,6 +33,7 @@
 - Zero-match selector diagnostics now carry match count 0 with the nearby candidate IDs.
 - Unknown `dump`/`context` target IDs now suggest the nearest known ID on near misses.
 - Fixed contradictory track-change notes for comment annotation operations: they stay permitted under Require instead of claiming Require fails with E6001; refreshed the frozen support table.
+- Fixed comment extended/ID part content types to the Word-accepted Open XML forms so resolved and replied comment documents open in Word.
 - Fixed unknown-style errors to suggest the nearest style ID or name.
 - Fixed failed apply to preserve any pre-existing destination file byte-for-byte.
 - Made patch parsing tolerate CRLF line endings and a leading UTF-8 BOM.
