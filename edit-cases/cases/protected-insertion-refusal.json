@@ -1,0 +1,28 @@
+{
+  "id": "protected-insertion-refusal",
+  "description": "Refuses a direct edit inside existing tracked-insertion markup.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Before </w:t></w:r><w:ins w:id=\"9\" w:author=\"Existing\" w:date=\"2026-06-01T12:00:00Z\"><w:r><w:t>Inserted</w:t></w:r></w:ins><w:r><w:t> After</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Inserted",
+    "with Edited",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "tracked-insertion"
+    ]
+  }
+}
