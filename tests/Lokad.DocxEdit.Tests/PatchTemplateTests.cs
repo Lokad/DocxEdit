@@ -267,6 +267,58 @@ public static class PatchTemplateTests
     }
 
     [Fact]
+    public static void SectionTemplateStarterPassesCheck()
+    {
+        const string body = """
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """;
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithBody(body))
+        {
+            template = GetTemplate(input, "M.S0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-section-columns", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+    [Fact]
+    public static void TrackedRevisionSectionTemplateHasNoActiveBlock()
+    {
+        using MemoryStream input = CreateDocxWithExistingSectionPropertyRevision();
+        DocxTemplateResult template = GetTemplate(input, "M.S0001", TrackChangesMode.Require);
+        Assert.Equal(0, CountActiveOps(template.Template));
+        Assert.Contains("No check-clean starter", template.Template, StringComparison.Ordinal);
+        Assert.Contains("# op set-section-columns", template.Template, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void HyperlinkTemplateStarterPassesCheck()
+    {
+        const string body = """
+                    <w:p>
+                      <w:bookmarkStart w:id="1" w:name="Destination"/>
+                      <w:bookmarkEnd w:id="1"/>
+                      <w:hyperlink w:anchor="Destination"><w:r><w:t>Old Link</w:t></w:r></w:hyperlink>
+                    </w:p>
+            """;
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithBody(body))
+        {
+            template = GetTemplate(input, "M.L0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-hyperlink-text", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
     public static void UnknownTargetTemplateFailsWithE1201()
     {
         using MemoryStream input = CreateDocx("Alpha");

@@ -50,6 +50,8 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.MergeGroup => BuildCellTemplate(storyDocument, parsed, capabilities, mode, isMergeGroup: true),
             DocxTargetKind.Table => BuildTableTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Row => BuildRowTemplate(storyDocument, parsed, capabilities, mode),
+            DocxTargetKind.Section => BuildSectionTemplate(storyDocument, parsed, capabilities, mode),
+            DocxTargetKind.Hyperlink => BuildHyperlinkTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Bookmark => BuildBookmarkTemplate(storyDocument, parsed, capabilities, mode),
             _ => null,
         };
@@ -552,6 +554,125 @@ internal static partial class DocxPatchEngine
             block.AppendLine("op delete-row");
             block.AppendLine("target " + target);
             AppendHeredoc(block, "expect-contains", current);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
+    private static string? BuildSectionTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode)
+    {
+        if (parsed.Story != (char)77 || parsed.Primary < 1)
+        {
+            return null;
+        }
+        XElement? sectionProperties = null;
+        int sectionIndex = 0;
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(storyDocument.Document.Root?.Element(OoxmlNs.W + "body") ?? storyDocument.Document.Root!))
+        {
+            XElement block = entry.Block;
+            if (block.Name == OoxmlNs.W + "p")
+            {
+                XElement? paragraphSectPr = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
+                if (paragraphSectPr is not null)
+                {
+                    sectionIndex++;
+                    if (sectionIndex == parsed.Primary)
+                    {
+                        sectionProperties = paragraphSectPr;
+                        break;
+                    }
+                }
+            }
+            else if (block.Name == OoxmlNs.W + "sectPr")
+            {
+                sectionIndex++;
+                if (sectionIndex == parsed.Primary)
+                {
+                    sectionProperties = block;
+                    break;
+                }
+            }
+        }
+        if (sectionProperties is null)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        int currentColumns = ReadSectionColumnCount(sectionProperties);
+        string currentOrientation = ReadSectionOrientation(sectionProperties).ToWireValue();
+        bool hasTrackedRevision = sectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any();
+        string columnsSupport = SupportOf(capabilities, "set-section-columns");
+        bool activeColumns = !hasTrackedRevision && string.Equals(columnsSupport, "conditional", StringComparison.Ordinal);
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeColumns);
+        if (activeColumns)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op set-section-columns");
+                block.AppendLine("target " + target);
+                block.AppendLine("count " + currentColumns);
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "set-section-columns", columnsSupport, activeColumns, block =>
+        {
+            block.AppendLine("op set-section-columns");
+            block.AppendLine("target " + target);
+            block.AppendLine("count " + currentColumns);
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-section-orientation", SupportOf(capabilities, "set-section-orientation"), active: false, block =>
+        {
+            block.AppendLine("op set-section-orientation");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "orientation", currentOrientation);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
+    private static string? BuildHyperlinkTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode)
+    {
+        XElement? hyperlink = storyDocument.Document.Descendants(OoxmlNs.W + "hyperlink").ElementAtOrDefault(parsed.Primary - 1);
+        if (hyperlink is null || parsed.Primary < 1)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        string current = ReadVisibleText(hyperlink);
+        string textSupport = SupportOf(capabilities, "set-hyperlink-text");
+        bool activeText = !string.Equals(textSupport, "unsupported", StringComparison.Ordinal) && current.Length != 0;
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeText);
+        if (activeText)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op set-hyperlink-text");
+                block.AppendLine("target " + target);
+                AppendHeredoc(block, "expect-text", current);
+                AppendHeredoc(block, "text", current);
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "set-hyperlink-text", textSupport, activeText, block =>
+        {
+            block.AppendLine("op set-hyperlink-text");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "expect-text", current);
+            AppendHeredoc(block, "text", "New link text");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-hyperlink-target", SupportOf(capabilities, "set-hyperlink-target"), active: false, block =>
+        {
+            block.AppendLine("op set-hyperlink-target");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "uri", "https://example.test/new");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "remove-hyperlink", SupportOf(capabilities, "remove-hyperlink"), active: false, block =>
+        {
+            block.AppendLine("op remove-hyperlink");
+            block.AppendLine("target " + target);
             block.AppendLine("end");
         });
         return builder.ToString();
