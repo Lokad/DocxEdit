@@ -1,0 +1,38 @@
+{
+  "id": "insert-row-after",
+  "description": "Inserts a table row after the target row and verifies cell order.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr>",
+      "        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>",
+      "        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "      <w:tr>",
+      "        <w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc>",
+      "        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-row-after",
+    "target M.T0001.R01",
+    "cell East",
+    "cell West",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "North",
+      "Revenue",
+      "East",
+      "West",
+      "South",
+      "Profit"
+    ]
+  }
+}

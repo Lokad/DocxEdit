@@ -1,0 +1,23 @@
+{
+  "id": "replace-paragraph",
+  "description": "Replaces whole paragraph text and verifies readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-paragraph",
+    "target M.P0001",
+    "text Omega",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Omega"
+    ]
+  }
+}

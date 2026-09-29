@@ -1,0 +1,24 @@
+{
+  "id": "insert-before",
+  "description": "Inserts a paragraph before the anchor and verifies file order.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-before",
+    "target M.P0001",
+    "text Before",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Before",
+      "Alpha"
+    ]
+  }
+}
