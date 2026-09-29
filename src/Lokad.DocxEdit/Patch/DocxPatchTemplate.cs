@@ -48,6 +48,8 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.ContentControl => BuildContentControlTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Cell => BuildCellTemplate(storyDocument, parsed, capabilities, mode, isMergeGroup: false),
             DocxTargetKind.MergeGroup => BuildCellTemplate(storyDocument, parsed, capabilities, mode, isMergeGroup: true),
+            DocxTargetKind.Table => BuildTableTemplate(storyDocument, parsed, capabilities, mode),
+            DocxTargetKind.Row => BuildRowTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Bookmark => BuildBookmarkTemplate(storyDocument, parsed, capabilities, mode),
             _ => null,
         };
@@ -414,6 +416,142 @@ internal static partial class DocxPatchEngine
         {
             block.AppendLine("op delete-bookmark");
             block.AppendLine("target " + target);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
+    private static string? BuildTableTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode)
+    {
+        XElement? root = storyDocument.Document.Root;
+        XElement container = root?.Element(OoxmlNs.W + "body") ?? root!;
+        XElement? table = DocxStoryBlocks.FindTableByPhysicalOrdinal(container, parsed.Primary);
+        if (table is null)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        string? caption = ReadTableTextProperty(table, "tblCaption");
+        string? description = ReadTableTextProperty(table, "tblDescription");
+        string? style = ReadTableStyleId(table);
+        string current = ReadVisibleText(table);
+        string metadataSupport = SupportOf(capabilities, "set-table-metadata");
+        bool activeMetadata = string.Equals(metadataSupport, "supported", StringComparison.Ordinal) && (caption is not null || description is not null);
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeMetadata);
+        if (activeMetadata)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op set-table-metadata");
+                block.AppendLine("target " + target);
+                if (caption is not null)
+                {
+                    AppendHeredoc(block, "caption", caption);
+                }
+                if (description is not null)
+                {
+                    AppendHeredoc(block, "description", description);
+                }
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "set-table-metadata", metadataSupport, activeMetadata, block =>
+        {
+            block.AppendLine("op set-table-metadata");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "caption", caption ?? "Table caption");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "set-table-style", SupportOf(capabilities, "set-table-style"), active: false, block =>
+        {
+            block.AppendLine("op set-table-style");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "style", style ?? "TableGrid");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "append-row", SupportOf(capabilities, "append-row"), active: false, block =>
+        {
+            block.AppendLine("op append-row");
+            block.AppendLine("target " + target);
+            XElement? templateRow = table.Elements(OoxmlNs.W + "tr").LastOrDefault();
+            int cellCount = templateRow is null ? 0 : templateRow.Elements(OoxmlNs.W + "tc").Count();
+            for (int index = 0; index < cellCount; index++)
+            {
+                AppendHeredoc(block, "cell", "New cell");
+            }
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "insert-after", SupportOf(capabilities, "insert-after"), active: false, block =>
+        {
+            block.AppendLine("op insert-after");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "text", "Inserted paragraph");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "delete-block", SupportOf(capabilities, "delete-block"), active: false, block =>
+        {
+            block.AppendLine("op delete-block");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "expect-text", current);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
+    private static string? BuildRowTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode)
+    {
+        XElement? root = storyDocument.Document.Root;
+        XElement container = root?.Element(OoxmlNs.W + "body") ?? root!;
+        XElement? table = DocxStoryBlocks.FindTableByPhysicalOrdinal(container, parsed.Primary);
+        XElement? row = table is null || parsed.Secondary < 1
+            ? null
+            : table.Elements(OoxmlNs.W + "tr").ElementAtOrDefault(parsed.Secondary - 1);
+        if (table is null || row is null)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        bool currentHeader = ReadTableRowHeader(row);
+        string current = ReadVisibleText(row);
+        int cellCount = row.Elements(OoxmlNs.W + "tc").Count();
+        string headerSupport = SupportOf(capabilities, "set-row-header");
+        bool activeHeader = string.Equals(headerSupport, "supported", StringComparison.Ordinal);
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeHeader);
+        if (activeHeader)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op set-row-header");
+                block.AppendLine("target " + target);
+                block.AppendLine("header " + (currentHeader ? "true" : "false"));
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "insert-row-before", SupportOf(capabilities, "insert-row-before"), active: false, block =>
+        {
+            block.AppendLine("op insert-row-before");
+            block.AppendLine("target " + target);
+            for (int index = 0; index < cellCount; index++)
+            {
+                AppendHeredoc(block, "cell", "New cell");
+            }
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "insert-row-after", SupportOf(capabilities, "insert-row-after"), active: false, block =>
+        {
+            block.AppendLine("op insert-row-after");
+            block.AppendLine("target " + target);
+            for (int index = 0; index < cellCount; index++)
+            {
+                AppendHeredoc(block, "cell", "New cell");
+            }
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "delete-row", SupportOf(capabilities, "delete-row"), active: false, block =>
+        {
+            block.AppendLine("op delete-row");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "expect-contains", current);
             block.AppendLine("end");
         });
         return builder.ToString();

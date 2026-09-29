@@ -223,6 +223,50 @@ public static class PatchTemplateTests
     }
 
     [Fact]
+    public static void CaptionedTableTemplateStarterPassesCheck()
+    {
+        const string body = """
+                    <w:tbl>
+                      <w:tblPr><w:tblCaption w:val="Ledger"/></w:tblPr>
+                      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """;
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithBody(body))
+        {
+            template = GetTemplate(input, "M.T0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-table-metadata", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+    [Fact]
+    public static void PlainTableTemplateHasNoActiveBlock()
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        DocxTemplateResult template = GetTemplate(input, "M.T0001", TrackChangesMode.Off);
+        Assert.Equal(0, CountActiveOps(template.Template));
+        Assert.Contains("No check-clean starter", template.Template, StringComparison.Ordinal);
+        Assert.Contains("# op append-row", template.Template, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void RowTemplateStarterPassesCheck()
+    {
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithSimpleTwoByTwoTable())
+        {
+            template = GetTemplate(input, "M.T0001.R01", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-row-header", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithSimpleTwoByTwoTable();
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
     public static void UnknownTargetTemplateFailsWithE1201()
     {
         using MemoryStream input = CreateDocx("Alpha");
