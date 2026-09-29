@@ -18,7 +18,7 @@ internal static partial class DocxPatchEngine
         IReadOnlyDictionary<string, int>? bookmarkCountsBefore,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after")
+        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after" or "insert-hyperlink-after")
         {
             return CreatedInsertParagraphId(operation, package, cancellationToken);
         }

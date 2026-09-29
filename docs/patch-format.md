@@ -347,7 +347,7 @@ formulas, mail merge data, date/time state, conditionals, or external state.
 | --- | --- | --- | --- |
 | `set-hyperlink-target` | `target` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history` | Updates external URI or internal bookmark anchor |
 | `set-hyperlink-text` | `target`, `text` | `expect-text` | Updates visible hyperlink text |
-| `insert-hyperlink-after` | `target`, `text` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history` | Inserts a new hyperlink paragraph after the target |
+| `insert-hyperlink-after` | `target`, `text` plus `uri` or `anchor` | `tooltip`, `target-frame`, `history`, `as` | Inserts a new hyperlink paragraph after the target |
 | `remove-hyperlink` | `target` | | Removes hyperlink markup and preserves display runs |
 
 External `uri` values must be absolute `http`, `https`, or `mailto` URIs.

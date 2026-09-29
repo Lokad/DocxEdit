@@ -462,4 +462,32 @@ public static class PatchAliasTests
         Assert.False(result.Operations[1].Success);
         Assert.Contains(result.Operations[1].Diagnostics, static d => d.Code == "E1201");
     }
+    [Fact]
+    public static void HyperlinkInsertBindsAliasForLaterEdit()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-hyperlink-after
+            target M.P0001
+            text Click here
+            uri https://example.test/new
+            as hl1
+            end
+
+            op insert-after
+            target @hl1
+            text After link
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002" }, result.Operations[0].CreatedTargetIds);
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha", "Click here", "After link" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
+    }
 }

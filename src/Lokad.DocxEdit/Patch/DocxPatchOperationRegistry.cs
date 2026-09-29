@@ -837,6 +837,7 @@ internal static partial class DocxPatchEngine
             "insert-hyperlink-after",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("uri", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("anchor", FieldValueKind.Text, Repeatable: false, Required: false),

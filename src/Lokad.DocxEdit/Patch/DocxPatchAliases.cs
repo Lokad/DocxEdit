@@ -355,7 +355,7 @@ internal static partial class DocxPatchEngine
     {
         Dictionary<string, XDocument> touched = new(StringComparer.OrdinalIgnoreCase);
 
-        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after")
+        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after" or "insert-hyperlink-after")
         {
             BlockTarget? anchor = ResolveInsertAnchor(operation, package, cancellationToken);
             if (anchor is null)
