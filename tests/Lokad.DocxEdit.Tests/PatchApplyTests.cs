@@ -1424,6 +1424,32 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void ApplySetCellWithTabTextWritesTabNode()
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            text "A\tB"
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(1, CountOccurrences(xml, "<w:tab"));
+        Assert.DoesNotContain("A\tB", xml, StringComparison.Ordinal);
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Contains(table.Cells, static cell => cell.Text == "A\tB");
+    }
+
+    [Fact]
     public static void ApplyReplaceTextWithoutPreserveRunsWritesBreakNodes()
     {
         using MemoryStream input = CreateDocx("Alpha Beta");
