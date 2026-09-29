@@ -42,6 +42,20 @@ public static class PatchParserTests
     }
 
     [Fact]
+    public static void ParsePatchRejectsEmptyPatch()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader(string.Empty));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics);
+        Assert.Equal("E2001", diagnostic.Code);
+        Assert.Equal(1, diagnostic.Line);
+        Assert.Equal(1, diagnostic.Column);
+    }
+
+    [Fact]
     public static void ParsePatchRejectsUnterminatedHeredoc()
     {
         var editor = new DocxEditor();
