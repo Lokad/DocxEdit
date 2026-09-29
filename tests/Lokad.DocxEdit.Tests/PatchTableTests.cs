@@ -1720,4 +1720,25 @@ public static class PatchTableTests
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, static d => d.Code == "E4203");
     }
+    [Fact]
+    public static void CheckSetCellShadingRejectsFillWithClear()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Shaded</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+            op set-cell-shading
+            target M.T0001.R01.C01
+            fill FF0000
+            clear true
+            end
+            """);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
+    }
+
 }
