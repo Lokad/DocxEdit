@@ -1,0 +1,33 @@
+{
+  "id": "negative-tracked-image-paragraph",
+  "description": "Rejects tracked deletion of a drawing paragraph under require with E6002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:drawing/></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "protected OOXML boundary"
+    ]
+  }
+}
