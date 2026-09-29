@@ -1,0 +1,29 @@
+{
+  "id": "delete-incomplete-bookmark",
+  "description": "Refuses bookmark deletion when the end marker is missing.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"5\" w:name=\"Orphan\"/>",
+      "      <w:r><w:t>text</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-bookmark",
+    "target M.B0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4311"
+    ],
+    "diagnosticMessagesContain": [
+      "incomplete"
+    ]
+  }
+}
