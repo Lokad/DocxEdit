@@ -1,0 +1,30 @@
+{
+  "id": "unexpected-line",
+  "description": "Refuses a stray line outside operation blocks with E2005.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "hello",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Omega",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2005"
+    ],
+    "diagnosticMessagesContain": [
+      "Unexpected patch line"
+    ]
+  }
+}
