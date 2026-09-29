@@ -135,6 +135,28 @@ public static class ReadInspectTests
     }
 
     [Fact]
+    public static void DumpReturnsBookmarkLine()
+    {
+        using MemoryStream stream = CreateDocxWithSingleBookmark();
+        var editor = new DocxEditor();
+        DocxDumpResult bookmark = editor.Dump(stream, "M.B0001");
+        Assert.True(bookmark.Success);
+        Assert.Contains("M.B0001 bookmark", bookmark.Text, StringComparison.Ordinal);
+        Assert.Contains("name=", bookmark.Text, StringComparison.Ordinal);
+        Assert.Contains("start=M.P0001", bookmark.Text, StringComparison.Ordinal);
+        Assert.Contains("complete=True", bookmark.Text, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void DumpUnknownBookmarkFails()
+    {
+        using MemoryStream stream = CreateDocxWithSingleBookmark();
+        var editor = new DocxEditor();
+        DocxDumpResult missing = editor.Dump(stream, "M.B0009");
+        Assert.False(missing.Success);
+        Assert.Contains(missing.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
+    [Fact]
     public static void DumpCanIncludeParagraphRuns()
     {
         using MemoryStream stream = CreateDocx();

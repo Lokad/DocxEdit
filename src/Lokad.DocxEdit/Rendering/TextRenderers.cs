@@ -29,25 +29,7 @@ internal static class TextRenderers
 
         foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
         {
-            string ooxmlId = bookmark.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(bookmark.OoxmlId)}";
-            string start = bookmark.StartTargetId is { } bookmarkStart ? $" start={bookmarkStart.ToWireValue()}" : " start=unknown";
-            string end = bookmark.EndTargetId is { } bookmarkEnd ? $" end={bookmarkEnd.ToWireValue()}" : " end=unknown";
-            string duplicateName = bookmark.IsNameDuplicate ? $" name-duplicate=true duplicate-name-bookmark-ids=\"{XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds))}\"" : string.Empty;
-            builder.Append(bookmark.Id.ToWireValue())
-                .Append(" bookmark name=\"")
-                .Append(XmlValues.EscapeText(bookmark.Name))
-                .Append('"')
-                .Append(ooxmlId)
-                .Append(" story=\"")
-                .Append(XmlValues.EscapeText(bookmark.Story))
-                .Append("\" part=")
-                .Append(bookmark.PartName)
-                .Append(start)
-                .Append(end)
-                .Append(" complete=")
-                .Append(bookmark.IsComplete)
-                .Append(duplicateName)
-                .AppendLine();
+            builder.AppendLine(RenderBookmarkLine(bookmark));
         }
 
         foreach (DocxContentControlInfo control in model.ContentControls)
@@ -508,6 +490,30 @@ internal static class TextRenderers
             : $"{match.TargetId}{list} text=\"{XmlValues.EscapeText(match.Text)}\"";
     }
 
+    private static string RenderBookmarkLine(DocxBookmarkInfo bookmark)
+    {
+        string ooxmlId = bookmark.OoxmlId is null ? string.Empty : " ooxml-id=" + XmlValues.EscapeText(bookmark.OoxmlId);
+        string start = bookmark.StartTargetId is { } lineStart ? " start=" + lineStart.ToWireValue() : " start=unknown";
+        string end = bookmark.EndTargetId is { } lineEnd ? " end=" + lineEnd.ToWireValue() : " end=unknown";
+        string duplicateName = bookmark.IsNameDuplicate ? " name-duplicate=true duplicate-name-bookmark-ids=\"" + XmlValues.EscapeText(string.Join(",", bookmark.DuplicateNameBookmarkIds)) + "\"" : string.Empty;
+        var builder = new StringBuilder();
+        builder.Append(bookmark.Id.ToWireValue())
+            .Append(" bookmark name=\"")
+            .Append(XmlValues.EscapeText(bookmark.Name))
+            .Append("\"")
+            .Append(ooxmlId)
+            .Append(" story=\"")
+            .Append(XmlValues.EscapeText(bookmark.Story))
+            .Append("\" part=")
+            .Append(bookmark.PartName)
+            .Append(start)
+            .Append(end)
+            .Append(" complete=")
+            .Append(bookmark.IsComplete)
+            .Append(duplicateName);
+        return builder.ToString();
+    }
+
     public static string? Dump(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId, bool includeRuns, int maxText)
     {
         DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id.ToWireValue(), targetId, StringComparison.Ordinal));
@@ -567,6 +573,15 @@ internal static class TextRenderers
         {
             var builder = new StringBuilder();
             builder.Append(Truncate(cell.Text, maxText));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
+        DocxBookmarkInfo? bookmark = model.Bookmarks.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (bookmark is not null)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(RenderBookmarkLine(bookmark));
             AppendTargetChanges(builder, changes, targetId);
             return builder.ToString();
         }
