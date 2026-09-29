@@ -28,6 +28,7 @@
 - Added executable minimal examples (plus guarded variants where guards exist) for every supported patch operation in built-in help.
 - Added bookmark targets to `dump` and `context`, including the anchor-paragraph neighborhood.
 - Added row targets to `dump` with member cells, matching merge-group dumps.
+- Added hyperlink, field, and content-control targets to `dump`, reusing the read metadata lines.
 - Fixed unknown-style errors to suggest the nearest style ID or name.
 - Fixed failed apply to preserve any pre-existing destination file byte-for-byte.
 - Made patch parsing tolerate CRLF line endings and a leading UTF-8 BOM.

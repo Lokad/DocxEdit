@@ -34,160 +34,17 @@ internal static class TextRenderers
 
         foreach (DocxContentControlInfo control in model.ContentControls)
         {
-            string target = control.TargetId is { } readControlTarget ? $" target={readControlTarget.ToWireValue()}" : " target=unknown";
-            string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(control.OoxmlId)}";
-            string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
-            string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
-            string placeholder = control.PlaceholderDocPart is null ? string.Empty : $" placeholder-doc-part=\"{XmlValues.EscapeText(control.PlaceholderDocPart)}\"";
-            string showingPlaceholder = control.IsShowingPlaceholderText ? " showing-placeholder=true" : string.Empty;
-            string dataBindingXPath = control.DataBindingXPath is null ? string.Empty : $" data-binding-xpath=\"{XmlValues.EscapeText(control.DataBindingXPath)}\"";
-            string dataBindingStore = control.DataBindingStoreItemId is null ? string.Empty : $" data-binding-store-item-id=\"{XmlValues.EscapeText(control.DataBindingStoreItemId)}\"";
-            string dataBindingPrefixes = control.DataBindingPrefixMappings is null ? string.Empty : $" data-binding-prefixes=\"{XmlValues.EscapeText(control.DataBindingPrefixMappings)}\"";
-            string repeatingSectionTitle = control.RepeatingSectionTitle is null ? string.Empty : $" repeating-section-title=\"{XmlValues.EscapeText(control.RepeatingSectionTitle)}\"";
-            string repeatingSectionItems = control.RepeatingSectionItemCount is null ? string.Empty : $" repeating-section-items={control.RepeatingSectionItemCount.Value}";
-            string parentControl = control.ParentContentControlId is { } readParentControlId ? $" parent-control={readParentControlId.ToWireValue()}" : string.Empty;
-            string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
-            string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
-            string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
-            string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
-            string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
-            string locked = control.Lock is null ? string.Empty : $" lock={XmlValues.EscapeText(control.Lock)}";
-            string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
-            string checkedSymbol = control.CheckedSymbol is null ? string.Empty : $" checked-symbol=\"{XmlValues.EscapeText(control.CheckedSymbol)}\"";
-            string uncheckedSymbol = control.UncheckedSymbol is null ? string.Empty : $" unchecked-symbol=\"{XmlValues.EscapeText(control.UncheckedSymbol)}\"";
-            string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
-            string dateFormat = control.DateFormat is null ? string.Empty : $" date-format=\"{XmlValues.EscapeText(control.DateFormat)}\"";
-            string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={XmlValues.EscapeText(control.DateLanguage)}";
-            string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={XmlValues.EscapeText(control.DateCalendar)}";
-            string dateValue = control.DateValue is null ? string.Empty : $" date-value=\"{XmlValues.EscapeText(control.DateValue)}\"";
-            builder.Append(control.Id.ToWireValue())
-                .Append(" content-control kind=")
-                .Append(XmlValues.EscapeText(control.Kind))
-                .Append(" story=\"")
-                .Append(XmlValues.EscapeText(control.Story))
-                .Append("\" part=")
-                .Append(control.PartName)
-                .Append(target)
-                .Append(ooxmlId)
-                .Append(tag)
-                .Append(alias)
-                .Append(placeholder)
-                .Append(showingPlaceholder)
-                .Append(dataBindingXPath)
-                .Append(dataBindingStore)
-                .Append(dataBindingPrefixes)
-                .Append(repeatingSectionTitle)
-                .Append(repeatingSectionItems)
-                .Append(parentControl)
-                .Append(childControls)
-                .Append(safeEdit)
-                .Append(safeEditReason)
-                .Append(tagDuplicate)
-                .Append(aliasDuplicate)
-                .Append(locked)
-                .Append(checkedValue)
-                .Append(checkedSymbol)
-                .Append(uncheckedSymbol)
-                .Append(listItems)
-                .Append(dateFormat)
-                .Append(dateLanguage)
-                .Append(dateCalendar)
-                .Append(dateValue)
-                .Append(" text-length=")
-                .Append(control.TextLength)
-                .AppendLine();
+            builder.AppendLine(RenderContentControlLine(control));
         }
 
         foreach (DocxFieldInfo field in model.Fields)
         {
-            string target = field.TargetId is { } readFieldTarget ? $" target={readFieldTarget.ToWireValue()}" : " target=unknown";
-            string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
-            string arguments = field.Arguments.Count == 0 ? string.Empty : $" arguments=\"{XmlValues.EscapeText(string.Join(",", field.Arguments))}\"";
-            string switches = field.Switches.Count == 0 ? string.Empty : $" switches=\"{XmlValues.EscapeText(string.Join(",", field.Switches))}\"";
-            string bookmarkDependencies = field.BookmarkDependencies.Count == 0 ? string.Empty : $" bookmark-dependencies=\"{XmlValues.EscapeText(string.Join(",", field.BookmarkDependencies))}\"";
-            string hyperlinkDependencies = field.HyperlinkDependencies.Count == 0 ? string.Empty : $" hyperlink-dependencies=\"{XmlValues.EscapeText(string.Join(",", field.HyperlinkDependencies))}\"";
-            string refreshReason = field.RefreshReason is null ? string.Empty : $" refresh-reason=\"{XmlValues.EscapeText(field.RefreshReason)}\"";
-            string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
-            string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
-            string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
-            builder.Append(field.Id.ToWireValue())
-                .Append(" field kind=")
-                .Append(XmlValues.EscapeText(field.Kind))
-                .Append(fieldType)
-                .Append(" story=\"")
-                .Append(XmlValues.EscapeText(field.Story))
-                .Append("\" part=")
-                .Append(field.PartName)
-                .Append(target)
-                .Append(" code=\"")
-                .Append(XmlValues.EscapeText(field.Code))
-                .Append("\" cached-result=\"")
-                .Append(XmlValues.EscapeText(field.CachedResultText))
-                .Append("\" result-text-length=")
-                .Append(field.ResultTextLength)
-                .Append(" nesting-depth=")
-                .Append(field.NestingDepth)
-                .Append(arguments)
-                .Append(switches)
-                .Append(bookmarkDependencies)
-                .Append(hyperlinkDependencies)
-                .Append(" refresh-policy=")
-                .Append(field.RefreshPolicy.ToWireValue())
-                .Append(" deterministic-refresh=")
-                .Append(field.CanRefreshDeterministically.ToString().ToLowerInvariant())
-                .Append(refreshReason)
-                .Append(safeEdit)
-                .Append(dirty)
-                .Append(locked)
-                .Append(" complete=")
-                .Append(field.IsComplete)
-                .AppendLine();
+            builder.AppendLine(RenderFieldLine(field));
         }
 
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
-            string target = hyperlink.TargetId is { } readHyperlinkTarget ? $" target={readHyperlinkTarget.ToWireValue()}" : " target=unknown";
-            string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(hyperlink.RelationshipId)}";
-            string relationshipPart = hyperlink.RelationshipPartName is null ? string.Empty : $" relationship-part={hyperlink.RelationshipPartName}";
-            string relationshipTargetMode = hyperlink.RelationshipTargetMode is null ? string.Empty : $" target-mode={XmlValues.EscapeText(hyperlink.RelationshipTargetMode)}";
-            string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{XmlValues.EscapeText(hyperlink.Uri)}\"";
-            string uriScheme = hyperlink.UriScheme is null ? string.Empty : $" uri-scheme={XmlValues.EscapeText(hyperlink.UriScheme)}";
-            string uriValid = hyperlink.IsUriValid is null ? string.Empty : $" uri-valid={hyperlink.IsUriValid.Value.ToString().ToLowerInvariant()}";
-            string uriReason = hyperlink.UriValidationReason is null ? string.Empty : $" uri-reason={XmlValues.EscapeText(hyperlink.UriValidationReason)}";
-            string anchor = hyperlink.Anchor is null ? string.Empty : $" anchor=\"{XmlValues.EscapeText(hyperlink.Anchor)}\"";
-            string anchorMissing = hyperlink.IsAnchorMissing is null ? string.Empty : $" anchor-missing={hyperlink.IsAnchorMissing.Value.ToString().ToLowerInvariant()}";
-            string anchorDuplicate = hyperlink.IsAnchorDuplicate is null ? string.Empty : $" anchor-duplicate={hyperlink.IsAnchorDuplicate.Value.ToString().ToLowerInvariant()}";
-            string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{XmlValues.EscapeText(hyperlink.Tooltip)}\"";
-            string targetFrame = hyperlink.TargetFrame is null ? string.Empty : $" target-frame=\"{XmlValues.EscapeText(hyperlink.TargetFrame)}\"";
-            string history = hyperlink.History is null ? string.Empty : $" history={hyperlink.History.Value.ToString().ToLowerInvariant()}";
-            string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
-            builder.Append(hyperlink.Id.ToWireValue())
-                .Append(" hyperlink story=\"")
-                .Append(XmlValues.EscapeText(hyperlink.Story))
-                .Append("\" part=")
-                .Append(hyperlink.PartName)
-                .Append(target)
-                .Append(relationshipId)
-                .Append(relationshipPart)
-                .Append(relationshipTargetMode)
-                .Append(uri)
-                .Append(uriScheme)
-                .Append(uriValid)
-                .Append(uriReason)
-                .Append(anchor)
-                .Append(anchorMissing)
-                .Append(anchorDuplicate)
-                .Append(tooltip)
-                .Append(targetFrame)
-                .Append(history)
-                .Append(targetPart)
-                .Append(" external=")
-                .Append(hyperlink.IsExternal)
-                .Append(" broken=")
-                .Append(hyperlink.IsBroken)
-                .Append(" display-text-length=")
-                .Append(hyperlink.DisplayTextLength)
-                .AppendLine();
+            builder.AppendLine(RenderHyperlinkLine(hyperlink));
         }
 
         foreach (DocxTableInfo table in model.Tables)
@@ -521,6 +378,167 @@ internal static class TextRenderers
         return builder.ToString();
     }
 
+    private static string RenderContentControlLine(DocxContentControlInfo control)
+    {
+        var line = new StringBuilder();
+        string target = control.TargetId is { } readControlTarget ? $" target={readControlTarget.ToWireValue()}" : " target=unknown";
+        string ooxmlId = control.OoxmlId is null ? string.Empty : $" ooxml-id={XmlValues.EscapeText(control.OoxmlId)}";
+        string tag = control.Tag is null ? string.Empty : $" tag=\"{XmlValues.EscapeText(control.Tag)}\"";
+        string alias = control.Alias is null ? string.Empty : $" alias=\"{XmlValues.EscapeText(control.Alias)}\"";
+        string placeholder = control.PlaceholderDocPart is null ? string.Empty : $" placeholder-doc-part=\"{XmlValues.EscapeText(control.PlaceholderDocPart)}\"";
+        string showingPlaceholder = control.IsShowingPlaceholderText ? " showing-placeholder=true" : string.Empty;
+        string dataBindingXPath = control.DataBindingXPath is null ? string.Empty : $" data-binding-xpath=\"{XmlValues.EscapeText(control.DataBindingXPath)}\"";
+        string dataBindingStore = control.DataBindingStoreItemId is null ? string.Empty : $" data-binding-store-item-id=\"{XmlValues.EscapeText(control.DataBindingStoreItemId)}\"";
+        string dataBindingPrefixes = control.DataBindingPrefixMappings is null ? string.Empty : $" data-binding-prefixes=\"{XmlValues.EscapeText(control.DataBindingPrefixMappings)}\"";
+        string repeatingSectionTitle = control.RepeatingSectionTitle is null ? string.Empty : $" repeating-section-title=\"{XmlValues.EscapeText(control.RepeatingSectionTitle)}\"";
+        string repeatingSectionItems = control.RepeatingSectionItemCount is null ? string.Empty : $" repeating-section-items={control.RepeatingSectionItemCount.Value}";
+        string parentControl = control.ParentContentControlId is { } readParentControlId ? $" parent-control={readParentControlId.ToWireValue()}" : string.Empty;
+        string childControls = control.ChildContentControlIds.Count == 0 ? string.Empty : $" child-controls=\"{XmlValues.EscapeText(string.Join(",", control.ChildContentControlIds))}\"";
+        string safeEdit = $" safe-edit={XmlValues.EscapeText(control.SafeEditStatus)}";
+        string safeEditReason = control.SafeEditReason is null ? string.Empty : $" safe-edit-reason=\"{XmlValues.EscapeText(control.SafeEditReason)}\"";
+        string tagDuplicate = control.IsTagDuplicate ? $" tag-duplicate=true duplicate-tag-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateTagControlIds))}\"" : string.Empty;
+        string aliasDuplicate = control.IsAliasDuplicate ? $" alias-duplicate=true duplicate-alias-control-ids=\"{XmlValues.EscapeText(string.Join(",", control.DuplicateAliasControlIds))}\"" : string.Empty;
+        string locked = control.Lock is null ? string.Empty : $" lock={XmlValues.EscapeText(control.Lock)}";
+        string checkedValue = control.Checked is null ? string.Empty : $" checked={control.Checked.Value.ToString().ToLowerInvariant()}";
+        string checkedSymbol = control.CheckedSymbol is null ? string.Empty : $" checked-symbol=\"{XmlValues.EscapeText(control.CheckedSymbol)}\"";
+        string uncheckedSymbol = control.UncheckedSymbol is null ? string.Empty : $" unchecked-symbol=\"{XmlValues.EscapeText(control.UncheckedSymbol)}\"";
+        string listItems = control.ListItems.Count == 0 ? string.Empty : $" list-items={control.ListItems.Count}";
+        string dateFormat = control.DateFormat is null ? string.Empty : $" date-format=\"{XmlValues.EscapeText(control.DateFormat)}\"";
+        string dateLanguage = control.DateLanguage is null ? string.Empty : $" date-language={XmlValues.EscapeText(control.DateLanguage)}";
+        string dateCalendar = control.DateCalendar is null ? string.Empty : $" date-calendar={XmlValues.EscapeText(control.DateCalendar)}";
+        string dateValue = control.DateValue is null ? string.Empty : $" date-value=\"{XmlValues.EscapeText(control.DateValue)}\"";
+        return line.Append(control.Id.ToWireValue())
+            .Append(" content-control kind=")
+            .Append(XmlValues.EscapeText(control.Kind))
+            .Append(" story=\"")
+            .Append(XmlValues.EscapeText(control.Story))
+            .Append("\" part=")
+            .Append(control.PartName)
+            .Append(target)
+            .Append(ooxmlId)
+            .Append(tag)
+            .Append(alias)
+            .Append(placeholder)
+            .Append(showingPlaceholder)
+            .Append(dataBindingXPath)
+            .Append(dataBindingStore)
+            .Append(dataBindingPrefixes)
+            .Append(repeatingSectionTitle)
+            .Append(repeatingSectionItems)
+            .Append(parentControl)
+            .Append(childControls)
+            .Append(safeEdit)
+            .Append(safeEditReason)
+            .Append(tagDuplicate)
+            .Append(aliasDuplicate)
+            .Append(locked)
+            .Append(checkedValue)
+            .Append(checkedSymbol)
+            .Append(uncheckedSymbol)
+            .Append(listItems)
+            .Append(dateFormat)
+            .Append(dateLanguage)
+            .Append(dateCalendar)
+            .Append(dateValue)
+            .Append(" text-length=")
+            .Append(control.TextLength)
+            .ToString();
+    }
+
+    private static string RenderFieldLine(DocxFieldInfo field)
+    {
+        var line = new StringBuilder();
+        string target = field.TargetId is { } readFieldTarget ? $" target={readFieldTarget.ToWireValue()}" : " target=unknown";
+        string fieldType = field.FieldType is null ? string.Empty : $" type={XmlValues.EscapeText(field.FieldType)}";
+        string arguments = field.Arguments.Count == 0 ? string.Empty : $" arguments=\"{XmlValues.EscapeText(string.Join(",", field.Arguments))}\"";
+        string switches = field.Switches.Count == 0 ? string.Empty : $" switches=\"{XmlValues.EscapeText(string.Join(",", field.Switches))}\"";
+        string bookmarkDependencies = field.BookmarkDependencies.Count == 0 ? string.Empty : $" bookmark-dependencies=\"{XmlValues.EscapeText(string.Join(",", field.BookmarkDependencies))}\"";
+        string hyperlinkDependencies = field.HyperlinkDependencies.Count == 0 ? string.Empty : $" hyperlink-dependencies=\"{XmlValues.EscapeText(string.Join(",", field.HyperlinkDependencies))}\"";
+        string refreshReason = field.RefreshReason is null ? string.Empty : $" refresh-reason=\"{XmlValues.EscapeText(field.RefreshReason)}\"";
+        string safeEdit = $" safe-edit={XmlValues.EscapeText(field.SafeEditStatus)}";
+        string dirty = field.IsDirty is null ? string.Empty : $" dirty={field.IsDirty}";
+        string locked = field.IsLocked is null ? string.Empty : $" locked={field.IsLocked}";
+        return line.Append(field.Id.ToWireValue())
+            .Append(" field kind=")
+            .Append(XmlValues.EscapeText(field.Kind))
+            .Append(fieldType)
+            .Append(" story=\"")
+            .Append(XmlValues.EscapeText(field.Story))
+            .Append("\" part=")
+            .Append(field.PartName)
+            .Append(target)
+            .Append(" code=\"")
+            .Append(XmlValues.EscapeText(field.Code))
+            .Append("\" cached-result=\"")
+            .Append(XmlValues.EscapeText(field.CachedResultText))
+            .Append("\" result-text-length=")
+            .Append(field.ResultTextLength)
+            .Append(" nesting-depth=")
+            .Append(field.NestingDepth)
+            .Append(arguments)
+            .Append(switches)
+            .Append(bookmarkDependencies)
+            .Append(hyperlinkDependencies)
+            .Append(" refresh-policy=")
+            .Append(field.RefreshPolicy.ToWireValue())
+            .Append(" deterministic-refresh=")
+            .Append(field.CanRefreshDeterministically.ToString().ToLowerInvariant())
+            .Append(refreshReason)
+            .Append(safeEdit)
+            .Append(dirty)
+            .Append(locked)
+            .Append(" complete=")
+            .Append(field.IsComplete)
+            .ToString();
+    }
+
+    private static string RenderHyperlinkLine(DocxHyperlinkInfo hyperlink)
+    {
+        var line = new StringBuilder();
+        string target = hyperlink.TargetId is { } readHyperlinkTarget ? $" target={readHyperlinkTarget.ToWireValue()}" : " target=unknown";
+        string relationshipId = hyperlink.RelationshipId is null ? string.Empty : $" relationship-id={XmlValues.EscapeText(hyperlink.RelationshipId)}";
+        string relationshipPart = hyperlink.RelationshipPartName is null ? string.Empty : $" relationship-part={hyperlink.RelationshipPartName}";
+        string relationshipTargetMode = hyperlink.RelationshipTargetMode is null ? string.Empty : $" target-mode={XmlValues.EscapeText(hyperlink.RelationshipTargetMode)}";
+        string uri = hyperlink.Uri is null ? string.Empty : $" uri=\"{XmlValues.EscapeText(hyperlink.Uri)}\"";
+        string uriScheme = hyperlink.UriScheme is null ? string.Empty : $" uri-scheme={XmlValues.EscapeText(hyperlink.UriScheme)}";
+        string uriValid = hyperlink.IsUriValid is null ? string.Empty : $" uri-valid={hyperlink.IsUriValid.Value.ToString().ToLowerInvariant()}";
+        string uriReason = hyperlink.UriValidationReason is null ? string.Empty : $" uri-reason={XmlValues.EscapeText(hyperlink.UriValidationReason)}";
+        string anchor = hyperlink.Anchor is null ? string.Empty : $" anchor=\"{XmlValues.EscapeText(hyperlink.Anchor)}\"";
+        string anchorMissing = hyperlink.IsAnchorMissing is null ? string.Empty : $" anchor-missing={hyperlink.IsAnchorMissing.Value.ToString().ToLowerInvariant()}";
+        string anchorDuplicate = hyperlink.IsAnchorDuplicate is null ? string.Empty : $" anchor-duplicate={hyperlink.IsAnchorDuplicate.Value.ToString().ToLowerInvariant()}";
+        string tooltip = hyperlink.Tooltip is null ? string.Empty : $" tooltip=\"{XmlValues.EscapeText(hyperlink.Tooltip)}\"";
+        string targetFrame = hyperlink.TargetFrame is null ? string.Empty : $" target-frame=\"{XmlValues.EscapeText(hyperlink.TargetFrame)}\"";
+        string history = hyperlink.History is null ? string.Empty : $" history={hyperlink.History.Value.ToString().ToLowerInvariant()}";
+        string targetPart = hyperlink.TargetPartName is null ? string.Empty : $" target-part={hyperlink.TargetPartName}";
+        return line.Append(hyperlink.Id.ToWireValue())
+            .Append(" hyperlink story=\"")
+            .Append(XmlValues.EscapeText(hyperlink.Story))
+            .Append("\" part=")
+            .Append(hyperlink.PartName)
+            .Append(target)
+            .Append(relationshipId)
+            .Append(relationshipPart)
+            .Append(relationshipTargetMode)
+            .Append(uri)
+            .Append(uriScheme)
+            .Append(uriValid)
+            .Append(uriReason)
+            .Append(anchor)
+            .Append(anchorMissing)
+            .Append(anchorDuplicate)
+            .Append(tooltip)
+            .Append(targetFrame)
+            .Append(history)
+            .Append(targetPart)
+            .Append(" external=")
+            .Append(hyperlink.IsExternal)
+            .Append(" broken=")
+            .Append(hyperlink.IsBroken)
+            .Append(" display-text-length=")
+            .Append(hyperlink.DisplayTextLength)
+            .ToString();
+    }
+
     public static string? Dump(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId, bool includeRuns, int maxText)
     {
         DocxParagraphInfo? paragraph = model.Paragraphs.FirstOrDefault(paragraph => string.Equals(paragraph.Id.ToWireValue(), targetId, StringComparison.Ordinal));
@@ -633,6 +651,33 @@ internal static class TextRenderers
         {
             var builder = new StringBuilder();
             builder.AppendLine(RenderBookmarkLine(bookmark));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
+        DocxContentControlInfo? control = model.ContentControls.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (control is not null)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(RenderContentControlLine(control));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
+        DocxFieldInfo? field = model.Fields.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (field is not null)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(RenderFieldLine(field));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
+        DocxHyperlinkInfo? hyperlink = model.Hyperlinks.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (hyperlink is not null)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(RenderHyperlinkLine(hyperlink));
             AppendTargetChanges(builder, changes, targetId);
             return builder.ToString();
         }

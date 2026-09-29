@@ -200,6 +200,64 @@ public static class ReadInspectTests
         Assert.Contains("Revenue", result.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("South", result.Text, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void DumpShowsHyperlinkLine()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink" w:tooltip="Open example">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """, null);
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.L0001");
+        Assert.True(result.Success);
+        Assert.Contains("M.L0001 hyperlink", result.Text, StringComparison.Ordinal);
+        Assert.Contains("https://example.test/report", result.Text, StringComparison.Ordinal);
+        Assert.Contains("broken=False", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpShowsFieldLine()
+    {
+        using MemoryStream stream = CreateDocxWithRefField();
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.F0001");
+        Assert.True(result.Success);
+        Assert.Contains("M.F0001 field", result.Text, StringComparison.Ordinal);
+        Assert.Contains("ClientName", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void DumpShowsContentControlLine()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.CC0001");
+        Assert.True(result.Success);
+        Assert.Contains("M.CC0001 content-control kind=plain-text", result.Text, StringComparison.Ordinal);
+        Assert.Contains("client_name", result.Text, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public static void DumpReturnsBookmarkLine()
