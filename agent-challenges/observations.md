@@ -449,3 +449,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 13 commands, 1 failing check, check before apply plus output validation; about 222k input tokens with about 190k cached
 - Artifacts: artifacts/agent-challenges/alias-compose-probe/20260929T184813Z/summary.json
 - Notes: fifth independent-model run, covering D13 result-alias composition. Insert-after with an as binding, then set-style plus replace-text through the at-name alias; created positional IDs stayed in reports, never in patch targets. The initial casing failure recovered through the diagnostic suggestion, which live-validates the style-name suggestion path. No agent-reported weaknesses. No text disclosed.
+
+### 2026-09-29 — markup-targeting (cross-model gpt-5.6-sol run) — completed
+
+- Commands: changes, dump
+- Diagnostics: W1001 and W1004 informational on the markup dump; no errors
+- Target IDs: M.P0002 resolved from the inventory with change IDs M.CH0004 (deleted-run) and M.CH0005 (inserted-run)
+- Markup types: deleted-run, inserted-run
+- Counts: 2 commands, 0 failing, 0 retries; about 52k input tokens with about 32k cached
+- Artifacts: artifacts/agent-challenges/markup-targeting/20260929T210936Z/summary.json
+- Notes: first run on the third model with no cold-start delay and the leanest token spend yet. Took the revision-pair path like the default model, unlike the comment path on gpt-5.5. Agent-reported notes: dumps expose document text so small max-text matters, and comment bodies stay out of the read model by design. No text disclosed.
