@@ -369,3 +369,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 15 commands, 0 failing, check before apply plus output validation; about 211k input tokens with about 182k cached
 - Artifacts: artifacts/agent-challenges/table-guarded-edit/20260929T172925Z/summary.json
 - Notes: ran against a local table-bearing input (plain 2 by 2 table with 2 paragraphs, packaged from the public fixture) resolving the prior partial-by-design on the tableless stand-in. Guarded set-cell with expect-text plus row and column count guards, strict check before apply, then agent-side before/after dump comparison and table-structure-unchanged verification. Post-checks green. No agent-reported weaknesses. No text disclosed.
+
+### 2026-09-29 — image-alt-edit (live codex run) — completed
+
+- Commands: help, read, dump, check, apply, validate
+- Diagnostics: none (zero diagnostics on check, apply, and structural validation)
+- Target IDs: M.I0001 discovered through read; dump and guarded edit on the stable image ID
+- Markup types: not applicable
+- Counts: 8 commands, 0 failing, check before apply plus read and structural validation; about 125k input tokens with about 101k cached
+- Artifacts: artifacts/agent-challenges/image-alt-edit/20260929T173259Z/summary.json
+- Notes: ran against a local image-bearing input (inline PNG with a known description, inserted from the repo icon through insert-image-after) resolving the prior partial-by-design on the imageless stand-in. Guarded set-image-alt with expect-alt plus expect-content-type, check before apply, output verified by read and structural validation. Agent-reported weaknesses, both verified: image dump JSON carries metadata only in formatted Text with no structured image fields, and successful set-image-alt reports leave AffectedTargets empty. Logged as D14 findings, not scheduled. No text disclosed.
