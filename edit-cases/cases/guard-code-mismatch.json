@@ -1,0 +1,32 @@
+{
+  "id": "guard-code-mismatch",
+  "description": "Fails a field code edit on a mismatched expect-code guard with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF ClientName \\h \">",
+      "        <w:r><w:t>Old cached result</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-code",
+    "target M.F0001",
+    "expect-code REF OtherBookmark \\h",
+    "code REF NewBookmark \\h",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Guard failed"
+    ]
+  }
+}
