@@ -577,6 +577,20 @@ internal static class TextRenderers
             return builder.ToString();
         }
 
+        DocxTableCellInfo[] groupCells = model.Tables
+            .SelectMany(table => table.Cells)
+            .Where(cell => cell.MergeGroupId is { } group && string.Equals(group.ToWireValue(), targetId, StringComparison.Ordinal))
+            .OrderBy(cell => cell.RowIndex)
+            .ThenBy(cell => cell.ColumnIndex)
+            .ToArray();
+        if (groupCells.Length > 0)
+        {
+            var builder = new StringBuilder();
+            builder.AppendJoin(Environment.NewLine, groupCells.Select(cell => cell.Id.ToWireValue() + ": " + Truncate(cell.Text, maxText)));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
         DocxBookmarkInfo? bookmark = model.Bookmarks.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (bookmark is not null)
         {
@@ -743,6 +757,7 @@ internal static class TextRenderers
                 .Select(item => ApplyAnnotations(ToContextItem(item.Value, Relation(item.Offset)), annotations))
                 .ToArray();
         }
+
 
         DocxBookmarkInfo? bookmark = model.Bookmarks.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (bookmark is not null)

@@ -135,6 +135,35 @@ public static class ReadInspectTests
     }
 
     [Fact]
+    public static void DumpShowsMergeGroupMembers()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>South</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.T0001.MG0001");
+        Assert.True(result.Success);
+        Assert.Contains("North", result.Text, StringComparison.Ordinal);
+        Assert.Contains("South", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Revenue", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DumpReturnsBookmarkLine()
     {
         using MemoryStream stream = CreateDocxWithSingleBookmark();
