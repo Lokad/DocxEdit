@@ -96,3 +96,4 @@ flows; regenerate them with the same steps rather than committing binaries:
   require with explicit author and timestamp. Used for markup-targeting.
 
 Validate any regenerated variant with docxedit validate and read before running.
+All four variants also survive a Word 16.0 open/save round trip with identical paragraph, cell, image, and change inventory.
