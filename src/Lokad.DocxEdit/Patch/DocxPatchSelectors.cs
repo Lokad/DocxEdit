@@ -225,7 +225,7 @@ internal static partial class DocxPatchEngine
 
     private static bool PreviewValueMayBeAbsent(string operationName)
     {
-        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block" or "set-hyperlink-target" or "set-field-dirty";
+        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock";
     }
 
     private static (string? Before, string? After, bool Truncated) FinalizePreview(
@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
         {
             return null;
         }
@@ -362,6 +362,18 @@ internal static partial class DocxPatchEngine
         {
             FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
             return fieldTarget is null ? null : (string?)fieldTarget.Element.Attribute(OoxmlNs.W + "dirty");
+        }
+
+        if (operation.OperationName == "set-field-lock")
+        {
+            FieldTarget? lockTarget = ResolveFieldTarget(package, target, cancellationToken);
+            return lockTarget is null ? null : (string?)lockTarget.Element.Attribute(OoxmlNs.W + "fldLock");
+        }
+
+        if (operation.OperationName == "set-section-orientation")
+        {
+            SectionTarget? orientationTarget = ResolveMainSectionTarget(package, target, cancellationToken);
+            return orientationTarget is null ? null : ReadSectionOrientation(orientationTarget.SectionProperties).ToWireValue();
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);

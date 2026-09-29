@@ -585,6 +585,58 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewReportsFieldLockChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithRefField();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-lock
+            target M.F0001
+            locked true
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("0", report.PreviewBefore);
+        Assert.Equal("true", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsSectionOrientationChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-section-orientation
+            target M.S0001
+            orientation landscape
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("portrait", report.PreviewBefore);
+        Assert.Equal("landscape", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
