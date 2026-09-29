@@ -269,3 +269,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 23 commands, 1 failing check, 0 retries; about 348k input tokens with about 313k cached
 - Artifacts: artifacts/agent-challenges/whitespace-selector/20260929T141009Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The fixture had no repeated whitespace, so the agent prepared a separate doubled-space baseline with docxedit, then proved the D09 contract live: a single-spaced text selector resolved while the single-spaced guard failed E3201 and the exact-spaced guard passed, with only the find span changed and spacing preserved. It wrote its own machine-checked verification summary plus a verifier script. Finding: help patch never states the normalized-selector versus exact-guard whitespace contract generally (patch-format.md does); the agent succeeded anyway. No text disclosed.
+
+### 2026-09-29 — alias-compose-probe (live codex run) — completed
+
+- Commands: help, read, changes, dump, styles, check, apply, validate
+- Diagnostics: none
+- Target IDs: M.P0002 anchor; created paragraph addressed as @insertedNote for two follow-up edits
+- Markup types: none (untracked edits)
+- Counts: 15 commands, 0 failing checks, 0 retries; about 178k input tokens with about 145k cached
+- Artifacts: artifacts/agent-challenges/alias-compose-probe/20260929T141853Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent inserted with as plus a style, then addressed the alias from set-style guarded by expect-style and from replace-text guarded by expect-text; all three operations succeeded and readback confirmed the styled replacement text. Finding: per-operation help insert-after lists as but shows no alias composition example, while help patch explains the mechanism; a registry example now closes that gap. No text disclosed.
