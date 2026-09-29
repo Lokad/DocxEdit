@@ -1,0 +1,34 @@
+{
+  "id": "control-choice",
+  "description": "Selects a dropdown value and verifies the display text.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:dropDownList>",
+      "            <w:listItem w:displayText=\"North\" w:value=\"north\"/>",
+      "            <w:listItem w:displayText=\"South\" w:value=\"south\"/>",
+      "          </w:dropDownList>",
+      "          <w:tag w:val=\"region\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-choice",
+    "target M.CC0001",
+    "value south",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "South"
+    ]
+  }
+}

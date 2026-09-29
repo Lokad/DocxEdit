@@ -1,0 +1,28 @@
+{
+  "id": "field-result",
+  "description": "Replaces a simple field cached result under a guard and verifies readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF ClientName \\h \">",
+      "        <w:r><w:t>Old cached result</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-result",
+    "target M.F0001",
+    "expect-result Old cached result",
+    "text New cached result",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New cached result"
+    ]
+  }
+}
