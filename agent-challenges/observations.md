@@ -379,3 +379,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 8 commands, 0 failing, check before apply plus read and structural validation; about 125k input tokens with about 101k cached
 - Artifacts: artifacts/agent-challenges/image-alt-edit/20260929T173259Z/summary.json
 - Notes: ran against a local image-bearing input (inline PNG with a known description, inserted from the repo icon through insert-image-after) resolving the prior partial-by-design on the imageless stand-in. Guarded set-image-alt with expect-alt plus expect-content-type, check before apply, output verified by read and structural validation. Agent-reported weaknesses, both verified: image dump JSON carries metadata only in formatted Text with no structured image fields, and successful set-image-alt reports leave AffectedTargets empty. Logged as D14 findings, not scheduled. No text disclosed.
+
+### 2026-09-29 — unsupported-recovery (live codex run) — completed
+
+- Commands: help, read, capabilities, check, apply, validate
+- Diagnostics: E4316 on the delete-column probe against a real table; none on the recovery path
+- Target IDs: table cell IDs resolved through capabilities; column 2 cells cleared via guarded set-cell
+- Markup types: not applicable
+- Counts: 14 commands, 1 failing check, check before each apply plus strict validation; about 213k input tokens with about 183k cached
+- Artifacts: artifacts/agent-challenges/unsupported-recovery/20260929T173629Z/summary.json
+- Notes: reran against the local table-bearing input, exercising the recovery branch that the tableless stand-in could not reach. The agent recorded the E4316 code, reason, and help pointer, confirmed set-cell support through cell capabilities, applied two guarded set-cell edits with exact-text plus row and column count guards, and honestly reported clearing as different from structural removal. Final read plus strict validation clean. No agent-reported weaknesses beyond the quoted E4316 reason. No text disclosed.
