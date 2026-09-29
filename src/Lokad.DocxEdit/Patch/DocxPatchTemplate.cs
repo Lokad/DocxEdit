@@ -420,6 +420,7 @@ internal static partial class DocxPatchEngine
         {
             block.AppendLine("op delete-bookmark");
             block.AppendLine("target " + target);
+            AppendHeredoc(block, "expect-name", name);
             block.AppendLine("end");
         });
         return builder.ToString();
@@ -675,6 +676,7 @@ internal static partial class DocxPatchEngine
         {
             block.AppendLine("op remove-hyperlink");
             block.AppendLine("target " + target);
+            AppendHeredoc(block, "expect-text", current);
             block.AppendLine("end");
         });
         return builder.ToString();

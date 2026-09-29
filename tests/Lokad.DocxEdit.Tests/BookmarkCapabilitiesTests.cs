@@ -71,6 +71,7 @@ public static class BookmarkCapabilitiesTests
         Assert.Equal("supported", FindOperation(capabilities, "replace-bookmark-text").Support);
         Assert.Equal("supported", FindOperation(capabilities, "rename-bookmark").Support);
         Assert.Equal("supported", FindOperation(capabilities, "delete-bookmark").Support);
+        Assert.Contains("expect-name", FindOperation(capabilities, "delete-bookmark").Reason, StringComparison.Ordinal);
 
         using MemoryStream checkInput = CreateDocxWithSingleBookmark();
         DocxCheckResult result = RunCheck(checkInput, "docxpatch 1\n\nop replace-bookmark-text\ntarget M.B0001\ntext New Client\nend\n", TrackChangesMode.Off);

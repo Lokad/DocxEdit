@@ -771,7 +771,7 @@ internal static partial class DocxPatchEngine
         return new DocxOperationCapability(
             operation,
             "supported",
-            "Removal unwraps the hyperlink and preserves display runs; the relationship is dropped when nothing else uses it.",
+            "Removal unwraps the hyperlink and preserves display runs; the relationship is dropped when nothing else uses it. A guarded removal needs expect-text that matches the current display text.",
             operation,
             null);
     }
@@ -1723,7 +1723,7 @@ internal static partial class DocxPatchEngine
         return new DocxOperationCapability(
             operation,
             "supported",
-            "Deletion removes complete unreferenced markers and preserves content.",
+            "Deletion removes complete unreferenced markers and preserves content; expect-name can guard the current name.",
             operation,
             null);
     }

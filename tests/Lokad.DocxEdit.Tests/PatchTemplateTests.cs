@@ -202,6 +202,7 @@ public static class PatchTemplateTests
         }
         Assert.Equal(1, CountActiveOps(template.Template));
         Assert.Contains("op replace-bookmark-text", template.Template, StringComparison.Ordinal);
+        Assert.Contains("# expect-name <<<", template.Template, StringComparison.Ordinal);
         using MemoryStream checkInput = CreateDocxWithSingleBookmark();
         DocxCheckResult result = RunCheck(checkInput, template.Template);
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
@@ -313,6 +314,7 @@ public static class PatchTemplateTests
         }
         Assert.Equal(1, CountActiveOps(template.Template));
         Assert.Contains("op set-hyperlink-text", template.Template, StringComparison.Ordinal);
+        Assert.Contains("# expect-text <<<", template.Template, StringComparison.Ordinal);
         using MemoryStream checkInput = CreateDocxWithBody(body);
         DocxCheckResult result = RunCheck(checkInput, template.Template);
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));

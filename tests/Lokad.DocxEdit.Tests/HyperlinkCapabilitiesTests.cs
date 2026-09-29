@@ -56,6 +56,7 @@ public static class HyperlinkCapabilitiesTests
         Assert.Equal("supported", FindOperation(capabilities, "set-hyperlink-target").Support);
         Assert.Equal("supported", FindOperation(capabilities, "set-hyperlink-text").Support);
         Assert.Equal("supported", FindOperation(capabilities, "remove-hyperlink").Support);
+        Assert.Contains("expect-text", FindOperation(capabilities, "remove-hyperlink").Reason, StringComparison.Ordinal);
         Assert.Contains("an external URI", FindOperation(capabilities, "set-hyperlink-target").Reason, StringComparison.Ordinal);
 
         using MemoryStream textInput = CreateDocxWithBodyAndRelationships(LinkBody, LinkRelationships);
