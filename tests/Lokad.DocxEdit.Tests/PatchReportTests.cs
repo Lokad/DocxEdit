@@ -541,4 +541,30 @@ public static class PatchReportTests
         Assert.True(result.Success);
         Assert.Empty(Assert.Single(result.Operations).CreatedTargetIds);
     }
+    [Fact]
+    public static void CheckInsertAfterMultipleTextsReportsAllCreatedIds()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader("docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext First\ntext Second\nend\n");
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002", "M.P0003" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void CheckInsertBeforeMultipleTextsReportsAllCreatedIds()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+              <w:p><w:r><w:t>Beta</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("docxpatch 1\n\nop insert-before\ntarget M.P0002\ntext X\ntext Y\nend\n");
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002", "M.P0003" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
 }

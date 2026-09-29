@@ -48,15 +48,14 @@ internal static partial class DocxPatchEngine
         }
 
         bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
-        XElement? created = insertAfter
-            ? anchor.Block.ElementsAfterSelf(OoxmlNs.W + "p").FirstOrDefault()
-            : anchor.Block.ElementsBeforeSelf(OoxmlNs.W + "p").LastOrDefault();
-        if (created is null)
+        int count = operation.FieldValues.Count(static field => field.Name == "text");
+        List<XElement> created = insertAfter
+            ? anchor.Block.ElementsAfterSelf(OoxmlNs.W + "p").Take(count).ToList()
+            : anchor.Block.ElementsBeforeSelf(OoxmlNs.W + "p").TakeLast(count).ToList();
+        if (created.Count != count)
         {
             return [];
         }
-
-        int ordinal = created.ElementsBeforeSelf(OoxmlNs.W + "p").Count() + 1;
         if (!DocxPartRoles.GetStoryPrefixes(package, cancellationToken).TryGetValue(anchor.PartName, out string? prefix) || prefix is null || prefix.Length == 0)
         {
             return [];
@@ -68,7 +67,7 @@ internal static partial class DocxPatchEngine
             return [];
         }
 
-        return [new DocxTargetId(prefix[0], storyPart, DocxTargetKind.Paragraph, ordinal, 0, 0).ToWireValue()];
+        return created.Select(element => new DocxTargetId(prefix[0], storyPart, DocxTargetKind.Paragraph, element.ElementsBeforeSelf(OoxmlNs.W + "p").Count() + 1, 0, 0).ToWireValue()).ToArray();
     }
 
     private static IReadOnlyList<string> CreatedCommentIds(

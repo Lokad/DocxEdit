@@ -1934,4 +1934,172 @@ public static class PatchApplyTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
     }
 
+    [Fact]
+    public static void ApplyInsertAfterMultipleTextsPreserveFileOrder()
+    {
+        const string patchText = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext First\ntext Second\nend\n";
+        using MemoryStream applyInput = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patchText), output);
+
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha", "First", "Second" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
+
+        using MemoryStream checkInput = CreateDocx("Alpha");
+        DocxCheckResult check = new DocxEditor().Check(checkInput, new StringReader(patchText));
+
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002", "M.P0003" }, Assert.Single(check.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void ApplyInsertBeforeMultipleTextsPreserveFileOrder()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Beta</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-before
+            target M.P0002
+            text X
+            text Y
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha", "X", "Y", "Beta" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
+    }
+
+    [Fact]
+    public static void SingleStyleAppliesToEveryInsertedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody(
+            """
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """,
+            """
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            style Heading 2
+            text First
+            text Second
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(2, CountOccurrences(ReadDocumentXml(output), "w:pStyle w:val=\"Heading2\""));
+    }
+
+    [Fact]
+    public static void PositionalStylesPairWithTextsInOrder()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody(
+            """
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """,
+            """
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            style Normal
+            style Heading 2
+            text First
+            text Second
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(1, CountOccurrences(xml, "w:pStyle w:val=\"Normal\""));
+        Assert.Equal(1, CountOccurrences(xml, "w:pStyle w:val=\"Heading2\""));
+        Assert.True(
+            xml.IndexOf("w:pStyle w:val=\"Normal\"", StringComparison.Ordinal) < xml.IndexOf("w:pStyle w:val=\"Heading2\"", StringComparison.Ordinal),
+            "First inserted paragraph should carry Normal and second Heading 2.");
+    }
+
+    [Fact]
+    public static void StyleCountMismatchFails()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            style Normal
+            style Heading 2
+            style Title
+            text First
+            text Second
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E4205");
+        Assert.Equal("insert-after", diagnostic.HelpTopic);
+    }
+
+    [Fact]
+    public static void CopyPropertiesApplyToEveryInsertedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:pPr>
+                        <w:pStyle w:val="ListParagraph"/>
+                        <w:numPr>
+                          <w:ilvl w:val="1"/>
+                          <w:numId w:val="9"/>
+                        </w:numPr>
+                      </w:pPr>
+                      <w:r><w:t>First item</w:t></w:r>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            copy-paragraph-properties true
+            text Second item
+            text Third item
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(3, CountOccurrences(xml, "w:numId w:val=\"9\""));
+    }
 }

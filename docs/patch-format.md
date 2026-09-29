@@ -236,8 +236,8 @@ Omitted optional boolean fields use documented defaults (for example preserve-ru
 | --- | --- | --- | --- |
 | `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text; without `occurrence` the find text must match exactly once (`occurrence N` selects one match, `occurrence all` replaces every match)
 | `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style, `style` accepts an ID or display name |
-| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block before the target, embedded `style` accepts an ID or display name |
-| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts a paragraph/block after the target, embedded `style` accepts an ID or display name |
+| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts one paragraph per text field in file order before the target; a single style applies to every inserted paragraph, one style per text field applies positionally, and embedded `style` accepts an ID or display name |
+| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts one paragraph per text field in file order after the target; a single style applies to every inserted paragraph, one style per text field applies positionally, and embedded `style` accepts an ID or display name |
 | `delete-block` | `target` | `expect-text` | Deletes the target block |
 | `set-style` | `target`, `style` | `expect-style` | Sets paragraph style |
 

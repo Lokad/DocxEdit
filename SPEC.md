@@ -1575,11 +1575,12 @@ end
 Rules:
 
 * Target must be a paragraph or table.
-* Insert a new paragraph before the target.
+* Insert one new paragraph per text field, in file order, before the target.
 * `copy-paragraph-properties true` requires a paragraph target and copies the target
   paragraph `w:pPr`, including style and numbering properties, but excludes copied
-  `w:pPrChange` and `w:sectPr`.
+  `w:pPrChange` and `w:sectPr`. The copy applies to every inserted paragraph.
 * `style`, when supplied, overrides the copied or default paragraph style.
+* A single style applies to every inserted paragraph; one style per text field applies positionally; any other style count fails.
 * An embedded `style` may be a style ID or display name, resolved like `set-style`; unknown, ambiguous, or wrong-kind styles fail before publication.
 
 ### 11.4 `insert-after`
@@ -1597,11 +1598,12 @@ end
 Rules:
 
 * Target must be a paragraph or table.
-* Insert a new paragraph after the target.
+* Insert one new paragraph per text field, in file order, after the target.
 * `copy-paragraph-properties true` requires a paragraph target and copies the target
   paragraph `w:pPr`, including style and numbering properties, but excludes copied
-  `w:pPrChange` and `w:sectPr`.
+  `w:pPrChange` and `w:sectPr`. The copy applies to every inserted paragraph.
 * `style`, when supplied, overrides the copied or default paragraph style.
+* A single style applies to every inserted paragraph; one style per text field applies positionally; any other style count fails.
 * An embedded `style` may be a style ID or display name, resolved like `set-style`; unknown, ambiguous, or wrong-kind styles fail before publication.
 * If target is a paragraph with section properties, do not insert after the section break incorrectly; insert before the section break if necessary and warn.
 

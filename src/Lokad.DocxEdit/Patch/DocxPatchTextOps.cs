@@ -280,11 +280,17 @@ internal static partial class DocxPatchEngine
         var diagnostics = new List<DocxDiagnostic>();
         string? target = ReadRequiredField(operation, "target", diagnostics);
         string? text = ReadRequiredField(operation, "text", diagnostics);
-        string? style = operation.Fields.GetValueOrDefault("style");
         bool copyParagraphProperties = ReadBooleanField(operation, "copy-paragraph-properties", diagnostics) ?? false;
         if (text is null || target is null || diagnostics.Count != 0)
         {
             return diagnostics;
+        }
+
+        string[] texts = operation.FieldValues.Where(static field => field.Name == "text").Select(static field => field.Value).ToArray();
+        string[] styles = operation.FieldValues.Where(static field => field.Name == "style").Select(static field => field.Value).ToArray();
+        if (styles.Length > 1 && styles.Length != texts.Length)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4205", $"Operation '{operation.OperationName}' accepts at most one 'style' field or one per 'text' field.", operation, target)];
         }
 
         BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
@@ -304,7 +310,7 @@ internal static partial class DocxPatchEngine
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
-        if (useTrackedChanges && TextContainsTrackedUnsupportedCharacters(text))
+        if (useTrackedChanges && texts.Any(TextContainsTrackedUnsupportedCharacters))
         {
             if (!TryFallbackToDirectEdit(options, operation, target, "inserted paragraph text contains tabs or line breaks", diagnostics, ref useTrackedChanges))
             {
@@ -313,28 +319,35 @@ internal static partial class DocxPatchEngine
         }
 
 
-        string? insertStyleId = null;
-        if (style is not null)
+        string?[] styleIds = new string?[styles.Length];
+        for (int index = 0; index < styles.Length; index++)
         {
-            if (!TryResolveStyleId(package, style, "paragraph", cancellationToken, out insertStyleId, out DocxDiagnostic? insertStyleDiagnostic, operation, target))
+            if (!TryResolveStyleId(package, styles[index], "paragraph", cancellationToken, out styleIds[index], out DocxDiagnostic? insertStyleDiagnostic, operation, target))
             {
                 return [insertStyleDiagnostic];
             }
         }
 
-        XElement? paragraphProperties = copyParagraphProperties
+        XElement? baseParagraphProperties = copyParagraphProperties
             ? CloneParagraphPropertiesForInsertion(blockTarget.Block.Element(OoxmlNs.W + "pPr"))
             : null;
-        XElement paragraph = useTrackedChanges
-            ? CreateTrackedInsertedParagraph(package, text, insertStyleId, paragraphProperties, options, generatedRevisionIds, cancellationToken)
-            : CreateSimpleParagraph(text, insertStyleId, paragraphProperties);
-        if (insertAfter)
+        XElement sibling = blockTarget.Block;
+        for (int index = 0; index < texts.Length; index++)
         {
-            blockTarget.Block.AddAfterSelf(paragraph);
-        }
-        else
-        {
-            blockTarget.Block.AddBeforeSelf(paragraph);
+            XElement? paragraphProperties = baseParagraphProperties is null ? null : new XElement(baseParagraphProperties);
+            string? paragraphStyleId = styles.Length <= 1 ? styleIds.FirstOrDefault() : styleIds[index];
+            XElement paragraph = useTrackedChanges
+                ? CreateTrackedInsertedParagraph(package, texts[index], paragraphStyleId, paragraphProperties, options, generatedRevisionIds, cancellationToken)
+                : CreateSimpleParagraph(texts[index], paragraphStyleId, paragraphProperties);
+            if (insertAfter)
+            {
+                sibling.AddAfterSelf(paragraph);
+                sibling = paragraph;
+            }
+            else
+            {
+                blockTarget.Block.AddBeforeSelf(paragraph);
+            }
         }
 
         SaveDocumentPart(package, blockTarget.PartName, blockTarget.Document);

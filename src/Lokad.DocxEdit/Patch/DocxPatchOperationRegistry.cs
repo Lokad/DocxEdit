@@ -197,16 +197,16 @@ internal static partial class DocxPatchEngine
             "insert-before",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("style", FieldValueKind.Text, Repeatable: false, Required: false),
+                new("style", FieldValueKind.Text, Repeatable: true, Required: false),
                 new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
-                new("text", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("text", FieldValueKind.Text, Repeatable: true, Required: true),
             ],
             [],
             TrackClassParagraphBlock,
             "tracked-paragraph-insert",
             "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
-            "Inserts a paragraph/block before the target",
+            "Inserts one paragraph per text field, in file order, before the target",
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)) with
         {
             Examples =
@@ -241,16 +241,16 @@ internal static partial class DocxPatchEngine
             "insert-after",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("style", FieldValueKind.Text, Repeatable: false, Required: false),
+                new("style", FieldValueKind.Text, Repeatable: true, Required: false),
                 new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
-                new("text", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("text", FieldValueKind.Text, Repeatable: true, Required: true),
             ],
             [],
             TrackClassParagraphBlock,
             "tracked-paragraph-insert",
             "Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
-            "Inserts a paragraph/block after the target",
+            "Inserts one paragraph per text field, in file order, after the target",
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertBlock(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)) with
         {
             Examples =
