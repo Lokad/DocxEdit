@@ -1,0 +1,33 @@
+{
+  "id": "invalid-revision-author",
+  "description": "Refuses tracked editing with a blank revision author with E6003.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": " ",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find increased",
+    "with rose",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6003"
+    ],
+    "diagnosticMessagesContain": [
+      "non-empty revision author"
+    ]
+  }
+}
