@@ -1,0 +1,26 @@
+{
+  "id": "unknown-operation",
+  "description": "Refuses a misspelled operation with E2010 and a suggestion.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replac-text",
+    "target M.P0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2010"
+    ],
+    "diagnosticMessagesContain": [
+      "Did you mean"
+    ]
+  }
+}
