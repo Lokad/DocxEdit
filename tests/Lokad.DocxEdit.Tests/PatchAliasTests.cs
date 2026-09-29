@@ -668,4 +668,34 @@ public static class PatchAliasTests
         Assert.DoesNotContain("Fresh note", xml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void BookmarkRenameAndDeleteViaAlias()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+            op add-bookmark
+            target M.P0001
+            name Mark
+            as bm1
+            end
+            op rename-bookmark
+            target @bm1
+            name Renamed
+            end
+            op delete-bookmark
+            target @bm1
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha" }, new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Text).ToArray());
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.DoesNotContain("bookmarkStart", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("bookmarkEnd", xml, StringComparison.Ordinal);
+    }
+
 }
