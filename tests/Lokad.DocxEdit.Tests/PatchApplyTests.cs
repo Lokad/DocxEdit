@@ -626,6 +626,30 @@ public static class PatchApplyTests
     }
 
     [Fact]
+    public static void CheckTextSelectorZeroMatchStatesMainStoryScope()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target text:"Missing"
+            find Missing
+            with Updated
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E1201", diagnostic.Code);
+        Assert.Contains("Semantic selectors search only the main story", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CheckTextSelectorSuggestsNearbyTargetsWithoutLeakingText()
     {
         using MemoryStream input = CreateDocxWithBody("""

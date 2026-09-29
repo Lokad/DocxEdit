@@ -716,7 +716,7 @@ internal static partial class DocxPatchEngine
                 Diagnostic(
                     DocxSeverity.Error,
                     "E1201",
-                    $"Selector matched 0 targets: {rawSelector}.{suggestion}",
+                    $"Selector matched 0 targets: {rawSelector}.{suggestion} Semantic selectors search only the main story; use explicit header/footer IDs for header and footer text.",
                     operation,
                     rawSelector) with { MatchCount = 0, CandidateIds = candidates }
             ];
