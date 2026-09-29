@@ -234,6 +234,25 @@ public static class ReadInspectTests
     }
 
     [Fact]
+    public static void ContextShowsBookmarkNeighborhood()
+    {
+        using MemoryStream stream = CreateDocxWithSingleBookmark();
+        var editor = new DocxEditor();
+        DocxContextResult result = editor.Context(stream, "M.B0001");
+        Assert.True(result.Success);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.B0001");
+        Assert.Equal("bookmark", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("main", target.Story);
+        DocxContextItem anchor = Assert.Single(result.Items, item => item.Id == "M.P0001");
+        Assert.Equal("anchor", anchor.Relation);
+        Assert.Contains("ClientName", anchor.BookmarkNames);
+        Assert.Contains(result.Items, item => item.Id == "M.P0002" && item.Relation == "after");
+        Assert.Contains("target M.B0001 bookmark", result.Text, StringComparison.Ordinal);
+        Assert.Contains("bookmark-names=\"ClientName\"", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ContextSummarizesNearbyStructureWithoutTextByDefault()
     {
         using MemoryStream stream = CreateDocx();

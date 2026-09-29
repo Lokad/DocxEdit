@@ -735,6 +735,12 @@ internal static class TextRenderers
                 .ToArray();
         }
 
+        DocxBookmarkInfo? bookmark = model.Bookmarks.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (bookmark is not null)
+        {
+            return BookmarkContext(bookmark, model, radius, maxText, annotations);
+        }
+
         DocxImageInfo? image = model.Images.FirstOrDefault(image => string.Equals(image.Id.ToWireValue(), targetId, StringComparison.Ordinal));
         if (image is not null)
         {
@@ -1264,6 +1270,44 @@ internal static class TextRenderers
             Relation = relation,
             Story = section.Story,
             ColumnCount = section.Columns
+        };
+    }
+
+    private static string AnchorRelation(int offset)
+    {
+        return offset == 0 ? "anchor" : Relation(offset);
+    }
+
+    private static IReadOnlyList<DocxContextItem> BookmarkContext(DocxBookmarkInfo bookmark, DocxDocumentModel model, int radius, int maxText, TargetAnnotations annotations)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ApplyAnnotations(ToContextItem(bookmark, "target"), annotations)
+        };
+        if (bookmark.StartTargetId is { } start)
+        {
+            DocxParagraphInfo[] storyParagraphs = model.Paragraphs
+                .Where(candidate => string.Equals(candidate.Story, bookmark.Story, StringComparison.Ordinal))
+                .ToArray();
+            int index = Array.FindIndex(storyParagraphs, candidate => candidate.Id.Equals(start));
+            if (index >= 0)
+            {
+                items.AddRange(Window(storyParagraphs, index, radius)
+
+                    .Select(item => ApplyAnnotations(ToContextItem(item.Value, AnchorRelation(item.Offset), maxText), annotations)));
+            }
+        }
+        return items;
+    }
+    private static DocxContextItem ToContextItem(DocxBookmarkInfo bookmark, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = bookmark.Id.ToWireValue(),
+            Kind = "bookmark",
+            Relation = relation,
+            Story = bookmark.Story,
+            ParentId = bookmark.PartName
         };
     }
 
