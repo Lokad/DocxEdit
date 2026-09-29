@@ -239,3 +239,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 20 commands, 1 failing check plus 1 failing apply on the overlap probe, 0 retries; about 297k input tokens with about 264k cached
 - Artifacts: artifacts/agent-challenges/iterative-tracked-edit/20260929T135941Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent led with five help calls, applied two guarded replacements under require with the first revision pair preserved, then probed the overlap: E6002 named the tracked-insertion boundary on both check and apply with no rejected output created. Structural validation clean. No agent-reported weaknesses; no text disclosed.
+
+### 2026-09-29 — tracked-review-workflow (live codex run) — completed
+
+- Commands: help, read, dump, changes, check, apply, changes, validate
+- Diagnostics: none
+- Target IDs: main-story paragraph IDs; edited and annotated M.P0002
+- Markup types: deleted-run, inserted-run, comment with range and reference markup
+- Counts: 16 commands, 0 failing checks, 0 retries; about 164k input tokens with about 131k cached
+- Artifacts: artifacts/agent-challenges/tracked-review-workflow/20260929T140301Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent wrote one patch combining a guarded replacement with an anchored comment under require with explicit author and timestamp; notably the comment guard used the post-edit paragraph text, showing sequential-guard understanding. Verified one deletion run, one insertion run with revisions 1 and 2, a new comment 0 anchored to the edited paragraph, and all three read views plus structural validation. No agent-reported weaknesses; no text disclosed.
