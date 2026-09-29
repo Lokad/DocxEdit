@@ -1,0 +1,34 @@
+{
+  "id": "guard-name-mismatch",
+  "description": "Fails a bookmark rename on a mismatched expect-name guard with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Before </w:t></w:r>",
+      "      <w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"/>",
+      "      <w:r><w:t>Old Client</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"4\"/>",
+      "      <w:r><w:t> After</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op rename-bookmark",
+    "target M.B0001",
+    "expect-name WrongName",
+    "name RenamedClient",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Expected bookmark name"
+    ]
+  }
+}
