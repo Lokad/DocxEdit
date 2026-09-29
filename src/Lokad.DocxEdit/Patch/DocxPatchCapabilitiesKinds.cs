@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, merge-group, and bookmark targets.
+// D17: capabilities for content-control, cell, merge-group, bookmark, and table targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -53,6 +53,11 @@ internal static partial class DocxPatchEngine
             return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Table)
+        {
+            return GetTableCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         if (parsed.Kind == DocxTargetKind.Bookmark)
         {
             return GetBookmarkCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
@@ -63,7 +68,7 @@ internal static partial class DocxPatchEngine
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, and bookmark IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, and table IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -505,6 +510,219 @@ internal static partial class DocxPatchEngine
             operation,
             "supported",
             "Value sets the date metadata while display-text, or value when display-text is absent, replaces the control content.",
+            operation,
+            null);
+    }
+    // D17: table capabilities reuse the grid-shape, orphan, and track-support predicates from the table and text engines.
+    private sealed record TableCapabilityFacts(
+        int RowCount,
+        bool GridConsistent,
+        bool LastRowAppendable,
+        string LastRowReason,
+        bool TemplateHasCells,
+        string? OrphanDescription);
+    internal static ParagraphCapabilitiesOutcome GetTableCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        XElement? table = storyDocument is null
+            ? null
+            : DocxStoryBlocks.FindTableByPhysicalOrdinal(
+                storyDocument.Document.Root?.Element(OoxmlNs.W + "body") ?? storyDocument.Document.Root!,
+                parsed.Primary);
+        if (storyDocument is null || table is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        XElement[] rows = table.Elements(OoxmlNs.W + "tr").ToArray();
+        bool gridConsistent = TryGetConsistentVisualColumnCount(table, out _);
+        bool lastRowAppendable = false;
+        string lastRowReason = string.Empty;
+        bool templateHasCells = false;
+        if (rows.Length != 0)
+        {
+            lastRowAppendable = CanAppendRowWithVerticalMerges(table, rows[^1], out string? reason);
+            lastRowReason = reason ?? string.Empty;
+            templateHasCells = rows[^1].Elements(OoxmlNs.W + "tc").Any();
+        }
+        var facts = new TableCapabilityFacts(
+            rows.Length,
+            gridConsistent,
+            lastRowAppendable,
+            lastRowReason,
+            templateHasCells,
+            FindOrphanedRangeBoundary(storyDocument.Document, table));
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            TableInsertCapability("insert-before", isTracked),
+            TableInsertCapability("insert-after", isTracked),
+            TableHyperlinkInsertCapability(isTracked),
+            TableDeleteCapability(facts, isTracked, isRequire),
+            TableStyleCapability(),
+            TableMetadataCapability(isRequire),
+            TableAppendRowCapability(facts),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "table",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    private static DocxOperationCapability TableInsertCapability(string operation, bool isTracked)
+    {
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Structural insert next to this table; the anchor table is unchanged. Inserted text without tabs or line breaks is recorded as tracked insertion markup; other inserted text falls back to a direct insert with W4002 under Suggest and fails with E6002 under Require. Check remains authoritative for the exact text.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Structural insert next to this table; the anchor table is unchanged.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability TableHyperlinkInsertCapability(bool isTracked)
+    {
+        const string operation = "insert-hyperlink-after";
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Hyperlink paragraph insert after this table; the anchor table is unchanged. Simple display text is recorded as tracked insertion markup; text with tabs or line breaks falls back to a direct insert with W4002 under Suggest and fails with E6002 under Require. Check remains authoritative for the exact text.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Hyperlink paragraph insert after this table; the anchor table is unchanged.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability TableDeleteCapability(TableCapabilityFacts facts, bool isTracked, bool isRequire)
+    {
+        const string operation = "delete-block";
+        if (facts.OrphanDescription is not null)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Deleting this table would orphan " + facts.OrphanDescription + " outside the deleted element, so delete-block fails with E4305 in every mode. Delete the range first or choose another target.",
+                operation,
+                null);
+        }
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Tracked block deletion is modeled only for paragraph targets, so Require fails with E6002. Suggest falls back to a direct delete with W4002 and Off deletes directly, removing the table. Check remains authoritative.",
+                operation,
+                null);
+        }
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Tracked block deletion is modeled only for paragraph targets, so Suggest falls back to a direct delete with W4002 while Off deletes directly; either removes the table. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct delete removes the table.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability TableStyleCapability()
+    {
+        const string operation = "set-table-style";
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "The style value must resolve to a table style by ID or by unique name, otherwise check fails; expect-style can guard the current style. Tracked modes emit table property revisions with w:tblPrChange while preserving previous table properties. Check remains authoritative for the exact style.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability TableMetadataCapability(bool isRequire)
+    {
+        const string operation = "set-table-metadata";
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table caption and description updates are table metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Sets or clears table caption and description metadata; at least one of them is required. Guards expect-caption and expect-description can assert current values.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability TableAppendRowCapability(TableCapabilityFacts facts)
+    {
+        const string operation = "append-row";
+        if (facts.RowCount == 0)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table has no rows to clone, so append-row fails with E4301.",
+                operation,
+                null);
+        }
+        if (!facts.GridConsistent)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table does not have a consistent visual grid, so append-row fails with E4301.",
+                operation,
+                null);
+        }
+        if (!facts.LastRowAppendable)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table cannot be appended safely: " + facts.LastRowReason + ", so append-row fails with E4301.",
+                operation,
+                null);
+        }
+        if (!facts.TemplateHasCells)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table last row has no cells to clone, so append-row fails with E4301.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "The patch must supply one cell field per cloned cell, and table guards still apply; simple rectangular tables emit row insertion revisions under tracked modes while complex shapes fall back with W4002 under Suggest and fail with E6002 under Require. Check remains authoritative for the exact cells.",
             operation,
             null);
     }
