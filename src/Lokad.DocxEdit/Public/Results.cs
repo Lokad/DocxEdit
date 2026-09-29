@@ -719,7 +719,7 @@ public sealed record DocxContextItem
     public string Id { get; init; } = string.Empty;
     /// <summary>Item kind.</summary>
     public string Kind { get; init; } = string.Empty;
-    /// <summary>Position relative to the target (before, target, or after).</summary>
+    /// <summary>Position relative to the target (before, target, after, or anchor for the paragraph holding a bookmark target).</summary>
     public string Relation { get; init; } = string.Empty;
     /// <summary>Story label.</summary>
     public string Story { get; init; } = string.Empty;

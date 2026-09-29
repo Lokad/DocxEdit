@@ -227,7 +227,7 @@ public static class ParagraphCapabilitiesTests
     }
 
     [Fact]
-    public static void UnknownAndNonParagraphTargetsFailWithE1201()
+    public static void UnknownTargetsFailWithE1201()
     {
         using MemoryStream missingInput = CreateDocx("Alpha");
         missingInput.Position = 0;
@@ -240,8 +240,8 @@ public static class ParagraphCapabilitiesTests
         using MemoryStream tableInput = CreateDocxWithSimpleTwoByTwoTable();
         tableInput.Position = 0;
         DocxCapabilitiesResult table = new DocxEditor().GetCapabilities(tableInput, "M.T0001");
-        Assert.False(table.Success);
-        Assert.Null(table.Capabilities);
-        Assert.Contains(table.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+        Assert.True(table.Success, string.Join("|", table.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.NotNull(table.Capabilities);
+        Assert.Equal("table", table.Capabilities.Kind);
     }
 }
