@@ -105,3 +105,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 8 commands, 2 failing checks, 0 retries after the working recovery
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so recovery ease is not a fresh-agent signal. Duplicating a paragraph set up the ambiguity; the E1202 diagnostic named both candidates with the match count, help pointer, and line and column. A first recovery wrongly used occurrence, which selects find matches rather than selector targets, so E1202 persisted; the documented explicit-ID recovery with expect-text then edited only M.P0003 while M.P0002 stayed byte-identical in readback, and structural validation passed. The occurrence scope trap is worth one line in patch-format.md. A negative E1202 edit case now locks the refusal in.
+### 2026-09-29 — unsupported-recovery (synthetic self-run) — completed
+
+- Commands: read, check, capabilities, help, apply, validate
+- Diagnostics: E4316 on the delete-column check; none on the recovery path
+- Target IDs: table, row, and cell IDs; recovery cleared M.T0001.R01.C02 and M.T0001.R02.C02 with empty text
+- Markup types: none (untracked edit)
+- Counts: 7 commands, 1 failing check, 0 retries after the working recovery
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: synthetic 2-row 2-column document built with archive tooling since docxedit has no create command. Operator is repo-aware, so recovery ease is not a fresh-agent signal. The E4316 refusal carried reason, target, operation, line, column, and help pointer, and help delete-column is honest about the limitation. Capabilities refuse table IDs, so the recovery was found at cell level, where set-cell verdicts are supported. Clearing with empty text kept the grid shape, which is honestly different from structural deletion; readback and structural validation confirmed the result. A negative E4316 edit case now locks the refusal in.

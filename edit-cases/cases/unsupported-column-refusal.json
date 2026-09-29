@@ -1,0 +1,30 @@
+{
+  "id": "unsupported-column-refusal",
+  "description": "Refuses a recognized-but-unimplemented column deletion with E4316.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>A2</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B2</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-column",
+    "target M.T0001",
+    "column 2",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4316"
+    ],
+    "diagnosticMessagesContain": [
+      "not supported"
+    ]
+  }
+}

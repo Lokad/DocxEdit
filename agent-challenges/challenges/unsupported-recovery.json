@@ -1,0 +1,23 @@
+{
+  "id": "unsupported-recovery",
+  "title": "Recover From An Unsupported Operation With A Supported Edit",
+  "tags": ["private", "patch", "tables", "diagnostics"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, inspect a small synthetic table and attempt a delete-column patch on it.",
+    "Record the diagnostic code, reason, and help pointer from the failed check.",
+    "Recover with a supported edit that achieves the nearest safe visible effect, using cell capabilities and guarded set-cell operations. Run docxedit check before each apply.",
+    "Validate the final output with docxedit read and docxedit validate, and state honestly how the recovery differs from the refused structural edit."
+  ],
+  "successCriteria": [
+    "Shows the column deletion failing with E4316 before the recovery.",
+    "Produces an output .docx through supported guarded edits only.",
+    "Uses check before apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Did the E4316 diagnostic plus help make the limitation legible?",
+    "Could the agent find the cell-level recovery through capabilities?",
+    "Did the agent state the clearing-versus-deletion difference honestly?"
+  ]
+}
