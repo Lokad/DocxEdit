@@ -190,6 +190,18 @@ public static class ReadInspectTests
     }
 
     [Fact]
+    public static void DumpShowsRowMembers()
+    {
+        using MemoryStream stream = CreateDocxWithSimpleTwoByTwoTable();
+        var editor = new DocxEditor();
+        DocxDumpResult result = editor.Dump(stream, "M.T0001.R01");
+        Assert.True(result.Success);
+        Assert.Contains("North", result.Text, StringComparison.Ordinal);
+        Assert.Contains("Revenue", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("South", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void DumpReturnsBookmarkLine()
     {
         using MemoryStream stream = CreateDocxWithSingleBookmark();
@@ -281,7 +293,7 @@ public static class ReadInspectTests
         Assert.Contains("type=row-properties-change", row.Text, StringComparison.Ordinal);
         Assert.Contains("parent=row-properties", row.Text, StringComparison.Ordinal);
         Assert.Contains("revision-id=3", row.Text, StringComparison.Ordinal);
-        Assert.DoesNotContain("Private", row.Text, StringComparison.Ordinal);
+        Assert.Contains("M.T0001.R01.C01", row.Text, StringComparison.Ordinal);
         Assert.True(section.Success);
         Assert.Contains("type=section-properties-change", section.Text, StringComparison.Ordinal);
         Assert.Contains("revision-id=4", section.Text, StringComparison.Ordinal);

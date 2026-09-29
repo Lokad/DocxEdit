@@ -584,6 +584,19 @@ internal static class TextRenderers
             return builder.ToString();
         }
 
+        DocxTableCellInfo[] rowCells = model.Tables
+            .SelectMany(table => table.Cells)
+            .Where(cell => cell.Id.ToWireValue().StartsWith(targetId + ".C", StringComparison.Ordinal))
+            .OrderBy(cell => cell.ColumnIndex)
+            .ToArray();
+        if (rowCells.Length > 0)
+        {
+            var builder = new StringBuilder();
+            builder.AppendJoin(Environment.NewLine, rowCells.Select(cell => cell.Id.ToWireValue() + ": " + Truncate(cell.Text, maxText)));
+            AppendTargetChanges(builder, changes, targetId);
+            return builder.ToString();
+        }
+
         DocxTableCellInfo[] groupCells = model.Tables
             .SelectMany(table => table.Cells)
             .Where(cell => cell.MergeGroupId is { } group && string.Equals(group.ToWireValue(), targetId, StringComparison.Ordinal))
