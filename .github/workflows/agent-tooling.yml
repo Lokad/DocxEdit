@@ -17,6 +17,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build solution
         run: dotnet build Lokad.DocxEdit.slnx -c Release --nologo -v q
+      - name: Test solution
+        run: dotnet test Lokad.DocxEdit.slnx -c Release --no-restore --nologo -v q
       # pwsh (not powershell): the runner hashes inputs with Get-FileHash, which is absent
       # from some Windows PowerShell 5.1 installs; pwsh 7 ships on windows-latest.
       - name: List challenges
