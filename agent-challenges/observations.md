@@ -219,3 +219,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 16 commands, 1 failing check, 0 retries after the working recovery; about 302k input tokens with about 270k cached
 - Artifacts: artifacts/agent-challenges/ambiguity-recovery/20260929T135222Z/summary.json
 - Notes: rerun after the earlier tooling-blocked attempt on the same challenge; with wider observer polling gaps it completed cleanly, supporting flake over systematic for the prior failure. The agent manufactured ambiguity in a separate working copy with the input hash identical throughout, hit E1202 with both candidates named, and recovered through the explicit ID plus expect-text without touching occurrence. Verified only the chosen paragraph changed; structural validation clean. No agent-reported weaknesses; no text disclosed.
+
+### 2026-09-29 — image-alt-edit (live codex run) — partial
+
+- Commands: help, read, media, validate, check
+- Diagnostics: E1201 on the diagnostic probe (M.I0001 matched zero targets); nothing else
+- Target IDs: none (zero images; the M.I0001 placeholder never resolved)
+- Markup types: not applicable
+- Counts: 11 commands, 1 failing check, 0 applies, 0 retries; about 109k input tokens with about 83k cached
+- Artifacts: artifacts/agent-challenges/image-alt-edit/20260929T135728Z/summary.json
+- Notes: first live run of the authored image-alt-edit challenge, against the imageless public fixture stand-in. The agent confirmed zero images through read plus the media command, wrote an explicitly non-appliable diagnostic probe to capture the E1201 failure mode, and stopped without applying or creating output. Runner reports harness success; challenge outcome partial by design since no edit was possible. Validates the challenge failure branch, E1201 discoverability, and fresh-agent use of the media command; no text disclosed. A follow-up on an image-bearing input would exercise the edit branch.
