@@ -1,0 +1,31 @@
+{
+  "id": "guard-style-mismatch",
+  "description": "Fails a paragraph style guard mismatch with E3201.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"paragraph\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:p><w:pPr><w:pStyle w:val=\"Normal\"/></w:pPr><w:r><w:t>Body</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-style",
+    "target M.P0001",
+    "expect-style Heading2",
+    "style Normal",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Expected paragraph style"
+    ]
+  }
+}
