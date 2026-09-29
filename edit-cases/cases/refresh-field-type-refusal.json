@@ -1,0 +1,30 @@
+{
+  "id": "refresh-field-type-refusal",
+  "description": "Refuses field refresh for an unsupported pagination field type.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" PAGE \">",
+      "        <w:r><w:t>1</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op refresh-field-result",
+    "target M.F0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4313"
+    ],
+    "diagnosticMessagesContain": [
+      "pagination"
+    ]
+  }
+}
