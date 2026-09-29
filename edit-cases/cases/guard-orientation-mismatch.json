@@ -1,0 +1,32 @@
+{
+  "id": "guard-orientation-mismatch",
+  "description": "Fails a section orientation guard mismatch with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Section text</w:t></w:r></w:p>",
+      "    <w:sectPr>",
+      "      <w:pgSz w:w=\"12240\" w:h=\"15840\"/>",
+      "      <w:cols w:num=\"1\"/>",
+      "    </w:sectPr>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-section-orientation",
+    "target M.S0001",
+    "expect-orientation landscape",
+    "orientation portrait",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "section orientation"
+    ]
+  }
+}
