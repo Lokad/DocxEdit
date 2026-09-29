@@ -415,7 +415,21 @@ internal static partial class DocxPatchEngine
             "Checkbox content controls update state metadata, not a simple Word revision range.",
             "Content Controls",
             "Updates checkbox state and displayed symbol",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.ContentControl] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlCheckbox(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-content-control-checkbox.
+                docxpatch 1
+                op set-content-control-checkbox
+                target M.CC0001
+                checked true
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.ContentControl],
+        },
         PreserveOnly(
             "set-content-control-choice",
             [
@@ -427,7 +441,22 @@ internal static partial class DocxPatchEngine
             "Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet.",
             "Content Controls",
             "Selects a dropdown/combo item",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)) with { ExclusiveGroups = [["value", "display-text"]], AcceptedKinds = [DocxTargetKind.ContentControl] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlChoice(package, operation, apply, cancellationToken)) with
+        {
+            ExclusiveGroups = [["value", "display-text"]],
+            AcceptedKinds = [DocxTargetKind.ContentControl],
+            Examples =
+            [
+                """
+                # Minimal set-content-control-choice.
+                docxpatch 1
+                op set-content-control-choice
+                target M.CC0001
+                value south
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "set-content-control-date",
             [
@@ -439,7 +468,21 @@ internal static partial class DocxPatchEngine
             "Date content controls update date metadata and display text together; generated revision markup is not modeled yet.",
             "Content Controls",
             "Updates date value and visible text",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlDate(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.ContentControl] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetContentControlDate(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-content-control-date.
+                docxpatch 1
+                op set-content-control-date
+                target M.CC0001
+                value 2026-07-01T00:00:00Z
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.ContentControl],
+        },
         Unsupported(
             "add-repeating-section-item",
             [
@@ -562,7 +605,30 @@ internal static partial class DocxPatchEngine
             "Bookmark rename changes anchor metadata; Word has no useful generated revision range for the name update.",
             "Bookmarks",
             "Renames markers and same-story internal hyperlink anchors when unambiguous",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRenameBookmark(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Bookmark] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteRenameBookmark(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal rename-bookmark.
+                docxpatch 1
+                op rename-bookmark
+                target M.B0001
+                name Renamed
+                end
+                """,
+                """
+                # Guarded rename-bookmark: expect-name must match before editing.
+                docxpatch 1
+                op rename-bookmark
+                target M.B0001
+                expect-name ClientName
+                name Renamed
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Bookmark],
+        },
         PreserveOnly(
             "delete-bookmark",
             [
@@ -572,7 +638,20 @@ internal static partial class DocxPatchEngine
             "Bookmark deletion removes anchor metadata; Word has no useful generated revision range for the marker removal.",
             "Bookmarks",
             "Removes complete unreferenced bookmark markers, preserving content",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteBookmark(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Bookmark] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteBookmark(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal delete-bookmark.
+                docxpatch 1
+                op delete-bookmark
+                target M.B0001
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Bookmark],
+        },
         PreserveOnly(
             "add-comment",
             [

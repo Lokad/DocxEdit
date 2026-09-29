@@ -604,4 +604,75 @@ public static class HelpTopicTests
         }
     }
 
+    [Fact]
+    public static void ContentControlKindExamplesCheckClean()
+    {
+        const string checkboxBody = """
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:checkBox>
+                            <w:checked w:val="0"/>
+                            <w:checkedState w:val="2612"/>
+                            <w:uncheckedState w:val="2610"/>
+                          </w:checkBox>
+                          <w:tag w:val="accepted"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Unchecked</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """;
+        const string choiceBody = """
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:dropDownList>
+                            <w:listItem w:displayText="North" w:value="north"/>
+                            <w:listItem w:displayText="South" w:value="south"/>
+                          </w:dropDownList>
+                          <w:tag w:val="region"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """;
+        const string dateBody = """
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:date>
+                            <w:dateFormat w:val="yyyy-MM-dd"/>
+                            <w:fullDate w:val="2026-06-12T00:00:00Z"/>
+                          </w:date>
+                          <w:tag w:val="deadline"/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>2026-06-12</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """;
+        Assert.True(DocxHelp.TryGetPatchOperation("set-content-control-checkbox", out DocxPatchOperationInfo checkbox));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-content-control-choice", out DocxPatchOperationInfo choice));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-content-control-date", out DocxPatchOperationInfo date));
+        foreach ((string example, string body) in new[] { (Assert.Single(checkbox.Examples), checkboxBody), (Assert.Single(choice.Examples), choiceBody), (Assert.Single(date.Examples), dateBody) })
+        {
+            using MemoryStream input = CreateDocxWithBody(body);
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+    [Fact]
+    public static void BookmarkRenameDeleteExamplesCheckClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("rename-bookmark", out DocxPatchOperationInfo rename));
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-bookmark", out DocxPatchOperationInfo delete));
+        foreach (string example in rename.Examples.Concat(delete.Examples))
+        {
+            using MemoryStream input = CreateDocxWithSingleBookmark();
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+
 }
