@@ -869,6 +869,11 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasRowTarget(package, target, cancellationToken);
+        }
+
         if (!DocxTargetId.TryParse(target, out DocxTargetId rowId) || rowId.Kind != DocxTargetKind.Row)
         {
             return null;

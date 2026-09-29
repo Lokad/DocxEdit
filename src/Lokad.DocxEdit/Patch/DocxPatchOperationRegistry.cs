@@ -996,6 +996,7 @@ internal static partial class DocxPatchEngine
             "append-row",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("expect-row-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("cell", FieldValueKind.Text, Repeatable: true, Required: true),
@@ -1041,6 +1042,7 @@ internal static partial class DocxPatchEngine
             "insert-row-before",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("expect-row-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-cell-count", FieldValueKind.Integer, Repeatable: false, Required: false),
@@ -1058,6 +1060,7 @@ internal static partial class DocxPatchEngine
             "insert-row-after",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("expect-row-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-column-count", FieldValueKind.Integer, Repeatable: false, Required: false),
                 new("expect-cell-count", FieldValueKind.Integer, Repeatable: false, Required: false),

@@ -369,4 +369,97 @@ public static class PatchAliasTests
         output.Position = 0;
         Assert.Equal(new[] { "Alpha", "First", "Second" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
     }
+    [Fact]
+    public static void AppendRowBindsAliasForDelete()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>
+                      <w:tr><w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            cell East
+            as rnew
+            end
+
+            op delete-row
+            target @rnew
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal(2, table.RowCount);
+        Assert.Contains(table.Cells, static cell => cell.Text == "North");
+        Assert.Contains(table.Cells, static cell => cell.Text == "South");
+        Assert.DoesNotContain(table.Cells, static cell => cell.Text == "East");
+    }
+
+    [Fact]
+    public static void InsertRowBindsAliasForHeader()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-row-after
+            target M.T0001.R01
+            cell A2
+            cell B2
+            as rnew
+            end
+
+            op set-row-header
+            target @rnew
+            header true
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Contains("<w:tblHeader", ReadDocumentXml(output), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ParagraphAliasAsRowTargetFails()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Drafted
+            as sec1
+            end
+
+            op delete-row
+            target @sec1
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.False(result.Success);
+        Assert.True(result.Operations[0].Success);
+        Assert.False(result.Operations[1].Success);
+        Assert.Contains(result.Operations[1].Diagnostics, static d => d.Code == "E1201");
+    }
 }

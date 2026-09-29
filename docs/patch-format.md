@@ -183,7 +183,7 @@ guards (xpect-text, counts) on every patch.
 
 ## Result aliases
 
-Creation operations (insert-before, insert-after, insert-image-after, add-comment, add-comment-reply, add-bookmark) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document.
+Creation operations (insert-before, insert-after, insert-image-after, add-comment, add-comment-reply, add-bookmark, append-row, insert-row-before, insert-row-after) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document.
 
 - Names start with a letter and contain only letters, digits, underscore, or hyphen.
 - Bindings resolve sequentially within one patch: using a name before its operation fails, rebinding a bound name fails, and using a deleted target fails.
@@ -363,9 +363,9 @@ are rejected. Internal links use bookmark `anchor` values.
 | `set-table-style` | `target`, `style` | `expect-style` | Updates `w:tblStyle`, `style` accepts a table style ID or display name |
 | `set-table-metadata` | `target` plus `caption` or `description` | `expect-caption`, `expect-description` | Sets or clears table caption/description |
 | `set-row-header` | `target`, `header` | `expect-header` | Sets or clears the repeating-header flag |
-| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `cell+` | Appends by cloning the last row shape when the visual grid is consistent |
-| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Inserts before a row by cloning the target row shape when safe |
-| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Inserts after a row by cloning the target row shape when safe |
+| `append-row` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `cell+`, `as` | Appends by cloning the last row shape when the visual grid is consistent |
+| `insert-row-before` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+`, `as` | Inserts before a row by cloning the target row shape when safe |
+| `insert-row-after` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+`, `as` | Inserts after a row by cloning the target row shape when safe |
 | `delete-row` | `target` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `expect-contains`, `force` | Deletes a row; direct mode can promote the next vertical-merge continuation |
 | `append-column` | `target`, repeated `cell` | `expect-row-count`, `expect-column-count`, `force`, `cell+` | Recognized but fails with `E4316` |
 | `insert-column-before` | `target`, `column`, repeated `cell` | `expect-row-count`, `expect-column-count`, `expect-cell-count`, `force`, `cell+` | Recognized but fails with `E4316` |

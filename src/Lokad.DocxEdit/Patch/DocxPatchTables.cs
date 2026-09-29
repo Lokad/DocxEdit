@@ -70,7 +70,7 @@ internal static partial class DocxPatchEngine
         return CreateTableOperationSnapshot(target, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null, templateRow);
     }
 
-    private static TableOperationSnapshot CreateTableOperationSnapshot(
+    private static TableOperationSnapshot? CreateTableOperationSnapshot(
         string target,
         XElement table,
         int? rowIndex,
@@ -78,6 +78,11 @@ internal static partial class DocxPatchEngine
         int? cellCount,
         XElement? row)
     {
+        if (IsAliasReference(target))
+        {
+            return null;
+        }
+
         if (!DocxTargetId.TryParse(target, out DocxTargetId resolved))
         {
             throw new InvalidDataException("Table snapshot requires the resolved explicit target.");

@@ -56,7 +56,7 @@ internal static partial class DocxPatchEngine
 
             XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
             XElement? match = document.Descendants().FirstOrDefault(element =>
-                (element.Name == OoxmlNs.W + "p" || element.Name == OoxmlNs.W + "bookmarkStart") &&
+                (element.Name == OoxmlNs.W + "p" || element.Name == OoxmlNs.W + "bookmarkStart" || element.Name == OoxmlNs.W + "tr") &&
                 string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
             if (match is not null)
             {
@@ -282,6 +282,69 @@ internal static partial class DocxPatchEngine
         return match is null ? null : (partName, document, match);
     }
 
+    private static RowTarget? ResolveAliasRowTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        (string PartName, XDocument Document, XElement Element)? found = FindAliasElement(package, AliasReferenceName(target), cancellationToken);
+        if (found is null)
+        {
+            return null;
+        }
+
+        (string partName, XDocument document, XElement row) = found.Value;
+        if (row.Name != OoxmlNs.W + "tr")
+        {
+            return null;
+        }
+
+        XElement? table = row.Parent?.Name == OoxmlNs.W + "tbl" ? row.Parent : row.Ancestors(OoxmlNs.W + "tbl").FirstOrDefault();
+        return table is null ? null : new RowTarget(partName, document, table, row);
+    }
+
+    private static (string PartName, XDocument Document, XElement Row)? FindCreatedRow(
+        DocxPatchOperation operation,
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (target is null)
+        {
+            return null;
+        }
+
+        if (operation.OperationName == "append-row")
+        {
+            TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
+            if (tableTarget is null)
+            {
+                return null;
+            }
+
+            XElement? created = tableTarget.Table.Elements(OoxmlNs.W + "tr").LastOrDefault();
+            return created is null ? null : (tableTarget.PartName, tableTarget.Document, created);
+        }
+
+        RowTarget? anchor = ResolveRowTarget(package, target, cancellationToken);
+        if (anchor is null)
+        {
+            return null;
+        }
+
+        bool insertAfter = string.Equals(operation.OperationName, "insert-row-after", StringComparison.Ordinal);
+        XElement? sibling = insertAfter
+            ? anchor.Row.ElementsAfterSelf(OoxmlNs.W + "tr").FirstOrDefault()
+            : anchor.Row.ElementsBeforeSelf(OoxmlNs.W + "tr").LastOrDefault();
+        if (sibling is null)
+        {
+            return null;
+        }
+
+        XElement? table = sibling.Parent?.Name == OoxmlNs.W + "tbl" ? sibling.Parent : sibling.Ancestors(OoxmlNs.W + "tbl").FirstOrDefault();
+        return table is null ? null : (anchor.PartName, anchor.Document, sibling);
+    }
+
     private static void BindCreatedAlias(
         DocxPatchOperation operation,
         OoxmlPackage package,
@@ -352,6 +415,19 @@ internal static partial class DocxPatchEngine
                 touched[found.Value.PartName] = found.Value.Document;
             }
 
+            SaveTouchedParts(package, touched);
+        }
+
+        if (operation.OperationName is "append-row" or "insert-row-before" or "insert-row-after")
+        {
+            (string PartName, XDocument Document, XElement Row)? found = FindCreatedRow(operation, package, cancellationToken);
+            if (found is null)
+            {
+                return;
+            }
+
+            found.Value.Row.SetAttributeValue(SnapshotAliasName, alias);
+            touched[found.Value.PartName] = found.Value.Document;
             SaveTouchedParts(package, touched);
         }
     }
