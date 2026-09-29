@@ -1,9 +1,9 @@
 {
   "id": "expect-hash-refusal",
-  "description": "Refuses the prohibited expect-hash field with E2004.",
+  "description": "Rejects the prohibited expect-hash field without loading the document.",
   "input": {
     "bodyXml": [
-      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
     ]
   },
   "patch": [
@@ -12,8 +12,8 @@
     "op replace-text",
     "target M.P0001",
     "find Alpha",
-    "with Omega",
-    "expect-hash abc123",
+    "with Beta",
+    "expect-hash deadbeef",
     "end"
   ],
   "expect": {
