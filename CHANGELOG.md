@@ -32,7 +32,7 @@
 - Added hyperlink, field, and content-control targets to `context` with the anchor-paragraph neighborhood, matching bookmark context.
 - Zero-match selector diagnostics now carry match count 0 with the nearby candidate IDs.
 - Zero-match text selectors now point at table cells when the query matches cell text.
-- Operation previews now cover cell-shading, table-style, row-header, content-control-text, image-alt, field-result, delete-block, section-columns, hyperlink-target, field-dirty, field-lock, section-orientation, field-code, and comment-text changes alongside text, style, cell, and hyperlink-text edits.
+- Operation previews now cover cell-shading, table-style, row-header, content-control-text, image-alt, field-result, delete-block, section-columns, hyperlink-target, field-dirty, field-lock, section-orientation, field-code, comment-text, and bookmark-text changes alongside text, style, cell, and hyperlink-text edits.
 - Unknown `dump`/`context` target IDs now suggest the nearest known ID on near misses.
 - Fixed contradictory track-change notes for comment annotation operations: they stay permitted under Require instead of claiming Require fails with E6001; refreshed the frozen support table.
 - Single-line patch values with an unmatched double quote now fail parsing with E2007 and a repair hint instead of inserting the stray quote literally.

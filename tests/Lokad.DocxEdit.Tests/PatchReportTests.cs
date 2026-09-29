@@ -521,6 +521,30 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewReportsBookmarkTextChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-bookmark-text
+            target M.B0001
+            expect-text Old Client
+            text New Client
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Old Client", report.PreviewBefore);
+        Assert.Equal("New Client", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewReportsDeleteBlock()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
@@ -703,6 +727,7 @@ public static class PatchReportTests
             ("set-field-result", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-result\ntarget M.F0001\nexpect-result Old cached result\ntext New cached result\nend\n"),
             ("set-field-code", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-code\ntarget M.F0001\ncode REF NewBookmark \\h\nend\n"),
             ("set-comment-text", static () => CreateDocxWithCommentAnchoredParagraph(), "docxpatch 1\n\nop set-comment-text\ntarget comment:3\ntext Updated comment\nend\n"),
+            ("replace-bookmark-text", static () => CreateDocxWithSingleBookmark(), "docxpatch 1\n\nop replace-bookmark-text\ntarget M.B0001\ntext New Client\nend\n"),
             ("delete-block", static () => CreateDocxWithBody("<w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Beta</w:t></w:r></w:p>"), "docxpatch 1\n\nop delete-block\ntarget M.P0001\nend\n"),
             ("set-section-columns", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-columns\ntarget M.S0001\ncount 2\nend\n"),
             ("set-section-orientation", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-orientation\ntarget M.S0001\norientation landscape\nend\n"),
