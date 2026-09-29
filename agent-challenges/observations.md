@@ -229,3 +229,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 11 commands, 1 failing check, 0 applies, 0 retries; about 109k input tokens with about 83k cached
 - Artifacts: artifacts/agent-challenges/image-alt-edit/20260929T135728Z/summary.json
 - Notes: first live run of the authored image-alt-edit challenge, against the imageless public fixture stand-in. The agent confirmed zero images through read plus the media command, wrote an explicitly non-appliable diagnostic probe to capture the E1201 failure mode, and stopped without applying or creating output. Runner reports harness success; challenge outcome partial by design since no edit was possible. Validates the challenge failure branch, E1201 discoverability, and fresh-agent use of the media command; no text disclosed. A follow-up on an image-bearing input would exercise the edit branch.
+
+### 2026-09-29 — iterative-tracked-edit (live codex run) — completed
+
+- Commands: help, read, dump, changes, check, apply, validate
+- Diagnostics: E6002 on the deliberate overlap probe (check and apply); none on the two disjoint edits
+- Target IDs: main-story paragraph IDs; two revision pairs 1/2 and 3/4 in M.P0002
+- Markup types: deleted-run and inserted-run pairs with requested author and timestamp
+- Counts: 20 commands, 1 failing check plus 1 failing apply on the overlap probe, 0 retries; about 297k input tokens with about 264k cached
+- Artifacts: artifacts/agent-challenges/iterative-tracked-edit/20260929T135941Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent led with five help calls, applied two guarded replacements under require with the first revision pair preserved, then probed the overlap: E6002 named the tracked-insertion boundary on both check and apply with no rejected output created. Structural validation clean. No agent-reported weaknesses; no text disclosed.
