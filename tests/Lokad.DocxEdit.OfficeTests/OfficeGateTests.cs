@@ -194,6 +194,100 @@ public static class OfficeGateTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationBreakStructureRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateDocx(inputPath, "Alpha");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op replace-paragraph
+                target M.P0001
+                text "Line one\nLine two\tTab"
+                end
+
+                op insert-after
+                target M.P0001
+                text "Second\nPart"
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Equal("Line one\nLine two\tTab", read.Paragraphs[0].Text);
+            Assert.Equal("Second\nPart", read.Paragraphs[1].Text);
+
+            using FileStream xmlStream = File.OpenRead(outputPath);
+            using var archive = new ZipArchive(xmlStream, ZipArchiveMode.Read);
+            ZipArchiveEntry entry = archive.GetEntry("word/document.xml") ?? throw new InvalidOperationException("Missing word/document.xml.");
+            using Stream entryStream = entry.Open();
+            using var reader = new StreamReader(entryStream, Encoding.UTF8);
+            string xml = reader.ReadToEnd();
+            Assert.Equal(2, CountOccurrences(xml, "<w:br"));
+            Assert.Equal(1, CountOccurrences(xml, "<w:tab"));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        int count = 0;
+        int index = 0;
+        while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+
+        return count;
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
