@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, merge-group, bookmark, and table targets.
+// D17: capabilities for content-control, cell, merge-group, bookmark, table, and row targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -58,6 +58,11 @@ internal static partial class DocxPatchEngine
             return GetTableCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Row)
+        {
+            return GetRowCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         if (parsed.Kind == DocxTargetKind.Bookmark)
         {
             return GetBookmarkCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
@@ -68,7 +73,7 @@ internal static partial class DocxPatchEngine
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, and table IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, and row IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -510,6 +515,161 @@ internal static partial class DocxPatchEngine
             operation,
             "supported",
             "Value sets the date metadata while display-text, or value when display-text is absent, replaces the control content.",
+            operation,
+            null);
+    }
+    // D17: row capabilities reuse the insertion-boundary, deletion, grid-shape, orphan, and track-support predicates from the table and text engines.
+    private sealed record RowCapabilityFacts(
+        bool InsertBeforeOk,
+        string InsertBeforeReason,
+        bool InsertAfterOk,
+        string InsertAfterReason,
+        bool IsOnlyRow,
+        bool CanDelete,
+        string DeleteReason,
+        bool GridConsistent,
+        bool RowHasCells,
+        string? OrphanDescription);
+    internal static ParagraphCapabilitiesOutcome GetRowCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        XElement? table = storyDocument is null
+            ? null
+            : DocxStoryBlocks.FindTableByPhysicalOrdinal(
+                storyDocument.Document.Root?.Element(OoxmlNs.W + "body") ?? storyDocument.Document.Root!,
+                parsed.Primary);
+        XElement[] rows = table?.Elements(OoxmlNs.W + "tr").ToArray() ?? [];
+        XElement? row = parsed.Secondary >= 1 ? rows.ElementAtOrDefault(parsed.Secondary - 1) : null;
+        if (storyDocument is null || table is null || row is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        bool insertBeforeOk = CanInsertRowWithVerticalMerges(table, row, insertAfter: false, out string? beforeReason);
+        bool insertAfterOk = CanInsertRowWithVerticalMerges(table, row, insertAfter: true, out string? afterReason);
+        bool canDelete = CanDeleteRowWithVerticalMerges(table, row, out string? deleteReason);
+        var facts = new RowCapabilityFacts(
+            insertBeforeOk,
+            beforeReason ?? string.Empty,
+            insertAfterOk,
+            afterReason ?? string.Empty,
+            rows.Length == 1,
+            canDelete,
+            deleteReason ?? string.Empty,
+            IsRectangular(table, out _) || TryGetConsistentVisualColumnCount(table, out _),
+            row.Elements(OoxmlNs.W + "tc").Any(),
+            FindOrphanedRangeBoundary(storyDocument.Document, row));
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            RowInsertCapability("insert-row-before", facts.InsertBeforeOk, facts.InsertBeforeReason),
+            RowInsertCapability("insert-row-after", facts.InsertAfterOk, facts.InsertAfterReason),
+            RowDeleteCapability(facts, isTracked, isRequire),
+            RowHeaderCapability(),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "row",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    private static DocxOperationCapability RowInsertCapability(string operation, bool boundaryOk, string boundaryReason)
+    {
+        if (!boundaryOk)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table cannot be edited safely by " + operation + ": " + boundaryReason + ", so " + operation + " fails with E4301.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "The patch must supply one cell field per cloned cell, and table guards still apply; ragged grids need force true, which clones the raw cell count and may misalign merged or spanned columns. Simple rectangular tables emit row insertion revisions under tracked modes while complex shapes fall back with W4002 under Suggest and fail with E6002 under Require. Check remains authoritative for the exact cells.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability RowDeleteCapability(RowCapabilityFacts facts, bool isTracked, bool isRequire)
+    {
+        const string operation = "delete-row";
+        if (facts.IsOnlyRow)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Cannot delete the last row of a table, so delete-row fails with E4304.",
+                operation,
+                null);
+        }
+        if (!facts.CanDelete)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Table cannot be edited safely by delete-row: " + facts.DeleteReason + ", so delete-row fails with E4301.",
+                operation,
+                null);
+        }
+        if (facts.OrphanDescription is not null && !isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Deleting this row would orphan " + facts.OrphanDescription + " outside the deleted element, so direct delete-row fails with E4305. Tracked modes mark the deletion instead; delete the range first or choose another target.",
+                operation,
+                null);
+        }
+        if (!facts.GridConsistent)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Table does not have a consistent visual grid: without force true delete-row fails with E4301, and with force true the row is deleted anyway, which may leave the remaining grid ragged. Tracked shape is decided by check. Check remains authoritative.",
+                operation,
+                null);
+        }
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Simple rectangular tables emit row deletion revisions; deleting the row promotes the next vertical-merge continuation when a merge root goes away. Complex shapes fall back with W4002 under Suggest and fail with E6002 under Require. Check remains authoritative.",
+                operation,
+                null);
+        }
+        if (facts.OrphanDescription is not null)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Deleting this row would orphan " + facts.OrphanDescription + " outside the deleted element: direct delete fails with E4305 while tracked modes mark the deletion instead. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct delete removes the row and promotes the next vertical-merge continuation when a merge root goes away. Guard expect-contains can assert the row text.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability RowHeaderCapability()
+    {
+        const string operation = "set-row-header";
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Sets or clears the repeating-header flag on the row. Guard expect-header can assert the current flag. Tracked modes emit row property revisions with w:trPrChange while preserving previous row properties.",
             operation,
             null);
     }
