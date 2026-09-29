@@ -179,3 +179,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 7 commands, 1 deliberate failing check, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: synthetic single-image document built with archive tooling since docxedit has no create command. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Focused help gave minimal plus guarded examples that transferred verbatim; the mismatch diagnostic carried code, both values, target, operation, line, column, and help pointer. Check with a preview budget showed before/after identically through check and apply; default reports stay metadata-only unless the budget is set. Readback plus structural validation confirmed the result.
+
+### 2026-09-29 — markup-inventory (live codex run) — completed
+
+- Commands: help, changes, read, validate
+- Diagnostics: none
+- Target IDs: none present; no markup IDs available
+- Markup types: none present (zero tracked-change and comment records)
+- Counts: 10 commands, 0 failing checks, 0 retries; about 108k input tokens with about 87k cached
+- Artifacts: artifacts/agent-challenges/markup-inventory/20260929T133603Z/summary.json
+- Notes: first live codex-exec run in this thread (ephemeral, prompt-only, codex-cli 0.155.1) using the public fixture stand-in, whose hash was identical before and after. The agent consulted focused help before each new command class, stayed within docxedit with no forbidden inspection, and disclosed no text. Finding: empty changes and read results lack explicit zero totals and scanned-story coverage, forcing interpretation of empty arrays. Caveat: the fixture carries no markup, so populated-inventory usability remains unassessed; model, usage, and thread are recorded in the summary.
