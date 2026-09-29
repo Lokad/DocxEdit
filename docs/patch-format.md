@@ -183,7 +183,7 @@ guards (xpect-text, counts) on every patch.
 
 ## Result aliases
 
-Creation operations (insert-before, insert-after, insert-image-after, add-comment, add-comment-reply, add-bookmark, append-row, insert-row-before, insert-row-after) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document.
+Creation operations (insert-before, insert-after, insert-image-after, insert-hyperlink-after, add-comment, add-comment-reply, add-bookmark, append-row, insert-row-before, insert-row-after) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document.
 
 - Names start with a letter and contain only letters, digits, underscore, or hyphen.
 - Bindings resolve sequentially within one patch: using a name before its operation fails, rebinding a bound name fails, and using a deleted target fails.

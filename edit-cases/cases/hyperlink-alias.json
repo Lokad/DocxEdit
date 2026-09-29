@@ -1,0 +1,32 @@
+{
+  "id": "hyperlink-alias",
+  "description": "Binds an inserted hyperlink paragraph to a name and inserts after it through the alias.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-hyperlink-after",
+    "target M.P0001",
+    "text Click here",
+    "uri https://example.test/new",
+    "as hl1",
+    "end",
+    "",
+    "op insert-after",
+    "target @hl1",
+    "text After link",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Alpha",
+      "Click here",
+      "After link"
+    ]
+  }
+}
