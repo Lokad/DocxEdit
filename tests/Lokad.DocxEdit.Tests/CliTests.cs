@@ -729,6 +729,31 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliApplyFailurePreservesExistingOutputFile()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string output = Path.Combine(temp.Path, "output.docx");
+        string patch = Path.Combine(temp.Path, "edit.docxpatch");
+        CreateTextOnlyDocx(input);
+        File.Copy(input, output);
+        byte[] before = File.ReadAllBytes(output);
+        File.WriteAllText(patch, """
+            docxpatch 1
+            op replace-text
+            target M.P0001
+            expect-text Wrong guarded text
+            find Revenue
+            with Margin
+            end
+            """);
+        CliResult result = RunCli("apply", input, patch, "--output", output);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("FAILED", result.Output, StringComparison.Ordinal);
+        Assert.Equal(before, File.ReadAllBytes(output));
+    }
+
+    [Fact]
     public static void CliApplyRejectsDocumentAndPatchStdin()
     {
         using TempDirectory temp = TempDirectory.Create();
