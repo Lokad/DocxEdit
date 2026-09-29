@@ -698,4 +698,33 @@ public static class PatchAliasTests
         Assert.DoesNotContain("bookmarkEnd", xml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void RowAliasAsCellTargetFails()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+            op append-row
+            target M.T0001
+            cell C1
+            cell C2
+            as r1
+            end
+            op set-cell
+            target @r1
+            text X
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.False(result.Success);
+        Assert.True(result.Operations[0].Success);
+        Assert.False(result.Operations[1].Success);
+        Assert.Contains(result.Operations[1].Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
 }
