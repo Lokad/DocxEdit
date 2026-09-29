@@ -431,6 +431,7 @@ public static class EditCaseTests
             foreach (JsonProperty expected in commentResolved.EnumerateObject())
             {
                 Assert.True(actualResolved.TryGetValue(expected.Name, out bool resolved) && resolved == expected.Value.GetBoolean(), "Case " + manifestId + " comment resolved mismatch.");
+                Assert.True(actualResolved.Count == commentResolved.EnumerateObject().Count(), "Case " + manifestId + " comment resolved count mismatch.");
             }
         }
     }
