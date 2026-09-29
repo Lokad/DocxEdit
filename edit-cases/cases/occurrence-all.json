@@ -1,0 +1,25 @@
+{
+  "id": "occurrence-all",
+  "description": "Replaces every match explicitly with occurrence all and verifies readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Omega",
+    "occurrence all",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Omega Omega"
+    ]
+  }
+}
