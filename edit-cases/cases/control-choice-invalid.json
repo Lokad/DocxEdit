@@ -1,0 +1,38 @@
+{
+  "id": "control-choice-invalid",
+  "description": "Refuses a dropdown selection with no matching list item with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:dropDownList>",
+      "            <w:listItem w:displayText=\"North\" w:value=\"north\"/>",
+      "            <w:listItem w:displayText=\"South\" w:value=\"south\"/>",
+      "          </w:dropDownList>",
+      "          <w:tag w:val=\"region\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-choice",
+    "target M.CC0001",
+    "value northwest",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "no list item with"
+    ]
+  }
+}
