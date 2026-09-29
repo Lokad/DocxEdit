@@ -1,0 +1,37 @@
+{
+  "id": "control-group-refusal",
+  "description": "Refuses text replacement on a group content control with E4310.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr><w:group/></w:sdtPr>",
+      "        <w:sdtContent>",
+      "          <w:sdt>",
+      "            <w:sdtPr><w:text/></w:sdtPr>",
+      "            <w:sdtContent><w:r><w:t>Editable child</w:t></w:r></w:sdtContent>",
+      "          </w:sdt>",
+      "        </w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target M.CC0001",
+    "text Replacement",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4310"
+    ],
+    "diagnosticMessagesContain": [
+      "editable child content control"
+    ]
+  }
+}
