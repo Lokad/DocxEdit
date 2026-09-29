@@ -1,0 +1,28 @@
+{
+  "id": "empty-find",
+  "description": "Rejects an empty find value while empty replacements stay allowed.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find \"\"",
+    "with Beta",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4202"
+    ],
+    "diagnosticMessagesContain": [
+      "missing required field"
+    ]
+  }
+}

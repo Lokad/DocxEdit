@@ -48,10 +48,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
-        if (find.Length == 0)
-        {
-            return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'find' must not be empty.", operation, target)];
-        }
+
 
         string current = ReadVisibleText(paragraphTarget.Paragraph);
         if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
@@ -201,10 +198,7 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4301", $"Unsupported merged-cell target '{target}'. Target the vertical-merge root cell instead.", operation, target)];
         }
 
-        if (find.Length == 0)
-        {
-            return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'find' must not be empty.", operation, target)];
-        }
+
 
         string guard = ReadVisibleText(cellTarget.Cell);
         if (expected is not null && !string.Equals(guard, expected, StringComparison.Ordinal))
