@@ -473,6 +473,30 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewReportsFieldCodeChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithRefField();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-code
+            target M.F0001
+            expect-code REF ClientName \h
+            code REF NewBookmark \h
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal(" REF ClientName \\h ", report.PreviewBefore);
+        Assert.Equal("REF NewBookmark \\h", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewReportsDeleteBlock()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
@@ -653,6 +677,7 @@ public static class PatchReportTests
             ("set-content-control-text", static () => CreateDocxWithBody("<w:p><w:sdt><w:sdtPr><w:id w:val=\"77\"/><w:alias w:val=\"Client Name\"/><w:tag w:val=\"client_name\"/><w:text/></w:sdtPr><w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent></w:sdt></w:p>"), "docxpatch 1\n\nop set-content-control-text\ntarget M.CC0001\ntext Acme Corp\nend\n"),
             ("set-image-alt", static () => CreateDocxWithImage("png", "image/png", "old-png"), "docxpatch 1\n\nop set-image-alt\ntarget M.I0001\nexpect-alt Old chart\nalt Updated chart\nend\n"),
             ("set-field-result", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-result\ntarget M.F0001\nexpect-result Old cached result\ntext New cached result\nend\n"),
+            ("set-field-code", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-code\ntarget M.F0001\ncode REF NewBookmark \\h\nend\n"),
             ("delete-block", static () => CreateDocxWithBody("<w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Beta</w:t></w:r></w:p>"), "docxpatch 1\n\nop delete-block\ntarget M.P0001\nend\n"),
             ("set-section-columns", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-columns\ntarget M.S0001\ncount 2\nend\n"),
             ("set-section-orientation", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-orientation\ntarget M.S0001\norientation landscape\nend\n"),

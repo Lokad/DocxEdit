@@ -225,7 +225,7 @@ internal static partial class DocxPatchEngine
 
     private static bool PreviewValueMayBeAbsent(string operationName)
     {
-        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock";
+        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-field-code";
     }
 
     private static (string? Before, string? After, bool Truncated) FinalizePreview(
@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "set-field-code" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
         {
             return null;
         }
@@ -338,6 +338,12 @@ internal static partial class DocxPatchEngine
         {
             FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
             return fieldTarget is null ? null : ReadVisibleText(fieldTarget.Element);
+        }
+
+        if (operation.OperationName == "set-field-code")
+        {
+            FieldTarget? codeTarget = ResolveFieldTarget(package, target, cancellationToken);
+            return codeTarget is null ? null : (string?)codeTarget.Element.Attribute(OoxmlNs.W + "instr");
         }
 
         if (operation.OperationName == "delete-block")
