@@ -1,0 +1,28 @@
+{
+  "id": "tab-replacement-refusal",
+  "description": "Refuses run-preserving replacement text containing a tab character.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with \"A\\tB\"",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4306"
+    ],
+    "diagnosticMessagesContain": [
+      "tabs or line breaks"
+    ]
+  }
+}
