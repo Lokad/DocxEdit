@@ -289,9 +289,90 @@ public static class OfficeGateTests
     }
 
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationTrackedRowRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateDocx(inputPath, "Office rows");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op append-row
+                target M.T0001
+                cell East
+                cell West
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+                {
+                    TrackChanges = TrackChangesMode.Require,
+                    Author = "Office Reviewer",
+                    TimestampUtc = DateTimeOffset.Parse("2026-06-11T12:00:00Z").ToUniversalTime()
+                });
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            DocxTableInfo table = Assert.Single(read.Tables);
+            Assert.Equal(2, table.RowCount);
+            Assert.Contains(table.Cells, cell => cell.Text == "East");
+            Assert.Contains(table.Cells, cell => cell.Text == "West");
+
+            using FileStream savedChanges = File.OpenRead(outputPath);
+            DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
+            Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Contains(changes.Summary, summary => summary.Type == "row-inserted" && summary.Count == 1);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
         object? application = null;
+        object? documents = null;
         object? document = null;
 
         try
@@ -303,8 +384,8 @@ public static class OfficeGateTests
             word.Visible = false;
             word.DisplayAlerts = 0;
 
-            dynamic documents = word.Documents;
-            document = documents.Open(path, ReadOnly: false, AddToRecentFiles: false, Visible: false);
+            documents = word.Documents;
+            document = ((dynamic)documents).Open(path, ReadOnly: false, AddToRecentFiles: false, Visible: false);
 
             dynamic doc = document;
             doc.Save();
@@ -326,6 +407,11 @@ public static class OfficeGateTests
                 }
 
                 ReleaseComObject(document);
+            }
+
+            if (documents is not null)
+            {
+                ReleaseComObject(documents);
             }
 
             if (application is not null)
