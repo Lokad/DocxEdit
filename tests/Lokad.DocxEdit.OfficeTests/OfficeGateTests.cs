@@ -2710,6 +2710,75 @@ public static class OfficeGateTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationCommentTextRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateResolvableCommentDocx(inputPath);
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op set-comment-text
+                target comment:3
+                expect-text Comment body
+                text Updated body
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream savedChanges = File.OpenRead(outputPath);
+            DocxChangesResult changes = new DocxEditor().Changes(savedChanges, new DocxChangesOptions { IncludeCommentText = true });
+            Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
+            DocxCommentThreadSummary summary = Assert.Single(changes.CommentSummary);
+            Assert.Equal("3", summary.CommentId);
+            Assert.Contains("Updated body", summary.TextSnippet, StringComparison.Ordinal);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
