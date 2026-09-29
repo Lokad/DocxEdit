@@ -1,0 +1,34 @@
+{
+  "id": "duplicate-alias",
+  "description": "Refuses a second result alias binding for an already used name with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text First",
+    "as dup",
+    "end",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text Second",
+    "as dup",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "Duplicate alias"
+    ]
+  }
+}
