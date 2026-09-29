@@ -1,0 +1,23 @@
+{
+  "id": "ambiguity-recovery",
+  "title": "Recover From An Ambiguous Selector With An Explicit ID",
+  "tags": ["private", "patch", "selectors", "diagnostics"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, arrange or find two paragraphs with identical visible text in a run-directory copy of the input.",
+    "Attempt a replace-text edit through a text selector that matches both paragraphs and record the diagnostic code, match count, and candidate IDs.",
+    "Recover by retargeting exactly one paragraph with an explicit ID plus an expect-text guard. Do not use occurrence to select between selector targets.",
+    "Run docxedit check before each apply and validate the final output with docxedit read and docxedit validate."
+  ],
+  "successCriteria": [
+    "Produces an output .docx where only the chosen paragraph changed.",
+    "Shows the ambiguous check failing with E1202 before the recovery.",
+    "Uses check before apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Did the E1202 diagnostic name the candidate IDs and the explicit-ID recovery?",
+    "Did the agent avoid misapplying occurrence to selector ambiguity?",
+    "Could the agent verify the surgical result from docxedit output alone?"
+  ]
+}

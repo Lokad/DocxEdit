@@ -96,3 +96,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 9 commands, 0 failing checks, 2 inspection refusals, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so discovery ease is not a fresh-agent signal. The fixture had no semantic anchors, so the run bootstrapped one with a guarded add-bookmark, then replaced its text through bookmark:ReviewAnchor with an expect-text guard; readback kept the markers complete and structural validation passed. Gap found: capabilities and dump refuse bookmark IDs, so semantic anchors are discoverable only through read; bookmark inspection and capability verdicts would close the D17 loop. A guarded selector edit case now locks the supported path in.
+### 2026-09-29 — ambiguity-recovery (synthetic self-run) — completed
+
+- Commands: read, apply, check, validate
+- Diagnostics: E1202 on the selector patch and on an occurrence-based retry; none on the explicit-ID path
+- Target IDs: main-story paragraph IDs; selector matched M.P0002 and M.P0003 with matches=2; recovery targeted M.P0003 with a guard
+- Markup types: none (untracked edit)
+- Counts: 8 commands, 2 failing checks, 0 retries after the working recovery
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so recovery ease is not a fresh-agent signal. Duplicating a paragraph set up the ambiguity; the E1202 diagnostic named both candidates with the match count, help pointer, and line and column. A first recovery wrongly used occurrence, which selects find matches rather than selector targets, so E1202 persisted; the documented explicit-ID recovery with expect-text then edited only M.P0003 while M.P0002 stayed byte-identical in readback, and structural validation passed. The occurrence scope trap is worth one line in patch-format.md. A negative E1202 edit case now locks the refusal in.

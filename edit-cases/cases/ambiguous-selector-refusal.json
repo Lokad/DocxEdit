@@ -1,0 +1,29 @@
+{
+  "id": "ambiguous-selector-refusal",
+  "description": "Refuses a text-selector edit matching two paragraphs with candidate IDs.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>",
+      "    <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target text:Revenue increased.",
+    "find increased",
+    "with rose",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1202"
+    ],
+    "diagnosticMessagesContain": [
+      "matched 2 targets"
+    ]
+  }
+}
