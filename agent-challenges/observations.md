@@ -289,3 +289,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 1 effective read; run stalled afterward with no patch, no output, 0 retries possible
 - Artifacts: private run directory private-cases/_runs/semantic-anchor-edit/20260929T142449Z (no sanitized summary; runner had not finalized)
 - Notes: second tooling-stalled live run with the same signature as the earlier ambiguity attempt: initial commands succeed, then shell execution goes unresponsive while the agent process burns multi-core CPU (about 20 minutes over 12 wall minutes) and never exits, hanging runner finalization. No product signal; bookmark flows remain assessed only in synthetic self-runs. Pattern across nine live runs is now 7 clean against 2 stalls, both stalls showing runaway agent CPU with an unresponsive tool gateway. Observer polling was moderately tight this run, so contention cannot be ruled out; the successful rerun used the widest gaps. Recommendation: space live runs apart, poll sparingly, and never overlap two live agents.
+
+### 2026-09-29 — story-scope-selector (live codex run) — partial
+
+- Commands: help, read, outline, changes, dump, check, validate
+- Diagnostics: E1201 on the main-story synthetic probe and on the guarded H001.P0001 probe; nothing else
+- Target IDs: none usable (2 main paragraphs, 0 header/footer paragraphs)
+- Markup types: not applicable
+- Counts: 16 commands, 2 failing checks, 0 applies, 0 retries; about 197k input tokens with about 166k cached
+- Artifacts: artifacts/agent-challenges/story-scope-selector/20260929T143736Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the headerless public fixture stand-in. The agent verified story inventory through outline plus headers-footers reads, probed both the main-story selector path and the explicit H001 path with synthetic marker text, and stopped without applying when both returned E1201. Runner reports harness success; challenge outcome partial by design. Finding: the zero-match E1201 diagnostic never states that semantic selectors search only the main story even though help patch documents it; the agent flagged the gap from the diagnostic side. No text disclosed.
