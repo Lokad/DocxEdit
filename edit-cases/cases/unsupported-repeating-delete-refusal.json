@@ -1,0 +1,39 @@
+{
+  "id": "unsupported-repeating-delete-refusal",
+  "description": "Refuses a recognized-but-unimplemented repeating-section deletion with E4315.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:repeatingSection w:sectionTitle=\"Line items\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent>",
+      "          <w:sdt>",
+      "            <w:sdtPr><w:repeatingSectionItem/></w:sdtPr>",
+      "            <w:sdtContent><w:r><w:t>Existing</w:t></w:r></w:sdtContent>",
+      "          </w:sdt>",
+      "        </w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-repeating-section-item",
+    "target M.CC0001",
+    "index 1",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4315"
+    ],
+    "diagnosticMessagesContain": [
+      "repeating-section item edits"
+    ]
+  }
+}
