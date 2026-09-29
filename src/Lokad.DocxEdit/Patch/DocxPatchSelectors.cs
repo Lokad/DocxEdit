@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text"))
         {
             return null;
         }
@@ -304,6 +304,18 @@ internal static partial class DocxPatchEngine
         {
             TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
             return tableTarget is null ? null : ReadTableStyleId(tableTarget.Table);
+        }
+
+        if (operation.OperationName == "set-row-header")
+        {
+            RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+            return rowTarget is null ? null : ReadTableRowHeader(rowTarget.Row).ToString().ToLowerInvariant();
+        }
+
+        if (operation.OperationName == "set-content-control-text")
+        {
+            ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out _);
+            return controlTarget is null ? null : ReadVisibleText(controlTarget.ContentControl);
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);

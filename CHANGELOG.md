@@ -31,7 +31,7 @@
 - Added hyperlink, field, and content-control targets to `dump`, reusing the read metadata lines.
 - Added hyperlink, field, and content-control targets to `context` with the anchor-paragraph neighborhood, matching bookmark context.
 - Zero-match selector diagnostics now carry match count 0 with the nearby candidate IDs.
-- Operation previews now cover cell-shading and table-style changes alongside text, style, cell, and hyperlink-text edits.
+- Operation previews now cover cell-shading, table-style, row-header, and content-control-text changes alongside text, style, cell, and hyperlink-text edits.
 - Unknown `dump`/`context` target IDs now suggest the nearest known ID on near misses.
 - Fixed contradictory track-change notes for comment annotation operations: they stay permitted under Require instead of claiming Require fails with E6001; refreshed the frozen support table.
 - Fixed comment extended/ID part content types to the Word-accepted Open XML forms so resolved and replied comment documents open in Word.

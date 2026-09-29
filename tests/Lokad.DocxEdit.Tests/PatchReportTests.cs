@@ -364,6 +364,65 @@ public static class PatchReportTests
         Assert.False(report.PreviewTruncated);
     }
 
+    [Fact]
+    public static void PreviewReportsRowHeaderChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-row-header
+            target M.T0001.R01
+            expect-header false
+            header true
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("false", report.PreviewBefore);
+        Assert.Equal("true", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsControlTextChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-content-control-text
+            target M.CC0001
+            text Acme Corp
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Acme", report.PreviewBefore);
+        Assert.Equal("Acme Corp", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
 
     [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
