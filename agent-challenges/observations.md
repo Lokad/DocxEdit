@@ -319,3 +319,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 9 commands, 0 failing checks, 0 retries; about 126k input tokens with about 102k cached
 - Artifacts: artifacts/agent-challenges/preserve-edit/20260929T144633Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent inserted one paragraph under preserve mode with check before apply; paragraph count went 2 to 3 with zero revisions and comments, matching the input. The agent itself noted the fixture carried no markup or comments, so preservation of existing markup went unexercised. No agent-reported weaknesses; no text disclosed.
+
+### 2026-09-29 — semantic-anchor-edit (live codex run) — completed
+
+- Commands: help, read, changes, dump
+- Diagnostics: none
+- Target IDs: M.P0001 and M.P0002 inspected; no bookmark or control anchors present
+- Markup types: none present
+- Counts: 7 commands, 0 failing checks, 0 retries; about 81k input tokens with about 57k cached
+- Artifacts: artifacts/agent-challenges/semantic-anchor-edit/20260929T145007Z/summary.json
+- Notes: live codex-exec retry after the earlier tooling stall on the same challenge; this time clean. The agent found no semantic anchors and stopped as instructed without creating a patch, notably without inventing anchor names or bootstrapping a bookmark it was not asked to create. Runner reports success; recorded completed per the agent reading, with the anchor-edit flow itself still unassessed live. No text disclosed.
