@@ -701,17 +701,25 @@ internal static partial class DocxPatchEngine
                 : ("Nearby headings: " + string.Join(", ", headings.Select(match => match.Label)) + ".", headings.Select(match => match.Id).ToArray());
         }
 
-        string[] paragraphs = EnumerateMainParagraphs(body)
+        var ranked = EnumerateMainParagraphs(body)
             .Select((match, order) => (match.Id, Score: ScoreParagraphMatch(ReadVisibleText(match.Paragraph), query), Order: order))
             .OrderByDescending(match => match.Score.Contains)
             .ThenByDescending(match => match.Score.Overlap)
             .ThenBy(match => match.Order)
             .Take(3)
-            .Select(match => match.Id)
             .ToArray();
-        return paragraphs.Length == 0
-            ? (" No nearby paragraph targets are available.", [])
-            : ("Nearby paragraphs: " + string.Join(", ", paragraphs) + ".", paragraphs);
+        string[] paragraphs = ranked.Select(match => match.Id).ToArray();
+        string suggestion = paragraphs.Length == 0
+            ? " No nearby paragraph targets are available."
+            : "Nearby paragraphs: " + string.Join(", ", paragraphs) + ".";
+        if (!string.IsNullOrEmpty(query) &&
+            !ranked.Any(match => match.Score.Contains) &&
+            body.Descendants(OoxmlNs.W + "tc").Any(cell => ScoreParagraphMatch(ReadVisibleText(cell), query).Contains))
+        {
+            suggestion += " Matching text is in a table cell; use find to locate its cell ID.";
+        }
+
+        return (suggestion, paragraphs);
     }
 
     private static string ExtractSelectorQuery(string rawSelector)

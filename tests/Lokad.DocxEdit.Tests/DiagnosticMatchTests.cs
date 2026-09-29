@@ -28,6 +28,30 @@ public static class DiagnosticMatchTests
         Assert.Equal(0, diagnostic.MatchCount);
         Assert.Equal(new[] { "M.P0001", "M.P0002" }, diagnostic.CandidateIds);
     }
+    [Fact]
+    public static void UnmatchedTextSelectorPointsAtTableCell()
+    {
+        using MemoryStream input = CreateDocxWithBody("<w:tbl><w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc></w:tr></w:tbl>\n");
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget text:\"Revenue\"\nfind Revenue\nwith Margin\nend\n");
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1201");
+        Assert.Equal(0, diagnostic.MatchCount);
+        Assert.Empty(diagnostic.CandidateIds);
+        Assert.Contains("table cell", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void UnmatchedTextSelectorWithoutCellMatchStaysSilent()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget text:\"Nope\"\nfind Nope\nwith Yep\nend\n");
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1201");
+        Assert.DoesNotContain("table cell", diagnostic.Message, StringComparison.Ordinal);
+    }
+
 
 
     [Fact]
