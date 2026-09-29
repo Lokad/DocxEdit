@@ -25,7 +25,7 @@
 - Fixed image assets whose file extension disagrees with the magic bytes being embedded under the wrong content type: extension/content mismatches now fail with `E5203`.
 - Added named result bindings for created objects: creation operations accept `as` and later operations address them as `@name`, with created target IDs in operation reports; same-anchor insertion order is documented.
 - Added per-target editing capabilities for every target kind and guarded patch templates for every kind, both reusing execution predicates so guidance agrees with check.
-- Added executable minimal examples (plus guarded variants where guards exist) for every supported patch operation in built-in help.
+- Added executable minimal examples (plus guarded variants where guards exist) for every supported patch operation in built-in help, including an alias composition example for insert-after, and documented the normalized-selector versus exact-guard whitespace contract in the patch help overview.
 - Added bookmark targets to `dump` and `context`, including the anchor-paragraph neighborhood.
 - Added row targets to `dump` with member cells, matching merge-group dumps.
 - Added hyperlink, field, and content-control targets to `dump`, reusing the read metadata lines.
