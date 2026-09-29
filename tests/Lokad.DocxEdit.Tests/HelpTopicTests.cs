@@ -74,6 +74,16 @@ public static class HelpTopicTests
     }
 
     [Fact]
+    public static void PatchHelpDocumentsResultAliases()
+    {
+        string help = DocxHelp.RenderTopic("patch");
+
+        Assert.Contains("Result aliases", help, StringComparison.Ordinal);
+        Assert.Contains("@name", help, StringComparison.Ordinal);
+        Assert.Contains("created IDs", help, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void PatchOperationTopicReportsEmptyAllowedFields()
     {
         Assert.Contains("Empty values allowed: with", DocxHelp.RenderTopic("replace-text"), StringComparison.Ordinal);

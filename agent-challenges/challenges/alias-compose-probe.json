@@ -1,0 +1,25 @@
+{
+  "id": "alias-compose-probe",
+  "title": "Insert A Paragraph Then Edit It Through A Result Alias",
+  "tags": ["private", "patch", "aliases", "composition"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Create an edited output document in the run directory using docxedit only.",
+    "Insert one short paragraph after a safe main-story target with an as field binding the new paragraph to a name.",
+    "In the same patch, edit the new paragraph through @name twice: once with set-style and once with a text operation. Use help patch and help insert-after to discover the alias mechanism.",
+    "Run docxedit check before apply. If check fails, recover using only docxedit inspection commands and help.",
+    "Validate the output with docxedit read and docxedit validate."
+  ],
+  "successCriteria": [
+    "Produces an edited .docx under the run directory.",
+    "Uses check before apply.",
+    "Addresses the inserted paragraph only through the alias, never a guessed positional ID.",
+    "Does not modify the input copy in place.",
+    "Does not inspect raw OOXML package parts."
+  ],
+  "observerQuestions": [
+    "Was the as and @name mechanism discoverable from help without source inspection?",
+    "Did created-target-ids and affected targets agree between check and apply?",
+    "Did the agent recover cleanly from a failed check using docxedit output?"
+  ]
+}

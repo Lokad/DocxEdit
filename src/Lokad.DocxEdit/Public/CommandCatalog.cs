@@ -502,7 +502,8 @@ public static class DocxHelp
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Tracked edits preserve unrelated existing markup, allow adjacent revisions, and reject overlaps with tracked insert/delete, move, custom XML revision, comment, bookmark, content-control, field, or hyperlink boundaries.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash and preserve-size are not supported.");
-        builder.AppendLine("Target lifetime: explicit paragraph/table/row/cell/section IDs bind to the input snapshot for one patch, so an earlier insert or delete never renumbers a later explicit ID; a deleted target fails instead of editing a neighbour, and newly inserted blocks are not addressable by pre-discovered IDs in the same patch. Semantic selectors resolve live; guards evaluate sequentially.");
+        builder.AppendLine("Result aliases: creation operations accept an optional as field that binds the new object to a name; later operations in the same patch address it as @name without guessing a positional ID. Names start with a letter; using a name before its operation, rebinding a bound name, or using a deleted target fails. Reports list created IDs per operation.");
+        builder.AppendLine("Target lifetime: explicit paragraph/table/row/cell/section IDs bind to the input snapshot for one patch, so an earlier insert or delete never renumbers a later explicit ID; a deleted target fails instead of editing a neighbour, and newly inserted blocks are not addressable by pre-discovered IDs in the same patch (bind them with as and address them as @name). Semantic selectors resolve live; guards evaluate sequentially.");
         return builder.ToString();
     }
 

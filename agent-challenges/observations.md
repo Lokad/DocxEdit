@@ -69,3 +69,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 4 commands, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: insert-after on the first paragraph with preserve mode. Check reported the created paragraph ID; readback showed the hyperlink record moved with its paragraph as positions shifted. Input document still validates.
+### 2026-09-29 — alias-compose-probe (synthetic self-run) — completed
+
+- Commands: read, capabilities, styles, lint, check, apply, validate, changes
+- Diagnostics: E7101 on the first check from a style display-name case mismatch; none on the success path
+- Target IDs: main-story paragraph IDs; the insert created M.P0003 and alias @sec1 resolved to M.P0003 in both follow-up operations
+- Markup types: none (untracked edit)
+- Counts: 13 commands, 1 failing check, 1 CLI usage error on capabilities arguments, 1 recovery retry
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so discovery ease is not a fresh-agent signal. The alias flow worked end to end: check reported created-target-ids M.P0003 plus affected targets, and apply agreed with identical reporting. The first check failed because the patch used display name Heading 2 while the fixture names it heading 2; the E7101 diagnostic carried code, target, operation, line, column, and help pointer, and the styles listing gave the exact styleId for the retry. Gap found during the run: help patch lists as per operation but had no Result-aliases concept section, so the @name mechanism was only documented in patch-format.md and per-operation help; a help overview addition is committed alongside this run.
