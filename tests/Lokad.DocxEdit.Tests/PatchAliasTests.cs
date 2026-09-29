@@ -36,6 +36,39 @@ public static class PatchAliasTests
         Assert.Equal("M.P0002", Assert.Single(result.Operations[1].AffectedTargets).Id.ToWireValue());
     }
     [Fact]
+    public static void InsertThenEditTrackedInsertionRefusesInSamePatch()
+    {
+        var options = new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Suggest,
+            Author = "Agent",
+            TimestampUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Inserted
+            as sec1
+            end
+
+            op replace-text
+            target @sec1
+            find Inserted
+            with Edited
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E4305");
+        Assert.Contains("tracked-insertion", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CommentTargetsInsertedParagraphViaAlias()
     {
         using MemoryStream input = CreateDocx("Alpha");
