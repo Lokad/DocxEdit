@@ -490,4 +490,35 @@ public static class PatchAliasTests
         output.Position = 0;
         Assert.Equal(new[] { "Alpha", "Click here", "After link" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
     }
+    [Fact]
+    public static void InsertRowAfterAliasTarget()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+            op append-row
+            target M.T0001
+            cell C1
+            cell C2
+            as r1
+            end
+            op insert-row-after
+            target @r1
+            cell D1
+            cell D2
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(output).Tables);
+        Assert.Equal(3, table.RowCount);
+        Assert.Equal(new[] { "A1", "B1", "C1", "C2", "D1", "D2" }, table.Cells.Select(static cell => cell.Text).ToArray());
+    }
+
 }
