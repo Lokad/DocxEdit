@@ -114,3 +114,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 7 commands, 1 failing check, 0 retries after the working recovery
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: synthetic 2-row 2-column document built with archive tooling since docxedit has no create command. Operator is repo-aware, so recovery ease is not a fresh-agent signal. The E4316 refusal carried reason, target, operation, line, column, and help pointer, and help delete-column is honest about the limitation. Capabilities refuse table IDs, so the recovery was found at cell level, where set-cell verdicts are supported. Clearing with empty text kept the grid shape, which is honestly different from structural deletion; readback and structural validation confirmed the result. A negative E4316 edit case now locks the refusal in.
+### 2026-09-29 — iterative-tracked-edit (synthetic self-run) — completed
+
+- Commands: apply, read, check, changes, validate
+- Diagnostics: E6002 on the overlapping third patch; none on either disjoint edit
+- Target IDs: main-story paragraph IDs; revisions allocated 1 and 2, then 3 and 4
+- Markup types: deleted-run and inserted-run pairs, two pairs side by side
+- Counts: 7 commands, 1 failing check, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so workflow ease is not a fresh-agent signal. A first require-mode replacement created one revision pair; a second patch on untouched text in the same paragraph created a second pair with continuing IDs while markup readback kept both pairs coherent, and structural validation passed. A third patch overlapping the existing revision failed safely with E6002 carrying reason, target, operation, line, column, and help pointer. The D05 cross-patch workflow behaves as documented, and a two-patch unit test now locks it in.

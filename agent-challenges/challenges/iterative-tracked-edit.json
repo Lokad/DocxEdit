@@ -1,0 +1,23 @@
+{
+  "id": "iterative-tracked-edit",
+  "title": "Edit Untouched Text In An Already Reviewed Paragraph",
+  "tags": ["private", "track-changes", "replace-text", "diagnostics"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, apply a first guarded tracked replacement to a plain paragraph with --track-changes require.",
+    "In a second patch against the reviewed output, replace a disjoint untouched span in the same paragraph, again under require.",
+    "Attempt a third patch overlapping the existing revision markup and record how it fails.",
+    "Verify the final output with docxedit read in markup view, docxedit changes, and docxedit validate."
+  ],
+  "successCriteria": [
+    "Produces reviewed output where two disjoint spans carry separate revision pairs.",
+    "Shows the overlapping edit failing safely with E6002.",
+    "Uses check before each apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Did the second tracked edit on untouched text succeed without touching the first revision?",
+    "Did revision IDs continue and reports stay coherent across patches?",
+    "Was the overlap refusal legible and actionable?"
+  ]
+}

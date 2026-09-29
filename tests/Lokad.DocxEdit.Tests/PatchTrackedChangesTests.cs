@@ -4011,4 +4011,41 @@ public static class PatchTrackedChangesTests
         Assert.DoesNotContain("<w:ins w:id=", xml, StringComparison.Ordinal);
         Assert.DoesNotContain("<w:del w:id=", xml, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void SecondTrackedPatchEditsUntouchedSpanButOverlapsRefuse()
+    {
+        var options = new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Require,
+            Author = "Agent",
+            TimestampUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        using var first = new MemoryStream();
+        using (MemoryStream input = CreateDocx("Revenue increased."))
+        using (var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind increased\nwith rose\nend\n"))
+        {
+            DocxApplyResult applied = new DocxEditor().Apply(input, patch, first, options);
+            Assert.True(applied.Success, string.Join("|", applied.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+            Assert.Equal(new[] { "1", "2" }, Assert.Single(applied.Operations).GeneratedRevisionIds);
+        }
+        using (var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Revenue\nwith Sales\nend\n"))
+        {
+            first.Position = 0;
+            using var second = new MemoryStream();
+            DocxApplyResult applied = new DocxEditor().Apply(first, patch, second, options);
+            Assert.True(applied.Success, string.Join("|", applied.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+            Assert.Equal(new[] { "3", "4" }, Assert.Single(applied.Operations).GeneratedRevisionIds);
+            second.Position = 0;
+            DocxReadResult read = new DocxEditor().Read(second);
+            Assert.Equal("Sales rose.", read.Paragraphs[0].Text);
+        }
+        using (var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind rose.\nwith fell.\nend\n"))
+        {
+            first.Position = 0;
+            DocxCheckResult refused = new DocxEditor().Check(first, patch, options);
+            Assert.False(refused.Success);
+            Assert.Contains(refused.Diagnostics, static diagnostic => diagnostic.Code == "E6002");
+        }
+    }
+
 }
