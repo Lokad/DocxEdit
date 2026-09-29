@@ -1485,7 +1485,7 @@ Per-operation behavior contracts. Field sets live in docs/patch-format.md (froze
 
 ### 11.1 `replace-text`
 
-Replace text inside one paragraph.
+Replace text inside one paragraph or table cell.
 
 ```text
 op replace-text
@@ -1505,7 +1505,8 @@ end
 
 Rules:
 
-* Target must be a paragraph.
+* Target must be a paragraph, table cell, or merge group; merge groups resolve to the root cell.
+* Within a cell, matches span cell paragraphs in document order without crossing paragraph boundaries; occurrence counts across those paragraphs and expect-text guards the whole cell text.
 * `expect-text` is optional but strongly recommended.
 * `find` must match exactly once unless `occurrence` selects one match (`occurrence N`) or requests every match (`occurrence all`). An ambiguous match without `occurrence` fails instead of replacing every match.
 * If replacement is within a single run, split the run and preserve run properties.

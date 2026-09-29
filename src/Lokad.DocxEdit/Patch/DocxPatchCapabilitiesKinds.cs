@@ -582,6 +582,7 @@ internal static partial class DocxPatchEngine
         {
             SetCellCapability(facts, parsed.ToWireValue(), isTracked, isRequire),
             SetCellShadingCapability(facts, parsed.ToWireValue()),
+            ReplaceTextCellCapability(facts, parsed.ToWireValue(), isTracked),
         };
 
         return new ParagraphCapabilitiesOutcome
@@ -773,6 +774,37 @@ internal static partial class DocxPatchEngine
             operation,
             "supported",
             "Direct rewrite replaces the cell text. Table guards such as expect-text, expect-row-count, expect-column-count, and expect-cell-count still apply to the patch.",
+            operation,
+            null);
+    }
+
+    private static DocxOperationCapability ReplaceTextCellCapability(CellCapabilityFacts facts, string targetId, bool isTracked)
+    {
+        const string operation = "replace-text";
+        if (facts.IsContinuation)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Unsupported merged-cell target " + Quote(targetId) + ". Only the vertical-merge root holds the merged value, so editing a continuation fails with E4301. Target the vertical-merge root cell instead.",
+                operation,
+                facts.RootCellId);
+        }
+
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Substring replacement applies to cell paragraphs in document order with occurrence counted across those paragraphs; tracked output follows the paragraph rules per paragraph. Check remains authoritative for the exact find span and replacement.",
+                operation,
+                null);
+        }
+
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "Substring replacement applies to cell paragraphs in document order with occurrence counted across those paragraphs; expect-text guards the whole cell text. Check remains authoritative for the exact find span.",
             operation,
             null);
     }

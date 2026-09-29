@@ -22,7 +22,7 @@ internal static partial class DocxPatchEngine
 
         return operation.OperationName switch
         {
-            "set-cell" or "set-cell-shading" => CaptureCellSnapshot(package, target, cancellationToken),
+            "set-cell" or "set-cell-shading" or "replace-text" => CaptureCellSnapshot(package, target, cancellationToken),
             "append-row" => CaptureTableSnapshot(package, target, cancellationToken),
             "insert-row-before" or "insert-row-after" or "delete-row" => CaptureRowSnapshot(package, target, cancellationToken),
             _ => null
@@ -222,6 +222,7 @@ internal static partial class DocxPatchEngine
             return operation.OperationName switch
             {
                 "set-cell" or "set-cell-shading" => BuildSetCellAffectedTargets(before),
+                "replace-text" => BuildSetCellAffectedTargets(before),
                 "append-row" => BuildInsertedRowAffectedTargets(before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
                 "insert-row-before" => BuildInsertedRowAffectedTargets(before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
                 "insert-row-after" => BuildInsertedRowAffectedTargets(before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),

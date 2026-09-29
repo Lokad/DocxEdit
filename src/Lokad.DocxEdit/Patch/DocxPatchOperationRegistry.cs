@@ -116,7 +116,7 @@ internal static partial class DocxPatchEngine
             "tracked-simple",
             "Suggest/Require emit tracked w:del/w:ins for supported simple text-only matches; unsupported shapes warn with W4002 or fail with E6002.",
             "Paragraphs And Blocks",
-            "Replaces matching text inside one target; an ambiguous find without occurrence fails, occurrence N selects one match, occurrence all replaces every match",
+            "Replaces matching text inside one paragraph or table-cell target; an ambiguous find without occurrence fails, occurrence N selects one match, occurrence all replaces every match; cell matches span paragraphs in order",
             ExecuteReplaceText) with
         {
             Examples =
@@ -145,7 +145,7 @@ internal static partial class DocxPatchEngine
                 end
                 """,
             ],
-            AcceptedKinds = [DocxTargetKind.Paragraph],
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Cell, DocxTargetKind.MergeGroup],
         },
         Tracked(
             "replace-paragraph",

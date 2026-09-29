@@ -1477,33 +1477,6 @@ public static class PatchApplyTests
         Assert.Equal("A\n\nB", paragraphs[1].Text);
     }
 
-
-    [Fact]
-    public static void CheckReplaceTextOnCellIdFailsWithWrongKindGuidance()
-    {
-        using MemoryStream input = CreateDocxWithBody("""
-                    <w:tbl>
-                      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>
-                    </w:tbl>
-            """);
-        using var patch = new StringReader("""
-            docxpatch 1
-
-            op replace-text
-            target M.T0001.R01.C01
-            find North
-            with South
-            end
-            """);
-
-        DocxCheckResult check = new DocxEditor().Check(input, patch);
-
-        Assert.False(check.Success);
-        DocxDiagnostic diagnostic = Assert.Single(check.Diagnostics, static d => d.Code == "E1201");
-        Assert.Contains("table cell ID", diagnostic.Message, StringComparison.Ordinal);
-        Assert.Contains("set-cell", diagnostic.Message, StringComparison.Ordinal);
-    }
-
     [Fact]
     public static void ApplyReplaceParagraphOnTableIdFailsWithWrongKindGuidance()
     {

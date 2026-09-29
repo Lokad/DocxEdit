@@ -1400,4 +1400,213 @@ public static class PatchTableTests
         Assert.Equal(1, table.RowCount);
         Assert.Equal(new[] { "B1", "B2", "B3" }, table.Cells.Where(cell => cell.RowIndex == 1).Select(static cell => cell.Text).ToArray());
     }
+    [Fact]
+    public static void ApplyReplaceTextInCellEditsSubstring()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find World
+            with There
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:t>Hello There</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Other</w:t>", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<w:t>Hello World</w:t>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextAcrossCellParagraphsUsesGlobalOccurrence()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Alpha</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find Alpha
+            with Omega
+            occurrence 2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(1, CountOccurrences(xml, "<w:t>Alpha</w:t>"));
+        Assert.Equal(1, CountOccurrences(xml, "<w:t>Omega</w:t>"));
+    }
+
+    [Fact]
+    public static void CheckReplaceTextAcrossCellParagraphsReportsAmbiguityCount()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Alpha</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1202");
+        Assert.Equal(2, diagnostic.MatchCount);
+    }
+
+    [Fact]
+    public static void CheckReplaceTextInCellGuardsWholeCellText()
+    {
+        using MemoryStream mismatchInput = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var mismatchPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            expect-text Stale
+            find World
+            with There
+            end
+            """);
+
+        DocxCheckResult mismatch = new DocxEditor().Check(mismatchInput, mismatchPatch);
+
+        Assert.False(mismatch.Success);
+        Assert.Contains(mismatch.Diagnostics, static d => d.Code == "E3201");
+
+        using MemoryStream matchInput = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var matchPatch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            expect-text Hello World
+            find World
+            with There
+            end
+            """);
+
+        DocxCheckResult match = new DocxEditor().Check(matchInput, matchPatch);
+
+        Assert.True(match.Success, string.Join("|", match.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+    }
+
+    [Fact]
+    public static void ApplyTrackedReplaceTextInCellEmitsRevisions()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find World
+            with There
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.NotEmpty(Assert.Single(result.Operations).GeneratedRevisionIds);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:delText>World</w:delText>", xml, StringComparison.Ordinal);
+        Assert.Contains("There", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextOnMergeGroupEditsRootCell()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>South</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.MG0001
+            find North
+            with Atlas
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.DoesNotContain("<w:t>North</w:t>", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Atlas</w:t>", xml, StringComparison.Ordinal);
+    }
 }

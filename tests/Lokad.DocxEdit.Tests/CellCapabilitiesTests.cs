@@ -56,7 +56,7 @@ public static class CellCapabilitiesTests
         Assert.Equal("M.T0001.R01.C01", capabilities.TargetId);
         Assert.Equal("cell", capabilities.Kind);
         Assert.Equal("main", capabilities.Story);
-        string[] expectedOrder = ["set-cell", "set-cell-shading"];
+        string[] expectedOrder = ["set-cell", "set-cell-shading", "replace-text"];
         Assert.Equal(expectedOrder, capabilities.Operations.Select(static operation => operation.Operation).ToArray());
         Assert.Equal("supported", FindOperation(capabilities, "set-cell").Support);
         Assert.Equal("supported", FindOperation(capabilities, "set-cell-shading").Support);
@@ -164,5 +164,24 @@ public static class CellCapabilitiesTests
         DocxCheckResult fallback = RunCheck(fallbackInput, "docxpatch 1\n\nop set-cell\ntarget M.T0001.R01.C01\ntext New\nforce true\nend\n", TrackChangesMode.Suggest);
         Assert.True(fallback.Success, string.Join("|", fallback.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
         Assert.Contains(fallback.Diagnostics, static diagnostic => diagnostic.Code == "W4002");
+    }
+    [Fact]
+    public static void SimpleCellReplaceTextIsConditional()
+    {
+        using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+        DocxTargetCapabilities capabilities = GetCapabilities(input, "M.T0001.R01.C01", TrackChangesMode.Off);
+
+        Assert.Equal("conditional", FindOperation(capabilities, "replace-text").Support);
+    }
+
+    [Fact]
+    public static void ContinuationCellReplaceTextIsUnsupported()
+    {
+        using MemoryStream input = CreateDocxWithBody(MergeBody);
+        DocxTargetCapabilities capabilities = GetCapabilities(input, "M.T0001.R02.C01", TrackChangesMode.Off);
+
+        DocxOperationCapability replaceText = FindOperation(capabilities, "replace-text");
+        Assert.Equal("unsupported", replaceText.Support);
+        Assert.Equal("M.T0001.R01.C01", replaceText.Alternative);
     }
 }

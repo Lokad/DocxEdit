@@ -1,4 +1,4 @@
-﻿using static Lokad.DocxEdit.Tests.DocxTestFixtures;
+using static Lokad.DocxEdit.Tests.DocxTestFixtures;
 
 namespace Lokad.DocxEdit.Tests;
 
@@ -99,6 +99,7 @@ public static class TargetKindLintTests
     }
 
     [Theory]
+    [InlineData("replace-text", "M.T0001.R01.C01", "find Alpha\nwith Omega\n")]
     [InlineData("set-cell", "M.T0001.R01.C01", "text X\n")]
     [InlineData("set-cell", "M.T0001.MG0001", "text X\n")]
     [InlineData("insert-after", "M.T0001", "text X\n")]
@@ -114,7 +115,7 @@ public static class TargetKindLintTests
     public static void AcceptedTargetsAreMachineReadable()
     {
         Assert.True(DocxHelp.TryGetPatchOperation("replace-text", out DocxPatchOperationInfo replaceText));
-        Assert.Equal(["paragraph"], replaceText.AcceptedTargets);
+        Assert.Equal(["paragraph", "cell", "merge-group"], replaceText.AcceptedTargets);
         Assert.True(DocxHelp.TryGetPatchOperation("set-cell", out DocxPatchOperationInfo setCell));
         Assert.Equal(["cell", "merge-group"], setCell.AcceptedTargets);
         Assert.True(DocxHelp.TryGetPatchOperation("insert-after", out DocxPatchOperationInfo insertAfter));

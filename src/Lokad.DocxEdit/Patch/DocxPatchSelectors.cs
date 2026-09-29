@@ -145,7 +145,7 @@ internal static partial class DocxPatchEngine
                 return ResolveRelatedStoryParagraphTarget(package, relationshipType, paragraphId, cancellationToken);
             }
 
-            diagnostics = [WrongKindDiagnostic(operation, target, paragraphId, "a paragraph ID such as M.P0001")];
+            diagnostics = [WrongKindDiagnostic(operation, target, paragraphId, DescribeAcceptedKindsForOperation(operation))];
             return null;
         }
 
@@ -714,6 +714,17 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.Section => "Use a section operation with this section ID.",
             _ => null,
         };
+    }
+
+    private static string DescribeAcceptedKindsForOperation(DocxPatchOperation operation)
+    {
+        if (OperationsByName.TryGetValue(operation.OperationName, out OperationRegistration? registration) &&
+            registration.AcceptedKinds.Length != 0)
+        {
+            return DescribeAcceptedKinds(registration.AcceptedKinds);
+        }
+
+        return "a paragraph ID such as M.P0001";
     }
 
     private static DocxDiagnostic WrongKindDiagnostic(DocxPatchOperation operation, string target, DocxTargetId parsed, string acceptedForms)

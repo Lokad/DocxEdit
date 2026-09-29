@@ -31,6 +31,12 @@ internal static partial class DocxPatchEngine
         }
 
         bool shouldPreserveRuns = preserveRuns ?? true;
+
+        if (DocxTargetId.TryParse(target, out DocxTargetId parsedTargetId) &&
+            parsedTargetId.Kind is DocxTargetKind.Cell or DocxTargetKind.MergeGroup)
+        {
+            return ExecuteReplaceTextInCell(package, operation, target, find, replacement, expected, shouldPreserveRuns, occurrence, replaceAll, options, generatedRevisionIds, cancellationToken);
+        }
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out IReadOnlyList<DocxDiagnostic> selectorDiagnostics);
         if (selectorDiagnostics.Count != 0)
         {
@@ -170,6 +176,229 @@ internal static partial class DocxPatchEngine
         return diagnostics;
     }
 
+    private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceTextInCell(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        string find,
+        string replacement,
+        string? expected,
+        bool shouldPreserveRuns,
+        int? occurrence,
+        bool replaceAll,
+        DocxEditOptions options,
+        List<string> generatedRevisionIds,
+        CancellationToken cancellationToken)
+    {
+        CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+        if (cellTarget is null)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
+        }
+
+        if (IsVerticalMergeContinuation(cellTarget.Cell))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Unsupported merged-cell target '{target}'. Target the vertical-merge root cell instead.", operation, target)];
+        }
+
+        if (find.Length == 0)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4205", "Field 'find' must not be empty.", operation, target)];
+        }
+
+        string guard = ReadVisibleText(cellTarget.Cell);
+        if (expected is not null && !string.Equals(guard, expected, StringComparison.Ordinal))
+        {
+            return
+            [
+                Diagnostic(
+                    DocxSeverity.Error,
+                    "E3201",
+                    $"Guard failed for {target}. Expected text does not match current text.",
+                    operation,
+                    target, fieldName: "expect-text")
+            ];
+        }
+
+        var paragraphs = new List<(XElement Paragraph, string Current, IReadOnlyList<TextRange> Matches)>();
+        foreach (XElement paragraph in cellTarget.Cell.Elements(OoxmlNs.W + "p"))
+        {
+            string current = ReadVisibleText(paragraph);
+            IReadOnlyList<TextRange> matches = FindTextMatches(current, find, null);
+            if (matches.Count != 0)
+            {
+                paragraphs.Add((paragraph, current, matches));
+            }
+        }
+
+        int total = paragraphs.Sum(static hit => hit.Matches.Count);
+        if (total == 0)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target, fieldName: "find")];
+        }
+
+        List<(XElement Paragraph, string Current, IReadOnlyList<TextRange> Matches)> selected;
+        if (replaceAll)
+        {
+            selected = paragraphs;
+        }
+        else if (occurrence is not null)
+        {
+            int remaining = occurrence.Value;
+            (XElement Paragraph, string Current, IReadOnlyList<TextRange> Matches)? pick = null;
+            foreach (var hit in paragraphs)
+            {
+                if (remaining <= hit.Matches.Count)
+                {
+                    pick = (hit.Paragraph, hit.Current, new[] { hit.Matches[remaining - 1] });
+                    break;
+                }
+
+                remaining -= hit.Matches.Count;
+            }
+
+            if (pick is null)
+            {
+                return [Diagnostic(DocxSeverity.Error, "E4203", $"Find text was not found in {target}.", operation, target, fieldName: "find")];
+            }
+
+            selected = [pick.Value];
+        }
+        else if (total > 1)
+        {
+            return [Diagnostic(DocxSeverity.Error, "E1202", $"Find text matched {total} occurrences in {target}. Specify occurrence N to select one match or occurrence all to replace every match.", operation, target) with { MatchCount = total }];
+        }
+        else
+        {
+            selected = paragraphs;
+        }
+
+        bool changed = false;
+        foreach (var hit in selected)
+        {
+            if (!string.Equals(ApplyTextReplacement(hit.Current, hit.Matches, replacement), hit.Current, StringComparison.Ordinal))
+            {
+                changed = true;
+                break;
+            }
+        }
+
+        if (!changed)
+        {
+            return NoOpResult(operation, target, "Replace-text for " + target + " leaves the text unchanged; nothing was written and no revisions were generated.");
+        }
+
+        var diagnostics = new List<DocxDiagnostic>();
+        bool useTrackedChanges = options.TrackChanges is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool canUseTrackedChanges = true;
+        var plans = new List<(XElement Paragraph, string Current, IReadOnlyList<TextRange> Matches, SpanEditPlan Plan, List<VisibleCharEntry>? Map, bool SpanPath)>();
+        foreach (var hit in selected)
+        {
+            SpanEditPlan spanPlan = shouldPreserveRuns
+                ? PlanSpanEdit(hit.Paragraph, hit.Current, hit.Matches)
+                : SpanEditPlan.Legacy;
+            string? protectedFeature = spanPlan.UseLegacyGate
+                ? TryGetProtectedTextEditFeature(hit.Paragraph, out string legacyFeature) ? legacyFeature : null
+                : spanPlan.ProtectedFeature;
+            if (protectedFeature is not null)
+            {
+                if (options.TrackChanges == TrackChangesMode.Require)
+                {
+                    TrackUnsupportedShape(options, operation, target, "paragraph contains protected OOXML boundary " + Quote(protectedFeature), diagnostics);
+                    return diagnostics;
+                }
+
+                return [Diagnostic(DocxSeverity.Error, "E4305", "Text edit for " + target + " crosses protected OOXML boundary " + Quote(protectedFeature) + ".", operation, target)];
+            }
+
+            List<VisibleCharEntry>? spanMap = spanPlan.Map;
+            bool spanPath = useTrackedChanges && !spanPlan.UseLegacyGate && spanPlan.ProtectedFeature is null && spanMap is not null;
+            plans.Add((hit.Paragraph, hit.Current, hit.Matches, spanPlan, spanMap, spanPath));
+        }
+
+        if (useTrackedChanges)
+        {
+            foreach (var plan in plans)
+            {
+                bool validated;
+                string? trackedUnsupportedReason;
+                if (plan.SpanPath)
+                {
+                    validated = TryValidateTrackedSpanReplacement(plan.Map!, plan.Current, plan.Matches, replacement, out trackedUnsupportedReason);
+                }
+                else
+                {
+                    validated = TryValidateTrackedTextReplacement(plan.Paragraph, plan.Current, plan.Matches, replacement, out trackedUnsupportedReason);
+                }
+
+                if (!validated)
+                {
+                    canUseTrackedChanges = false;
+                    if (trackedUnsupportedReason is not null &&
+                        !TrackUnsupportedShape(options, operation, target, trackedUnsupportedReason, diagnostics))
+                    {
+                        return diagnostics;
+                    }
+                }
+            }
+        }
+
+        if (useTrackedChanges && canUseTrackedChanges)
+        {
+            foreach (var plan in plans)
+            {
+                if (plan.SpanPath)
+                {
+                    if (!ReplaceParagraphTextWithTrackedSpans(package, plan.Paragraph, plan.Current, plan.Matches, replacement, options, generatedRevisionIds, cancellationToken, out string? applyReason))
+                    {
+                        if (!TrackUnsupportedShape(options, operation, target, applyReason ?? "tracked span replacement is not supported for this target shape", diagnostics))
+                        {
+                            return diagnostics;
+                        }
+
+                        canUseTrackedChanges = false;
+                        break;
+                    }
+                }
+                else
+                {
+                    ReplaceParagraphTextWithTrackedChanges(package, plan.Paragraph, plan.Current, plan.Matches, replacement, options, generatedRevisionIds, cancellationToken);
+                }
+            }
+
+            if (canUseTrackedChanges)
+            {
+                SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
+                return [];
+            }
+        }
+
+        if (shouldPreserveRuns)
+        {
+            foreach (var plan in plans)
+            {
+                string? unsupportedReason;
+                bool replaced = !plan.Plan.UseLegacyGate && plan.Plan.Positions is not null && plan.Plan.DirectMatches is not null
+                    ? ReplaceDirectTextRanges(plan.Paragraph, plan.Plan.Positions, plan.Plan.DirectMatches, replacement, out unsupportedReason)
+                    : TryReplaceParagraphTextPreservingRuns(plan.Paragraph, plan.Matches, replacement, out unsupportedReason);
+                if (!replaced)
+                {
+                    return [Diagnostic(DocxSeverity.Error, "E4306", "Run-preserving replacement is not supported for " + target + ": " + unsupportedReason + ". Use preserve-runs false to allow paragraph-level rewriting.", operation, target)];
+                }
+            }
+        }
+        else
+        {
+            foreach (var plan in plans)
+            {
+                string edited = ApplyTextReplacement(plan.Current, plan.Matches, replacement);
+                ReplaceParagraphText(plan.Paragraph, edited);
+            }
+        }
+
+        SaveDocumentPart(package, cellTarget.PartName, cellTarget.Document);
+        return diagnostics;
+    }
     private static IReadOnlyList<DocxDiagnostic> ExecuteReplaceParagraph(
         OoxmlPackage package,
         DocxPatchOperation operation,
