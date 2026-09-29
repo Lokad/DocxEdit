@@ -729,4 +729,13 @@ public static class HelpTopicTests
         Assert.True(covered >= 50, "Expected at least 50 supported operations with examples, found " + covered + ".");
     }
 
+    [Fact]
+    public static void FindHelpDocumentsMatchingSemantics()
+    {
+        string topic = DocxHelp.RenderTopic("find");
+        Assert.Contains("Matching:", topic, StringComparison.Ordinal);
+        Assert.Contains("case-insensitive", topic, StringComparison.Ordinal);
+        Assert.Contains("--headers-footers", topic, StringComparison.Ordinal);
+    }
+
 }

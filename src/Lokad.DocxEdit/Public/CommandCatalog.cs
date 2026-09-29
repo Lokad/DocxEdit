@@ -746,6 +746,11 @@ public static class DocxHelp
                         new("Numbered paragraph matches",
                         [
                             "Paragraph matches include compact resolved list metadata when the matched paragraph has numbering."
+                        ]),
+
+                        new("Matching",
+                        [
+                            "Matching is a literal case-insensitive substring search; whitespace is not normalized, unlike text: selectors, and header/footer stories need --headers-footers."
                         ])
                     ]
                 },
