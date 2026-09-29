@@ -367,4 +367,19 @@ public static class PatchTemplateTests
         Assert.Null(result.Capabilities);
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
     }
+    [Fact]
+    public static void HeaderStoryTemplateStarterPassesCheck()
+    {
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithHeaderFooter("Header text", "Footer text"))
+        {
+            template = GetTemplate(input, "H001.P0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op replace-text", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithHeaderFooter("Header text", "Footer text");
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
 }
