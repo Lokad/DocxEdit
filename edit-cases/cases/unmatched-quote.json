@@ -1,0 +1,28 @@
+{
+  "id": "unmatched-quote",
+  "description": "Rejects a single-line value with an unmatched double quote.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with \"hi there",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2007"
+    ],
+    "diagnosticMessagesContain": [
+      "unmatched double quote"
+    ]
+  }
+}

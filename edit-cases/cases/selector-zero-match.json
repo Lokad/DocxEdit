@@ -1,0 +1,29 @@
+{
+  "id": "selector-zero-match",
+  "description": "Refuses a semantic selector with zero matches while naming nearby candidates.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target text:\"Missing\"",
+    "find Missing",
+    "with Found",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1201"
+    ],
+    "diagnosticMessagesContain": [
+      "matched 0 targets",
+      "M.P0001"
+    ]
+  }
+}
