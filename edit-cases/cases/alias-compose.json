@@ -1,0 +1,31 @@
+{
+  "id": "alias-compose",
+  "description": "Binds an inserted paragraph to a name and edits it through the alias.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text Drafted",
+    "as sec1",
+    "end",
+    "",
+    "op replace-text",
+    "target @sec1",
+    "find Drafted",
+    "with Final",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Alpha",
+      "Final"
+    ]
+  }
+}

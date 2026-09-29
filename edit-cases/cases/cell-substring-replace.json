@@ -1,0 +1,27 @@
+{
+  "id": "cell-substring-replace",
+  "description": "Replaces a substring inside one table cell and verifies cell readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.T0001.R01.C01",
+    "find World",
+    "with There",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "Hello There",
+      "Other"
+    ]
+  }
+}

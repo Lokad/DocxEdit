@@ -1,0 +1,26 @@
+{
+  "id": "ordered-insert",
+  "description": "Inserts several paragraphs in file order with one operation.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text First",
+    "text Second",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Alpha",
+      "First",
+      "Second"
+    ]
+  }
+}
