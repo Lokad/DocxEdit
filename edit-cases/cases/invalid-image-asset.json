@@ -1,0 +1,30 @@
+{
+  "id": "invalid-image-asset",
+  "description": "Refuses a text file presented as a PNG asset with E5203.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "assets": {
+    "note.png": "base64:bm90IGFuIGltYWdlIGZpbGU="
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-image-after",
+    "target M.P0001",
+    "asset {{asset:note.png}}",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E5203"
+    ],
+    "diagnosticMessagesContain": [
+      "not a supported PNG or JPEG image"
+    ]
+  }
+}
