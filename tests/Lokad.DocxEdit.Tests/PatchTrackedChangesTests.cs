@@ -949,6 +949,44 @@ public static class PatchTrackedChangesTests
     }
 
     [Fact]
+    public static void ApplyTrackChangesRequireAllowsTextChangePlusComment()
+    {
+        var options = new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Require,
+            Author = "Agent",
+            TimestampUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        using MemoryStream input = CreateDocx("Revenue increased.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find increased
+            with rose
+            end
+
+            op add-comment
+            target M.P0001
+            text Review rose
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.NotEmpty(Assert.Single(result.Operations, static operation => operation.OperationName == "replace-text").GeneratedRevisionIds);
+        Assert.Empty(Assert.Single(result.Operations, static operation => operation.OperationName == "add-comment").GeneratedRevisionIds);
+        output.Position = 0;
+        Assert.Equal("Revenue rose.", new DocxEditor().Read(output).Paragraphs[0].Text);
+        output.Position = 0;
+        Assert.Single(new DocxEditor().Changes(output).CommentSummary);
+    }
+
+
+    [Fact]
     public static void ApplyTrackChangesSuggestGeneratesRevisionMarkupForMultipleAdjacentRunMatches()
     {
         using MemoryStream input = CreateDocxWithRuns("foo ", "foo");
