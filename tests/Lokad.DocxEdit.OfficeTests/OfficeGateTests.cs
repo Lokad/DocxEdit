@@ -1736,6 +1736,73 @@ public static class OfficeGateTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationReopenCommentRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateResolvableCommentDocx(inputPath, "1");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op reopen-comment
+                target comment:3
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream savedChanges = File.OpenRead(outputPath);
+            DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
+            Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
+            DocxCommentThreadSummary summary = Assert.Single(changes.CommentSummary);
+            Assert.Equal("3", summary.CommentId);
+            Assert.False(summary.Resolved);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
@@ -1939,7 +2006,7 @@ public static class OfficeGateTests
             """);
     }
 
-    private static void CreateResolvableCommentDocx(string path)
+    private static void CreateResolvableCommentDocx(string path, string done = "0")
     {
         using FileStream file = File.Create(path);
         using var archive = new ZipArchive(file, ZipArchiveMode.Create);
@@ -1985,9 +2052,9 @@ public static class OfficeGateTests
               </w:comment>
             </w:comments>
             """);
-        AddEntry(archive, "word/commentsExtended.xml", """
+        AddEntry(archive, "word/commentsExtended.xml", $$"""
             <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
-              <w15:commentEx w15:paraId="00ABCDEF" w15:done="0"/>
+              <w15:commentEx w15:paraId="00ABCDEF" w15:done="{{done}}"/>
             </w15:commentsEx>
             """);
     }
