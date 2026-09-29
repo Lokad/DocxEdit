@@ -206,6 +206,11 @@ find Drafted
 with Final section
 end
 
+op set-style
+target @sec1
+style Heading 2
+end
+
 ## No-op and retry behavior
 
 An operation whose guards pass but whose requested end state already holds

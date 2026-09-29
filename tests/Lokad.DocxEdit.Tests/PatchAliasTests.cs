@@ -309,4 +309,64 @@ public static class PatchAliasTests
         Assert.False(result.Operations[2].Success);
         Assert.Contains(result.Operations[2].Diagnostics, static d => d.Code == "E1201");
     }
+    [Fact]
+    public static void SetStyleAfterInsertViaAlias()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody(
+            """
+              <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="Heading 2"/></w:style>
+            """,
+            """
+                    <w:p><w:r><w:t>Anchor</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text New section
+            as sec1
+            end
+
+            op set-style
+            target @sec1
+            style Heading 2
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(1, CountOccurrences(ReadDocumentXml(output), "w:pStyle w:val=\"Heading2\""));
+    }
+
+    [Fact]
+    public static void InsertAfterAliasTarget()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text First
+            as a1
+            end
+
+            op insert-after
+            target @a1
+            text Second
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha", "First", "Second" }, new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
+    }
 }
