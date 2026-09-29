@@ -829,7 +829,7 @@ internal static partial class DocxPatchEngine
         {
             if (!force)
             {
-                return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be edited safely without force true.", operation, target)];
+                return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be edited safely without force true. With force true, the new row clones the target row raw cell count, which may misalign merged or spanned columns.", operation, target)];
             }
 
             expectedCellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
@@ -930,7 +930,7 @@ internal static partial class DocxPatchEngine
             !IsRectangular(rowTarget.Table, out _) &&
             !TryGetConsistentVisualColumnCount(rowTarget.Table, out _))
         {
-            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be edited safely without force true.", operation, target)];
+            return [Diagnostic(DocxSeverity.Error, "E4301", $"Table '{target}' does not have a consistent visual grid and cannot be edited safely without force true. With force true, the row is deleted anyway, which may leave the remaining grid ragged.", operation, target)];
         }
 
         bool useTrackedChanges = IsTrackedMode(options);
