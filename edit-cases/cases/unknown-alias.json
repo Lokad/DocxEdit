@@ -1,0 +1,28 @@
+{
+  "id": "unknown-alias",
+  "description": "Refuses an unbound result alias with E1201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target @ghost",
+    "find Alpha",
+    "with Omega",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1201"
+    ],
+    "diagnosticMessagesContain": [
+      "Unknown result alias"
+    ]
+  }
+}
