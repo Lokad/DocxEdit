@@ -1,0 +1,25 @@
+{
+  "id": "text-selector-normalized",
+  "description": "Resolves a text selector across whitespace runs with an exact guard.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t xml:space=\"preserve\">Alpha  Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target text:\"Alpha Beta\"",
+    "find Beta",
+    "with Gamma",
+    "expect-text Alpha  Beta",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Alpha  Gamma"
+    ]
+  }
+}
