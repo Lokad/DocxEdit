@@ -389,3 +389,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 14 commands, 1 failing check, check before each apply plus strict validation; about 213k input tokens with about 183k cached
 - Artifacts: artifacts/agent-challenges/unsupported-recovery/20260929T173629Z/summary.json
 - Notes: reran against the local table-bearing input, exercising the recovery branch that the tableless stand-in could not reach. The agent recorded the E4316 code, reason, and help pointer, confirmed set-cell support through cell capabilities, applied two guarded set-cell edits with exact-text plus row and column count guards, and honestly reported clearing as different from structural removal. Final read plus strict validation clean. No agent-reported weaknesses beyond the quoted E4316 reason. No text disclosed.
+
+### 2026-09-29 — story-scope-selector (live codex run) — completed
+
+- Commands: help, read, changes, dump, check, apply, validate
+- Diagnostics: E1201 on the main-story selector probe for header-only text; none on the recovery path
+- Target IDs: H001.P0001 discovered through headers-footers coverage and edited under an expect-text guard
+- Markup types: not applicable
+- Counts: 14 commands, 1 failing check, check before apply plus output validation; about 191k input tokens with about 161k cached
+- Artifacts: artifacts/agent-challenges/story-scope-selector/20260929T174010Z/summary.json
+- Notes: ran against a local header-bearing input (one header paragraph plus 2 main paragraphs, packaged from the public fixture) resolving the prior partial-by-design on the headerless stand-in. The E1201 zero-match diagnostic carried the main-story scope sentence with match count, candidates, and help topic, and the agent followed that pointer to the explicit H001 ID. Output validation confirms only the header paragraph changed. The prior finding on scope discoverability is now verified fixed in the live path. No text disclosed.
