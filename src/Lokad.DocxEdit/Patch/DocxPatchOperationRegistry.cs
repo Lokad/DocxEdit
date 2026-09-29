@@ -282,6 +282,23 @@ internal static partial class DocxPatchEngine
                 >>>
                 end
                 """,
+                """
+                # insert-after with a result alias for later operations.
+                docxpatch 1
+
+                op insert-after
+                target M.P0001
+                as newSection
+                text Draft note
+                end
+
+                op replace-text
+                target @newSection
+                expect-text Draft note
+                find Draft
+                with Final
+                end
+                """,
             ],
             AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
         },
