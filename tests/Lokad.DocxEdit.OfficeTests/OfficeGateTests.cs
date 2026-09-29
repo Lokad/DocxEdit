@@ -70,7 +70,7 @@ public static class OfficeGateTests
                     TrackChanges = TrackChangesMode.Suggest,
                     Author = "Office Reviewer",
                     TimestampUtc = DateTimeOffset.Parse("2026-06-11T12:00:00Z").ToUniversalTime(),
-                    AssetProvider = new MemoryAssetProvider("chart.png", "office-png", "chart.png"),
+                    AssetProvider = new MemoryAssetProvider("chart.png", MinimalPng(), "chart.png"),
                     MarkFieldsDirtyWhenEditing = false
                 });
                 Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
@@ -213,16 +213,34 @@ public static class OfficeGateTests
         stream.Write(bytes, 0, bytes.Length);
     }
 
+    private static byte[] MinimalPng()
+    {
+        using var stream = new MemoryStream();
+        stream.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        WritePngChunk(stream, "IHDR", [0, 0, 0, 2, 0, 0, 0, 2, 0x08, 0x02, 0x00, 0x00, 0x00]);
+        WritePngChunk(stream, "IDAT", []);
+        WritePngChunk(stream, "IEND", []);
+        return stream.ToArray();
+    }
+
+    private static void WritePngChunk(MemoryStream stream, string type, byte[] data)
+    {
+        stream.Write([(byte)((data.Length >> 24) & 0xFF), (byte)((data.Length >> 16) & 0xFF), (byte)((data.Length >> 8) & 0xFF), (byte)(data.Length & 0xFF)]);
+        stream.Write(Encoding.ASCII.GetBytes(type));
+        stream.Write(data);
+        stream.Write([0, 0, 0, 0]);
+    }
+
     private sealed class MemoryAssetProvider : IDocxAssetProvider
     {
         private readonly string reference;
         private readonly byte[] bytes;
         private readonly string fileNameHint;
 
-        public MemoryAssetProvider(string reference, string text, string fileNameHint)
+        public MemoryAssetProvider(string reference, byte[] imageBytes, string fileNameHint)
         {
             this.reference = reference;
-            bytes = Encoding.UTF8.GetBytes(text);
+            bytes = imageBytes;
             this.fileNameHint = fileNameHint;
         }
 
