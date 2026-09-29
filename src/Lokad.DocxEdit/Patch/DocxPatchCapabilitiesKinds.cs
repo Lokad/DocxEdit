@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, section, and hyperlink targets.
+// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, section, hyperlink, and field targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -53,6 +53,11 @@ internal static partial class DocxPatchEngine
             return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Field)
+        {
+            return GetFieldCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         if (parsed.Kind == DocxTargetKind.Hyperlink)
         {
             return GetHyperlinkCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
@@ -83,7 +88,7 @@ internal static partial class DocxPatchEngine
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, section, and hyperlink IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, and field IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -762,6 +767,260 @@ internal static partial class DocxPatchEngine
             operation,
             "supported",
             "Removal unwraps the hyperlink and preserves display runs; the relationship is dropped when nothing else uses it.",
+            operation,
+            null);
+    }
+    // D17: field capabilities reuse the shape, guard-support, and track-support predicates from the field engine.
+    private sealed record FieldCapabilityFacts(
+        bool IsSimple,
+        bool ComplexSafe,
+        string ComplexReason,
+        bool HasProtected,
+        string ProtectedFeature,
+        string FieldType,
+        string RefreshKind,
+        string RefreshDetail);
+    internal static ParagraphCapabilitiesOutcome GetFieldCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        FieldTarget? fieldTarget = storyDocument is null
+            ? null
+            : FindFieldTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+        if (storyDocument is null || fieldTarget is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        bool simple = fieldTarget.Element.Name == OoxmlNs.W + "fldSimple";
+        bool complexSafe = false;
+        string complexReason = string.Empty;
+        if (!simple)
+        {
+            complexSafe = TryGetSimpleComplexFieldResultRuns(
+                fieldTarget.Element,
+                out _,
+                out _,
+                out string? reason);
+            complexReason = reason ?? string.Empty;
+        }
+        bool hasProtected = TryGetProtectedTextEditFeature(fieldTarget.Element, out string protectedFeature);
+        string fieldType = "complex";
+        string refreshKind = "complex";
+        string refreshDetail = string.Empty;
+        if (simple)
+        {
+            string code = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+            string[] tokens = TokenizeFieldCodeForPatch(code);
+            fieldType = tokens.Length == 0 ? "unknown" : NormalizeFieldTypeForPatch(tokens[0]);
+            if (TryReadQuoteFieldText(code, out _))
+            {
+                refreshKind = "quote";
+            }
+            else if (TryReadRefFieldBookmarkName(code, out string? bookmarkName))
+            {
+                if (TryReadSimpleBookmarkText(fieldTarget.Document, bookmarkName, out _, out string? bookmarkReason))
+                {
+                    refreshKind = "ref";
+                }
+                else
+                {
+                    refreshKind = "ref-unresolved";
+                    refreshDetail = bookmarkReason ?? string.Empty;
+                }
+            }
+            else
+            {
+                refreshKind = "unsupported";
+            }
+        }
+        var facts = new FieldCapabilityFacts(
+            simple,
+            complexSafe,
+            complexReason,
+            hasProtected,
+            protectedFeature,
+            fieldType,
+            refreshKind,
+            refreshDetail);
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            FieldFlagCapability("set-field-dirty", isRequire),
+            FieldFlagCapability("set-field-lock", isRequire),
+            FieldCodeCapability(facts, isRequire),
+            FieldResultCapability(facts, isTracked, isRequire),
+            FieldRefreshCapability(facts, isRequire),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "field",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    private static DocxOperationCapability FieldFlagCapability(string operation, bool isRequire)
+    {
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Field flag updates are field metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Sets the field flag directly with no shape checks.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability FieldCodeCapability(FieldCapabilityFacts facts, bool isRequire)
+    {
+        const string operation = "set-field-code";
+        if (!facts.IsSimple)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Field code replacement currently supports only simple w:fldSimple fields, so this complex field fails with E4313.",
+                operation,
+                null);
+        }
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Field codes are instruction metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Replaces the field instruction and marks the field dirty. The new code is patch-supplied; expect-code can guard the current code.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability FieldResultCapability(FieldCapabilityFacts facts, bool isTracked, bool isRequire)
+    {
+        const string operation = "set-field-result";
+        if (!facts.IsSimple && !facts.ComplexSafe)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Cached-result replacement for this complex field is not safe: " + facts.ComplexReason + ", so set-field-result fails with E4313.",
+                operation,
+                null);
+        }
+        if (!facts.IsSimple)
+        {
+            if (isRequire)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "unsupported",
+                    "Tracked complex-field result replacement is not modeled, so Require fails with E6002. Suggest falls back to a direct rewrite with W4002 and Off rewrites directly. Check remains authoritative.",
+                    operation,
+                    null);
+            }
+            if (isTracked)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "conditional",
+                    "Tracked complex-field result replacement is not modeled, so Suggest falls back to a direct rewrite with W4002. Check remains authoritative.",
+                    operation,
+                    null);
+            }
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Direct rewrite replaces the cached result of this simple complex field. Guard expect-result can assert the current result.",
+                operation,
+                null);
+        }
+        if (facts.HasProtected)
+        {
+            if (isRequire)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "unsupported",
+                    "Field result contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ", so tracked result replacement fails with E6002 under Require. Suggest falls back to a direct rewrite with W4002 and Off rewrites directly. Check remains authoritative.",
+                    operation,
+                    null);
+            }
+            if (isTracked)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "conditional",
+                    "Field result contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ", so tracked result replacement falls back to a direct rewrite with W4002. The exact replacement decides. Check remains authoritative.",
+                    operation,
+                    null);
+            }
+        }
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Simple cached results emit tracked delete and insert markup while preserving the field instruction; complex shapes fall back to a direct rewrite with W4002 under Suggest and fail with E6002 under Require. The exact replacement decides. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct rewrite replaces the cached result and preserves the field instruction. Guard expect-result can assert the current result.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability FieldRefreshCapability(FieldCapabilityFacts facts, bool isRequire)
+    {
+        const string operation = "refresh-field-result";
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Field refresh updates cached result text without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct refresh. Check remains authoritative.",
+                operation,
+                null);
+        }
+        if (facts.RefreshKind == "quote" || facts.RefreshKind == "ref")
+        {
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Deterministic refresh recomputes this " + facts.FieldType + " field from modeled document state and clears its dirty flag. Guards expect-code and expect-result can assert current values.",
+                operation,
+                null);
+        }
+        if (facts.RefreshKind == "ref-unresolved")
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Field refresh cannot resolve its bookmark: " + facts.RefreshDetail + ", so refresh-field-result fails with E4313.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "unsupported",
+            "Field refresh does not support field type " + Quote(facts.FieldType) + ": deterministic refresh covers REF, PAGEREF, NOTEREF, and QUOTE, so refresh-field-result fails with E4313.",
             operation,
             null);
     }
