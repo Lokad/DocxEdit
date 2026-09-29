@@ -1,0 +1,36 @@
+{
+  "id": "negative-tracked-hyperlink-block",
+  "description": "Rejects tracked deletion of a hyperlink paragraph under require with E6002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>Link text</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>"
+    ],
+    "hyperlink": "https://example.test/report"
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "protected OOXML boundary"
+    ]
+  }
+}

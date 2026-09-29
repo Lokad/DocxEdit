@@ -1,0 +1,35 @@
+{
+  "id": "negative-tracked-bookmark-block",
+  "description": "Rejects tracked deletion of a bookmarked paragraph under require with E6002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"/>",
+      "      <w:r><w:t>Client</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"4\"/>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "protected OOXML boundary"
+    ]
+  }
+}
