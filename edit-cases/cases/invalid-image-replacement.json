@@ -1,0 +1,54 @@
+{
+  "id": "invalid-image-replacement",
+  "description": "Refuses replacing PNG media content with JPEG bytes with E5204.",
+  "input": {
+    "bodyXml": [
+      "    <w:p xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">",
+      "      <w:r>",
+      "        <w:drawing>",
+      "          <wp:inline>",
+      "            <wp:extent cx=\"914400\" cy=\"457200\"/>",
+      "            <wp:docPr id=\"1\" name=\"Picture 1\" descr=\"Old chart\"/>",
+      "            <a:graphic>",
+      "              <a:graphicData>",
+      "                <pic:pic>",
+      "                  <pic:blipFill>",
+      "                    <a:blip r:embed=\"rImage\"/>",
+      "                  </pic:blipFill>",
+      "                </pic:pic>",
+      "              </a:graphicData>",
+      "            </a:graphic>",
+      "          </wp:inline>",
+      "        </w:drawing>",
+      "      </w:r>",
+      "    </w:p>"
+    ],
+    "media": {
+      "fileName": "image1.png",
+      "contentType": "image/png",
+      "text": "old-png"
+    }
+  },
+  "assets": {
+    "new.jpg": "base64:/9j/wAARCAAKABQDAREAAhEAAxEA/9k="
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-image",
+    "target M.I0001",
+    "asset {{asset:new.jpg}}",
+    "expect-content-type image/png",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E5204"
+    ],
+    "diagnosticMessagesContain": [
+      "is not supported for existing media part"
+    ]
+  }
+}
