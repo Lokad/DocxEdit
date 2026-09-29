@@ -1,0 +1,37 @@
+{
+  "id": "suggest-comment-fallback",
+  "description": "Warns and directly adds a comment under suggest with W4001.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Commented</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op add-comment",
+    "target M.P0001",
+    "text Note",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "W4001"
+    ],
+    "diagnosticMessagesContain": [
+      "preserve-only"
+    ],
+    "paragraphs": [
+      "Commented"
+    ],
+    "changeSummary": {
+      "comment": 1
+    }
+  }
+}
