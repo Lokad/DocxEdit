@@ -1,0 +1,32 @@
+{
+  "id": "append-row-mismatch",
+  "description": "Refuses an appended row whose cell count mismatches the table.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr>",
+      "        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>",
+      "        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op append-row",
+    "target M.T0001",
+    "cell South",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4303"
+    ],
+    "diagnosticMessagesContain": [
+      "cell field(s)"
+    ]
+  }
+}
