@@ -279,3 +279,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 15 commands, 0 failing checks, 0 retries; about 178k input tokens with about 145k cached
 - Artifacts: artifacts/agent-challenges/alias-compose-probe/20260929T141853Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent inserted with as plus a style, then addressed the alias from set-style guarded by expect-style and from replace-text guarded by expect-text; all three operations succeeded and readback confirmed the styled replacement text. Finding: per-operation help insert-after lists as but shows no alias composition example, while help patch explains the mechanism; a registry example now closes that gap. No text disclosed.
+
+### 2026-09-29 — semantic-anchor-edit (live codex run) — failed
+
+- Commands: help patch, read; dump and changes attempted with no result
+- Diagnostics: none observed (bookmark flow untested)
+- Target IDs: none discovered
+- Markup types: none observed
+- Counts: 1 effective read; run stalled afterward with no patch, no output, 0 retries possible
+- Artifacts: private run directory private-cases/_runs/semantic-anchor-edit/20260929T142449Z (no sanitized summary; runner had not finalized)
+- Notes: second tooling-stalled live run with the same signature as the earlier ambiguity attempt: initial commands succeed, then shell execution goes unresponsive while the agent process burns multi-core CPU (about 20 minutes over 12 wall minutes) and never exits, hanging runner finalization. No product signal; bookmark flows remain assessed only in synthetic self-runs. Pattern across nine live runs is now 7 clean against 2 stalls, both stalls showing runaway agent CPU with an unresponsive tool gateway. Observer polling was moderately tight this run, so contention cannot be ruled out; the successful rerun used the widest gaps. Recommendation: space live runs apart, poll sparingly, and never overlap two live agents.
