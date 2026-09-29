@@ -400,6 +400,8 @@ public sealed record DocxPatchOperationReport(
     public IReadOnlyList<DocxPatchAffectedTarget> AffectedTargets { get; init; } = [];
     /// <summary>Generated revision IDs.</summary>
     public IReadOnlyList<string> GeneratedRevisionIds { get; init; } = [];
+    /// <summary>Wire IDs created by the operation, such as an inserted paragraph or a new comment; empty when the operation creates no addressable targets.</summary>
+    public IReadOnlyList<string> CreatedTargetIds { get; init; } = [];
     /// <summary>Bounded text before the operation, when previews are enabled.</summary>
     public string? PreviewBefore { get; init; }
     /// <summary>Bounded text after the operation, when previews are enabled.</summary>

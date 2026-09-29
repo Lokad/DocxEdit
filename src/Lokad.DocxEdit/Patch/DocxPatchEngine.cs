@@ -123,6 +123,7 @@ internal static partial class DocxPatchEngine
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
             DocxTargetId? resolvedBefore = CaptureResolvedTargetSnapshot(package, operation, cancellationToken);
             PreviewSnapshot? previewBefore = CapturePreviewBefore(package, operation, options, cancellationToken);
+            HashSet<string>? commentsBefore = operation.OperationName == "add-comment" ? ReadCommentIds(package, cancellationToken) : null;
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             // D15: intrinsic review/annotation operations are permitted under Require:
             // a comment is already review markup, so requiring generated text
@@ -176,6 +177,7 @@ internal static partial class DocxPatchEngine
                 operationDiagnostics)
             {
                 AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore, resolvedBefore) : [],
+                CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, cancellationToken) : [],
                 PreviewBefore = previewBeforeText,
                 PreviewAfter = previewAfterText,
                 PreviewTruncated = previewTruncated,

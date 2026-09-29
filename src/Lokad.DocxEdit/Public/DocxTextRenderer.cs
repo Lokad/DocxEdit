@@ -507,6 +507,9 @@ public static class DocxTextRenderer
             string revisionIds = operation.GeneratedRevisionIds.Count == 0
                 ? string.Empty
                 : $" generated-revision-ids={XmlValues.EscapeText(string.Join(",", operation.GeneratedRevisionIds))}";
+            string createdIds = operation.CreatedTargetIds.Count == 0
+                ? string.Empty
+                : $" created-target-ids={XmlValues.EscapeText(string.Join(",", operation.CreatedTargetIds))}";
             builder.Append("operation index=")
                 .Append(operation.Index)
                 .Append(" name=")
@@ -516,6 +519,7 @@ public static class DocxTextRenderer
                 .Append(" success=")
                 .Append(operation.Success)
                 .Append(revisionIds)
+                .Append(createdIds)
                 .AppendLine();
             if (operation.PreviewBefore is not null || operation.PreviewAfter is not null)
             {

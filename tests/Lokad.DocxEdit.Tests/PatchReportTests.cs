@@ -401,4 +401,144 @@ public static class PatchReportTests
         Assert.Contains(check.Operations[1].Diagnostics, static d => d.Code == "I0002");
         Assert.Contains(apply.Operations[1].Diagnostics, static d => d.Code == "I0002");
     }
+    [Fact]
+    public static void ApplyInsertAfterReportsCreatedParagraph()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Inserted
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        Assert.Equal(new[] { "M.P0002" }, Assert.Single(result.Operations).CreatedTargetIds);
+        Assert.Contains("created-target-ids=M.P0002", DocxTextRenderer.RenderOperationSummary(result.Operations), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckInsertBeforeReportsCreatedParagraph()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+              <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+              <w:p><w:r><w:t>Beta</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-before
+            target M.P0002
+            text Inserted
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void TwoSequentialInsertsReportEachCreatedId()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text First
+            end
+
+            op insert-after
+            target M.P0001
+            text Second
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(2, result.Operations.Count);
+        Assert.Equal(new[] { "M.P0002" }, result.Operations[0].CreatedTargetIds);
+        Assert.Equal(new[] { "M.P0002" }, result.Operations[1].CreatedTargetIds);
+        output.Position = 0;
+        Assert.Equal(
+            new[] { "Alpha", "Second", "First" },
+            new DocxEditor().Read(output).Paragraphs.Select(static p => p.Text).ToArray());
+    }
+
+    [Fact]
+    public static void AddCommentReportsCreatedCommentId()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text Fresh note
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "comment:4" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void CheckAndApplyAgreeOnCreatedTargetIds()
+    {
+        const string patchText = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Inserted\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha");
+        IReadOnlyList<string> checkCreated = Assert.Single(new DocxEditor().Check(checkInput, new StringReader(patchText)).Operations).CreatedTargetIds;
+        using MemoryStream applyInput = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        IReadOnlyList<string> applyCreated = Assert.Single(new DocxEditor().Apply(applyInput, new StringReader(patchText), output).Operations).CreatedTargetIds;
+        Assert.Equal(checkCreated, applyCreated);
+        Assert.Equal(new[] { "M.P0002" }, applyCreated);
+    }
+
+    [Fact]
+    public static void NonCreatingOperationReportsEmptyCreatedIds()
+    {
+        using MemoryStream input = CreateDocx("Alpha Beta");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Omega
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+        Assert.Empty(Assert.Single(result.Operations).CreatedTargetIds);
+    }
 }
