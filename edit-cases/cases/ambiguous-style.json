@@ -1,0 +1,31 @@
+{
+  "id": "ambiguous-style",
+  "description": "Refuses a display name shared by two styles with E7102.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"paragraph\" w:styleId=\"Custom1\"><w:name w:val=\"Custom\"/></w:style>",
+      "  <w:style w:type=\"paragraph\" w:styleId=\"Custom2\"><w:name w:val=\"Custom\"/></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-style",
+    "target M.P0001",
+    "style Custom",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E7102"
+    ],
+    "diagnosticMessagesContain": [
+      "is ambiguous"
+    ]
+  }
+}
