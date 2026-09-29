@@ -58,7 +58,8 @@ internal static class DocxPatchParser
 
             if (!OperationDefinitions.TryGetValue(operationName, out OperationDefinition? operationDefinition))
             {
-                return Error("E2010", $"Unknown operation '{operationName}'.", i + 1, 4);
+                string? operationSuggestion = SuggestNearestName(operationName, OperationDefinitions.Keys.OrderBy(static name => name, StringComparer.Ordinal));
+                return Error("E2010", operationSuggestion is null ? $"Unknown operation '{operationName}'." : $"Unknown operation '{operationName}'. Did you mean '{operationSuggestion}'?", i + 1, 4);
             }
 
             var fields = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -97,7 +98,8 @@ internal static class DocxPatchParser
 
                 if (!operationDefinition.AllowedFields.Contains(key))
                 {
-                    return Error("E2011", $"Unknown field '{key}' for operation '{operationName}'.", fieldLineNumber, keyColumn, operationName);
+                    string? fieldSuggestion = SuggestNearestName(key, operationDefinition.AllowedFields.OrderBy(static name => name, StringComparer.Ordinal));
+                    return Error("E2011", fieldSuggestion is null ? $"Unknown field '{key}' for operation '{operationName}'." : $"Unknown field '{key}' for operation '{operationName}'. Did you mean '{fieldSuggestion}'?", fieldLineNumber, keyColumn, operationName);
                 }
 
                 if (fields.ContainsKey(key) && !operationDefinition.RepeatableFields.Contains(key))
@@ -228,6 +230,47 @@ internal static class DocxPatchParser
     private static DocxPatch Error(string code, string message, int line, int column, string? helpTopic = null)
     {
         return new DocxPatch(false, 0, [], [new DocxDiagnostic(DocxSeverity.Error, code, message) with { Line = line, Column = column, HelpTopic = helpTopic }]);
+    }
+
+    private static string? SuggestNearestName(string value, IEnumerable<string> candidates)
+    {
+        string? best = null;
+        int bestDistance = 4;
+        foreach (string candidate in candidates)
+        {
+            int distance = EditDistance(value.ToLowerInvariant(), candidate.ToLowerInvariant());
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    private static int EditDistance(string first, string second)
+    {
+        int[] previous = new int[second.Length + 1];
+        for (int j = 0; j <= second.Length; j++)
+        {
+            previous[j] = j;
+        }
+
+        for (int i = 1; i <= first.Length; i++)
+        {
+            int[] current = new int[second.Length + 1];
+            current[0] = i;
+            for (int j = 1; j <= second.Length; j++)
+            {
+                int substitution = previous[j - 1] + (first[i - 1] == second[j - 1] ? 0 : 1);
+                current[j] = Math.Min(Math.Min(previous[j] + 1, current[j - 1] + 1), substitution);
+            }
+
+            previous = current;
+        }
+
+        return previous[second.Length];
     }
 
     private sealed record OperationDefinition(

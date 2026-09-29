@@ -548,4 +548,99 @@ public static class PatchParserTests
         Assert.Equal(1, diagnostic.Column);
     }
 
+    [Fact]
+    public static void ParsePatchSuggestsNearestOperation()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replac-text
+            target M.P0001
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2010");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("replace-text", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ParsePatchOmitsOperationSuggestionWithoutNearMatch()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op zzzqw
+            target M.P0001
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2010");
+        Assert.DoesNotContain("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ParsePatchSuggestsNearestField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            texd X
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2011");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("text", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ParsePatchSuggestsCaseVariantField()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            Target M.P0001
+            find Alpha
+            with Omega
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2011");
+        Assert.Contains("target", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ParsePatchOmitsFieldSuggestionWithoutNearMatch()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch patch = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            zzz X
+            end
+            """));
+
+        Assert.False(patch.Success);
+        DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2011");
+        Assert.DoesNotContain("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+    }
 }

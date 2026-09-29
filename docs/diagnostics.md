@@ -59,8 +59,8 @@ Common code ranges:
 - `E2007`: invalid field line.
 - `E2008`: unterminated heredoc for a field.
 - `E2009`: operation is missing `end`.
-- `E2010`: unknown operation.
-- `E2011`: unknown field for the operation.
+- `E2010`: unknown operation; names the closest known operation when within edit distance 3.
+- `E2011`: unknown field for the operation; names the closest accepted field when within edit distance 3.
 - `E2012`: boolean field value must be true or false.
 - `E2013`: integer field value must be an integer.
 - `E2014`: patch text exceeds the configured maximum patch size.
