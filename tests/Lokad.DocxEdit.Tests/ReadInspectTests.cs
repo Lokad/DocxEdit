@@ -376,6 +376,79 @@ public static class ReadInspectTests
         Assert.Contains("target M.B0001 bookmark", result.Text, StringComparison.Ordinal);
         Assert.Contains("bookmark-names=\"ClientName\"", result.Text, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void ContextShowsHyperlinkNeighborhood()
+    {
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink" w:tooltip="Open example">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """, null);
+        var editor = new DocxEditor();
+        DocxContextResult result = editor.Context(stream, "M.L0001");
+        Assert.True(result.Success);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.L0001");
+        Assert.Equal("hyperlink", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("main", target.Story);
+        Assert.Equal("M.P0001", target.ParentId);
+        DocxContextItem anchor = Assert.Single(result.Items, item => item.Id == "M.P0001");
+        Assert.Equal("anchor", anchor.Relation);
+        Assert.Contains("target M.L0001 hyperlink", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextShowsFieldNeighborhood()
+    {
+        using MemoryStream stream = CreateDocxWithRefField();
+        var editor = new DocxEditor();
+        DocxContextResult result = editor.Context(stream, "M.F0001");
+        Assert.True(result.Success);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.F0001");
+        Assert.Equal("field", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("main", target.Story);
+        Assert.Contains(result.Items, item => item.Kind == "paragraph" && item.Relation == "anchor");
+        Assert.Contains("target M.F0001 field", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextShowsContentControlNeighborhood()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:p>
+                      <w:sdt>
+                        <w:sdtPr>
+                          <w:id w:val="77"/>
+                          <w:alias w:val="Client Name"/>
+                          <w:tag w:val="client_name"/>
+                          <w:text/>
+                        </w:sdtPr>
+                        <w:sdtContent><w:r><w:t>Acme</w:t></w:r></w:sdtContent>
+                      </w:sdt>
+                    </w:p>
+            """);
+        var editor = new DocxEditor();
+        DocxContextResult result = editor.Context(stream, "M.CC0001");
+        Assert.True(result.Success);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.CC0001");
+        Assert.Equal("content-control", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("main", target.Story);
+        Assert.Equal("M.P0001", target.ParentId);
+        DocxContextItem anchor = Assert.Single(result.Items, item => item.Id == "M.P0001");
+        Assert.Equal("anchor", anchor.Relation);
+        Assert.Contains("target M.CC0001 content-control", result.Text, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public static void ContextShowsMergeGroupMembers()

@@ -853,6 +853,24 @@ internal static class TextRenderers
             return [ToContextItem(image, "target")];
         }
 
+        DocxContentControlInfo? control = model.ContentControls.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (control is not null)
+        {
+            return ContentControlContext(control, model, radius, maxText, annotations);
+        }
+
+        DocxFieldInfo? field = model.Fields.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (field is not null)
+        {
+            return FieldContext(field, model, radius, maxText, annotations);
+        }
+
+        DocxHyperlinkInfo? hyperlink = model.Hyperlinks.FirstOrDefault(candidate => string.Equals(candidate.Id.ToWireValue(), targetId, StringComparison.Ordinal));
+        if (hyperlink is not null)
+        {
+            return HyperlinkContext(hyperlink, model, radius, maxText, annotations);
+        }
+
         DocxChangeInfo? comment = FindCommentChange(changes, targetId);
         return comment is null
             ? []
@@ -1413,18 +1431,25 @@ internal static class TextRenderers
         };
         if (bookmark.StartTargetId is { } start)
         {
-            DocxParagraphInfo[] storyParagraphs = model.Paragraphs
-                .Where(candidate => string.Equals(candidate.Story, bookmark.Story, StringComparison.Ordinal))
-                .ToArray();
-            int index = Array.FindIndex(storyParagraphs, candidate => candidate.Id.Equals(start));
-            if (index >= 0)
-            {
-                items.AddRange(Window(storyParagraphs, index, radius)
-
-                    .Select(item => ApplyAnnotations(ToContextItem(item.Value, AnchorRelation(item.Offset), maxText), annotations)));
-            }
+            items.AddRange(AnchorParagraphWindow(model, bookmark.Story, start, radius, maxText, annotations));
         }
         return items;
+    }
+
+    private static IReadOnlyList<DocxContextItem> AnchorParagraphWindow(DocxDocumentModel model, string story, DocxTargetId target, int radius, int maxText, TargetAnnotations annotations)
+    {
+        DocxParagraphInfo[] storyParagraphs = model.Paragraphs
+            .Where(candidate => string.Equals(candidate.Story, story, StringComparison.Ordinal))
+            .ToArray();
+        int index = Array.FindIndex(storyParagraphs, candidate => candidate.Id.Equals(target));
+        if (index < 0)
+        {
+            return [];
+        }
+
+        return Window(storyParagraphs, index, radius)
+            .Select(item => ApplyAnnotations(ToContextItem(item.Value, AnchorRelation(item.Offset), maxText), annotations))
+            .ToArray();
     }
     private static DocxContextItem ToContextItem(DocxBookmarkInfo bookmark, string relation)
     {
@@ -1435,6 +1460,81 @@ internal static class TextRenderers
             Relation = relation,
             Story = bookmark.Story,
             ParentId = bookmark.PartName
+        };
+    }
+
+    private static IReadOnlyList<DocxContextItem> HyperlinkContext(DocxHyperlinkInfo hyperlink, DocxDocumentModel model, int radius, int maxText, TargetAnnotations annotations)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ApplyAnnotations(ToContextItem(hyperlink, "target"), annotations)
+        };
+        if (hyperlink.TargetId is { } hyperlinkTarget)
+        {
+            items.AddRange(AnchorParagraphWindow(model, hyperlink.Story, hyperlinkTarget, radius, maxText, annotations));
+        }
+        return items;
+    }
+
+    private static IReadOnlyList<DocxContextItem> FieldContext(DocxFieldInfo field, DocxDocumentModel model, int radius, int maxText, TargetAnnotations annotations)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ApplyAnnotations(ToContextItem(field, "target"), annotations)
+        };
+        if (field.TargetId is { } fieldTarget)
+        {
+            items.AddRange(AnchorParagraphWindow(model, field.Story, fieldTarget, radius, maxText, annotations));
+        }
+        return items;
+    }
+
+    private static IReadOnlyList<DocxContextItem> ContentControlContext(DocxContentControlInfo control, DocxDocumentModel model, int radius, int maxText, TargetAnnotations annotations)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ApplyAnnotations(ToContextItem(control, "target"), annotations)
+        };
+        if (control.TargetId is { } controlTarget)
+        {
+            items.AddRange(AnchorParagraphWindow(model, control.Story, controlTarget, radius, maxText, annotations));
+        }
+        return items;
+    }
+
+    private static DocxContextItem ToContextItem(DocxHyperlinkInfo hyperlink, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = hyperlink.Id.ToWireValue(),
+            Kind = "hyperlink",
+            Relation = relation,
+            Story = hyperlink.Story,
+            ParentId = hyperlink.TargetId?.ToWireValue() ?? hyperlink.PartName
+        };
+    }
+
+    private static DocxContextItem ToContextItem(DocxFieldInfo field, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = field.Id.ToWireValue(),
+            Kind = "field",
+            Relation = relation,
+            Story = field.Story,
+            ParentId = field.TargetId?.ToWireValue() ?? field.PartName
+        };
+    }
+
+    private static DocxContextItem ToContextItem(DocxContentControlInfo control, string relation)
+    {
+        return new DocxContextItem
+        {
+            Id = control.Id.ToWireValue(),
+            Kind = "content-control",
+            Relation = relation,
+            Story = control.Story,
+            ParentId = control.TargetId?.ToWireValue() ?? control.PartName
         };
     }
 

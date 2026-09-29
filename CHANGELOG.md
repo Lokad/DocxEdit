@@ -29,6 +29,7 @@
 - Added bookmark targets to `dump` and `context`, including the anchor-paragraph neighborhood.
 - Added row targets to `dump` with member cells, matching merge-group dumps.
 - Added hyperlink, field, and content-control targets to `dump`, reusing the read metadata lines.
+- Added hyperlink, field, and content-control targets to `context` with the anchor-paragraph neighborhood, matching bookmark context.
 - Zero-match selector diagnostics now carry match count 0 with the nearby candidate IDs.
 - Fixed contradictory track-change notes for comment annotation operations: they stay permitted under Require instead of claiming Require fails with E6001; refreshed the frozen support table.
 - Fixed unknown-style errors to suggest the nearest style ID or name.
