@@ -1,0 +1,28 @@
+{
+  "id": "multiline-rewrite",
+  "description": "Rewrites a paragraph with multiline replacement text through paragraph-level rewriting.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "preserve-runs false",
+    "with <<<",
+    "Line one",
+    "Line two",
+    ">>>",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Line one\nLine two Beta"
+    ]
+  }
+}
