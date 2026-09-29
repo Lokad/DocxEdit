@@ -671,7 +671,19 @@ internal static partial class DocxPatchEngine
             "Comment resolution changes review metadata, not visible document text.",
             "Comments",
             "Creates or updates modern resolution metadata for basic comments",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken), isAnnotation: true),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: true, apply, cancellationToken), isAnnotation: true) with
+        {
+            Examples =
+            [
+                """
+                # Minimal resolve-comment.
+                docxpatch 1
+                op resolve-comment
+                target comment:3
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "reopen-comment",
             [
@@ -681,7 +693,19 @@ internal static partial class DocxPatchEngine
             "Comment reopening changes review metadata, not visible document text.",
             "Comments",
             "Clears modern resolution metadata for basic comments",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken), isAnnotation: true),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetCommentResolved(package, operation, resolved: false, apply, cancellationToken), isAnnotation: true) with
+        {
+            Examples =
+            [
+                """
+                # Minimal reopen-comment.
+                docxpatch 1
+                op reopen-comment
+                target comment:3
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "delete-comment",
             [
@@ -691,7 +715,19 @@ internal static partial class DocxPatchEngine
             "Comment deletion removes review markup, not a separate generated tracked edit.",
             "Comments",
             "Removes body, range/reference markers, and matching extension records",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken), isAnnotation: true),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken), isAnnotation: true) with
+        {
+            Examples =
+            [
+                """
+                # Minimal delete-comment.
+                docxpatch 1
+                op delete-comment
+                target comment:3
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "add-comment-reply",
             [
@@ -706,7 +742,21 @@ internal static partial class DocxPatchEngine
             "Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit.",
             "Comments",
             "Adds a modern threaded reply under a comment",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken), isAnnotation: true),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken), isAnnotation: true) with
+        {
+            Examples =
+            [
+                """
+                # Minimal add-comment-reply.
+                docxpatch 1
+                op add-comment-reply
+                target comment:3
+                text Thanks
+                author Reviewer
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "delete-comment-reply",
             [
@@ -716,7 +766,19 @@ internal static partial class DocxPatchEngine
             "Threaded comment reply deletion removes review metadata, not a separate generated tracked edit.",
             "Comments",
             "Removes a leaf threaded reply",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken), isAnnotation: true),
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteCommentReply(package, operation, apply, cancellationToken), isAnnotation: true) with
+        {
+            Examples =
+            [
+                """
+                # Minimal delete-comment-reply.
+                docxpatch 1
+                op delete-comment-reply
+                target comment:3.reply:1
+                end
+                """,
+            ],
+        },
         PreserveOnly(
             "set-field-dirty",
             [

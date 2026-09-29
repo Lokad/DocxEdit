@@ -531,4 +531,34 @@ public static class HelpTopicTests
         }
     }
 
+    [Fact]
+    public static void CommentThreadExamplesCheckClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("resolve-comment", out DocxPatchOperationInfo resolve));
+        Assert.True(DocxHelp.TryGetPatchOperation("reopen-comment", out DocxPatchOperationInfo reopen));
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-comment", out DocxPatchOperationInfo delete));
+        Assert.True(DocxHelp.TryGetPatchOperation("add-comment-reply", out DocxPatchOperationInfo reply));
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-comment-reply", out DocxPatchOperationInfo deleteReply));
+        foreach (string example in resolve.Examples.Concat(reopen.Examples).Concat(delete.Examples).Concat(reply.Examples))
+        {
+            using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+        string replyExample = Assert.Single(reply.Examples);
+        using MemoryStream replyInput = CreateDocxWithCommentAnchoredParagraph();
+        using var threaded = new MemoryStream();
+        using (var replyPatch = new StringReader(replyExample))
+        {
+            DocxApplyResult applied = new DocxEditor().Apply(replyInput, replyPatch, threaded);
+            Assert.True(applied.Success, string.Join("|", applied.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+        string deleteExample = Assert.Single(deleteReply.Examples);
+        threaded.Position = 0;
+        using var deletePatch = new StringReader(deleteExample);
+        DocxCheckResult deleted = new DocxEditor().Check(threaded, deletePatch);
+        Assert.True(deleted.Success, deleteExample + ":" + string.Join("|", deleted.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
 }
