@@ -1,0 +1,30 @@
+{
+  "id": "set-field-lock",
+  "description": "Locks a simple field against updates; the cached result text is unchanged and Word-side refresh is requested.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF ClientName \\h \" w:fldLock=\"0\">",
+      "        <w:r><w:t>Old cached result</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-lock",
+    "target M.F0001",
+    "locked true",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "W5103"
+    ],
+    "paragraphs": [
+      "Old cached result"
+    ]
+  }
+}

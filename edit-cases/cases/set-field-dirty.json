@@ -1,0 +1,30 @@
+{
+  "id": "set-field-dirty",
+  "description": "Marks a simple field dirty; the cached result text is unchanged and Word-side refresh is requested.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF ClientName \\h \" w:dirty=\"false\">",
+      "        <w:r><w:t>Old cached result</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-dirty",
+    "target M.F0001",
+    "dirty true",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "W5103"
+    ],
+    "paragraphs": [
+      "Old cached result"
+    ]
+  }
+}
