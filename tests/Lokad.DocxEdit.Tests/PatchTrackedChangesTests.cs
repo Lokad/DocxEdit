@@ -4047,5 +4047,30 @@ public static class PatchTrackedChangesTests
             Assert.Contains(refused.Diagnostics, static diagnostic => diagnostic.Code == "E6002");
         }
     }
+    [Fact]
+    public static void ApplyTrackChangesRequireAllowsDisjointSameParagraphReplacements()
+    {
+        var options = new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Require,
+            Author = "Agent",
+            TimestampUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        using MemoryStream input = CreateDocx("Alpha Alpha");
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n");
+        using var output = new MemoryStream();
+        DocxApplyResult applied = new DocxEditor().Apply(input, patch, output, options);
+        Assert.True(applied.Success, string.Join("|", applied.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.All(applied.Operations, static operation => Assert.True(operation.Success));
+        Assert.Empty(applied.Diagnostics);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("Omega Delta", read.Paragraphs[0].Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(2, CountOccurrences(xml, "<w:del "));
+        Assert.Equal(2, CountOccurrences(xml, "<w:ins "));
+    }
+
 
 }
