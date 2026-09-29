@@ -1,0 +1,28 @@
+{
+  "id": "invalid-alias-name",
+  "description": "Refuses a result alias name with a leading digit with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text Added",
+    "as 1bad",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "leading letter"
+    ]
+  }
+}
