@@ -37,6 +37,7 @@ public static class DiagnosticMatchTests
         Assert.False(result.Success);
         DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1201");
         Assert.Equal(0, diagnostic.MatchCount);
+        Assert.NotNull(diagnostic.CandidateIds);
         Assert.Empty(diagnostic.CandidateIds);
         Assert.Contains("table cell", diagnostic.Message, StringComparison.Ordinal);
     }
