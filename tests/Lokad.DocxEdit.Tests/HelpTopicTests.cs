@@ -143,6 +143,25 @@ public static class HelpTopicTests
     }
 
     [Fact]
+    public static void AliasCompositionExampleChecksClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-after", out DocxPatchOperationInfo insertAfter));
+        string example = Assert.Single(insertAfter.Examples, static candidate => candidate.Contains("# insert-after with a result alias", StringComparison.Ordinal));
+
+        using MemoryStream input = CreateDocx("Alpha");
+        using var patch = new StringReader(example);
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader(example);
+        DocxApplyResult applied = new DocxEditor().Apply(input, applyPatch, output);
+        Assert.True(applied.Success, string.Join("|", applied.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Contains("Final note", Assert.Single(new DocxEditor().Read(output).Paragraphs, static paragraph => paragraph.Text.Contains("Final", StringComparison.Ordinal)).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void MinimalReplaceTextExampleChecksClean()
     {
         Assert.True(DocxHelp.TryGetPatchOperation("replace-text", out DocxPatchOperationInfo replaceText));
