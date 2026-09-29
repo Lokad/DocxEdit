@@ -268,6 +268,20 @@ public static class CliTests
         Assert.Contains("target M.P0001 paragraph story=\"main\" text=\"\"", result.Output, StringComparison.Ordinal);
         Assert.DoesNotContain("Revenue increased", result.Output, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void CliDumpUnknownTargetSuggestsNearestId()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        CreateTextOnlyDocx(input);
+
+        CliResult result = RunCli("dump", input, "--id", "M.P001");
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("Did you mean", result.Error, StringComparison.Ordinal);
+        Assert.Contains("M.P0001", result.Error, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public static void CliCheckWritesJsonReport()
