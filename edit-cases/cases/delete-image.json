@@ -1,0 +1,46 @@
+{
+  "id": "delete-image",
+  "description": "Deletes an inline image while preserving the containing paragraph.",
+  "input": {
+    "bodyXml": [
+      "    <w:p xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">",
+      "      <w:r>",
+      "        <w:drawing>",
+      "          <wp:inline>",
+      "            <wp:extent cx=\"914400\" cy=\"457200\"/>",
+      "            <wp:docPr id=\"1\" name=\"Picture 1\" descr=\"Old chart\"/>",
+      "            <a:graphic>",
+      "              <a:graphicData>",
+      "                <pic:pic>",
+      "                  <pic:blipFill>",
+      "                    <a:blip r:embed=\"rImage\"/>",
+      "                  </pic:blipFill>",
+      "                </pic:pic>",
+      "              </a:graphicData>",
+      "            </a:graphic>",
+      "          </wp:inline>",
+      "        </w:drawing>",
+      "      </w:r>",
+      "    </w:p>"
+    ],
+    "media": {
+      "fileName": "image1.png",
+      "contentType": "image/png",
+      "text": "old-png"
+    }
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-image",
+    "target M.I0001",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      ""
+    ],
+    "images": []
+  }
+}
