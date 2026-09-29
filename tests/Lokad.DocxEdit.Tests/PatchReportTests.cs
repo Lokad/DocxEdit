@@ -527,6 +527,64 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewReportsHyperlinkTargetChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream stream = CreateDocxWithBody(
+            """
+                    <w:p xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <w:hyperlink r:id="rLink">
+                        <w:r><w:t>External</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+                </Relationships>
+                """, null);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-target
+            target M.L0001
+            uri https://example.test/new
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(stream, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("https://example.test/report", report.PreviewBefore);
+        Assert.Equal("https://example.test/new", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsFieldDirtyChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithRefField();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-dirty
+            target M.F0001
+            dirty true
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("false", report.PreviewBefore);
+        Assert.Equal("true", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };

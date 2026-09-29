@@ -225,7 +225,7 @@ internal static partial class DocxPatchEngine
 
     private static bool PreviewValueMayBeAbsent(string operationName)
     {
-        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block";
+        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block" or "set-hyperlink-target" or "set-field-dirty";
     }
 
     private static (string? Before, string? After, bool Truncated) FinalizePreview(
@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "delete-block" or "set-section-columns"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty"))
         {
             return null;
         }
@@ -352,6 +352,18 @@ internal static partial class DocxPatchEngine
             return sectionTarget is null ? null : ReadSectionColumnCount(sectionTarget.SectionProperties).ToString();
         }
 
+        if (operation.OperationName == "set-hyperlink-target")
+        {
+            HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
+            return hyperlinkTarget is null ? null : ReadHyperlinkTargetValue(package, hyperlinkTarget, cancellationToken);
+        }
+
+        if (operation.OperationName == "set-field-dirty")
+        {
+            FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
+            return fieldTarget is null ? null : (string?)fieldTarget.Element.Attribute(OoxmlNs.W + "dirty");
+        }
+
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
         if (paragraphTarget is null)
         {
@@ -364,6 +376,23 @@ internal static partial class DocxPatchEngine
         }
 
         return ReadVisibleText(paragraphTarget.Paragraph);
+    }
+
+    private static string? ReadHyperlinkTargetValue(
+        OoxmlPackage package,
+        HyperlinkTarget hyperlinkTarget,
+        CancellationToken cancellationToken)
+    {
+        string? relationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
+        if (!string.IsNullOrWhiteSpace(relationshipId))
+        {
+            OoxmlRelationship? relationship = package
+                .GetRelationships(hyperlinkTarget.PartName, cancellationToken)
+                .FirstOrDefault(candidate => string.Equals(candidate.Id, relationshipId, StringComparison.Ordinal));
+            return relationship?.Target;
+        }
+
+        return (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.W + "anchor");
     }
 
     private static bool TryParseTargetSelector(
