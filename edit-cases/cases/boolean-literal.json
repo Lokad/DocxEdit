@@ -1,0 +1,39 @@
+{
+  "id": "boolean-literal",
+  "description": "Rejects a non-boolean literal in a boolean field.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:checkBox>",
+      "            <w:checked w:val=\"0\"/>",
+      "            <w:checkedState w:val=\"2612\"/>",
+      "            <w:uncheckedState w:val=\"2610\"/>",
+      "          </w:checkBox>",
+      "          <w:tag w:val=\"accepted\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Unchecked</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-checkbox",
+    "target M.CC0001",
+    "checked yes",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2012"
+    ],
+    "diagnosticMessagesContain": [
+      "must be true or false"
+    ]
+  }
+}
