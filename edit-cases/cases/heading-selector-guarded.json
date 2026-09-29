@@ -1,0 +1,30 @@
+{
+  "id": "heading-selector-guarded",
+  "description": "Replaces guarded heading text addressed through a semantic heading selector.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"paragraph\" w:styleId=\"Heading1\"><w:name w:val=\"Heading 1\"/><w:pPr><w:outlineLvl w:val=\"0\"/></w:pPr></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:r><w:t>Executive Summary</w:t></w:r></w:p>",
+      "    <w:p><w:r><w:t>Body text</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target heading:\"Executive Summary\"",
+    "find Summary",
+    "with Overview",
+    "expect-text Executive Summary",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Executive Overview",
+      "Body text"
+    ]
+  }
+}
