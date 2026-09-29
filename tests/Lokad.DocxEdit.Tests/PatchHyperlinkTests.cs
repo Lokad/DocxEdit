@@ -197,6 +197,75 @@ public static class PatchHyperlinkTests
         Assert.Contains("Target=\"https://example.test/shared\"", relationships, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public static void CheckRemoveHyperlinkGuardMismatchFails()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op remove-hyperlink
+            target M.L0001
+            expect-text Stale link
+            end
+            """);
+
+        DocxCheckResult check = new DocxEditor().Check(input, patch);
+        Assert.False(check.Success);
+        DocxDiagnostic failure = Assert.Single(check.Diagnostics, static d => d.Code == "E3201");
+        Assert.Equal("remove-hyperlink", failure.HelpTopic);
+        Assert.Equal(5, failure.Line);
+    }
+
+    [Fact]
+    public static void ApplyRemoveHyperlinkGuardMatchSucceeds()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op remove-hyperlink
+            target M.L0001
+            expect-text Link
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success);
+        output.Position = 0;
+        Assert.Equal("Link", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        Assert.Empty(new DocxEditor().Read(output).Hyperlinks);
+        output.Position = 0;
+        string relationships = ReadEntry(output, "word/_rels/document.xml.rels");
+        Assert.DoesNotContain("rLink", relationships, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("../relative/report", "relative hyperlink targets are not supported")]
     [InlineData("file:///C:/secret/report.docx", "Unsupported hyperlink URI scheme 'file'")]

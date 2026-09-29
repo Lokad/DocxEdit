@@ -1976,6 +1976,7 @@ Rules:
   `w:tgtFrame`, and `w:history`.
 * Updating one hyperlink that shares a relationship with another hyperlink must allocate
   a new relationship ID so the other hyperlink keeps its destination.
+* Optional `expect-text` must match the current display text (`E3201` on mismatch).
 
 ### 11.7 `set-cell`
 

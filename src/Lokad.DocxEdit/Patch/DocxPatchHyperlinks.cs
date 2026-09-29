@@ -234,6 +234,12 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 targets: {target}.", operation, target)];
         }
 
+        string? expected = operation.Fields.GetValueOrDefault("expect-text");
+        string current = ReadVisibleText(hyperlinkTarget.Hyperlink);
+        if (expected is not null && !string.Equals(current, expected, StringComparison.Ordinal))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected hyperlink text does not match current text.", operation, target, fieldName: "expect-text")];
+        }
 
         string? relationshipId = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id");
         hyperlinkTarget.Hyperlink.ReplaceWith(hyperlinkTarget.Hyperlink.Nodes().ToArray());

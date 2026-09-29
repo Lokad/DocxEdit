@@ -1143,6 +1143,7 @@ internal static partial class DocxPatchEngine
             "remove-hyperlink",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
             "Hyperlink removal changes wrapper and relationship metadata while preserving display text.",
@@ -1156,6 +1157,14 @@ internal static partial class DocxPatchEngine
                 docxpatch 1
                 op remove-hyperlink
                 target M.L0001
+                end
+                """,
+                """
+                # Guarded remove-hyperlink: expect-text must match before removing.
+                docxpatch 1
+                op remove-hyperlink
+                target M.L0001
+                expect-text Old Link
                 end
                 """,
             ],
