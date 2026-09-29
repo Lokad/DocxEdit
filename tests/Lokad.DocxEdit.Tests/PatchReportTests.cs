@@ -425,6 +425,54 @@ public static class PatchReportTests
 
 
     [Fact]
+    public static void PreviewReportsImageAltChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0001
+            expect-alt Old chart
+            alt Updated chart
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Old chart", report.PreviewBefore);
+        Assert.Equal("Updated chart", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsFieldResultChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithRefField();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-field-result
+            target M.F0001
+            expect-result Old cached result
+            text New cached result
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Old cached result", report.PreviewBefore);
+        Assert.Equal("New cached result", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };

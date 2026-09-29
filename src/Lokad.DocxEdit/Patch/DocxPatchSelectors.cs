@@ -225,7 +225,7 @@ internal static partial class DocxPatchEngine
 
     private static bool PreviewValueMayBeAbsent(string operationName)
     {
-        return operationName is "set-style" or "set-cell-shading" or "set-table-style";
+        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt";
     }
 
     private static (string? Before, string? After, bool Truncated) FinalizePreview(
@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result"))
         {
             return null;
         }
@@ -316,6 +316,28 @@ internal static partial class DocxPatchEngine
         {
             ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out _);
             return controlTarget is null ? null : ReadVisibleText(controlTarget.ContentControl);
+        }
+
+        if (operation.OperationName == "set-image-alt")
+        {
+            ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
+            if (imageTarget is null)
+            {
+                return null;
+            }
+
+            if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out _))
+            {
+                return null;
+            }
+
+            return (string?)imageContainer.Element(OoxmlNs.Wp + "docPr")?.Attribute("descr");
+        }
+
+        if (operation.OperationName == "set-field-result")
+        {
+            FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
+            return fieldTarget is null ? null : ReadVisibleText(fieldTarget.Element);
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
