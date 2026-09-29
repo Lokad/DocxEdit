@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "set-field-code" or "set-comment-text" or "replace-bookmark-text" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "set-field-code" or "set-comment-text" or "replace-bookmark-text" or "set-table-metadata" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
         {
             return null;
         }
@@ -369,6 +369,19 @@ internal static partial class DocxPatchEngine
 
             XNode[] bookmarkNodes = bookmarkTarget.Start.NodesAfterSelf().TakeWhile(node => node != bookmarkTarget.End).ToArray();
             return ReadVisibleText(new XElement(OoxmlNs.W + "p", bookmarkNodes));
+        }
+
+        if (operation.OperationName == "set-table-metadata")
+        {
+            TableTarget? metadataTarget = ResolveTableTarget(package, target, cancellationToken);
+            if (metadataTarget is null)
+            {
+                return null;
+            }
+
+            string? caption = ReadTableTextProperty(metadataTarget.Table, "tblCaption");
+            string? description = ReadTableTextProperty(metadataTarget.Table, "tblDescription");
+            return "caption=" + (caption ?? string.Empty) + "; description=" + (description ?? string.Empty);
         }
 
         if (operation.OperationName == "delete-block")

@@ -545,6 +545,42 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewReportsTableMetadataChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblPr>
+                        <w:tblCaption w:val="Old caption"/>
+                        <w:tblDescription w:val="Old description"/>
+                      </w:tblPr>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-table-metadata
+            target M.T0001
+            expect-caption Old caption
+            expect-description Old description
+            caption Revenue table
+            description Quarterly figures
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("caption=Old caption; description=Old description", report.PreviewBefore);
+        Assert.Equal("caption=Revenue table; description=Quarterly figures", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewReportsDeleteBlock()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
@@ -728,6 +764,7 @@ public static class PatchReportTests
             ("set-field-code", static () => CreateDocxWithRefField(), "docxpatch 1\n\nop set-field-code\ntarget M.F0001\ncode REF NewBookmark \\h\nend\n"),
             ("set-comment-text", static () => CreateDocxWithCommentAnchoredParagraph(), "docxpatch 1\n\nop set-comment-text\ntarget comment:3\ntext Updated comment\nend\n"),
             ("replace-bookmark-text", static () => CreateDocxWithSingleBookmark(), "docxpatch 1\n\nop replace-bookmark-text\ntarget M.B0001\ntext New Client\nend\n"),
+            ("set-table-metadata", static () => CreateDocxWithBody("<w:tbl><w:tblPr><w:tblCaption w:val=\"Old caption\"/><w:tblDescription w:val=\"Old description\"/></w:tblPr><w:tr><w:tc><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"), "docxpatch 1\n\nop set-table-metadata\ntarget M.T0001\ncaption Revenue table\ndescription Quarterly figures\nend\n"),
             ("delete-block", static () => CreateDocxWithBody("<w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Beta</w:t></w:r></w:p>"), "docxpatch 1\n\nop delete-block\ntarget M.P0001\nend\n"),
             ("set-section-columns", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-columns\ntarget M.S0001\ncount 2\nend\n"),
             ("set-section-orientation", static () => CreateDocxWithBody("<w:p><w:r><w:t>Main text</w:t></w:r></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>"), "docxpatch 1\n\nop set-section-orientation\ntarget M.S0001\norientation landscape\nend\n"),
