@@ -299,3 +299,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 16 commands, 2 failing checks, 0 applies, 0 retries; about 197k input tokens with about 166k cached
 - Artifacts: artifacts/agent-challenges/story-scope-selector/20260929T143736Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the headerless public fixture stand-in. The agent verified story inventory through outline plus headers-footers reads, probed both the main-story selector path and the explicit H001 path with synthetic marker text, and stopped without applying when both returned E1201. Runner reports harness success; challenge outcome partial by design. Finding: the zero-match E1201 diagnostic never states that semantic selectors search only the main story even though help patch documents it; the agent flagged the gap from the diagnostic side. No text disclosed.
+
+### 2026-09-29 — tracked-dump-verification (live codex run) — completed
+
+- Commands: help, changes, read, dump, check, apply
+- Diagnostics: none (dump returned the expected W1001 for tracked markup)
+- Target IDs: M.P0002; change IDs M.CH0001 and M.CH0002; run IDs M.P0002.R0002 and M.P0002.R0003
+- Markup types: deleted-run and inserted-run
+- Counts: 8 commands, 0 failing checks, 0 retries; about 144k input tokens with about 118k cached
+- Artifacts: artifacts/agent-challenges/tracked-dump-verification/20260929T144419Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent captured changes before and after, applied a guarded replacement under require, and verified both revision pairs through dump runs plus the M.CH change namespace with zero diagnostics on every step. No agent-reported weaknesses; privacy notes present but empty of text.
