@@ -1281,7 +1281,8 @@ after M.P0005 paragraph story="main" text=""
 ### 9.9 capabilities
 
 Purpose: describe supported, conditional, and unsupported edits for one
-paragraph, content-control, cell, or merge-group target under an effective
+paragraph, content-control, cell, merge-group, bookmark, table, row, section,
+hyperlink, field, or image target under an effective
 track-change policy (--track-changes off, preserve, suggest, or require).
 Each operation carries an actionable reason, a help topic naming the operation
 reference, and a safe alternative operation or target form when one exists.
@@ -1311,15 +1312,16 @@ kind, story, and per-operation support, reason, help topic, and alternative.
 
 ### 9.10 template
 
-Purpose: print a guarded patch template for one paragraph, content-control,
-cell, or merge-group target. The template carries the discovered target ID,
-exact expect-text guards with current values, one active block, and commented
+Purpose: print a guarded patch template for one discovered target of any
+capability-covered kind (see 9.9). The template carries the discovered target
+ID, current values in guards or active fields, one active block when a
+check-clean starter exists, and commented
 example blocks for the remaining supported operations. The active block passes
 check under the requested track-change policy and changes nothing visible;
 commented blocks use placeholder content and are enabled by removing the
 leading hash and space from each line. Unsupported operations are omitted and
 conditional ones carry their condition, following the capabilities verdicts in
-9.9. Templates embed current target text in guards; they are working material
+9.9. Templates embed current target values in guards; they are working material
 for one target, not broad document text. With JSON output, the result carries
 the template text plus the capabilities it was generated from.
 
