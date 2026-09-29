@@ -11,6 +11,26 @@ namespace Lokad.DocxEdit.Tests;
 [Collection("ConsoleCli")]
 public static class EditCaseTests
 {
+    private static readonly HashSet<string> KnownExpectKeys = new(StringComparer.Ordinal)
+    {
+        "diagnosticCount",
+        "diagnosticCodes",
+        "diagnosticMessagesContain",
+        "applySuccess",
+        "paragraphs",
+        "allStoryParagraphs",
+        "tableCells",
+        "sections",
+        "images",
+        "imageDescriptions",
+        "imageExtents",
+        "controlChecked",
+        "hyperlinkUris",
+        "changeSummary",
+        "commentResolved",
+        "bookmarkNames",
+    };
+
     public static IEnumerable<object[]> EditCases()
     {
         string root = FindRepoRoot();
@@ -288,6 +308,14 @@ public static class EditCaseTests
 
         CliTests.CliResult apply = CliTests.RunCli(applyArgs.ToArray());
         manifest.TryGetProperty("expect", out JsonElement expect);
+
+        if (expect.ValueKind == JsonValueKind.Object)
+        {
+            foreach (JsonProperty property in expect.EnumerateObject())
+            {
+                Assert.True(KnownExpectKeys.Contains(property.Name), "Case " + manifestId + " has unknown expect key.");
+            }
+        }
         bool expectedApplySuccess = true;
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("applySuccess", out JsonElement applySuccessValue) && applySuccessValue.ValueKind == JsonValueKind.False)
         {
