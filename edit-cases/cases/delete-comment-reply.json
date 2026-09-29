@@ -1,0 +1,48 @@
+{
+  "id": "delete-comment-reply",
+  "description": "Deletes a leaf threaded reply while preserving the parent comment.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:commentRangeStart w:id=\"3\"/>",
+      "      <w:r><w:t>Commented</w:t></w:r>",
+      "      <w:commentRangeEnd w:id=\"3\"/>",
+      "      <w:r><w:commentReference w:id=\"3\"/></w:r>",
+      "    </w:p>"
+    ],
+    "commentsXml": [
+      "    <w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\">",
+      "      <w:comment w:id=\"3\" w:author=\"Reviewer\">",
+      "        <w:p w15:paraId=\"00PARENT\"><w:r><w:t>Comment body</w:t></w:r></w:p>",
+      "      </w:comment>",
+      "      <w:comment w:id=\"4\" w:author=\"Second Reviewer\">",
+      "        <w:p w15:paraId=\"00REPLY1\"><w:r><w:t>Reply body</w:t></w:r></w:p>",
+      "      </w:comment>",
+      "    </w:comments>"
+    ],
+    "commentsExtendedXml": [
+      "    <w15:commentsEx xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\">",
+      "      <w15:commentEx w15:paraId=\"00PARENT\" w15:done=\"0\"/>",
+      "      <w15:commentEx w15:paraId=\"00REPLY1\" w15:paraIdParent=\"00PARENT\" w15:done=\"0\"/>",
+      "    </w15:commentsEx>"
+    ],
+    "commentsIdsXml": [
+      "    <w16cid:commentsIds xmlns:w16cid=\"http://schemas.microsoft.com/office/word/2016/wordml/cid\">",
+      "      <w16cid:commentId w16cid:paraId=\"00REPLY1\" w16cid:durableId=\"7F0A11BC\"/>",
+      "    </w16cid:commentsIds>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-comment-reply",
+    "target comment:3.reply:1",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Commented"
+    ]
+  }
+}
