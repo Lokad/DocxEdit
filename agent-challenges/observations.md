@@ -123,3 +123,22 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 7 commands, 1 failing check, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so workflow ease is not a fresh-agent signal. A first require-mode replacement created one revision pair; a second patch on untouched text in the same paragraph created a second pair with continuing IDs while markup readback kept both pairs coherent, and structural validation passed. A third patch overlapping the existing revision failed safely with E6002 carrying reason, target, operation, line, column, and help pointer. The D05 cross-patch workflow behaves as documented, and a two-patch unit test now locks it in.
+### 2026-09-29 — tracked-dump-verification (synthetic self-run) — completed
+
+- Commands: changes, dump, context, validate
+- Diagnostics: none
+- Target IDs: M.P0002; run IDs M.P0002.R0001 through R0006; change IDs M.CH0001 through M.CH0004
+- Markup types: deleted-run and inserted-run, two pairs with distinct timestamps
+- Counts: 4 commands, 0 failing checks, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: verification half runs on the iterative-tracked-edit output, which already covers the edit half. Operator is repo-aware, so discovery ease is not a fresh-agent signal. Dump runs expose run IDs, markup types, revision IDs, authors, and timestamps per run plus a changes section, so both revision pairs verify without raw OOXML. Change IDs live in a separate M.CH namespace from run IDs and cross-link through revision IDs and parent target IDs. No fallback or retry was needed.
+
+### 2026-09-29 — markup-targeting (synthetic self-run) — completed
+
+- Commands: changes, context
+- Diagnostics: none
+- Target IDs: change M.CH0001 points at parent target M.P0002; context shows its neighbors
+- Markup types: none inspected beyond the inventory listing
+- Counts: 2 commands, 0 failing checks, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: read-only navigation on the same reviewed document. Operator is repo-aware, so navigation ease is not a fresh-agent signal. The changes inventory bridges directly to editable targets through parent target IDs, and context renders the neighborhood metadata-only by default without forcing text exposure. No private text was needed at any step.
