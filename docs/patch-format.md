@@ -39,7 +39,7 @@ Rules:
   >>>
   ```
 
-- Single-line values wrapped in `"..."` decode escapes (`\"`, `\\`, `\n`, `\t`); other backslash sequences stay literal. Heredoc content stays raw.
+- Single-line values wrapped in `"..."` decode escapes (`\"`, `\\`, `\n`, `\t`); other backslash sequences stay literal. Heredoc content stays raw. A single-line value with an opening double quote but no closing one fails parsing with `E2007`, as does a trailing double quote with no earlier quote in the value; wrap the whole value or drop the stray quote.
 - `\n` in a text value is an inline line break and `\t` a tab; neither splits paragraphs. A blank line in a value stays a line break within one paragraph; real multi-paragraph insertion is a separate operation.
 - Field names are operation-specific. Unknown fields fail validation.
 - Boolean fields must be `true` or `false`.

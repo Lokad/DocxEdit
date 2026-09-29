@@ -106,7 +106,7 @@ public static class PatchParserTests
     }
 
     [Fact]
-    public static void ParsePatchLeavesBareAndUnbalancedValuesVerbatim()
+    public static void ParsePatchLeavesBareValuesVerbatim()
     {
         var editor = new DocxEditor();
 
@@ -122,17 +122,17 @@ public static class PatchParserTests
         Assert.True(bare.Success);
         Assert.Equal(@"C:\new", bare.Operations[0].Fields["with"]);
 
-        DocxPatch unbalanced = editor.ParsePatch(new StringReader("""
+        DocxPatch interior = editor.ParsePatch(new StringReader("""
             docxpatch 1
 
             op replace-text
             target M.P0001
             find A
-            with "abc
+            with Say "hi" there
             end
             """));
-        Assert.True(unbalanced.Success);
-        Assert.Equal("\"abc", unbalanced.Operations[0].Fields["with"]);
+        Assert.True(interior.Success);
+        Assert.Equal("Say \"hi\" there", interior.Operations[0].Fields["with"]);
 
         DocxPatch empty = editor.ParsePatch(new StringReader("""
             docxpatch 1
@@ -145,6 +145,42 @@ public static class PatchParserTests
             """));
         Assert.True(empty.Success);
         Assert.Equal("", empty.Operations[0].Fields["with"]);
+    }
+
+    [Fact]
+    public static void ParsePatchRejectsUnbalancedQuotesWithRepairHint()
+    {
+        var editor = new DocxEditor();
+
+        DocxPatch leading = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find A
+            with "abc
+            end
+            """));
+        Assert.False(leading.Success);
+        DocxDiagnostic leadingError = Assert.Single(leading.Diagnostics);
+        Assert.Equal("E2007", leadingError.Code);
+        Assert.Equal(6, leadingError.Line);
+        Assert.Contains("unmatched", leadingError.Message, StringComparison.Ordinal);
+
+        DocxPatch trailing = editor.ParsePatch(new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find A
+            with abc"
+            end
+            """));
+        Assert.False(trailing.Success);
+        DocxDiagnostic trailingError = Assert.Single(trailing.Diagnostics);
+        Assert.Equal("E2007", trailingError.Code);
+        Assert.Equal(6, trailingError.Line);
+        Assert.Contains("unmatched", trailingError.Message, StringComparison.Ordinal);
     }
 
     [Fact]

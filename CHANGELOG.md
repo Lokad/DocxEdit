@@ -35,6 +35,7 @@
 - Operation previews now cover cell-shading, table-style, row-header, content-control-text, image-alt, field-result, delete-block, section-columns, hyperlink-target, field-dirty, field-lock, and section-orientation changes alongside text, style, cell, and hyperlink-text edits.
 - Unknown `dump`/`context` target IDs now suggest the nearest known ID on near misses.
 - Fixed contradictory track-change notes for comment annotation operations: they stay permitted under Require instead of claiming Require fails with E6001; refreshed the frozen support table.
+- Single-line patch values with an unmatched double quote now fail parsing with E2007 and a repair hint instead of inserting the stray quote literally.
 - Fixed comment extended/ID part content types to the Word-accepted Open XML forms so resolved and replied comment documents open in Word.
 - Fixed unknown-style errors to suggest the nearest style ID or name.
 - Fixed failed apply to preserve any pre-existing destination file byte-for-byte.

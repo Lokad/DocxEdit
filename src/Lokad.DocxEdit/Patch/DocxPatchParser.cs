@@ -130,6 +130,11 @@ internal static class DocxPatchParser
 
                     value = string.Join('\n', heredoc);
                 }
+                else if ((rawValue.StartsWith((char)34) && !rawValue.EndsWith((char)34)) ||
+                    (rawValue.EndsWith((char)34) && !rawValue.StartsWith((char)34) && rawValue.IndexOf((char)34) == rawValue.Length - 1))
+                {
+                    return Error("E2007", $"Field \"{key}\" has an unmatched double quote; either wrap the whole value in double quotes (escaping inner quotes) or remove the stray quote.", fieldLineNumber, keyColumn, operationName);
+                }
                 else
                 {
                     value = DecodeFieldValue(value);

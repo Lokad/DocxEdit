@@ -56,7 +56,7 @@ Common code ranges:
 - `E2004`: an `expect-hash` patch field was supplied; the feature is not supported (the same words inside a heredoc value stay literal).
 - `E2005`: unexpected patch line.
 - `E2006`: operation name is required.
-- `E2007`: invalid field line.
+- `E2007`: invalid field line, including a single-line value with an unmatched double quote.
 - `E2008`: unterminated heredoc for a field.
 - `E2009`: operation is missing `end`.
 - `E2010`: unknown operation; names the closest known operation when within edit distance 3.
