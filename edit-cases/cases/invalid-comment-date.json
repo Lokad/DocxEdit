@@ -1,0 +1,28 @@
+{
+  "id": "invalid-comment-date",
+  "description": "Refuses a comment date that is not an ISO-8601 timestamp with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Commented</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op add-comment",
+    "target M.P0001",
+    "text Note",
+    "date not-a-date",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "ISO-8601"
+    ]
+  }
+}
