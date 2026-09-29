@@ -309,3 +309,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 8 commands, 0 failing checks, 0 retries; about 144k input tokens with about 118k cached
 - Artifacts: artifacts/agent-challenges/tracked-dump-verification/20260929T144419Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent captured changes before and after, applied a guarded replacement under require, and verified both revision pairs through dump runs plus the M.CH change namespace with zero diagnostics on every step. No agent-reported weaknesses; privacy notes present but empty of text.
+
+### 2026-09-29 — preserve-edit (live codex run) — completed
+
+- Commands: help, read, changes, dump, check, apply
+- Diagnostics: none
+- Target IDs: main-story paragraph IDs; inserted after M.P0001
+- Markup types: none generated, as expected under preserve
+- Counts: 9 commands, 0 failing checks, 0 retries; about 126k input tokens with about 102k cached
+- Artifacts: artifacts/agent-challenges/preserve-edit/20260929T144633Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent inserted one paragraph under preserve mode with check before apply; paragraph count went 2 to 3 with zero revisions and comments, matching the input. The agent itself noted the fixture carried no markup or comments, so preservation of existing markup went unexercised. No agent-reported weaknesses; no text disclosed.
