@@ -97,6 +97,15 @@ public static class HelpTopicTests
     }
 
     [Fact]
+    public static void PatchHelpDocumentsWhitespaceContract()
+    {
+        string help = DocxHelp.RenderTopic("patch");
+
+        Assert.Contains("whitespace normalized", help, StringComparison.Ordinal);
+        Assert.Contains("expect-text guards compare exact", help, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void PatchOperationTopicReportsEmptyAllowedFields()
     {
         Assert.Contains("Empty values allowed: with", DocxHelp.RenderTopic("replace-text"), StringComparison.Ordinal);
