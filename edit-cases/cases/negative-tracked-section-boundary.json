@@ -1,0 +1,39 @@
+{
+  "id": "negative-tracked-section-boundary",
+  "description": "Rejects deleting a section-boundary paragraph under require with E6002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:pPr>",
+      "        <w:sectPr>",
+      "          <w:pgSz w:w=\"12240\" w:h=\"15840\"/>",
+      "        </w:sectPr>",
+      "      </w:pPr>",
+      "      <w:r><w:t>Section boundary</w:t></w:r>",
+      "    </w:p>",
+      "    <w:p><w:r><w:t>Next section</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "section properties"
+    ]
+  }
+}
