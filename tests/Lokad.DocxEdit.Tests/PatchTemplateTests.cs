@@ -382,4 +382,37 @@ public static class PatchTemplateTests
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
 
+    [Fact]
+    public static void MergeGroupTemplateStarterPassesCheck()
+    {
+        const string body = """
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>South</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """;
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithBody(body))
+        {
+            template = GetTemplate(input, "M.T0001.MG0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op set-cell", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
 }
