@@ -643,4 +643,18 @@ public static class PatchParserTests
         DocxDiagnostic diagnostic = Assert.Single(patch.Diagnostics, static d => d.Code == "E2011");
         Assert.DoesNotContain("Did you mean", diagnostic.Message, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void ParsePatchHandlesCrlfAndBom()
+    {
+        string text = "\uFEFF" + "docxpatch 1\r\n\r\nop replace-text\r\ntarget M.P0001\r\nfind Alpha\r\nwith Omega\r\nend\r\n";
+        using var patch = new StringReader(text);
+        DocxPatch parsed = new DocxEditor().ParsePatch(patch);
+        Assert.True(parsed.Success, string.Join("|", parsed.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchOperation operation = Assert.Single(parsed.Operations);
+        Assert.Equal("replace-text", operation.OperationName);
+        Assert.Equal("M.P0001", operation.Fields["target"]);
+        Assert.Equal("Alpha", operation.Fields["find"]);
+        Assert.Equal("Omega", operation.Fields["with"]);
+    }
+
 }

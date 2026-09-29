@@ -15,6 +15,11 @@ internal static class DocxPatchParser
     {
         ArgumentNullException.ThrowIfNull(text);
 
+        if (text.StartsWith("\uFEFF", StringComparison.Ordinal))
+        {
+            text = text.Substring(1);
+
+        }
         string normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         string[] lines = normalized.Split('\n');
         int firstContentLine = Array.FindIndex(lines, static line => IsPreambleCandidate(line));
