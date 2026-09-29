@@ -1,0 +1,26 @@
+{
+  "id": "invalid-comment-target",
+  "description": "Refuses a malformed comment target shape with E1203.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Commented</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-comment",
+    "target comment",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1203"
+    ],
+    "diagnosticMessagesContain": [
+      "Comment target must be"
+    ]
+  }
+}
