@@ -349,6 +349,11 @@ public static class EditCaseTests
             AssertStringArraysEqual(manifestId, "Image extents", imageExtents.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("Images").EnumerateArray().Select(item => item.GetProperty("WidthEmu").GetInt64().ToString() + "x" + item.GetProperty("HeightEmu").GetInt64().ToString()).ToList());
         }
 
+        if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("controlChecked", out JsonElement controlChecked))
+        {
+            AssertStringArraysEqual(manifestId, "Control checked states", controlChecked.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("ContentControls").EnumerateArray().Select(item => item.GetProperty("Checked").GetBoolean().ToString().ToLowerInvariant()).ToList());
+        }
+
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("hyperlinkUris", out JsonElement hyperlinkUris))
         {
             AssertStringArraysEqual(manifestId, "Hyperlink URIs", hyperlinkUris.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("Hyperlinks").EnumerateArray().Select(item => item.GetProperty("Uri").GetString() ?? string.Empty).ToList());

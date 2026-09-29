@@ -1,0 +1,38 @@
+{
+  "id": "set-content-control-checkbox",
+  "description": "Checks a checkbox control and verifies state plus display readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:checkBox>",
+      "            <w:checked w:val=\"0\"/>",
+      "            <w:checkedState w:val=\"2612\"/>",
+      "            <w:uncheckedState w:val=\"2610\"/>",
+      "          </w:checkBox>",
+      "          <w:tag w:val=\"accepted\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Unchecked</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-checkbox",
+    "target M.CC0001",
+    "checked true",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "\u2612"
+    ],
+    "controlChecked": [
+      "true"
+    ]
+  }
+}

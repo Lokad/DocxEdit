@@ -1,0 +1,28 @@
+{
+  "id": "set-hyperlink-text",
+  "description": "Replaces hyperlink display text and verifies paragraph readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>External</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>"
+    ],
+    "hyperlink": "https://example.test/report"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-hyperlink-text",
+    "target M.L0001",
+    "text New label",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New label"
+    ]
+  }
+}
