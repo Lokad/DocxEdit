@@ -100,6 +100,7 @@ public static class TargetKindLintTests
 
     [Theory]
     [InlineData("replace-text", "M.T0001.R01.C01", "find Alpha\nwith Omega\n")]
+    [InlineData("replace-text", "M.T0001.MG0001", "find Alpha\nwith Omega\n")]
     [InlineData("set-cell", "M.T0001.R01.C01", "text X\n")]
     [InlineData("set-cell", "M.T0001.MG0001", "text X\n")]
     [InlineData("insert-after", "M.T0001", "text X\n")]

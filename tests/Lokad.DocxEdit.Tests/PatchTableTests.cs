@@ -1609,4 +1609,115 @@ public static class PatchTableTests
         Assert.DoesNotContain("<w:t>North</w:t>", xml, StringComparison.Ordinal);
         Assert.Contains("<w:t>Atlas</w:t>", xml, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void ApplyReplaceTextOccurrenceAllAcrossCellParagraphs()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Alpha</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find Alpha
+            with Omega
+            occurrence all
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Equal(0, CountOccurrences(xml, "<w:t>Alpha</w:t>"));
+        Assert.Equal(2, CountOccurrences(xml, "<w:t>Omega</w:t>"));
+    }
+
+    [Fact]
+    public static void ApplyReplaceTextInCellWithoutPreserveRunsRewrites()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find World
+            with There
+            preserve-runs false
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:t>Hello There</w:t>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void CheckReplaceTextInCellReportsNoOp()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc>
+                        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find World
+            with World
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
+    }
+
+    [Fact]
+    public static void CheckReplaceTextInCellOutOfRangeOccurrenceFails()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Alpha</w:t></w:r></w:p><w:p><w:r><w:t>Alpha</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find Alpha
+            with Omega
+            occurrence 5
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "E4203");
+    }
 }
