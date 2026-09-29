@@ -1,3 +1,4 @@
+using System.Text;
 using static Lokad.DocxEdit.Tests.DocxTestFixtures;
 
 namespace Lokad.DocxEdit.Tests;
@@ -621,6 +622,50 @@ public static class PatchAliasTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
         Assert.False(result.Success);
         Assert.Contains(result.Operations[2].Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
+    [Fact]
+    public static void CommentSetAndResolveViaAlias()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>Commented</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer" w:initials="RV" w:date="2026-06-07T12:00:00Z">
+                    <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+            op add-comment
+            target M.P0001
+            text Fresh note
+            as note1
+            end
+            op set-comment-text
+            target @note1
+            text Edited note
+            end
+            op resolve-comment
+            target @note1
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(new[] { "comment:4" }, result.Operations[0].CreatedTargetIds);
+        output.Position = 0;
+        string xml = Encoding.UTF8.GetString(ReadEntryBytes(output, "word/comments.xml"));
+        Assert.Contains("Edited note", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fresh note", xml, StringComparison.Ordinal);
     }
 
 }
