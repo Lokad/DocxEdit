@@ -473,6 +473,60 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void PreviewReportsDeleteBlock()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
+                    <w:p><w:r><w:t>Beta</w:t></w:r></w:p>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0001
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Alpha", report.PreviewBefore);
+        Assert.Null(report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void PreviewReportsSectionColumnsChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-section-columns
+            target M.S0001
+            count 2
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("1", report.PreviewBefore);
+        Assert.Equal("2", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
     public static void PreviewAgreesBetweenCheckAndApply()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };

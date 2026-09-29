@@ -225,7 +225,7 @@ internal static partial class DocxPatchEngine
 
     private static bool PreviewValueMayBeAbsent(string operationName)
     {
-        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt";
+        return operationName is "set-style" or "set-cell-shading" or "set-table-style" or "set-image-alt" or "delete-block";
     }
 
     private static (string? Before, string? After, bool Truncated) FinalizePreview(
@@ -271,7 +271,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "delete-block" or "set-section-columns"))
         {
             return null;
         }
@@ -338,6 +338,18 @@ internal static partial class DocxPatchEngine
         {
             FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
             return fieldTarget is null ? null : ReadVisibleText(fieldTarget.Element);
+        }
+
+        if (operation.OperationName == "delete-block")
+        {
+            BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target, cancellationToken, out _);
+            return blockTarget is null ? null : ReadVisibleText(blockTarget.Block);
+        }
+
+        if (operation.OperationName == "set-section-columns")
+        {
+            SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target, cancellationToken);
+            return sectionTarget is null ? null : ReadSectionColumnCount(sectionTarget.SectionProperties).ToString();
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
