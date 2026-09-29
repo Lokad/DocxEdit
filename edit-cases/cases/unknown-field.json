@@ -1,0 +1,28 @@
+{
+  "id": "unknown-field",
+  "description": "Rejects a misspelled field name with a nearest-name suggestion.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha Beta</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "targt M.P0001",
+    "find Alpha",
+    "with Beta",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2011"
+    ],
+    "diagnosticMessagesContain": [
+      "Did you mean"
+    ]
+  }
+}
