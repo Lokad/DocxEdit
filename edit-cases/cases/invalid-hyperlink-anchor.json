@@ -1,0 +1,28 @@
+{
+  "id": "invalid-hyperlink-anchor",
+  "description": "Refuses a hyperlink anchor containing whitespace with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-hyperlink-after",
+    "target M.P0001",
+    "text Link",
+    "anchor Bad Anchor",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "without whitespace"
+    ]
+  }
+}
