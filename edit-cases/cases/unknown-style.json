@@ -1,0 +1,27 @@
+{
+  "id": "unknown-style",
+  "description": "Refuses a style change to an undefined style name.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Title</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-style",
+    "target M.P0001",
+    "style Bogus",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E7101"
+    ],
+    "diagnosticMessagesContain": [
+      "was not found"
+    ]
+  }
+}
