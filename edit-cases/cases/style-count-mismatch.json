@@ -1,0 +1,29 @@
+{
+  "id": "style-count-mismatch",
+  "description": "Refuses multiple style fields that do not match the text field count with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-after",
+    "target M.P0001",
+    "text Added",
+    "style Heading1",
+    "style Normal",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "one per"
+    ]
+  }
+}
