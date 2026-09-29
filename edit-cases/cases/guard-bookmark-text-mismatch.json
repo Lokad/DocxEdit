@@ -1,0 +1,32 @@
+{
+  "id": "guard-bookmark-text-mismatch",
+  "description": "Fails a bookmark text edit on a mismatched expect-text guard with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"7\" w:name=\"ReviewAnchor\"/>",
+      "      <w:r><w:t>Revenue increased.</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"7\"/>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-bookmark-text",
+    "target bookmark:ReviewAnchor",
+    "text Revenue rose.",
+    "expect-text Revenue flat.",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Guard failed"
+    ]
+  }
+}
