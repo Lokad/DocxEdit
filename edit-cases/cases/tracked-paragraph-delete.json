@@ -1,0 +1,32 @@
+{
+  "id": "tracked-paragraph-delete",
+  "description": "Applies a tracked paragraph deletion and verifies deleted-run markup.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Before</w:t></w:r></w:p>",
+      "    <w:p><w:r><w:t>After</w:t></w:r></w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0002",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Before",
+      ""
+    ],
+    "changeSummary": {
+      "deleted-run": 1
+    }
+  }
+}
