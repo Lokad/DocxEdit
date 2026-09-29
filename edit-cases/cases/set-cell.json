@@ -1,0 +1,27 @@
+{
+  "id": "set-cell",
+  "description": "Overwrites one table cell under a guard and verifies cell readback.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Hello</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-cell",
+    "target M.T0001.R01.C01",
+    "expect-text Hello",
+    "text Hi",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "Hi",
+      "Other"
+    ]
+  }
+}

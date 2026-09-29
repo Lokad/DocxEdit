@@ -1,0 +1,31 @@
+{
+  "id": "set-table-style",
+  "description": "Changes a table style under a guard; cell text is unchanged.",
+  "input": {
+    "stylesXml": [
+      "  <w:style w:type=\"table\" w:styleId=\"TableGrid\"><w:name w:val=\"Table Grid\"/></w:style>",
+      "  <w:style w:type=\"table\" w:styleId=\"LightGrid\"><w:name w:val=\"Light Grid\"/></w:style>"
+    ],
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tblPr><w:tblStyle w:val=\"TableGrid\"/></w:tblPr>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-table-style",
+    "target M.T0001",
+    "expect-style TableGrid",
+    "style LightGrid",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "North"
+    ]
+  }
+}
