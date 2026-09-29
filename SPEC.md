@@ -1411,8 +1411,7 @@ Heredoc content:
 * normalizes internal line endings to `\n`
 * does not include the terminating `>>>` line
 
-Escape processing applies to quoted single-line values only: bare and unbalanced values
-stay verbatim, unknown backslash sequences stay literal, and heredoc content stays raw.
+Escape processing applies to quoted single-line values only: bare values stay verbatim, unknown backslash sequences stay literal, and heredoc content stays raw. A single-line value with an opening double quote but no closing one fails parsing with E2007, as does a trailing double quote with no earlier quote in the value.
 
 ### 10.6 Selectors
 
