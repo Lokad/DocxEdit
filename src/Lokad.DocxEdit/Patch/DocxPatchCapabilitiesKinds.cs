@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, merge-group, bookmark, table, and row targets.
+// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, and section targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -53,6 +53,11 @@ internal static partial class DocxPatchEngine
             return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Section)
+        {
+            return GetSectionCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         if (parsed.Kind == DocxTargetKind.Table)
         {
             return GetTableCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
@@ -73,7 +78,7 @@ internal static partial class DocxPatchEngine
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, and row IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, and section IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -515,6 +520,112 @@ internal static partial class DocxPatchEngine
             operation,
             "supported",
             "Value sets the date metadata while display-text, or value when display-text is absent, replaces the control content.",
+            operation,
+            null);
+    }
+    // D17: section capabilities reuse the guard and tracked-revision predicates from the section engine.
+    private sealed record SectionCapabilityFacts(
+        int CurrentColumns,
+        string CurrentOrientation,
+        bool HasTrackedRevision);
+    internal static ParagraphCapabilitiesOutcome GetSectionCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        if (parsed.Story != (char)77 || parsed.Primary < 1)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
+        XElement? sectionProperties = null;
+        int sectionIndex = 0;
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(body))
+        {
+            XElement block = entry.Block;
+            if (block.Name == OoxmlNs.W + "p")
+            {
+                XElement? paragraphSectPr = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
+                if (paragraphSectPr is not null)
+                {
+                    sectionIndex++;
+                    if (sectionIndex == parsed.Primary)
+                    {
+                        sectionProperties = paragraphSectPr;
+                        break;
+                    }
+                }
+            }
+            else if (block.Name == OoxmlNs.W + "sectPr")
+            {
+                sectionIndex++;
+                if (sectionIndex == parsed.Primary)
+                {
+                    sectionProperties = block;
+                    break;
+                }
+            }
+        }
+        if (sectionProperties is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        var facts = new SectionCapabilityFacts(
+            ReadSectionColumnCount(sectionProperties),
+            ReadSectionOrientation(sectionProperties).ToWireValue(),
+            sectionProperties.Elements(OoxmlNs.W + "sectPrChange").Any());
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        var operations = new List<DocxOperationCapability>
+        {
+            SectionColumnsCapability(facts, isTracked),
+            SectionOrientationCapability(facts, isTracked),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "section",
+                "main",
+                operations)
+        };
+    }
+    private static DocxOperationCapability SectionColumnsCapability(SectionCapabilityFacts facts, bool isTracked)
+    {
+        const string operation = "set-section-columns";
+        if (facts.HasTrackedRevision && isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Section already contains tracked section property revision markup: Suggest falls back to a direct edit with W4002 and Require fails with E6002. The count value must still be 1 through 4, otherwise check fails with E6201. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "Section currently uses " + facts.CurrentColumns + " column(s) in " + facts.CurrentOrientation + ". The count value must be 1 through 4, otherwise check fails with E6201; expect-columns and expect-orientation can guard current values. Tracked modes emit section property revisions with w:sectPrChange while preserving previous section properties and references. Check remains authoritative for the exact count.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability SectionOrientationCapability(SectionCapabilityFacts facts, bool isTracked)
+    {
+        const string operation = "set-section-orientation";
+        if (facts.HasTrackedRevision && isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Section already contains tracked section property revision markup: Suggest falls back to a direct edit with W4002 and Require fails with E6002. The orientation value must still be portrait or landscape. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "conditional",
+            "Section currently uses " + facts.CurrentOrientation + " with " + facts.CurrentColumns + " column(s). The orientation value must be portrait or landscape, otherwise check fails with E6202; expect-columns and expect-orientation can guard current values. Tracked modes emit section property revisions with w:sectPrChange while preserving page size, section properties, and references. Check remains authoritative for the exact orientation.",
             operation,
             null);
     }
