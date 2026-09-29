@@ -249,3 +249,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 16 commands, 0 failing checks, 0 retries; about 164k input tokens with about 131k cached
 - Artifacts: artifacts/agent-challenges/tracked-review-workflow/20260929T140301Z/summary.json
 - Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the public fixture stand-in, hash-identical before and after. The agent wrote one patch combining a guarded replacement with an anchored comment under require with explicit author and timestamp; notably the comment guard used the post-edit paragraph text, showing sequential-guard understanding. Verified one deletion run, one insertion run with revisions 1 and 2, a new comment 0 anchored to the edited paragraph, and all three read views plus structural validation. No agent-reported weaknesses; no text disclosed.
+
+### 2026-09-29 — unsupported-recovery (live codex run) — partial
+
+- Commands: help, read, changes, check, capabilities, validate
+- Diagnostics: E4316 on the delete-column probe; E1201 on a cell-capabilities probe; nothing else
+- Target IDs: none usable (fixture holds 2 paragraphs and 0 tables)
+- Markup types: not applicable
+- Counts: 16 commands, 1 failing check, 0 applies, 0 retries; about 192k input tokens with about 174k cached
+- Artifacts: artifacts/agent-challenges/unsupported-recovery/20260929T140556Z/summary.json
+- Notes: live codex-exec run (ephemeral, prompt-only, codex-cli 0.155.1) on the tableless public fixture stand-in. The agent correctly declined to fabricate a table, probed the E4316 refusal path with its reason and help pointer, identified the guarded set-cell recovery while explaining why it could not perform it, and stopped without applying. Runner reports harness success; challenge outcome partial by design. Finding: E4316 fires even when the table target does not exist, masking target-existence feedback behind the unsupported-operation refusal; whether refusal precedence should yield to selector validation is a design call. No text disclosed.
