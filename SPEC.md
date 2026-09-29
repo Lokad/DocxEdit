@@ -1440,6 +1440,29 @@ Selector rules:
 * On zero matches, return an error with nearest candidate targets.
 * On multiple matches, return an error listing the matched targets.
 
+### 10.6a Result aliases
+```text
+op insert-after
+target M.P0001
+as newSection
+text Draft note
+end
+
+op replace-text
+target @newSection
+find Draft
+with Final
+end
+```
+
+Rules:
+
+* Creation operations accept an optional `as` field binding the created object to a result name; later operations in the same patch address it as `@name` without guessing a positional ID.
+* Names start with a letter, followed by letters, digits, underscore, or hyphen; anything else fails with `E4205`.
+* Rebinding a bound name, or requesting an alias from an operation creating multiple objects, fails with `E4205`.
+* Using a name before its operation, an unknown name, a name whose target was deleted, or a name bound to an incompatible kind fails with `E1201`.
+* Operation reports list created target IDs; bindings never escape their patch.
+
 ### 10.7 Guards
 
 The DSL must not support `expect-hash`.
