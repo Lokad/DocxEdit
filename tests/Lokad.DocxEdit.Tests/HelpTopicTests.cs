@@ -675,4 +675,41 @@ public static class HelpTopicTests
         }
     }
 
+    [Fact]
+    public static void ImageExamplesCheckClean()
+    {
+        var assets = new MemoryAssetProvider("chart.png", CreatePngBytes(4, 3), null, "chart.png");
+        var assetOptions = new DocxEditOptions { AssetProvider = assets };
+        Assert.True(DocxHelp.TryGetPatchOperation("replace-image", out DocxPatchOperationInfo replace));
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-image-after", out DocxPatchOperationInfo insert));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-alt", out DocxPatchOperationInfo alt));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-metadata", out DocxPatchOperationInfo metadata));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-size", out DocxPatchOperationInfo size));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-crop", out DocxPatchOperationInfo crop));
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-image", out DocxPatchOperationInfo delete));
+        foreach (string example in replace.Examples.Concat(alt.Examples).Concat(metadata.Examples).Concat(size.Examples).Concat(crop.Examples).Concat(delete.Examples))
+        {
+            using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch, assetOptions);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+        foreach (string example in insert.Examples)
+        {
+            using MemoryStream input = CreateDocx("Alpha");
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch, assetOptions);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-wrap", out DocxPatchOperationInfo wrap));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-image-position", out DocxPatchOperationInfo position));
+        foreach (string example in wrap.Examples.Concat(position.Examples))
+        {
+            using MemoryStream input = CreateDocxWithAnchoredImage();
+            using var patch = new StringReader(example);
+            DocxCheckResult check = new DocxEditor().Check(input, patch);
+            Assert.True(check.Success, example + ":" + string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+
 }

@@ -1572,7 +1572,30 @@ internal static partial class DocxPatchEngine
             "Image replacement updates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
             "Images",
             "Replaces media bytes and preserves supported drawing layout",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteReplaceImage(package, operation, options, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteReplaceImage(package, operation, options, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal replace-image.
+                docxpatch 1
+                op replace-image
+                target M.I0001
+                asset chart.png
+                end
+                """,
+                """
+                # Guarded replace-image: expect-content-type must match before editing.
+                docxpatch 1
+                op replace-image
+                target M.I0001
+                asset chart.png
+                expect-content-type image/png
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "insert-image-after",
             [
@@ -1588,7 +1611,30 @@ internal static partial class DocxPatchEngine
             "Image insertion creates DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
             "Images",
             "Inserts an inline image paragraph after a paragraph target",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Paragraph] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertImageAfter(package, operation, options, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal insert-image-after.
+                docxpatch 1
+                op insert-image-after
+                target M.P0001
+                asset chart.png
+                end
+                """,
+                """
+                # Guarded insert-image-after: expect-content-type must match before editing.
+                docxpatch 1
+                op insert-image-after
+                target M.P0001
+                asset chart.png
+                expect-content-type image/png
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Paragraph],
+        },
         PreserveOnly(
             "set-image-alt",
             [
@@ -1601,7 +1647,30 @@ internal static partial class DocxPatchEngine
             "Image alt-text updates DrawingML metadata, not visible document text.",
             "Images",
             "Updates DrawingML description",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageAlt(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageAlt(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-image-alt.
+                docxpatch 1
+                op set-image-alt
+                target M.I0001
+                alt New chart
+                end
+                """,
+                """
+                # Guarded set-image-alt: expect-alt must match before editing.
+                docxpatch 1
+                op set-image-alt
+                target M.I0001
+                expect-alt Old chart
+                alt New chart
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "set-image-metadata",
             [
@@ -1618,7 +1687,30 @@ internal static partial class DocxPatchEngine
             "Image title/name/alt updates DrawingML metadata, not visible document text.",
             "Images",
             "Updates DrawingML `docPr` metadata",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageMetadata(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageMetadata(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-image-metadata.
+                docxpatch 1
+                op set-image-metadata
+                target M.I0001
+                title New title
+                end
+                """,
+                """
+                # Guarded set-image-metadata: expect-alt must match before editing.
+                docxpatch 1
+                op set-image-metadata
+                target M.I0001
+                expect-alt Old chart
+                title New title
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "set-image-size",
             [
@@ -1631,7 +1723,21 @@ internal static partial class DocxPatchEngine
             "Image size updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Updates DrawingML extents",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageSize(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageSize(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-image-size.
+                docxpatch 1
+                op set-image-size
+                target M.I0001
+                width 5cm
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "set-image-wrap",
             [
@@ -1647,7 +1753,21 @@ internal static partial class DocxPatchEngine
             "Image wrapping updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Anchored images only",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageWrap(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageWrap(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-image-wrap.
+                docxpatch 1
+                op set-image-wrap
+                target M.I0001
+                mode square
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "set-image-position",
             [
@@ -1664,7 +1784,21 @@ internal static partial class DocxPatchEngine
             "Image position updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Anchored images only",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImagePosition(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImagePosition(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-image-position.
+                docxpatch 1
+                op set-image-position
+                target M.I0001
+                horizontal-align center
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "set-image-crop",
             [
@@ -1679,7 +1813,21 @@ internal static partial class DocxPatchEngine
             "Image crop updates DrawingML layout metadata, not visible document text.",
             "Images",
             "Updates DrawingML crop percentages",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageCrop(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteSetImageCrop(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-image-crop.
+                docxpatch 1
+                op set-image-crop
+                target M.I0001
+                left-percent 10
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         PreserveOnly(
             "delete-image",
             [
@@ -1690,7 +1838,20 @@ internal static partial class DocxPatchEngine
             "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",
             "Images",
             "Deletes the modeled image",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteImage(package, operation, apply, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Image] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteImage(package, operation, apply, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal delete-image.
+                docxpatch 1
+                op delete-image
+                target M.I0001
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Image],
+        },
         Tracked(
             "set-section-columns",
             [
