@@ -457,6 +457,8 @@ Generated tracked output is intentionally narrow. The support matrix below is
 generated from `DocxHelp.RenderPatchTrackChangesSupportTable()` and is the same
 table printed by `docxedit help patch`.
 
+Sequential operations in one patch each see earlier revision markup: editing disjoint spans of one paragraph across operations succeeds, while an operation overlapping an earlier revision fails safely instead of corrupting history.
+
 <!-- BEGIN GENERATED TRACK-CHANGES SUPPORT TABLE -->
 operation | support class | support value | behavior
 --- | --- | --- | ---

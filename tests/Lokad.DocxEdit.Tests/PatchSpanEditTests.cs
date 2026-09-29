@@ -251,4 +251,39 @@ public static class PatchSpanEditTests
         output.Position = 0;
         Assert.Equal("Look link now", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
+    [Fact]
+    public static void SamePatchDisjointTrackedReplacements()
+    {
+        using MemoryStream checkInput = CreateDocx("Alpha Alpha");
+        DocxCheckResult check = RunCheck(checkInput, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n", TrackChangesMode.Require);
+
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocx("Alpha Alpha");
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Equal("Omega Delta", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
+    [Fact]
+    public static void SamePatchDisjointTrackedReplacementsUnderSuggest()
+    {
+        using MemoryStream input = CreateDocx("Alpha Alpha");
+        DocxCheckResult check = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Delta\nend\n", TrackChangesMode.Suggest);
+
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+
+    [Fact]
+    public static void SamePatchOverlappingTrackedReplacementRefuses()
+    {
+        using MemoryStream input = CreateDocx("Alpha Alpha");
+        DocxCheckResult check = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Omega\noccurrence 1\nend\n\nop replace-text\ntarget M.P0001\nfind Omega\nwith Omicron\nend\n", TrackChangesMode.Require);
+
+        Assert.False(check.Success);
+        Assert.Contains(check.Diagnostics, static diagnostic => diagnostic.Code == "E4305" || diagnostic.Code == "E6002");
+    }
 }
