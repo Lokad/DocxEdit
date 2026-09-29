@@ -521,4 +521,54 @@ public static class PatchAliasTests
         Assert.Equal(new[] { "A1", "B1", "C1", "C2", "D1", "D2" }, table.Cells.Select(static cell => cell.Text).ToArray());
     }
 
+    [Fact]
+    public static void HyperlinkTextViaAlias()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+            op insert-hyperlink-after
+            target M.P0001
+            text Click here
+            uri https://example.test/new
+            as hl1
+            end
+            op set-hyperlink-text
+            target @hl1
+            expect-text Click here
+            text Follow this link
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Equal(new[] { "Alpha", "Follow this link" }, new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Text).ToArray());
+    }
+    [Fact]
+    public static void RemovedHyperlinkAliasRefuses()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+            op insert-hyperlink-after
+            target M.P0001
+            text Click here
+            uri https://example.test/new
+            as hl1
+            end
+            op remove-hyperlink
+            target @hl1
+            end
+            op set-hyperlink-text
+            target @hl1
+            text Gone
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.False(result.Success);
+        Assert.Contains(result.Operations[2].Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
 }

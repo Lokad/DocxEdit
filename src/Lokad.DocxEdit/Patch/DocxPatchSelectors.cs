@@ -1497,6 +1497,11 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasHyperlinkTarget(package, target, cancellationToken);
+        }
+
         if (!DocxTargetId.TryParse(target, out DocxTargetId hyperlinkId) || hyperlinkId.Kind != DocxTargetKind.Hyperlink)
         {
             return null;

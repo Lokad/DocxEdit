@@ -216,6 +216,29 @@ internal static partial class DocxPatchEngine
         return new BookmarkTarget(partName, document, start, end);
     }
 
+    private static HyperlinkTarget? ResolveAliasHyperlinkTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        string alias = AliasReferenceName(target);
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(story.PartName);
+            if (part is null)
+            {
+                continue;
+            }
+            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
+            XElement? match = document.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault(element => string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
+            if (match is not null)
+            {
+                return new HyperlinkTarget(story.PartName, document, match);
+            }
+        }
+        return null;
+    }
+
     private static BlockTarget? ResolveInsertAnchor(
         DocxPatchOperation operation,
         OoxmlPackage package,
@@ -368,6 +391,10 @@ internal static partial class DocxPatchEngine
             foreach (XElement created in FindAdjacentInsertParagraphs(anchor.Block, insertAfter, count))
             {
                 created.SetAttributeValue(SnapshotAliasName, alias);
+                if (string.Equals(operation.OperationName, "insert-hyperlink-after", StringComparison.Ordinal))
+                {
+                    created.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, alias);
+                }
             }
 
             touched[anchor.PartName] = anchor.Document;
