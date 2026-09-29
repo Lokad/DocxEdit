@@ -349,3 +349,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 8 commands, 0 failing, 0 retries; about 110k input tokens with about 89k cached
 - Artifacts: artifacts/agent-challenges/markup-targeting/20260929T171527Z/summary.json
 - Notes: first attempt on this challenge stalled at model capacity (exit 1, zero commands, run 20260929T171423Z); retry clean. The agent self-reported completed false because the markup-free stand-in input has no markup-affected target to find. Read-to-dump navigation verified; markup-inventory-to-context navigation remains unassessed live. Privacy hygiene exemplary (max-text 1 throughout). Finding: this challenge needs a markup-bearing input to assess its actual question. No text disclosed.
+
+### 2026-09-29 — markup-targeting (live codex run) — completed
+
+- Commands: changes, dump
+- Diagnostics: W1001 and W1004 informational on the markup dump; no errors
+- Target IDs: M.P0002 resolved from the inventory; affected runs M.P0002.R0002 and M.P0002.R0003 with change IDs M.CH0004 (deleted-run) and M.CH0005 (inserted-run)
+- Markup types: deleted-run, inserted-run
+- Counts: 3 commands, 0 failing, 0 retries; about 57k input tokens with about 35k cached
+- Artifacts: artifacts/agent-challenges/markup-targeting/20260929T172017Z/summary.json
+- Notes: ran against a local markup-bearing input (tracked replace plus comment generated from the public fixture through the require workflow) resolving the prior partial, where the markup-free stand-in had nothing to find. The agent went changes to dump with no view comparison and judged target IDs sufficient for inventory-to-context navigation. Agent-reported weakness: dump JSON carries change IDs inside a formatted Text report rather than a structured Changes array. No text disclosed.
