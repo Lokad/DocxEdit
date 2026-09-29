@@ -1,0 +1,35 @@
+{
+  "id": "control-locked-refusal",
+  "description": "Refuses edits on a locked content control with E4310.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:text/>",
+      "          <w:lock w:val=\"sdtContentLocked\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Old Client</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target M.CC0001",
+    "text New Client",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4310"
+    ],
+    "diagnosticMessagesContain": [
+      "locked by w:lock"
+    ]
+  }
+}
