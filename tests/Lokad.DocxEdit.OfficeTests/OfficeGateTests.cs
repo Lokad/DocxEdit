@@ -1659,6 +1659,83 @@ public static class OfficeGateTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationAnchoredImageRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateAnchoredImageDocx(inputPath);
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op replace-text
+                target M.P0001
+                find Body
+                with Edited body
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Contains(read.Paragraphs, paragraph => paragraph.Id.ToWireValue() == "M.P0001" && paragraph.Text == "Edited body");
+
+            byte[] expected = MinimalPng();
+            Assert.Equal(expected, ReadEntryBytes(outputPath, "word/media/image1.png"));
+
+            using FileStream xmlStream = File.OpenRead(outputPath);
+            using var archive = new ZipArchive(xmlStream, ZipArchiveMode.Read);
+            ZipArchiveEntry entry = archive.GetEntry("word/document.xml") ?? throw new InvalidOperationException("Missing word/document.xml.");
+            using Stream entryStream = entry.Open();
+            using var reader = new StreamReader(entryStream, Encoding.UTF8);
+            Assert.Contains("wp:anchor", reader.ReadToEnd(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
@@ -2294,6 +2371,87 @@ public static class OfficeGateTests
               </w:body>
             </w:document>
             """);
+    }
+
+    private static void CreateAnchoredImageDocx(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Default Extension="png" ContentType="image/png"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <w:body>
+                <w:p><w:r><w:t>Body</w:t></w:r></w:p>
+                <w:p>
+                  <w:r>
+                    <w:drawing>
+                      <wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">
+                        <wp:simplePos x="0" y="0"/>
+                        <wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>
+                        <wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>
+                        <wp:extent cx="914400" cy="457200"/>
+                        <wp:effectExtent l="0" t="0" r="0" b="0"/>
+                        <wp:wrapNone/>
+                        <wp:docPr id="1" name="Picture 1"/>
+                        <wp:cNvGraphicFramePr/>
+                        <a:graphic>
+                          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                            <pic:pic>
+                              <pic:nvPicPr><pic:cNvPr id="1" name="Picture 1"/><pic:cNvPicPr/></pic:nvPicPr>
+                              <pic:blipFill><a:blip r:embed="rImage"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                              <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                            </pic:pic>
+                          </a:graphicData>
+                        </a:graphic>
+                      </wp:anchor>
+                    </w:drawing>
+                  </w:r>
+                </w:p>
+              </w:body>
+            </w:document>
+            """);
+        AddBinaryEntry(archive, "word/media/image1.png", MinimalPng());
+    }
+
+    private static void AddBinaryEntry(ZipArchive archive, string name, byte[] bytes)
+    {
+        ZipArchiveEntry entry = archive.CreateEntry(name);
+        using Stream stream = entry.Open();
+        stream.Write(bytes, 0, bytes.Length);
+    }
+
+    private static byte[] ReadEntryBytes(string docxPath, string entryName)
+    {
+        using FileStream file = File.OpenRead(docxPath);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+        ZipArchiveEntry entry = archive.GetEntry(entryName) ?? throw new InvalidOperationException("Missing " + entryName + ".");
+        using Stream stream = entry.Open();
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        return memory.ToArray();
     }
 
     private static void CreateDocx(string path, string text)
