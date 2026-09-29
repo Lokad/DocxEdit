@@ -193,6 +193,36 @@ public static class PatchTemplateTests
     }
 
     [Fact]
+    public static void BookmarkTemplateStarterPassesCheck()
+    {
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithSingleBookmark())
+        {
+            template = GetTemplate(input, "M.B0001", TrackChangesMode.Off);
+        }
+        Assert.Equal(1, CountActiveOps(template.Template));
+        Assert.Contains("op replace-bookmark-text", template.Template, StringComparison.Ordinal);
+        using MemoryStream checkInput = CreateDocxWithSingleBookmark();
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
+    [Fact]
+    public static void IncompleteBookmarkTemplateHasNoActiveBlock()
+    {
+        const string body = """
+                    <w:p>
+                      <w:bookmarkStart w:id="5" w:name="Orphan"/>
+                      <w:r><w:t>text</w:t></w:r>
+                    </w:p>
+            """;
+        using MemoryStream input = CreateDocxWithBody(body);
+        DocxTemplateResult template = GetTemplate(input, "M.B0001", TrackChangesMode.Off);
+        Assert.Equal(0, CountActiveOps(template.Template));
+        Assert.Contains("No check-clean starter", template.Template, StringComparison.Ordinal);
+        Assert.Contains("# op rename-bookmark", template.Template, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void UnknownTargetTemplateFailsWithE1201()
     {
         using MemoryStream input = CreateDocx("Alpha");

@@ -48,6 +48,7 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.ContentControl => BuildContentControlTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Cell => BuildCellTemplate(storyDocument, parsed, capabilities, mode, isMergeGroup: false),
             DocxTargetKind.MergeGroup => BuildCellTemplate(storyDocument, parsed, capabilities, mode, isMergeGroup: true),
+            DocxTargetKind.Bookmark => BuildBookmarkTemplate(storyDocument, parsed, capabilities, mode),
             _ => null,
         };
 
@@ -356,6 +357,67 @@ internal static partial class DocxPatchEngine
             ?? "2026-01-01T00:00:00Z";
     }
 
+    private static string? BuildBookmarkTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode)
+    {
+        XElement? start = storyDocument.Document.Descendants(OoxmlNs.W + "bookmarkStart").ElementAtOrDefault(parsed.Primary - 1);
+        string? ooxmlId = (string?)start?.Attribute(OoxmlNs.W + "id");
+        XElement? end = ooxmlId is null
+            ? null
+            : storyDocument.Document.Descendants(OoxmlNs.W + "bookmarkEnd").FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), ooxmlId, StringComparison.Ordinal));
+        bool sameParagraph = start is not null && end is not null &&
+            start.Parent is not null &&
+            start.Parent.Name == OoxmlNs.W + "p" &&
+            start.Parent == end.Parent;
+        if (start is null)
+        {
+            return null;
+        }
+        string target = parsed.ToWireValue();
+        string current = sameParagraph
+            ? ReadVisibleText(new XElement(OoxmlNs.W + "p", start.NodesAfterSelf().TakeWhile(node => node != end).ToArray()))
+            : string.Empty;
+        string name = (string?)start.Attribute(OoxmlNs.W + "name") ?? "MarkName";
+        string replaceSupport = SupportOf(capabilities, "replace-bookmark-text");
+        bool activeReplace = string.Equals(replaceSupport, "supported", StringComparison.Ordinal) && current.Length != 0;
+        var builder = new StringBuilder();
+        AppendTemplateHeader(builder, capabilities, mode, activeReplace);
+        if (activeReplace)
+        {
+            AppendBlock(builder, active: true, block =>
+            {
+                block.AppendLine("op replace-bookmark-text");
+                block.AppendLine("target " + target);
+                AppendHeredoc(block, "expect-text", current);
+                AppendHeredoc(block, "text", current);
+                block.AppendLine("end");
+            });
+        }
+        AppendOpBlock(builder, capabilities, "replace-bookmark-text", replaceSupport, activeReplace, block =>
+        {
+            block.AppendLine("op replace-bookmark-text");
+            block.AppendLine("target " + target);
+            if (sameParagraph)
+            {
+                AppendHeredoc(block, "expect-text", current);
+            }
+            AppendHeredoc(block, "text", "New bookmark text");
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "rename-bookmark", SupportOf(capabilities, "rename-bookmark"), active: false, block =>
+        {
+            block.AppendLine("op rename-bookmark");
+            block.AppendLine("target " + target);
+            AppendHeredoc(block, "name", name);
+            block.AppendLine("end");
+        });
+        AppendOpBlock(builder, capabilities, "delete-bookmark", SupportOf(capabilities, "delete-bookmark"), active: false, block =>
+        {
+            block.AppendLine("op delete-bookmark");
+            block.AppendLine("target " + target);
+            block.AppendLine("end");
+        });
+        return builder.ToString();
+    }
     private static string? BuildCellTemplate(StoryDocument storyDocument, DocxTargetId parsed, DocxTargetCapabilities capabilities, TrackChangesMode mode, bool isMergeGroup)
     {
         XElement? root = storyDocument.Document.Root;
