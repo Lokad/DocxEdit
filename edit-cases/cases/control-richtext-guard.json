@@ -1,0 +1,34 @@
+{
+  "id": "control-richtext-guard",
+  "description": "Refuses rich-text control replacement without an expect-text guard with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr><w:richText/></w:sdtPr>",
+      "        <w:sdtContent>",
+      "          <w:p><w:r><w:t>Old summary</w:t></w:r></w:p>",
+      "        </w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target M.CC0001",
+    "text New summary",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "requires expect-text"
+    ]
+  }
+}
