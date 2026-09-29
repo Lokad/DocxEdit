@@ -1,6 +1,6 @@
 # Diagnostics
 
-Diagnostics have a severity, code, message, and optional target, part, story, feature, fallback, operation index, line, column, help topic, and, for ambiguous matches, match counts with candidate IDs. Patch-operation findings carry the focused help topic for their operation (see help <operation>); findings without an operation leave it empty.
+Diagnostics have a severity, code, message, and optional target, part, story, feature, fallback, operation index, line, column, help topic, and, for ambiguous or unmatched selectors, match counts with candidate IDs. Patch-operation findings carry the focused help topic for their operation (see help <operation>); findings without an operation leave it empty.
 
 Text-mode stderr renders severity, code, message, and whichever of target, part, operation, line, column, help topic, and match count are present. JSON output carries the full records.
 
@@ -47,7 +47,7 @@ Common code ranges:
   invalid generated revision metadata before operation execution. Empty revision
   authors are rejected with `Feature = track-changes-revision-metadata` and
   `Fallback = no-output-written`.
-- `E1201`: selector matched no targets, a target ID was not found, or the target shape is wrong for the operation.
+- `E1201`: selector matched no targets, a target ID was not found, or the target shape is wrong for the operation. Zero-match selector diagnostics carry match count 0 with the nearby candidate IDs.
 - `E1202`: selector matched multiple targets ambiguously (the message lists candidate IDs), or find/anchor text matched multiple ranges; the message reports the match count and how to select one match or every match.
 - `E1203`: selector text is malformed.
 - `E2001`: patch text is empty.

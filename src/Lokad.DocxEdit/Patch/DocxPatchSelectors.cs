@@ -567,14 +567,15 @@ internal static partial class DocxPatchEngine
 
         if (matches.Count == 0)
         {
+            (string suggestion, string[] candidates) = BuildNoMatchSuggestion(package, body, rawSelector, cancellationToken);
             diagnostics =
             [
                 Diagnostic(
                     DocxSeverity.Error,
                     "E1201",
-                    $"Selector matched 0 targets: {rawSelector}.{BuildNoMatchSuggestion(package, body, rawSelector, cancellationToken)}",
+                    $"Selector matched 0 targets: {rawSelector}.{suggestion}",
                     operation,
-                    rawSelector)
+                    rawSelector) with { MatchCount = 0, CandidateIds = candidates }
             ];
             return null;
         }
@@ -582,24 +583,23 @@ internal static partial class DocxPatchEngine
         return matches[0].Paragraph;
     }
 
-    private static string BuildNoMatchSuggestion(OoxmlPackage package, XElement body, string rawSelector, CancellationToken cancellationToken)
+    private static (string Text, string[] CandidateIds) BuildNoMatchSuggestion(OoxmlPackage package, XElement body, string rawSelector, CancellationToken cancellationToken)
     {
         string query = ExtractSelectorQuery(rawSelector);
         if (rawSelector.StartsWith("heading:", StringComparison.Ordinal))
         {
-            string[] headings = EnumerateMainParagraphs(body)
+            var headings = EnumerateMainParagraphs(body)
                 .Select((match, order) => (match.Id, match.Paragraph, Order: order, HeadingLevel: DocxHeadingLevels.GetHeadingLevel(package, match.Paragraph, cancellationToken)))
                 .Where(match => match.HeadingLevel is not null)
-                .Select(match => (Label: match.Id + " heading level=" + match.HeadingLevel, Score: ScoreParagraphMatch(ReadVisibleText(match.Paragraph), query), match.Order))
+                .Select(match => (Label: match.Id + " heading level=" + match.HeadingLevel, match.Id, Score: ScoreParagraphMatch(ReadVisibleText(match.Paragraph), query), match.Order))
                 .OrderByDescending(match => match.Score.Contains)
                 .ThenByDescending(match => match.Score.Overlap)
                 .ThenBy(match => match.Order)
                 .Take(3)
-                .Select(match => match.Label)
                 .ToArray();
             return headings.Length == 0
-                ? " No nearby paragraph targets are available."
-                : "Nearby headings: " + string.Join(", ", headings) + ".";
+                ? (" No nearby paragraph targets are available.", [])
+                : ("Nearby headings: " + string.Join(", ", headings.Select(match => match.Label)) + ".", headings.Select(match => match.Id).ToArray());
         }
 
         string[] paragraphs = EnumerateMainParagraphs(body)
@@ -611,8 +611,8 @@ internal static partial class DocxPatchEngine
             .Select(match => match.Id)
             .ToArray();
         return paragraphs.Length == 0
-            ? " No nearby paragraph targets are available."
-            : "Nearby paragraphs: " + string.Join(", ", paragraphs) + ".";
+            ? (" No nearby paragraph targets are available.", [])
+            : ("Nearby paragraphs: " + string.Join(", ", paragraphs) + ".", paragraphs);
     }
 
     private static string ExtractSelectorQuery(string rawSelector)

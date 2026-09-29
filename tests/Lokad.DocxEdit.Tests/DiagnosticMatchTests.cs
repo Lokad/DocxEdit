@@ -17,6 +17,18 @@ public static class DiagnosticMatchTests
         Assert.Equal(2, diagnostic.MatchCount);
         Assert.Equal(new[] { "M.P0001", "M.P0002" }, diagnostic.CandidateIds);
     }
+    [Fact]
+    public static void UnmatchedTextSelectorCarriesCandidates()
+    {
+        using MemoryStream input = CreateDocxWithBody("<w:p><w:r><w:t>Revenue north</w:t></w:r></w:p>\n<w:p><w:r><w:t>Revenue south</w:t></w:r></w:p>\n");
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget text:Expense\nfind Expense\nwith Sales\nend\n");
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics, static d => d.Code == "E1201");
+        Assert.Equal(0, diagnostic.MatchCount);
+        Assert.Equal(new[] { "M.P0001", "M.P0002" }, diagnostic.CandidateIds);
+    }
+
 
     [Fact]
     public static void AmbiguousBookmarkNameCarriesCandidates()
