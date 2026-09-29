@@ -425,13 +425,15 @@ public static class EditCaseTests
             var actualResolved = new Dictionary<string, bool>(StringComparer.Ordinal);
             foreach (JsonElement summary in commentStateJson.RootElement.GetProperty("CommentSummary").EnumerateArray())
             {
-                actualResolved[summary.GetProperty("CommentId").GetString() ?? string.Empty] = summary.GetProperty("Resolved").GetBoolean();
+                string commentKey = summary.GetProperty("CommentId").GetString() ?? string.Empty;
+                bool commentResolvedValue = summary.TryGetProperty("Resolved", out JsonElement resolvedValue) && resolvedValue.ValueKind == JsonValueKind.True;
+                actualResolved[commentKey] = commentResolvedValue;
             }
 
             foreach (JsonProperty expected in commentResolved.EnumerateObject())
             {
-                Assert.True(actualResolved.TryGetValue(expected.Name, out bool resolved) && resolved == expected.Value.GetBoolean(), "Case " + manifestId + " comment resolved mismatch.");
-                Assert.True(actualResolved.Count == commentResolved.EnumerateObject().Count(), "Case " + manifestId + " comment resolved count mismatch.");
+                Assert.True(actualResolved.TryGetValue(expected.Name, out bool resolved) && resolved == expected.Value.GetBoolean(), "Case " + manifestId + " comment resolved mismatch for " + expected.Name + " (actual: " + string.Join(",", actualResolved.Select(pair => pair.Key + "=" + pair.Value)) + ").");
+                Assert.True(actualResolved.Count == commentResolved.EnumerateObject().Count(), "Case " + manifestId + " comment resolved count mismatch (actual count " + actualResolved.Count + ").");
             }
         }
 
