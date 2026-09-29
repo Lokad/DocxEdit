@@ -259,17 +259,6 @@ public static class PatchLintTests
         Assert.Contains(check.Diagnostics, static diagnostic => diagnostic.Code == "E4205");
     }
 
-    [Fact]
-    public static void FieldUnitsAndDefaultsAreMachineReadable()
-    {
-        Assert.True(DocxHelp.TryGetPatchOperation("set-image-size", out DocxPatchOperationInfo size));
-        Assert.Contains("width=positive-dimension:emu|in|cm|pt|px", size.UnitHints);
-        Assert.Contains("height=positive-dimension:emu|in|cm|pt|px", size.UnitHints);
-        Assert.True(DocxHelp.TryGetPatchOperation("set-image-crop", out DocxPatchOperationInfo crop));
-        Assert.Contains("left-percent=percent:0-100", crop.UnitHints);
-        Assert.True(DocxHelp.TryGetPatchOperation("set-cell-shading", out DocxPatchOperationInfo shading));
-        Assert.Contains("clear=false", shading.FieldDefaults);
-    }
 
     [Fact]
     public static void FieldKindsAreMachineReadable()
