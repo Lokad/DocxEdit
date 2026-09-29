@@ -142,3 +142,12 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 2 commands, 0 failing checks, 0 retries
 - Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
 - Notes: read-only navigation on the same reviewed document. Operator is repo-aware, so navigation ease is not a fresh-agent signal. The changes inventory bridges directly to editable targets through parent target IDs, and context renders the neighborhood metadata-only by default without forcing text exposure. No private text was needed at any step.
+### 2026-09-29 — whitespace-selector (synthetic self-run) — completed
+
+- Commands: apply, read, check, validate
+- Diagnostics: E3201 on the deliberately normalized guard; none elsewhere
+- Target IDs: main-story paragraph IDs; normalized text selector resolved to M.P0002
+- Markup types: none (untracked edit)
+- Counts: 7 commands, 1 failing check, 0 retries
+- Artifacts: artifacts/agent-challenges/synthetic-2026-09-29.json
+- Notes: public Word fixture input with synthetic patch text. Operator is repo-aware, so workflow ease is not a fresh-agent signal. A paragraph with a doubled space was addressed through a single-spaced text selector and resolved correctly; the single-spaced expect-text guard failed with E3201 while the exact-spaced guard passed, and the applied edit replaced only the find span with spacing preserved. The D09 normalized-match versus exact-guard contract from patch-format.md behaves as documented, matching existing unit coverage.

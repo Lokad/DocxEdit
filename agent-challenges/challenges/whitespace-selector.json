@@ -1,0 +1,23 @@
+{
+  "id": "whitespace-selector",
+  "title": "Match Normalized Text While Guarding Exact Text",
+  "tags": ["private", "patch", "selectors", "guards"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, work with a paragraph whose visible text contains a repeated whitespace run.",
+    "Address it through a text selector written with single spaces and confirm check resolves the intended target.",
+    "Show that an expect-text guard written with single spaces fails while the exact-spaced guard passes.",
+    "Apply the exact-guarded patch to a separate output .docx and verify with docxedit read and docxedit validate that only the find span changed."
+  ],
+  "successCriteria": [
+    "Shows the normalized selector resolving and the normalized guard failing with E3201.",
+    "Produces an output .docx where only the find span changed and spacing is preserved.",
+    "Uses check before apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Did the agent distinguish normalized matching from exact guarding without confusion?",
+    "Was the E3201 guard failure legible as a spacing mismatch rather than a wrong target?",
+    "Did readback confirm spacing preservation?"
+  ]
+}
