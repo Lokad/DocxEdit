@@ -4,7 +4,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, and section targets.
+// D17: capabilities for content-control, cell, merge-group, bookmark, table, row, section, and hyperlink targets.
 // Like the paragraph surface, every verdict reuses the execution predicates,
 // so guidance cannot disagree with check. Patch-dependent details stay
 // conditional until the exact patch is checked.
@@ -53,6 +53,11 @@ internal static partial class DocxPatchEngine
             return GetCellCapabilities(package, parsed, requestedTargetId, mode, isMergeGroup: true, cancellationToken);
         }
 
+        if (parsed.Kind == DocxTargetKind.Hyperlink)
+        {
+            return GetHyperlinkCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
+        }
+
         if (parsed.Kind == DocxTargetKind.Section)
         {
             return GetSectionCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
@@ -78,7 +83,7 @@ internal static partial class DocxPatchEngine
             Error = new DocxDiagnostic(
                 DocxSeverity.Error,
                 "E1201",
-                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, and section IDs such as M.P0001.") with
+                "Target " + Quote(requestedTargetId) + " was not found. Capabilities currently cover explicit paragraph, content-control, cell, merge-group, bookmark, table, row, section, and hyperlink IDs such as M.P0001.") with
             {
                 TargetId = requestedTargetId
             }
@@ -626,6 +631,137 @@ internal static partial class DocxPatchEngine
             operation,
             "conditional",
             "Section currently uses " + facts.CurrentOrientation + " with " + facts.CurrentColumns + " column(s). The orientation value must be portrait or landscape, otherwise check fails with E6202; expect-columns and expect-orientation can guard current values. Tracked modes emit section property revisions with w:sectPrChange while preserving page size, section properties, and references. Check remains authoritative for the exact orientation.",
+            operation,
+            null);
+    }
+    // D17: hyperlink capabilities reuse the protection and track-support predicates from the hyperlink engine.
+    private sealed record HyperlinkCapabilityFacts(
+        bool HasProtected,
+        string ProtectedFeature,
+        string DestinationKind);
+    internal static ParagraphCapabilitiesOutcome GetHyperlinkCapabilities(
+        OoxmlPackage package,
+        DocxTargetId parsed,
+        string requestedTargetId,
+        TrackChangesMode mode,
+        CancellationToken cancellationToken)
+    {
+        StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
+        HyperlinkTarget? hyperlinkTarget = storyDocument is null
+            ? null
+            : FindHyperlinkTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+        if (storyDocument is null || hyperlinkTarget is null)
+        {
+            return ParagraphCapabilitiesNotFound(requestedTargetId);
+        }
+        bool hasProtected = TryGetProtectedTextEditFeature(hyperlinkTarget.Hyperlink, out string protectedFeature);
+        string destinationKind = (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.W + "anchor") is not null
+            ? "an internal anchor"
+            : (string?)hyperlinkTarget.Hyperlink.Attribute(OoxmlNs.R + "id") is not null
+                ? "an external URI"
+                : "no destination";
+        var facts = new HyperlinkCapabilityFacts(
+            hasProtected,
+            protectedFeature,
+            destinationKind);
+        bool isTracked = mode is TrackChangesMode.Require or TrackChangesMode.Suggest;
+        bool isRequire = mode == TrackChangesMode.Require;
+        var operations = new List<DocxOperationCapability>
+        {
+            HyperlinkTargetCapability(facts, isRequire),
+            HyperlinkTextCapability(facts, isTracked, isRequire),
+            HyperlinkRemoveCapability(isRequire),
+        };
+        return new ParagraphCapabilitiesOutcome
+        {
+            Capabilities = new DocxTargetCapabilities(
+                parsed.ToWireValue(),
+                "hyperlink",
+                storyDocument.Story.StoryLabel,
+                operations)
+        };
+    }
+    private static DocxOperationCapability HyperlinkTargetCapability(HyperlinkCapabilityFacts facts, bool isRequire)
+    {
+        const string operation = "set-hyperlink-target";
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Hyperlink target updates modify relationship or anchor metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Link currently points to " + facts.DestinationKind + ". The destination must be an absolute http, https, or mailto URI or an internal anchor name; tooltip, target-frame, and history are optional.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability HyperlinkTextCapability(HyperlinkCapabilityFacts facts, bool isTracked, bool isRequire)
+    {
+        const string operation = "set-hyperlink-text";
+        if (facts.HasProtected)
+        {
+            if (isRequire)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "unsupported",
+                    "Hyperlink contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ", so tracked text replacement fails with E6002 under Require. Suggest falls back to a direct rewrite with W4002 and Off rewrites directly. Check remains authoritative.",
+                    operation,
+                    null);
+            }
+            if (isTracked)
+            {
+                return new DocxOperationCapability(
+                    operation,
+                    "conditional",
+                    "Hyperlink contains protected OOXML boundary " + Quote(facts.ProtectedFeature) + ", so tracked text replacement falls back to a direct rewrite with W4002. The exact replacement decides. Check remains authoritative.",
+                    operation,
+                    null);
+            }
+            return new DocxOperationCapability(
+                operation,
+                "supported",
+                "Direct rewrite replaces the display text and preserves the relationship or anchor. A guarded replacement needs expect-text that matches the current text; identical text is a no-op.",
+                operation,
+                null);
+        }
+        if (isTracked)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "conditional",
+                "Simple display text emits tracked delete and insert markup while preserving the relationship or anchor; complex shapes fall back to a direct rewrite with W4002 under Suggest and fail with E6002 under Require. The exact replacement decides. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Direct rewrite replaces the display text and preserves the relationship or anchor. A guarded replacement needs expect-text that matches the current text; identical text is a no-op.",
+            operation,
+            null);
+    }
+    private static DocxOperationCapability HyperlinkRemoveCapability(bool isRequire)
+    {
+        const string operation = "remove-hyperlink";
+        if (isRequire)
+        {
+            return new DocxOperationCapability(
+                operation,
+                "unsupported",
+                "Hyperlink removal changes wrapper and relationship metadata without a tracked revision representation, so Require fails with E6001 before editing. Use Suggest, which warns with W4001 and applies directly, or Off for a direct edit. Check remains authoritative.",
+                operation,
+                null);
+        }
+        return new DocxOperationCapability(
+            operation,
+            "supported",
+            "Removal unwraps the hyperlink and preserves display runs; the relationship is dropped when nothing else uses it.",
             operation,
             null);
     }
