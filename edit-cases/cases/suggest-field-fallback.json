@@ -1,0 +1,40 @@
+{
+  "id": "suggest-field-fallback",
+  "description": "Warns and directly edits a complex field result under suggest with W4002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>",
+      "      <w:r><w:instrText> PAGE </w:instrText></w:r>",
+      "      <w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>",
+      "      <w:r><w:t>1</w:t></w:r>",
+      "      <w:r><w:fldChar w:fldCharType=\"end\"/></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "suggest",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-field-result",
+    "target M.F0001",
+    "text 2",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "W4002"
+    ],
+    "diagnosticMessagesContain": [
+      "not modeled"
+    ],
+    "paragraphs": [
+      "2"
+    ]
+  }
+}
