@@ -87,6 +87,8 @@ internal static partial class DocxPatchEngine
 {
     private const string PreserveOnlyTrackChangesNote =
         "Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.";
+    private const string AnnotationTrackChangesNote =
+        "Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001. Declared annotation operations stay permitted under Require.";
 
     private const string TrackClassTextRun = "text-run";
     private const string TrackClassParagraphBlock = "paragraph-block";
@@ -2059,7 +2061,7 @@ internal static partial class DocxPatchEngine
             requireOneOf,
             TrackClassPreserveOnly,
             "preserve-only",
-            $"{rationale} {PreserveOnlyTrackChangesNote}" + (isAnnotation ? " Declared annotation operations stay permitted under Require." : ""),
+            $"{rationale} {(isAnnotation ? AnnotationTrackChangesNote : PreserveOnlyTrackChangesNote)}",
             category,
             description,
             handler)

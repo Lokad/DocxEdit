@@ -872,4 +872,28 @@ public static class PatchCommentTests
         Assert.Contains("Updated comment", commentsXml, StringComparison.Ordinal);
         Assert.DoesNotContain("Old comment", commentsXml, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void CheckTrackChangesRequirePermitsCommentReviewOperations()
+    {
+        var options = new DocxEditOptions
+        {
+            TrackChanges = TrackChangesMode.Require,
+            Author = "Agent",
+            TimestampUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+        string[] patches =
+        [
+            "docxpatch 1\n\nop resolve-comment\ntarget comment:3\nend\n",
+            "docxpatch 1\n\nop reopen-comment\ntarget comment:3\nend\n",
+            "docxpatch 1\n\nop delete-comment\ntarget comment:3\nend\n",
+        ];
+        foreach (string patchText in patches)
+        {
+            using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
+            using var patch = new StringReader(patchText);
+            DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+            Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+            Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Code == "E6001");
+        }
+    }
 }

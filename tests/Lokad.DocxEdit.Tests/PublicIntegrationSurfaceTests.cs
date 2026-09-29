@@ -2,6 +2,15 @@ namespace Lokad.DocxEdit.Tests;
 
 public static class PublicIntegrationSurfaceTests
 {
+    private static readonly string[] AnnotationOperations =
+    [
+        "add-comment",
+        "resolve-comment",
+        "reopen-comment",
+        "delete-comment",
+        "add-comment-reply",
+        "delete-comment-reply",
+    ];
     [Fact]
     public static void CommandCatalogExposesReusableAgentGuidance()
     {
@@ -178,7 +187,15 @@ public static class PublicIntegrationSurfaceTests
                     operation.TrackChangesNote.StartsWith("Existing tracked-change markup is preserved", StringComparison.Ordinal),
                     operation.Name);
                 Assert.Contains("Existing tracked-change markup is preserved", operation.TrackChangesNote, StringComparison.Ordinal);
-                Assert.Contains("Require fails with E6001", operation.TrackChangesNote, StringComparison.Ordinal);
+                if (AnnotationOperations.Contains(operation.Name))
+                {
+                    Assert.Contains("stay permitted under Require", operation.TrackChangesNote, StringComparison.Ordinal);
+                    Assert.DoesNotContain("Require fails with E6001", operation.TrackChangesNote, StringComparison.Ordinal);
+                }
+                else
+                {
+                    Assert.Contains("Require fails with E6001", operation.TrackChangesNote, StringComparison.Ordinal);
+                }
             }
         }
     }
