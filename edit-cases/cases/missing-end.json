@@ -1,0 +1,27 @@
+{
+  "id": "missing-end",
+  "description": "Refuses an operation block without a closing end line with E2009.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Alpha",
+    "with Omega"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E2009"
+    ],
+    "diagnosticMessagesContain": [
+      "is missing"
+    ]
+  }
+}
