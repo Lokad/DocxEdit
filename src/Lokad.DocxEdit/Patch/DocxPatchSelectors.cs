@@ -55,6 +55,11 @@ internal static partial class DocxPatchEngine
         out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         diagnostics = [];
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasBlockTarget(package, operation, target, cancellationToken, out diagnostics);
+        }
+
         if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
         {
             diagnostics = [diagnostic];
@@ -111,6 +116,11 @@ internal static partial class DocxPatchEngine
         out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         diagnostics = [];
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out diagnostics);
+        }
+
         if (!TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? diagnostic))
         {
             diagnostics = [diagnostic];
@@ -165,6 +175,11 @@ internal static partial class DocxPatchEngine
         if (string.IsNullOrWhiteSpace(target))
         {
             return null;
+        }
+
+        if (IsAliasReference(target))
+        {
+            return TryResolveAliasParagraphId(package, target, cancellationToken);
         }
 
         if (DocxTargetId.TryParse(target, out DocxTargetId explicitId)
@@ -1239,6 +1254,11 @@ internal static partial class DocxPatchEngine
         out IReadOnlyList<DocxDiagnostic> diagnostics)
     {
         diagnostics = [];
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasBookmarkTarget(package, operation, target, cancellationToken, out diagnostics);
+        }
+
         if (TryParseTargetSelector(target, operation, out TargetSelector? selector, out DocxDiagnostic? selectorDiagnostic)
             && selector is BookmarkTargetSelector bookmarkSelector)
         {

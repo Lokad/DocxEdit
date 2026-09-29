@@ -909,7 +909,8 @@ public sealed class DocxEditor
             return new DocxLintResult { Success = false, Diagnostics = patch.Diagnostics };
         }
 
-        IReadOnlyList<DocxDiagnostic> shape = DocxPatchEngine.ValidatePatchFields(patch);
+        List<DocxDiagnostic> shape = DocxPatchEngine.ValidatePatchFields(patch).ToList();
+        shape.AddRange(DocxPatchEngine.ValidatePatchAliases(patch));
         return new DocxLintResult
         {
             Success = shape.All(static diagnostic => diagnostic.Severity != DocxSeverity.Error),

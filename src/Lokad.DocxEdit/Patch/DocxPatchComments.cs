@@ -482,6 +482,11 @@ internal static partial class DocxPatchEngine
         out DocxDiagnostic? diagnostic)
     {
         diagnostic = null;
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasCommentTarget(package, operation, target, cancellationToken, out diagnostic);
+        }
+
         if (target.StartsWith("comment:", StringComparison.Ordinal))
         {
             string commentId = target["comment:".Length..].Trim();

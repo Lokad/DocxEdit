@@ -16,6 +16,7 @@ internal static partial class DocxPatchEngine
 {
     private static readonly XNamespace SnapshotNs = "http://schemas.lokad.com/docxedit/snapshot";
     private static readonly XName SnapshotIdName = SnapshotNs + "sid";
+    private static readonly XName SnapshotAliasName = SnapshotNs + "alias";
 
     private static void CaptureTargetSnapshot(OoxmlPackage package, CancellationToken cancellationToken)
     {
@@ -166,11 +167,14 @@ internal static partial class DocxPatchEngine
             bool dirty = false;
             foreach (XElement element in document.Descendants())
             {
-                XAttribute? attribute = element.Attribute(SnapshotIdName);
-                if (attribute is not null)
+                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName })
                 {
-                    attribute.Remove();
-                    dirty = true;
+                    XAttribute? attribute = element.Attribute(markName);
+                    if (attribute is not null)
+                    {
+                        attribute.Remove();
+                        dirty = true;
+                    }
                 }
 
                 // Capture materializes snapshot namespace declarations alongside

@@ -41,23 +41,15 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        string? target = operation.Fields.GetValueOrDefault("target");
-        if (target is null)
-        {
-            return [];
-        }
-
-        BlockTarget? anchor = ResolveBlockTarget(package, operation, target, cancellationToken, out _);
-        if (anchor is null || (anchor.Block.Name != OoxmlNs.W + "p" && anchor.Block.Name != OoxmlNs.W + "tbl"))
+        BlockTarget? anchor = ResolveInsertAnchor(operation, package, cancellationToken);
+        if (anchor is null)
         {
             return [];
         }
 
         bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
         int count = Math.Max(1, operation.FieldValues.Count(static field => field.Name == "text"));
-        List<XElement> created = insertAfter
-            ? anchor.Block.ElementsAfterSelf(OoxmlNs.W + "p").Take(count).ToList()
-            : anchor.Block.ElementsBeforeSelf(OoxmlNs.W + "p").TakeLast(count).ToList();
+        List<XElement> created = FindAdjacentInsertParagraphs(anchor.Block, insertAfter, count);
         if (created.Count != count)
         {
             return [];

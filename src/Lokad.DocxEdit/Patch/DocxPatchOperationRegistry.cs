@@ -197,6 +197,7 @@ internal static partial class DocxPatchEngine
             "insert-before",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("style", FieldValueKind.Text, Repeatable: true, Required: false),
                 new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
                 new("text", FieldValueKind.Text, Repeatable: true, Required: true),
@@ -241,6 +242,7 @@ internal static partial class DocxPatchEngine
             "insert-after",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("style", FieldValueKind.Text, Repeatable: true, Required: false),
                 new("copy-paragraph-properties", FieldValueKind.Boolean, Repeatable: false, Required: false, DefaultValue: "false"),
                 new("text", FieldValueKind.Text, Repeatable: true, Required: true),
@@ -466,6 +468,7 @@ internal static partial class DocxPatchEngine
             "add-bookmark",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("name", FieldValueKind.Text, Repeatable: false, Required: true),
             ],
@@ -574,6 +577,7 @@ internal static partial class DocxPatchEngine
             "add-comment",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("anchor-text", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
@@ -692,6 +696,7 @@ internal static partial class DocxPatchEngine
             "add-comment-reply",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("text", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("author", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("initials", FieldValueKind.Text, Repeatable: false, Required: false),
@@ -1162,6 +1167,7 @@ internal static partial class DocxPatchEngine
             "insert-image-after",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("asset", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
                 new("width", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "dimension:emu|in|cm|pt|px"),

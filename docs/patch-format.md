@@ -175,11 +175,36 @@ discovered element. A target deleted earlier in the same patch fails with
 E1201 instead of silently editing a neighbour. Blocks inserted by the patch
 itself carry no snapshot identity and cannot be addressed by pre-discovered
 explicit IDs in the same patch; point a follow-up operation at the new content
-with a semantic selector or a follow-up patch. Semantic selectors resolve live
+with a semantic selector or a follow-up patch. A creation operation can also bind its new object to a name with as; later operations address it as @name (see Result aliases). Semantic selectors resolve live
 against current content, and guards evaluate sequentially, so a later operation
 can still assert text produced by an earlier one. IDs do not establish identity
 across independently modified input versions: re-discover targets and keep
 guards (xpect-text, counts) on every patch.
+
+## Result aliases
+
+Creation operations (insert-before, insert-after, insert-image-after, add-comment, add-comment-reply, add-bookmark) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document.
+
+- Names start with a letter and contain only letters, digits, underscore, or hyphen.
+- Bindings resolve sequentially within one patch: using a name before its operation fails, rebinding a bound name fails, and using a deleted target fails.
+- An alias on an insert names a single created paragraph, so combining as with several text fields fails.
+- Reports list created wire IDs per operation; aliases never leak into output documents.
+
+Example:
+
+docxpatch 1
+
+op insert-after
+target M.P0001
+text Drafted section
+as sec1
+end
+
+op replace-text
+target @sec1
+find Drafted
+with Final section
+end
 
 ## No-op and retry behavior
 
@@ -236,8 +261,8 @@ Omitted optional boolean fields use documented defaults (for example preserve-ru
 | --- | --- | --- | --- |
 | `replace-text` | `target`, `find`, `with` | `expect-text`, `preserve-runs`, `occurrence` | Replaces matching text inside one target; an empty `with` deletes the matched text; without `occurrence` the find text must match exactly once (`occurrence N` selects one match, `occurrence all` replaces every match)
 | `replace-paragraph` | `target`, `text` | `expect-text`, `style` | Replaces the paragraph text, optionally setting style, `style` accepts an ID or display name |
-| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts one paragraph per text field in file order before the target; a single style applies to every inserted paragraph, one style per text field applies positionally, and embedded `style` accepts an ID or display name |
-| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties` | Inserts one paragraph per text field in file order after the target; a single style applies to every inserted paragraph, one style per text field applies positionally, and embedded `style` accepts an ID or display name |
+| `insert-before` | `target`, `text` | `style`, `copy-paragraph-properties`, `as` | Inserts one paragraph per text field in file order before the target; a single style applies to every inserted paragraph, one style per text field applies positionally, and embedded `style` accepts an ID or display name |
+| `insert-after` | `target`, `text` | `style`, `copy-paragraph-properties`, `as` | Inserts one paragraph per text field in file order after the target; a single style applies to every inserted paragraph, one style per text field applies positionally, and embedded `style` accepts an ID or display name |
 | `delete-block` | `target` | `expect-text` | Deletes the target block |
 | `set-style` | `target`, `style` | `expect-style` | Sets paragraph style |
 
@@ -265,7 +290,7 @@ Controls with a lock value other than unlocked are rejected.
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `add-bookmark` | `target`, `name` | `expect-text` | Creates a guarded paragraph bookmark |
+| `add-bookmark` | `target`, `name` | `expect-text`, `as` | Creates a guarded paragraph bookmark |
 | `replace-bookmark-text` | `target`, `text` | `expect-text` | Replaces a complete paragraph-bounded bookmark range; simple table-spanning ranges require one replacement line per visible text slot |
 | `rename-bookmark` | `target`, `name` | `expect-name` | Renames markers and same-story internal hyperlink anchors when unambiguous |
 | `delete-bookmark` | `target` | | Removes complete unreferenced bookmark markers, preserving content |
@@ -278,12 +303,12 @@ Bookmark operations accept an explicit bookmark ID or a semantic name selector, 
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `add-comment` | `target`, `text` | `expect-text`, `anchor-text`, `occurrence`, `author`, `initials`, `date` | Anchors a new comment to a modeled paragraph, or to one selected text span inside it |
+| `add-comment` | `target`, `text` | `expect-text`, `anchor-text`, `occurrence`, `author`, `initials`, `date`, `as` | Anchors a new comment to a modeled paragraph, or to one selected text span inside it |
 | `set-comment-text` | `target`, `text` | `expect-text` | Replaces one comment body |
 | `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
 | `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
 | `delete-comment` | `target` | | Removes body, range/reference markers, and matching extension records |
-| `add-comment-reply` | `target`, `text` | `author`, `initials`, `date` | Adds a modern threaded reply under a comment |
+| `add-comment-reply` | `target`, `text` | `author`, `initials`, `date`, `as` | Adds a modern threaded reply under a comment |
 | `delete-comment-reply` | `target` | | Removes a leaf threaded reply |
 
 Existing comment operations target `comment:<id>` from `changes` or a comment body
@@ -376,7 +401,7 @@ caption <<<
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
 | `replace-image` | `target`, `asset` | `expect-content-type`, `alt` | Replaces media bytes and preserves supported drawing layout |
-| `insert-image-after` | `target`, `asset` | `expect-content-type`, `width`, `height`, `alt` | Inserts an inline image paragraph after a paragraph target |
+| `insert-image-after` | `target`, `asset` | `expect-content-type`, `width`, `height`, `alt`, `as` | Inserts an inline image paragraph after a paragraph target |
 | `set-image-alt` | `target`, `alt` | `expect-content-type`, `expect-alt` | Updates DrawingML description |
 | `set-image-metadata` | `target` plus `alt`, `title`, or `name` | `expect-content-type`, `expect-alt`, `expect-title`, `expect-name` | Updates DrawingML `docPr` metadata |
 | `set-image-size` | `target` plus `width` or `height` | `expect-content-type` | Updates DrawingML extents |

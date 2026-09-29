@@ -93,6 +93,7 @@ internal static partial class DocxPatchEngine
         bool anyMutation = false;
         bool priorFailure = false;
         var reports = new List<DocxPatchOperationReport>();
+        var definedAliases = new HashSet<string>(StringComparer.Ordinal);
         foreach (DocxPatchOperation operation in patch.Operations)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -118,6 +119,20 @@ internal static partial class DocxPatchEngine
                 });
                 continue;
             }
+            DocxDiagnostic? aliasDefinition = ValidateAliasDefinition(operation, definedAliases);
+            if (aliasDefinition is not null)
+            {
+                diagnostics.Add(aliasDefinition);
+                priorFailure = true;
+                reports.Add(new DocxPatchOperationReport(
+                    operation.Index,
+                    operation.OperationName,
+                    operation.Fields.GetValueOrDefault("target"),
+                    false,
+                    [aliasDefinition]));
+                continue;
+            }
+
             var operationDiagnostics = new List<DocxDiagnostic>();
             int revisionMark = revisionIds.Count;
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
@@ -193,6 +208,11 @@ internal static partial class DocxPatchEngine
             if (WordIdAllocatingOperations.Contains(operation.OperationName))
             {
                 revisionIds.Invalidate();
+            }
+            if (operationSuccess && operation.Fields.TryGetValue("as", out string? aliasName) && aliasName is not null)
+            {
+                BindCreatedAlias(operation, package, aliasName, commentsBefore, bookmarkCountsBefore, cancellationToken);
+                definedAliases.Add(aliasName);
             }
         }
 

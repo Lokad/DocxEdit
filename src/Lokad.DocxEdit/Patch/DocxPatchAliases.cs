@@ -1,0 +1,433 @@
+using System.Xml.Linq;
+using Lokad.DocxEdit.Model;
+using Lokad.DocxEdit.Ooxml;
+
+namespace Lokad.DocxEdit;
+
+// D13: named result bindings for created objects. Creation operations accept
+// an as field that names the new object; later operations address it through an at-sign name target. Bindings are recorded on snapshot alias marks, so
+// resolution needs no alias table threading: paragraph and bookmark marks
+// live in story parts, comment marks in comments parts, and all marks are
+// stripped before publication. Bindings are local to one patch and resolve
+// sequentially: duplicates, unknown names, forward references, and deleted
+// targets fail explicitly, and an alias always names one created object.
+internal static partial class DocxPatchEngine
+{
+    private static bool IsAliasReference(string target)
+    {
+        return target.StartsWith("@", StringComparison.Ordinal);
+    }
+
+    private static string AliasReferenceName(string target)
+    {
+        return target.Substring(1);
+    }
+
+    private static bool IsValidAliasName(string name)
+    {
+        if (name.Length == 0 || !char.IsLetter(name[0]))
+        {
+            return false;
+        }
+
+        foreach (char c in name)
+        {
+            if (!char.IsLetterOrDigit(c) && c != (char)95 && c != (char)45)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static (string PartName, XDocument Document, XElement Element)? FindAliasElement(
+        OoxmlPackage package,
+        string alias,
+        CancellationToken cancellationToken)
+    {
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(story.PartName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
+            XElement? match = document.Descendants().FirstOrDefault(element =>
+                (element.Name == OoxmlNs.W + "p" || element.Name == OoxmlNs.W + "bookmarkStart") &&
+                string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
+            if (match is not null)
+            {
+                return (story.PartName, document, match);
+            }
+        }
+
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            if (package.GetPart(partName) is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement? match = document.Descendants(OoxmlNs.W + "comment").FirstOrDefault(element =>
+                string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
+            if (match is not null)
+            {
+                return (partName, document, match);
+            }
+        }
+
+        return null;
+    }
+
+    private static DocxTargetId? TryResolveAliasParagraphId(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        string alias = AliasReferenceName(target);
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            OoxmlPart? part = package.GetPart(story.PartName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
+            XElement? match = document.Descendants(OoxmlNs.W + "p").FirstOrDefault(element => string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
+            if (match is null)
+            {
+                continue;
+            }
+
+            int ordinal = match.ElementsBeforeSelf(OoxmlNs.W + "p").Count() + 1;
+            (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(story.Prefix);
+            return new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, ordinal, 0, 0);
+        }
+
+        return null;
+    }
+
+    private static ParagraphTarget? ResolveAliasParagraphTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        (string PartName, XDocument Document, XElement Element)? found = FindAliasElement(package, AliasReferenceName(target), cancellationToken);
+        if (found is null)
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1201", "Unknown result alias.", operation, target)];
+            return null;
+        }
+
+        (string partName, XDocument document, XElement element) = found.Value;
+        if (element.Name != OoxmlNs.W + "p")
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1201", "Result alias does not identify a paragraph.", operation, target)];
+            return null;
+        }
+
+        return new ParagraphTarget(partName, document, element);
+    }
+
+    private static BlockTarget? ResolveAliasBlockTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        (string PartName, XDocument Document, XElement Element)? found = FindAliasElement(package, AliasReferenceName(target), cancellationToken);
+        if (found is null)
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1201", "Unknown result alias.", operation, target)];
+            return null;
+        }
+
+        (string partName, XDocument document, XElement element) = found.Value;
+        if (element.Name != OoxmlNs.W + "p")
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1201", "Result alias does not identify a block.", operation, target)];
+            return null;
+        }
+
+        return new BlockTarget(partName, document, element);
+    }
+
+    private static CommentTarget? ResolveAliasCommentTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out DocxDiagnostic? diagnostic)
+    {
+        diagnostic = null;
+        (string PartName, XDocument Document, XElement Element)? found = FindAliasElement(package, AliasReferenceName(target), cancellationToken);
+        if (found is null)
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E1201", "Unknown result alias.", operation, target);
+            return null;
+        }
+
+        (string partName, XDocument document, XElement element) = found.Value;
+        if (element.Name != OoxmlNs.W + "comment")
+        {
+            diagnostic = Diagnostic(DocxSeverity.Error, "E1201", "Result alias does not identify a comment.", operation, target);
+            return null;
+        }
+
+        return new CommentTarget(partName, document, element);
+    }
+
+    private static BookmarkTarget? ResolveAliasBookmarkTarget(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken,
+        out IReadOnlyList<DocxDiagnostic> diagnostics)
+    {
+        diagnostics = [];
+        (string PartName, XDocument Document, XElement Element)? found = FindAliasElement(package, AliasReferenceName(target), cancellationToken);
+        if (found is null)
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1201", "Unknown result alias.", operation, target)];
+            return null;
+        }
+
+        (string partName, XDocument document, XElement start) = found.Value;
+        if (start.Name != OoxmlNs.W + "bookmarkStart")
+        {
+            diagnostics = [Diagnostic(DocxSeverity.Error, "E1201", "Result alias does not identify a bookmark.", operation, target)];
+            return null;
+        }
+
+        string? ooxmlId = (string?)start.Attribute(OoxmlNs.W + "id");
+        XElement? end = ooxmlId is null
+            ? null
+            : document.Descendants(OoxmlNs.W + "bookmarkEnd").FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), ooxmlId, StringComparison.Ordinal));
+        return new BookmarkTarget(partName, document, start, end);
+    }
+
+    private static BlockTarget? ResolveInsertAnchor(
+        DocxPatchOperation operation,
+        OoxmlPackage package,
+        CancellationToken cancellationToken)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (target is null)
+        {
+            return null;
+        }
+
+        BlockTarget? anchor = ResolveBlockTarget(package, operation, target, cancellationToken, out _);
+        if (anchor is null || (anchor.Block.Name != OoxmlNs.W + "p" && anchor.Block.Name != OoxmlNs.W + "tbl"))
+        {
+            return null;
+        }
+
+        return anchor;
+    }
+
+    private static List<XElement> FindAdjacentInsertParagraphs(XElement anchor, bool insertAfter, int count)
+    {
+        return insertAfter
+            ? anchor.ElementsAfterSelf(OoxmlNs.W + "p").Take(count).ToList()
+            : anchor.ElementsBeforeSelf(OoxmlNs.W + "p").TakeLast(count).ToList();
+    }
+
+    private static (string PartName, XDocument Document, XElement Element)? FindCommentElementById(
+        OoxmlPackage package,
+        string commentId,
+        CancellationToken cancellationToken)
+    {
+        foreach (string partName in GetCommentsPartNames(package, cancellationToken))
+        {
+            if (package.GetPart(partName) is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+            XElement? match = document.Descendants(OoxmlNs.W + "comment").FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), commentId, StringComparison.Ordinal));
+            if (match is not null)
+            {
+                return (partName, document, match);
+            }
+        }
+
+        return null;
+    }
+
+    private static (string PartName, XDocument Document, XElement Element)? FindNthBookmarkStart(
+        OoxmlPackage package,
+        string partName,
+        int ordinal,
+        CancellationToken cancellationToken)
+    {
+        if (package.GetPart(partName) is null || ordinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+        XElement? match = document.Descendants(OoxmlNs.W + "bookmarkStart").ElementAtOrDefault(ordinal - 1);
+        return match is null ? null : (partName, document, match);
+    }
+
+    private static void BindCreatedAlias(
+        DocxPatchOperation operation,
+        OoxmlPackage package,
+        string alias,
+        IReadOnlySet<string>? commentsBefore,
+        IReadOnlyDictionary<string, int>? bookmarkCountsBefore,
+        CancellationToken cancellationToken)
+    {
+        Dictionary<string, XDocument> touched = new(StringComparer.OrdinalIgnoreCase);
+
+        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after")
+        {
+            BlockTarget? anchor = ResolveInsertAnchor(operation, package, cancellationToken);
+            if (anchor is null)
+            {
+                return;
+            }
+
+            bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
+            int count = operation.FieldValues.Count(static field => field.Name == "text");
+            foreach (XElement created in FindAdjacentInsertParagraphs(anchor.Block, insertAfter, count))
+            {
+                created.SetAttributeValue(SnapshotAliasName, alias);
+            }
+
+            touched[anchor.PartName] = anchor.Document;
+            SaveTouchedParts(package, touched);
+            return;
+        }
+
+        if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null)
+        {
+            HashSet<string> after = ReadCommentIds(package, cancellationToken);
+            after.ExceptWith(commentsBefore);
+            foreach (string id in after)
+            {
+                (string PartName, XDocument Document, XElement Element)? found = FindCommentElementById(package, id, cancellationToken);
+                if (found is null)
+                {
+                    continue;
+                }
+
+                found.Value.Element.SetAttributeValue(SnapshotAliasName, alias);
+                touched[found.Value.PartName] = found.Value.Document;
+            }
+
+            SaveTouchedParts(package, touched);
+            return;
+        }
+
+        if (operation.OperationName == "add-bookmark" && bookmarkCountsBefore is not null)
+        {
+            Dictionary<string, int> after = CountBookmarkStarts(package, cancellationToken);
+            foreach ((string partName, int count) in after)
+            {
+                if (count - bookmarkCountsBefore.GetValueOrDefault(partName) != 1)
+                {
+                    continue;
+                }
+
+                (string PartName, XDocument Document, XElement Element)? found = FindNthBookmarkStart(package, partName, count, cancellationToken);
+                if (found is null)
+                {
+                    continue;
+                }
+
+                found.Value.Element.SetAttributeValue(SnapshotAliasName, alias);
+                touched[found.Value.PartName] = found.Value.Document;
+            }
+
+            SaveTouchedParts(package, touched);
+        }
+    }
+
+    private static void SaveTouchedParts(OoxmlPackage package, Dictionary<string, XDocument> touched)
+    {
+        foreach ((string partName, XDocument document) in touched)
+        {
+            SaveDocumentPart(package, partName, document);
+        }
+    }
+
+    private static DocxDiagnostic? ValidateAliasDefinition(
+        DocxPatchOperation operation,
+        IReadOnlySet<string> definedAliases)
+    {
+        if (!operation.Fields.TryGetValue("as", out string? alias) || alias is null)
+        {
+            return null;
+        }
+
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (!IsValidAliasName(alias))
+        {
+            return Diagnostic(DocxSeverity.Error, "E4205", "Invalid alias name: use a leading letter followed by letters, digits, underscore, or hyphen.", operation, target, fieldName: "as");
+        }
+
+        if (definedAliases.Contains(alias))
+        {
+            return Diagnostic(DocxSeverity.Error, "E4205", "Duplicate alias: this patch already binds that name.", operation, target, fieldName: "as");
+        }
+
+        if ((operation.OperationName is "insert-before" or "insert-after" or "insert-image-after") &&
+            operation.FieldValues.Count(static field => field.Name == "text") > 1)
+        {
+            return Diagnostic(DocxSeverity.Error, "E4205", "An alias requires a single created object: use one text field with as.", operation, target, fieldName: "as");
+        }
+
+        return null;
+    }
+
+    internal static IReadOnlyList<DocxDiagnostic> ValidatePatchAliases(DocxPatch patch)
+    {
+        List<DocxDiagnostic> diagnostics = [];
+        HashSet<string> defined = new(StringComparer.Ordinal);
+        foreach (DocxPatchOperation operation in patch.Operations)
+        {
+            if (operation.Fields.TryGetValue("as", out string? alias) && alias is not null)
+            {
+                string? aliasTarget = operation.Fields.GetValueOrDefault("target");
+                if (!IsValidAliasName(alias))
+                {
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Invalid alias name: use a leading letter followed by letters, digits, underscore, or hyphen.", operation, aliasTarget, fieldName: "as"));
+                }
+                else if (defined.Contains(alias))
+                {
+                    diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Duplicate alias: this patch already binds that name.", operation, aliasTarget, fieldName: "as"));
+                }
+                else
+                {
+                    defined.Add(alias);
+                    if ((operation.OperationName is "insert-before" or "insert-after" or "insert-image-after") &&
+                        operation.FieldValues.Count(static field => field.Name == "text") > 1)
+                    {
+                        diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "An alias requires a single created object: use one text field with as.", operation, aliasTarget, fieldName: "as"));
+                    }
+                }
+            }
+
+            string? target = operation.Fields.GetValueOrDefault("target");
+            if (target is not null && IsAliasReference(target) && !defined.Contains(AliasReferenceName(target)))
+            {
+                diagnostics.Add(Diagnostic(DocxSeverity.Error, "E1201", "Unknown result alias.", operation, target));
+            }
+        }
+
+        return diagnostics;
+    }
+}
