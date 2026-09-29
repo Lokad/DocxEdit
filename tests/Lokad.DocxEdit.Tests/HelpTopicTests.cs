@@ -478,4 +478,40 @@ public static class HelpTopicTests
         Assert.Contains("docxedit help lint", spec, StringComparison.Ordinal);
         Assert.Contains("capabilities|template", spec, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void SectionExamplesCheckClean()
+    {
+        const string body = """
+                    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>
+                    <w:sectPr>
+                      <w:pgSz w:w="12240" w:h="15840"/>
+                      <w:cols w:num="1"/>
+                    </w:sectPr>
+            """;
+        Assert.True(DocxHelp.TryGetPatchOperation("set-section-columns", out DocxPatchOperationInfo columns));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-section-orientation", out DocxPatchOperationInfo orientation));
+        foreach (string example in columns.Examples.Concat(orientation.Examples))
+        {
+            using MemoryStream input = CreateDocxWithBody(body);
+            using var patch = new StringReader(example);
+            DocxCheckResult result = new DocxEditor().Check(input, patch);
+            Assert.True(result.Success, example + ":" + string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+    [Fact]
+    public static void RowExamplesCheckClean()
+    {
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-row-before", out DocxPatchOperationInfo insertBefore));
+        Assert.True(DocxHelp.TryGetPatchOperation("insert-row-after", out DocxPatchOperationInfo insertAfter));
+        Assert.True(DocxHelp.TryGetPatchOperation("delete-row", out DocxPatchOperationInfo delete));
+        Assert.True(DocxHelp.TryGetPatchOperation("set-row-header", out DocxPatchOperationInfo header));
+        foreach (string example in insertBefore.Examples.Concat(insertAfter.Examples).Concat(delete.Examples).Concat(header.Examples))
+        {
+            using MemoryStream input = CreateDocxWithSimpleTwoByTwoTable();
+            using var patch = new StringReader(example);
+            DocxCheckResult result = new DocxEditor().Check(input, patch);
+            Assert.True(result.Success, example + ":" + string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        }
+    }
+
 }

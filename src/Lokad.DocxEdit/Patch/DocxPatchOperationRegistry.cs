@@ -992,7 +992,30 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit row property revisions with w:trPrChange while preserving previous row properties.",
             "Tables",
             "Sets or clears the repeating-header flag",
-            ExecuteSetRowHeader) with { AcceptedKinds = [DocxTargetKind.Row] },
+            ExecuteSetRowHeader) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-row-header.
+                docxpatch 1
+                op set-row-header
+                target M.T0001.R01
+                header true
+                end
+                """,
+                """
+                # Guarded set-row-header: expect-header must match before editing.
+                docxpatch 1
+                op set-row-header
+                target M.T0001.R01
+                expect-header false
+                header true
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Row],
+        },
         Tracked(
             "append-row",
             [
@@ -1056,7 +1079,34 @@ internal static partial class DocxPatchEngine
             "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Inserts before a row by cloning the target row shape when safe",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Row] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: false, apply, revisions, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal insert-row-before.
+                docxpatch 1
+                op insert-row-before
+                target M.T0001.R01
+                cell West
+                cell East
+                end
+                """,
+                """
+                # Guarded insert-row-before: expect counts must match before editing.
+                docxpatch 1
+                op insert-row-before
+                target M.T0001.R01
+                expect-row-count 2
+                expect-column-count 2
+                expect-cell-count 2
+                cell West
+                cell East
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Row],
+        },
         Tracked(
             "insert-row-after",
             [
@@ -1074,7 +1124,34 @@ internal static partial class DocxPatchEngine
             "Direct mode clones the target row shape for consistent visual-grid tables when the insertion boundary does not cross an active vertical merge chain. Suggest/Require emit row insertion revisions with w:trPr/w:ins for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Inserts after a row by cloning the target row shape when safe",
-            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)) with { AcceptedKinds = [DocxTargetKind.Row] },
+            (package, operation, options, apply, revisions, cancellationToken) => ExecuteInsertRow(package, operation, options, insertAfter: true, apply, revisions, cancellationToken)) with
+        {
+            Examples =
+            [
+                """
+                # Minimal insert-row-after.
+                docxpatch 1
+                op insert-row-after
+                target M.T0001.R01
+                cell West
+                cell East
+                end
+                """,
+                """
+                # Guarded insert-row-after: expect counts must match before editing.
+                docxpatch 1
+                op insert-row-after
+                target M.T0001.R01
+                expect-row-count 2
+                expect-column-count 2
+                expect-cell-count 2
+                cell West
+                cell East
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Row],
+        },
         Tracked(
             "delete-row",
             [
@@ -1091,7 +1168,28 @@ internal static partial class DocxPatchEngine
             "Direct mode deletes rows in consistent visual-grid tables and promotes the next vertical-merge continuation when deleting a merge root. Suggest/Require emit row deletion revisions with w:trPr/w:del for simple rectangular tables; force, visual-grid, or other complex shapes warn with W4002 or fail with E6002.",
             "Tables",
             "Deletes a row; direct mode can promote the next vertical-merge continuation",
-            ExecuteDeleteRow) with { AcceptedKinds = [DocxTargetKind.Row] },
+            ExecuteDeleteRow) with
+        {
+            Examples =
+            [
+                """
+                # Minimal delete-row.
+                docxpatch 1
+                op delete-row
+                target M.T0001.R02
+                end
+                """,
+                """
+                # Guarded delete-row: expect-contains must match before editing.
+                docxpatch 1
+                op delete-row
+                target M.T0001.R02
+                expect-contains Profit
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Row],
+        },
         Unsupported(
             "append-column",
             [
@@ -1299,7 +1397,30 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous section properties and references; existing section property revisions fall back or fail instead of being replaced.",
             "Sections",
             "Column count must be 1 through 4",
-            ExecuteSetSectionColumns) with { AcceptedKinds = [DocxTargetKind.Section] },
+            ExecuteSetSectionColumns) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-section-columns.
+                docxpatch 1
+                op set-section-columns
+                target M.S0001
+                count 2
+                end
+                """,
+                """
+                # Guarded set-section-columns: expect-columns must match before editing.
+                docxpatch 1
+                op set-section-columns
+                target M.S0001
+                expect-columns 1
+                count 2
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Section],
+        },
         Tracked(
             "set-section-orientation",
             [
@@ -1314,7 +1435,30 @@ internal static partial class DocxPatchEngine
             "Suggest/Require emit section property revisions with w:sectPrChange while preserving previous page size, section properties, and references; existing section property revisions fall back or fail instead of being replaced.",
             "Sections",
             "`orientation` is `portrait` or `landscape`",
-            ExecuteSetSectionOrientation) with { AcceptedKinds = [DocxTargetKind.Section] },
+            ExecuteSetSectionOrientation) with
+        {
+            Examples =
+            [
+                """
+                # Minimal set-section-orientation.
+                docxpatch 1
+                op set-section-orientation
+                target M.S0001
+                orientation landscape
+                end
+                """,
+                """
+                # Guarded set-section-orientation: expect-orientation must match before editing.
+                docxpatch 1
+                op set-section-orientation
+                target M.S0001
+                expect-orientation portrait
+                orientation landscape
+                end
+                """,
+            ],
+            AcceptedKinds = [DocxTargetKind.Section],
+        },
     ];
     private static readonly IReadOnlyDictionary<string, OperationRegistration> OperationsByName =
         OperationRegistrations.ToDictionary(registration => registration.Name, StringComparer.Ordinal);
