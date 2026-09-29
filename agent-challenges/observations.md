@@ -409,3 +409,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 8 commands, 0 failing, 0 retries; about 149k input tokens with about 125k cached
 - Artifacts: artifacts/agent-challenges/markup-targeting/20260929T174608Z/summary.json
 - Notes: first independent-model run (codex-cli 0.155.1 with model gpt-5.5 against the markup-bearing input). Slow cold start of about 4 minutes idle before the first events, then clean. Cross-model contrast: this agent took the comment-anchored paragraph path while the default-model run took the revision-pair path; both completed. Agent-reported weaknesses: changes JSON carries snippet-capable fields so privacy-safe use needs redirection or selective parsing; comment records need the anchor and reference fields, not just the record TargetId, to jump back to main context; max-text 0 still emits the markup warnings. No text disclosed.
+
+### 2026-09-29 — tracked-replace-probe (cross-model gpt-5.5 run) — completed
+
+- Commands: help, changes, read, dump, check, apply
+- Diagnostics: none (zero diagnostics on check, apply, and verification)
+- Target IDs: M.P0002 discovered and edited; revision IDs 1 and 2 generated
+- Markup types: deleted-run, inserted-run with requested author and timestamp
+- Counts: 15 commands, 0 failing, check before apply plus changes and dump verification; about 207k input tokens with about 174k cached
+- Artifacts: artifacts/agent-challenges/tracked-replace-probe/20260929T175024Z/summary.json
+- Notes: second independent-model run, covering the edit path on the stand-in input. Fully guarded tracked replacement under require with explicit author and timestamp; verified through changes record counts and run-level dump. Notable privacy behavior: the agent passed max-preview-chars 0 to keep preview text out of report files. Agent-reported weaknesses, both verified as designed: PairedChangeId links range starts to ends only, not replacement siblings; check reports no generated revision IDs because allocation happens at apply. No text disclosed.
