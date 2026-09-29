@@ -47,6 +47,40 @@ public static class CliTemplateTests
     }
 
     [Fact]
+    public static void CliCellTemplateOutputPassesCheck()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        using MemoryStream docx = CreateDocxWithSimpleTwoByTwoTable();
+        string input = WriteFixture(temp, "input.docx", docx);
+
+        CliTests.CliResult template = CliTests.RunCli("template", input, "--id", "M.T0001.R01.C01");
+        Assert.Equal(0, template.ExitCode);
+        string patchPath = Path.Combine(temp.Path, "template.docxpatch");
+        File.WriteAllText(patchPath, template.Output);
+
+        CliTests.CliResult check = CliTests.RunCli("check", input, patchPath);
+
+        Assert.Equal(0, check.ExitCode);
+    }
+
+    [Fact]
+    public static void CliImageTemplateOutputPassesCheck()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        using MemoryStream docx = CreateDocxWithImage("png", "image/png", "old-png");
+        string input = WriteFixture(temp, "input.docx", docx);
+
+        CliTests.CliResult template = CliTests.RunCli("template", input, "--id", "M.I0001");
+        Assert.Equal(0, template.ExitCode);
+        string patchPath = Path.Combine(temp.Path, "template.docxpatch");
+        File.WriteAllText(patchPath, template.Output);
+
+        CliTests.CliResult check = CliTests.RunCli("check", input, patchPath);
+
+        Assert.Equal(0, check.ExitCode);
+    }
+
+    [Fact]
     public static void CliTemplateJsonEmitsTemplateAndCapabilities()
     {
         using TempDirectory temp = TempDirectory.Create();
