@@ -1,0 +1,39 @@
+{
+  "id": "control-choice-exclusive",
+  "description": "Refuses a choice selection with both value and display text with E4205.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:dropDownList>",
+      "            <w:listItem w:displayText=\"North\" w:value=\"north\"/>",
+      "            <w:listItem w:displayText=\"South\" w:value=\"south\"/>",
+      "          </w:dropDownList>",
+      "          <w:tag w:val=\"region\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>North</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-choice",
+    "target M.CC0001",
+    "value south",
+    "display-text South",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4205"
+    ],
+    "diagnosticMessagesContain": [
+      "Exactly one of"
+    ]
+  }
+}
