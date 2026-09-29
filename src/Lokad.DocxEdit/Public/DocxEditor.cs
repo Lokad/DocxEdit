@@ -417,21 +417,21 @@ public sealed class DocxEditor
         };
     }
 
-    /// <summary>Describes editing capabilities for one target (paragraph, content control, cell, or merge group). Uses default options and no cancellation.</summary>
+    /// <summary>Describes editing capabilities for one target (paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, or image). Uses default options and no cancellation.</summary>
     public DocxCapabilitiesResult GetCapabilities(
         Stream input, string targetId)
     {
         return GetCapabilities(input, targetId, new DocxCapabilitiesOptions(), CancellationToken.None);
     }
 
-    /// <summary>Describes editing capabilities for one target (paragraph, content control, cell, or merge group). Uses no cancellation.</summary>
+    /// <summary>Describes editing capabilities for one target (paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, or image). Uses no cancellation.</summary>
     public DocxCapabilitiesResult GetCapabilities(
         Stream input, string targetId, DocxCapabilitiesOptions options)
     {
         return GetCapabilities(input, targetId, options, CancellationToken.None);
     }
 
-    /// <summary>Describes editing capabilities for one target (paragraph, content control, cell, or merge group) with explicit options and cancellation.</summary>
+    /// <summary>Describes editing capabilities for one target (paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, or image) with explicit options and cancellation.</summary>
     public DocxCapabilitiesResult GetCapabilities(
         Stream input,
         string targetId,

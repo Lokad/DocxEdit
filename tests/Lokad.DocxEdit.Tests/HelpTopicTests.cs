@@ -37,6 +37,19 @@ public static class HelpTopicTests
         Assert.Contains("op append-column", topic, StringComparison.Ordinal);
         Assert.Contains("E4316", topic, StringComparison.Ordinal);
     }
+    [Fact]
+    public static void CapabilitiesAndTemplateTopicsCoverAllTargetKinds()
+    {
+        string capabilities = DocxHelp.RenderTopic("capabilities");
+        string template = DocxHelp.RenderTopic("template");
+
+        foreach (string kind in new[] { "paragraph", "content-control", "cell", "merge-group", "bookmark", "table", "row", "section", "hyperlink", "field", "image" })
+        {
+            Assert.Contains(kind, capabilities, StringComparison.Ordinal);
+            Assert.Contains(kind, template, StringComparison.Ordinal);
+        }
+    }
+
 
     [Fact]
     public static void CliHelpPatchOperationMatchesLibraryTopic()

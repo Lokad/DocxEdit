@@ -827,7 +827,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "Show supported, conditional, and unsupported edits for one target",
                     Usage = "docxedit capabilities input.docx --id M.P0001 [--track-changes <mode>] [--json] [--compact] [--diagnostics <path>] [--strict]",
-                    Description = "Describe supported, conditional, and unsupported edits for one paragraph, content-control, cell, or merge-group target under an effective track-change policy. Each operation carries an actionable reason, a help topic, and a safe alternative when one exists. Output is metadata-only guidance: capabilities can change after an edit, and check remains authoritative for a patch.",
+                    Description = "Describe supported, conditional, and unsupported edits for one paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, or image target under an effective track-change policy. Each operation carries an actionable reason, a help topic, and a safe alternative when one exists. Output is metadata-only guidance: capabilities can change after an edit, and check remains authoritative for a patch.",
                     Options =
                     [
                         new("--id M.P0001", "Target ID from read, outline, find, or changes") { Flags = ["--id"] },
@@ -860,7 +860,7 @@ public static class DocxHelp
                     Category = "read",
                     Summary = "Print a guarded patch template for one target",
                     Usage = "docxedit template input.docx --id M.P0001 [--track-changes <mode>] [--json] [--compact] [--diagnostics <path>] [--strict]",
-                    Description = "Print a guarded patch template for one paragraph, content-control, cell, or merge-group target. The active block passes check under the requested policy and changes nothing visible; remaining supported operations follow as commented blocks. Templates are generated from target-specific capabilities, so unsupported operations are omitted and conditional ones carry their condition.",
+                    Description = "Print a guarded patch template for one paragraph, content-control, cell, merge-group, bookmark, table, row, section, hyperlink, field, or image target. The active block passes check under the requested policy and changes nothing visible; remaining supported operations follow as commented blocks. Templates are generated from target-specific capabilities, so unsupported operations are omitted and conditional ones carry their condition.",
                     Options =
                     [
                         new("--id M.P0001", "Target ID from read, outline, find, or changes") { Flags = ["--id"] },
