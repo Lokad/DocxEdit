@@ -1,0 +1,36 @@
+{
+  "id": "guard-control-text-mismatch",
+  "description": "Fails a content control text edit on a mismatched expect-text guard with E3201.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:text/>",
+      "          <w:tag w:val=\"amount\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Old</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target content-control:\"amount\"",
+    "text New",
+    "expect-text Wrong",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E3201"
+    ],
+    "diagnosticMessagesContain": [
+      "Guard failed"
+    ]
+  }
+}
