@@ -571,4 +571,56 @@ public static class PatchAliasTests
         Assert.Contains(result.Operations[2].Diagnostics, static diagnostic => diagnostic.Code == "E1201");
     }
 
+    [Fact]
+    public static void ImageAltViaAlias()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", CreatePngBytes(4, 3), null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            alt Old image
+            as im1
+            end
+            op set-image-alt
+            target @im1
+            alt New image
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("descr=\"New image\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"Old image\"", xml, StringComparison.Ordinal);
+    }
+    [Fact]
+    public static void DeletedImageAliasRefuses()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        var assets = new MemoryAssetProvider("chart.png", CreatePngBytes(4, 3), null, "chart.png");
+        using var patch = new StringReader("""
+            docxpatch 1
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            as im1
+            end
+            op delete-image
+            target @im1
+            end
+            op set-image-alt
+            target @im1
+            alt Gone
+            end
+            """);
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+        Assert.False(result.Success);
+        Assert.Contains(result.Operations[2].Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
 }

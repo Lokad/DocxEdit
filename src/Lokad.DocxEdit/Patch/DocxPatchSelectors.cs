@@ -1545,6 +1545,11 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
+        if (IsAliasReference(target))
+        {
+            return ResolveAliasImageBlipTarget(package, target, cancellationToken);
+        }
+
         if (!DocxTargetId.TryParse(target, out DocxTargetId imageId) || imageId.Kind != DocxTargetKind.Image)
         {
             return null;

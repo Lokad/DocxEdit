@@ -239,6 +239,45 @@ internal static partial class DocxPatchEngine
         return null;
     }
 
+    private static ImageBlipTarget? ResolveAliasImageBlipTarget(
+        OoxmlPackage package,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        string alias = AliasReferenceName(target);
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            OoxmlPart? storyPart = package.GetPart(story.PartName);
+            if (storyPart is null)
+            {
+                continue;
+            }
+            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
+            XElement? match = document.Descendants(OoxmlNs.A + "blip").FirstOrDefault(element => string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
+            if (match is null)
+            {
+                continue;
+            }
+            string? relationshipId = (string?)match.Attribute(OoxmlNs.R + "embed");
+            if (relationshipId is null)
+            {
+                return null;
+            }
+            OoxmlRelationship? relationship = package.GetRelationships(story.PartName, cancellationToken).FirstOrDefault(candidate => string.Equals(candidate.Id, relationshipId, StringComparison.Ordinal));
+            if (relationship is null || relationship.IsExternal || relationship.ResolvedTarget is null)
+            {
+                return null;
+            }
+            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
+            if (part is null)
+            {
+                return null;
+            }
+            return new ImageBlipTarget(story.PartName, document, match, relationshipId, part);
+        }
+        return null;
+    }
+
     private static BlockTarget? ResolveInsertAnchor(
         DocxPatchOperation operation,
         OoxmlPackage package,
@@ -387,13 +426,17 @@ internal static partial class DocxPatchEngine
             }
 
             bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
-            int count = operation.FieldValues.Count(static field => field.Name == "text");
+            int count = Math.Max(1, operation.FieldValues.Count(static field => field.Name == "text"));
             foreach (XElement created in FindAdjacentInsertParagraphs(anchor.Block, insertAfter, count))
             {
                 created.SetAttributeValue(SnapshotAliasName, alias);
                 if (string.Equals(operation.OperationName, "insert-hyperlink-after", StringComparison.Ordinal))
                 {
                     created.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, alias);
+                }
+                if (string.Equals(operation.OperationName, "insert-image-after", StringComparison.Ordinal))
+                {
+                    created.Descendants(OoxmlNs.A + "blip").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, alias);
                 }
             }
 
