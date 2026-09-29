@@ -1579,6 +1579,91 @@ internal static class TextRenderers
             string.Equals(change.TargetId, targetId, StringComparison.Ordinal));
     }
 
+    internal static string BuildUnknownTargetMessage(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId)
+    {
+        string quote = ((char)39).ToString();
+        string? nearest = SuggestNearestTargetId(model, changes, targetId);
+        string hint = nearest is null ? string.Empty : " Did you mean " + quote + nearest + quote + "?";
+        return "Target " + quote + targetId + quote + " was not found." + hint;
+    }
+
+    internal static string? SuggestNearestTargetId(DocxDocumentModel model, IReadOnlyList<DocxChangeInfo> changes, string targetId)
+    {
+        var candidates = new List<string>();
+        foreach (DocxParagraphInfo paragraph in model.Paragraphs)
+        {
+            candidates.Add(paragraph.Id.ToWireValue());
+        }
+
+        foreach (DocxTableInfo table in model.Tables)
+        {
+            candidates.Add(table.Id.ToWireValue());
+            foreach (DocxTableRowInfo row in table.Rows)
+            {
+                candidates.Add(row.Id.ToWireValue());
+            }
+
+            foreach (DocxTableCellInfo cell in table.Cells)
+            {
+                candidates.Add(cell.Id.ToWireValue());
+                if (cell.MergeGroupId is { } group)
+                {
+                    candidates.Add(group.ToWireValue());
+                }
+            }
+        }
+
+        foreach (DocxSectionInfo section in model.Sections)
+        {
+            candidates.Add(section.Id.ToWireValue());
+        }
+
+        foreach (DocxImageInfo image in model.Images)
+        {
+            candidates.Add(image.Id.ToWireValue());
+        }
+
+        foreach (DocxBookmarkInfo bookmark in model.Bookmarks)
+        {
+            candidates.Add(bookmark.Id.ToWireValue());
+        }
+
+        foreach (DocxContentControlInfo control in model.ContentControls)
+        {
+            candidates.Add(control.Id.ToWireValue());
+        }
+
+        foreach (DocxFieldInfo field in model.Fields)
+        {
+            candidates.Add(field.Id.ToWireValue());
+        }
+
+        foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
+        {
+            candidates.Add(hyperlink.Id.ToWireValue());
+        }
+
+        foreach (DocxChangeInfo change in changes)
+        {
+            if (!string.Equals(change.Type, "comment", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(change.TargetId))
+            {
+                candidates.Add(change.TargetId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(change.CommentId))
+            {
+                candidates.Add("comment:" + change.CommentId);
+            }
+        }
+
+        return DocxPatchParser.SuggestNearestName(targetId, candidates);
+    }
+
     private static string RenderCommentDump(DocxChangeInfo comment)
     {
         string commentId = comment.CommentId is null ? string.Empty : $" comment-id={XmlValues.EscapeText(comment.CommentId)}";

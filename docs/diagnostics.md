@@ -47,7 +47,7 @@ Common code ranges:
   invalid generated revision metadata before operation execution. Empty revision
   authors are rejected with `Feature = track-changes-revision-metadata` and
   `Fallback = no-output-written`.
-- `E1201`: selector matched no targets, a target ID was not found, or the target shape is wrong for the operation. Zero-match selector diagnostics carry match count 0 with the nearby candidate IDs.
+- `E1201`: selector matched no targets, a target ID was not found, or the target shape is wrong for the operation. Zero-match selector diagnostics carry match count 0 with the nearby candidate IDs. Unknown inspection targets name the nearest known ID when within edit distance 3.
 - `E1202`: selector matched multiple targets ambiguously (the message lists candidate IDs), or find/anchor text matched multiple ranges; the message reports the match count and how to select one match or every match.
 - `E1203`: selector text is malformed.
 - `E2001`: patch text is empty.

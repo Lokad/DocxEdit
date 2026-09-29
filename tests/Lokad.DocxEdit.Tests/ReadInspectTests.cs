@@ -531,6 +531,33 @@ public static class ReadInspectTests
         Assert.Empty(result.Items);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E1201" && diagnostic.TargetId == "M.P9999");
     }
+    [Fact]
+    public static void ContextUnknownTargetSuggestsNearestId()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "M.P002");
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = result.Diagnostics.First(static d => d.Code == "E1201");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("M.P0002", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void ContextFarMissStaysSilent()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxContextResult result = editor.Context(stream, "ZZZZZ");
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = result.Diagnostics.First(static d => d.Code == "E1201");
+        Assert.DoesNotContain("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public static void DumpReportsUnknownTarget()
@@ -545,6 +572,20 @@ public static class ReadInspectTests
         Assert.Empty(result.Runs);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "E1201" && diagnostic.TargetId == "M.P9999");
     }
+    [Fact]
+    public static void DumpUnknownTargetSuggestsNearestId()
+    {
+        using MemoryStream stream = CreateDocx();
+        var editor = new DocxEditor();
+
+        DocxDumpResult result = editor.Dump(stream, "M.P002");
+
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = result.Diagnostics.First(static d => d.Code == "E1201");
+        Assert.Contains("Did you mean", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("M.P0002", diagnostic.Message, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public static void DumpResolvesHeaderTarget()

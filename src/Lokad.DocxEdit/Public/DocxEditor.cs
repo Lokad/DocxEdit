@@ -323,7 +323,7 @@ public sealed class DocxEditor
                 Success = false,
                 Diagnostics = diagnostics
                     .Concat(dumpUnsupported)
-                    .Append(new DocxDiagnostic(DocxSeverity.Error, "E1201", $"Target '{targetId}' was not found.") with { TargetId = targetId })
+                    .Append(new DocxDiagnostic(DocxSeverity.Error, "E1201", TextRenderers.BuildUnknownTargetMessage(model, changes, targetId)) with { TargetId = targetId })
                     .ToArray(),
                 TargetId = targetId
             };
@@ -392,7 +392,7 @@ public sealed class DocxEditor
 
         IReadOnlyList<DocxContextItem> items = TextRenderers.Context(model, changes, targetId, options.Radius, options.MaxText);
         IReadOnlyList<DocxDiagnostic> contextDiagnostics = items.Count == 0
-            ? [new DocxDiagnostic(DocxSeverity.Error, "E1201", $"Target '{targetId}' was not found.") with { TargetId = targetId }]
+            ? [new DocxDiagnostic(DocxSeverity.Error, "E1201", TextRenderers.BuildUnknownTargetMessage(model, changes, targetId)) with { TargetId = targetId }]
             : [];
         if (!TryUnsupportedScan(package, (options.IncludeHeadersFooters || TargetRequestsHeadersFooters(targetId)), cancellationToken, out IReadOnlyList<DocxDiagnostic>? contextUnsupported, out IReadOnlyList<DocxDiagnostic> contextUnsupportedFailure))
         {
