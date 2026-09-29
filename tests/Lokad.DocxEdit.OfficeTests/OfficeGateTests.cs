@@ -1092,6 +1092,77 @@ public static class OfficeGateTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationMergeCellRoundTripIsOptIn()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateMergeDocx(inputPath);
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op set-cell
+                target M.T0001.MG0001
+                expect-text Old merged
+                text New merged
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            DocxTableInfo table = Assert.Single(read.Tables);
+            DocxTableCellInfo cell = Assert.Single(table.Cells);
+            Assert.Equal("M.T0001.MG0001", cell.MergeGroupId?.ToWireValue());
+            Assert.Equal(2, cell.VisualColumnEndIndex);
+            Assert.Equal("New merged", cell.Text);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Keep the test failure focused on Office/docx behavior if cleanup is blocked.
+            }
+        }
+    }
+
 
     private static void OpenSaveWithWord(Type wordApplicationType, string path)
     {
@@ -1557,6 +1628,43 @@ public static class OfficeGateTests
             <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
               <w:body>
                 <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Alpha Beta</w:t></w:r></w:p>
+              </w:body>
+            </w:document>
+            """);
+    }
+
+    private static void CreateMergeDocx(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:tbl>
+                  <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                  <w:tr>
+                    <w:tc>
+                      <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                      <w:p><w:r><w:t>Old merged</w:t></w:r></w:p>
+                    </w:tc>
+                  </w:tr>
+                </w:tbl>
               </w:body>
             </w:document>
             """);
