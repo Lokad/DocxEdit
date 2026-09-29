@@ -721,6 +721,15 @@ internal static class TextRenderers
             {
                 return RowContext(candidateTable, targetId, rowCells, radius, maxText, annotations);
             }
+            DocxTableCellInfo[] groupCells = candidateTable.Cells
+                .Where(cell => cell.MergeGroupId is { } group && string.Equals(group.ToWireValue(), targetId, StringComparison.Ordinal))
+                .OrderBy(cell => cell.RowIndex)
+                .ThenBy(cell => cell.ColumnIndex)
+                .ToArray();
+            if (groupCells.Length > 0)
+            {
+                return MergeGroupContext(candidateTable, targetId, groupCells, radius, maxText, annotations);
+            }
         }
 
         DocxSectionInfo? section = model.Sections.FirstOrDefault(section => string.Equals(section.Id.ToWireValue(), targetId, StringComparison.Ordinal));
@@ -988,7 +997,28 @@ internal static class TextRenderers
         return items;
     }
 
+    private static IReadOnlyList<DocxContextItem> MergeGroupContext(DocxTableInfo table, string groupId, IReadOnlyList<DocxTableCellInfo> groupCells, int radius, int maxText, TargetAnnotations annotations)
+    {
+        var items = new List<DocxContextItem>
+        {
+            ApplyAnnotations(ToContextItem(table, "parent"), annotations),
+            new DocxContextItem
+            {
+                Id = groupId,
+                Kind = "merge-group",
+                Relation = "target",
+                Story = table.Story,
+                ParentId = table.Id.ToWireValue()
+            }
+        };
+        items.AddRange(groupCells
+            .Take(Math.Max(1, radius * 2 + 1))
+            .Select(cell => ApplyAnnotations(ToContextItem(cell, "child", maxText, table.Id.ToWireValue(), table.Story), annotations)));
+        return items;
+    }
+
     private static IReadOnlyList<DocxContextItem> RowContext(DocxTableInfo table, string rowId, IReadOnlyList<DocxTableCellInfo> rowCells, int radius, int maxText, TargetAnnotations annotations)
+
     {
         var items = new List<DocxContextItem>
         {

@@ -253,6 +253,38 @@ public static class ReadInspectTests
     }
 
     [Fact]
+    public static void ContextShowsMergeGroupMembers()
+    {
+        using MemoryStream stream = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+                          <w:p><w:r><w:t>North</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:vMerge/></w:tcPr>
+                          <w:p><w:r><w:t>South</w:t></w:r></w:p>
+                        </w:tc>
+                        <w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        var editor = new DocxEditor();
+        DocxContextResult result = editor.Context(stream, "M.T0001.MG0001");
+        Assert.True(result.Success);
+        DocxContextItem target = Assert.Single(result.Items, item => item.Id == "M.T0001.MG0001");
+        Assert.Equal("merge-group", target.Kind);
+        Assert.Equal("target", target.Relation);
+        Assert.Equal("M.T0001", target.ParentId);
+        Assert.Contains(result.Items, item => item.Id == "M.T0001" && item.Relation == "parent");
+        Assert.Contains("target M.T0001.MG0001 merge-group", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void ContextSummarizesNearbyStructureWithoutTextByDefault()
     {
         using MemoryStream stream = CreateDocx();
