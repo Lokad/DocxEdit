@@ -1,0 +1,32 @@
+{
+  "id": "control-picture-refusal",
+  "description": "Refuses text replacement on a picture content control with E4310.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr><w:picture/></w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Image placeholder</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op set-content-control-text",
+    "target M.CC0001",
+    "text Replacement",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4310"
+    ],
+    "diagnosticMessagesContain": [
+      "picture container"
+    ]
+  }
+}
