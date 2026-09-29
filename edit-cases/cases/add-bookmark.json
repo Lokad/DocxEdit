@@ -19,6 +19,9 @@
     "diagnosticCount": 0,
     "paragraphs": [
       "Client paragraph"
+    ],
+    "bookmarkNames": [
+      "ClientParagraph"
     ]
   }
 }
