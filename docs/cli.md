@@ -246,7 +246,7 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Fields | `read`, `outline`, `context` | Field metadata includes parsed arguments/switches and refresh policy; DocxEdit can refresh REF-style bookmark fields and QUOTE literal fields, but Word remains responsible for general recalculation |
 | Hyperlinks | `read`, `outline`, `context`, `dump --runs` | External patch targets must be absolute `http`, `https`, or `mailto`; internal targets use bookmark anchors |
 | Images | `read`, `outline`, `media` | Editable image records are inline or anchored DrawingML images; linked images and complex drawing shapes are preserve-only diagnostics |
-| Tables | `read`, `context` | Cell IDs use visual grid coordinates; `set-cell` and `set-cell-shading` can target merge-group IDs and horizontal spans, but reject vertical-merge continuations; direct row edits can clone safe visual-grid row shapes, while tracked row revisions require simple rectangular tables |
+| Tables | `read`, `context` | Cell IDs use visual grid coordinates; a multi-paragraph cell reads and finds as flat concatenated text with no boundary marker; `set-cell` and `set-cell-shading` can target merge-group IDs and horizontal spans, but reject vertical-merge continuations; direct row edits can clone safe visual-grid row shapes, while tracked row revisions require simple rectangular tables |
 | Sections | `read`, `outline` | Section operations target main-document section IDs |
 
 For a full inventory of supported and unsupported shapes, see
