@@ -201,6 +201,9 @@ public static class EditCaseTests
         string patchText = GetManifestText(patchValue);
         Assert.False(string.IsNullOrWhiteSpace(patchText), "Case " + manifestId + " must define patch.");
 
+        // Empty patches stay out of corpus: truly-empty patch text is refused with E2001,
+        // pinned in PatchParserTests instead of here.
+
         manifest.TryGetProperty("input", out JsonElement input);
         string fixture = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("fixture", out JsonElement fixtureValue) && fixtureValue.ValueKind == JsonValueKind.String ? fixtureValue.GetString() ?? string.Empty : string.Empty;
         string bodyXml = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("bodyXml", out JsonElement bodyValue) ? GetManifestText(bodyValue) : string.Empty;
