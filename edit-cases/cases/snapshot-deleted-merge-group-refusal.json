@@ -1,0 +1,39 @@
+{
+  "id": "snapshot-deleted-merge-group-refusal",
+  "description": "Fails a merge-group edit whose root cell was deleted instead of editing a neighbour.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Top</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:tcPr><w:vMerge w:val=\"restart\"/></w:tcPr><w:p><w:r><w:t>Group</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p><w:r><w:t></w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-row",
+    "target M.T0001.R02",
+    "end",
+    "",
+    "op delete-row",
+    "target M.T0001.R03",
+    "end",
+    "",
+    "op set-cell",
+    "target M.T0001.MG0001",
+    "text Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1201"
+    ],
+    "diagnosticMessagesContain": [
+      "0 targets"
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "snapshot-header-binding",
+  "description": "Binds header bookmark IDs to the input snapshot across a structural delete.",
+  "input": {
+    "bodyXml": [
+      "    <w:p><w:r><w:t>Main text</w:t></w:r></w:p>"
+    ],
+    "headerXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"11\" w:name=\"HFirst\"/>",
+      "      <w:r><w:t>Alpha</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"11\"/>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"12\" w:name=\"HSecond\"/>",
+      "      <w:r><w:t>Beta</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"12\"/>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target H001.P0001",
+    "end",
+    "",
+    "op replace-bookmark-text",
+    "target H001.B0002",
+    "expect-text Beta",
+    "text Changed",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "allStoryParagraphs": [
+      "Main text",
+      "Changed"
+    ]
+  }
+}
