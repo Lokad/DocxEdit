@@ -85,8 +85,11 @@ internal static partial class DocxPatchEngine
         // Untouched parts are restored byte-identical afterwards, so snapshot
         // bookkeeping never rewrites output the patch did not edit.
         Dictionary<string, byte[]> snapshotOriginals = RecordStoryPartBytes(package, cancellationToken);
-        CaptureTargetSnapshot(package, cancellationToken);
-        UnmarkStoryParts(package, cancellationToken);
+        if (patch.Operations.Count != 0)
+        {
+            CaptureTargetSnapshot(package, cancellationToken);
+            UnmarkStoryParts(package, cancellationToken);
+        }
         // One shared revision-ID allocator per execution; per-operation reports slice
         // their own ID ranges out of it below.
         var revisionIds = new RevisionIdTracker();

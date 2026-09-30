@@ -261,6 +261,10 @@ internal static partial class DocxPatchEngine
         List<DocxPatchOperationReport> reports,
         CancellationToken cancellationToken)
     {
+        if (reports.Count == 0)
+        {
+            return;
+        }
         IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
         var finals = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
