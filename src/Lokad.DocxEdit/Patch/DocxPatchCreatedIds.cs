@@ -41,41 +41,50 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        BlockTarget? anchor = ResolveInsertAnchor(operation, package, cancellationToken);
-        if (anchor is null)
-        {
-            return [];
-        }
-
-        bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
-        int count = Math.Max(1, operation.FieldValues.Count(static field => field.Name == "text"));
-        List<XElement> created = FindAdjacentInsertParagraphs(anchor.Block, insertAfter, count);
-        if (created.Count != count)
-        {
-            return [];
-        }
-        if (!DocxPartRoles.GetStoryPrefixes(package, cancellationToken).TryGetValue(anchor.PartName, out string? prefix) || !TryParseStoryPrefix(prefix, out char story, out int storyPart))
-        {
-            return [];
-        }
-
         var wireIds = new List<string>();
-        foreach (XElement element in created)
+        var prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
+        int createdIndex = 0;
+        while (true)
         {
-            int? ordinal = PhysicalParagraphOrdinal(anchor.Document, element);
-            if (ordinal is null)
+            string mark = CreatedMarkValue(operation, createdIndex);
+            bool found = false;
+            foreach (var entry in prefixes)
             {
-                return [];
+                if (!TryParseStoryPrefix(entry.Value, out char story, out int storyPart))
+                {
+                    continue;
+                }
+                XDocument document = LoadDocumentPart(package, entry.Key, cancellationToken, out XElement _);
+                XElement? created = null;
+                foreach (XElement element in document.Descendants())
+                {
+                    if (string.Equals((string?)element.Attribute(SnapshotCreatedName), mark, StringComparison.Ordinal))
+                    {
+                        created = element;
+                        break;
+                    }
+                }
+                if (created is null)
+                {
+                    continue;
+                }
+                int? ordinal = PhysicalParagraphOrdinal(document, created);
+                if (ordinal is null)
+                {
+                    return [];
+                }
+                wireIds.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0).ToWireValue());
+                found = true;
+                break;
             }
-
-            element.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, wireIds.Count));
-            wireIds.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0).ToWireValue());
+            if (!found)
+            {
+                break;
+            }
+            createdIndex++;
         }
-
-        SaveDocumentPart(package, anchor.PartName, anchor.Document);
         return wireIds;
     }
-
     private static IReadOnlyList<string> CreatedCommentIds(
         OoxmlPackage package,
         IReadOnlySet<string> commentsBefore,

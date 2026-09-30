@@ -197,6 +197,11 @@ internal static partial class DocxPatchEngine
             operation.Fields.GetValueOrDefault("tooltip"),
             operation.Fields.GetValueOrDefault("target-frame"),
             history);
+        paragraph.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
+        if (operation.Fields.TryGetValue("as", out string? hyperlinkAlias) && hyperlinkAlias is not null)
+        {
+            paragraph.SetAttributeValue(SnapshotAliasName, hyperlinkAlias);
+        }
         if (useTrackedChanges)
         {
             XElement hyperlink = paragraph.Element(OoxmlNs.W + "hyperlink")

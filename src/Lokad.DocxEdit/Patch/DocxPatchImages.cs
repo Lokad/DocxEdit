@@ -120,6 +120,11 @@ internal static partial class DocxPatchEngine
         int docPrId = AllocateDrawingDocPrId(paragraphTarget.Document);
         XElement imageParagraph = CreateInlineImageParagraph(relationshipId, docPrId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
         paragraphTarget.Paragraph.AddAfterSelf(imageParagraph);
+        imageParagraph.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
+        if (operation.Fields.TryGetValue("as", out string? imageAlias) && imageAlias is not null)
+        {
+            imageParagraph.SetAttributeValue(SnapshotAliasName, imageAlias);
+        }
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];
     }
