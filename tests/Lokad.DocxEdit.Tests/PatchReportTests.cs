@@ -1519,6 +1519,42 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void DeleteAliasedCreationReportsPreviewBeforeWithNullAfter()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("<w:p><w:r><w:t>First</w:t></w:r></w:p><w:p><w:r><w:t>Second</w:t></w:r></w:p>");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Inserted
+            as added
+            end
+            op delete-block
+            target @added
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(2, result.Operations.Count);
+        DocxPatchOperationReport second = result.Operations[1];
+        Assert.Equal("Inserted", second.PreviewBefore);
+        Assert.Null(second.PreviewAfter);
+        Assert.False(second.PreviewTruncated);
+        DocxPatchAffectedTarget affected = Assert.Single(second.AffectedTargets);
+        Assert.Equal("delete", affected.Action);
+        Assert.Equal("M.P0002", affected.Id.ToWireValue());
+        Assert.Equal("op1-0", affected.CreatedMark);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(["First", "Second"], read.Paragraphs.Select(static paragraph => paragraph.Text).ToArray());
+    }
+
+    [Fact]
     public static void DeleteBlockPreviewKeepsBeforeValue()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
