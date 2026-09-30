@@ -64,4 +64,5 @@
 - Fixed previews for new and aliased targets to capture before and after values.
 - Fixed affected targets missing for semantic selectors matching newly created paragraphs: the resolved paragraph now reports with its creation mark, so affected IDs rebase to final-output coordinates instead of coming back empty.
 - Excluded revision-hidden drawings from image placement enumeration: drawings inside del/moveFrom-wrapped blocks own no public ID, so discovery and patch binding agree and a visible drawing keeps its published identity.
+- Extended hidden-placement exclusion to drawings in trPr-deleted table rows and block-level structured-document-tag content, whose paragraphs are not enumerated: their IDs now agree across discovery and patch binding as well.
 - Improved empty-patch check cost and merge-group enumeration to single passes.
