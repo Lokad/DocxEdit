@@ -256,33 +256,6 @@ internal static partial class DocxPatchEngine
         return new ImageBlipTarget(found.Value.Story.PartName, document, match, relationshipId, part);
     }
 
-    private static BlockTarget? ResolveInsertAnchor(
-        DocxPatchOperation operation,
-        OoxmlPackage package,
-        CancellationToken cancellationToken)
-    {
-        string? target = operation.Fields.GetValueOrDefault("target");
-        if (target is null)
-        {
-            return null;
-        }
-
-        BlockTarget? anchor = ResolveBlockTarget(package, operation, target, cancellationToken, out _);
-        if (anchor is null || (anchor.Block.Name != OoxmlNs.W + "p" && anchor.Block.Name != OoxmlNs.W + "tbl"))
-        {
-            return null;
-        }
-
-        return anchor;
-    }
-
-    private static List<XElement> FindAdjacentInsertParagraphs(XElement anchor, bool insertAfter, int count)
-    {
-        return insertAfter
-            ? anchor.ElementsAfterSelf(OoxmlNs.W + "p").Take(count).ToList()
-            : anchor.ElementsBeforeSelf(OoxmlNs.W + "p").TakeLast(count).ToList();
-    }
-
     private static (string PartName, XDocument Document, XElement Element)? FindCommentElementById(
         OoxmlPackage package,
         string commentId,
@@ -391,33 +364,6 @@ internal static partial class DocxPatchEngine
                     return true;
                 }
             }
-        }
-        if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after" or "insert-hyperlink-after")
-        {
-            BlockTarget? anchor = ResolveInsertAnchor(operation, package, cancellationToken);
-            if (anchor is null)
-            {
-                return false;
-            }
-
-            bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
-            int count = Math.Max(1, operation.FieldValues.Count(static field => field.Name == "text"));
-            foreach (XElement created in FindAdjacentInsertParagraphs(anchor.Block, insertAfter, count))
-            {
-                created.SetAttributeValue(SnapshotAliasName, alias);
-                if (string.Equals(operation.OperationName, "insert-hyperlink-after", StringComparison.Ordinal))
-                {
-                    created.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, alias);
-                }
-                if (string.Equals(operation.OperationName, "insert-image-after", StringComparison.Ordinal))
-                {
-                    created.Descendants(OoxmlNs.A + "blip").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, alias);
-                }
-            }
-
-            touched[anchor.PartName] = anchor.Document;
-            SaveTouchedParts(package, touched);
-            return true;
         }
 
         if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null)
