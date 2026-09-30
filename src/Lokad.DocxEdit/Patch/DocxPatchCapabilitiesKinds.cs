@@ -1755,15 +1755,17 @@ internal static partial class DocxPatchEngine
         int visualColumn = parsed.Tertiary;
         if (isMergeGroup)
         {
-            if (!TryFindMergeGroupRoot(table, parsed.Secondary, out XElement? groupRow, out XElement? groupCell, out int groupColumn, out int groupRowOrdinal))
+            List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)> mergeRoots = EnumerateMergeGroupRoots(table);
+            if (parsed.Secondary < 1 || parsed.Secondary > mergeRoots.Count)
             {
                 return ParagraphCapabilitiesNotFound(requestedTargetId);
             }
 
-            row = groupRow;
-            cell = groupCell;
-            rowOrdinal = groupRowOrdinal;
-            visualColumn = groupColumn;
+            var mergeRoot = mergeRoots[parsed.Secondary - 1];
+            row = mergeRoot.Row;
+            cell = mergeRoot.Cell;
+            rowOrdinal = mergeRoot.RowOrdinal;
+            visualColumn = mergeRoot.VisualColumn;
         }
         else
         {
@@ -1819,8 +1821,8 @@ internal static partial class DocxPatchEngine
         };
     }
     // Single-pass merge-group enumeration shared by snapshot, reporting,
-    // alias, capability, and template consumers. Same encounter order as the
-    // Nth-root walk below, collected once instead of rescanned per ordinal.
+    // alias, capability, and template consumers, collected once per table
+    // instead of rescanned per ordinal.
     internal static List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)> EnumerateMergeGroupRoots(XElement table)
     {
         var roots = new List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)>();
@@ -1862,96 +1864,6 @@ internal static partial class DocxPatchEngine
             }
         }
         return roots;
-    }
-    // Canonical merge-group walk: finds
-    // the root cell of the Nth merge group in document order. Snapshot capture
-    // enumerates roots through this walk so patch execution binds the same order.
-    private static bool TryFindMergeGroupRoot(
-        XElement table,
-        int mergeGroupOrdinal,
-        out XElement? row,
-        out XElement? cell,
-        out int visualColumn,
-        out int rowOrdinal)
-    {
-        row = null;
-        cell = null;
-        visualColumn = 0;
-        rowOrdinal = 0;
-        if (mergeGroupOrdinal < 1)
-        {
-            return false;
-        }
-
-        int mergeGroupIndex = 1;
-        var activeVerticalMerges = new Dictionary<int, MergeGroupRootState>();
-        int currentRowOrdinal = 0;
-        foreach (XElement currentRow in table.Elements(OoxmlNs.W + "tr"))
-        {
-            currentRowOrdinal++;
-            int gridBefore = ReadTableRowGridOffset(currentRow, "gridBefore");
-            RemoveActiveMergeGroups(activeVerticalMerges, 1, gridBefore);
-            int columnIndex = 1 + gridBefore;
-            foreach (XElement currentCell in currentRow.Elements(OoxmlNs.W + "tc"))
-            {
-                int columnSpan = ReadTableCellColumnSpan(currentCell);
-                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(currentCell);
-                if (verticalMerge == DocxVerticalMerge.Restart)
-                {
-                    int currentMergeGroup = mergeGroupIndex++;
-                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
-                    if (currentMergeGroup == mergeGroupOrdinal)
-                    {
-                        row = currentRow;
-                        cell = currentCell;
-                        visualColumn = columnIndex;
-                        rowOrdinal = currentRowOrdinal;
-                        return true;
-                    }
-                }
-                else if (verticalMerge is not null)
-                {
-                    MergeGroupRootState? root = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan);
-                    if (root is null)
-                    {
-                        int currentMergeGroup = mergeGroupIndex++;
-                        if (currentMergeGroup == mergeGroupOrdinal)
-                        {
-                            row = currentRow;
-                            cell = currentCell;
-                            visualColumn = columnIndex;
-                            rowOrdinal = currentRowOrdinal;
-                            return true;
-                        }
-
-                        SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
-                    }
-                }
-                else
-                {
-                    RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, columnSpan);
-                    if (columnSpan > 1)
-                    {
-                        int currentMergeGroup = mergeGroupIndex++;
-                        if (currentMergeGroup == mergeGroupOrdinal)
-                        {
-                            row = currentRow;
-                            cell = currentCell;
-                            visualColumn = columnIndex;
-                            rowOrdinal = currentRowOrdinal;
-                            return true;
-                        }
-                    }
-                }
-
-                columnIndex += columnSpan;
-            }
-
-            int gridAfter = ReadTableRowGridOffset(currentRow, "gridAfter");
-            RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, gridAfter);
-        }
-
-        return false;
     }
 
     // Finds the vertical-merge root cell above a continuation cell in the same

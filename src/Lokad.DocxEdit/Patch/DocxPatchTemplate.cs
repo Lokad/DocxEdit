@@ -848,13 +848,14 @@ internal static partial class DocxPatchEngine
 
         if (isMergeGroup)
         {
-            if (!TryFindMergeGroupRoot(table, parsed.Secondary, out XElement? groupRow, out XElement? groupCell, out _, out _))
+            List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)> mergeRoots = EnumerateMergeGroupRoots(table);
+            if (parsed.Secondary < 1 || parsed.Secondary > mergeRoots.Count)
             {
                 return null;
             }
 
-            row = groupRow;
-            cell = groupCell;
+            row = mergeRoots[parsed.Secondary - 1].Row;
+            cell = mergeRoots[parsed.Secondary - 1].Cell;
         }
         else
         {
