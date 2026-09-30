@@ -1839,12 +1839,13 @@ public static class OfficeGateTests
 
                 op insert-image-after
                 target M.P0001
+                as newImage
                 asset chart.png
                 alt Office chart
                 end
 
                 op set-image-alt
-                target M.I0001
+                target @newImage
                 expect-alt Office chart
                 alt Updated chart
                 end
@@ -2253,12 +2254,13 @@ public static class OfficeGateTests
 
                 op insert-image-after
                 target M.P0001
+                as newImage
                 asset chart.png
                 alt Office chart
                 end
 
                 op set-image-size
-                target M.I0001
+                target @newImage
                 width 2in
                 end
                 """))
