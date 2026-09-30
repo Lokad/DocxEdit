@@ -842,6 +842,29 @@ public static class PatchAliasTests
         Assert.Equal("CHANGED", read.Paragraphs[1].Text);
         Assert.Equal("Second", read.Paragraphs[2].Text);
     }
+
+    [Fact]
+    public static void AliasCompositionBindsAndEditsInHeader()
+    {
+        using MemoryStream input = CreateDocxWithHeaderFooter("Head", "Foot");
+        string patchText = "docxpatch 1\n\nop insert-after\ntarget H001.P0001\ntext Inserted\nas added\nend\n\nop replace-paragraph\ntarget @added\ntext CHANGED\nend\n";
+        DocxCheckResult check = new DocxEditor().Check(input, new StringReader(patchText));
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal("H001.P0002", Assert.Single(check.Operations[0].CreatedTargetIds));
+        using MemoryStream applyInput = CreateDocxWithHeaderFooter("Head", "Foot");
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Equal("Main text", read.Paragraphs[0].Text);
+        Assert.Equal("Head", read.Paragraphs[1].Text);
+        Assert.Equal("CHANGED", read.Paragraphs[2].Text);
+        Assert.Equal("H001.P0002", read.Paragraphs[2].Id.ToWireValue());
+        Assert.Equal("Foot", read.Paragraphs[3].Text);
+    }
+
     [Fact]
     public static void AliasRebaseReportsFinalId()
     {
