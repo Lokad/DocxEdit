@@ -423,13 +423,13 @@ internal static partial class DocxPatchEngine
     {
         string finalWire = finalId.ToWireValue();
         string? snapshotId = (string?)element.Attribute(SnapshotIdName);
-        if (snapshotId is not null)
+        if (snapshotId is not null && finalId.Kind != DocxTargetKind.MergeGroup)
         {
             finals[snapshotId] = finalWire;
         }
 
         string? mergeId = (string?)element.Attribute(SnapshotMergeGroupName);
-        if (mergeId is not null)
+        if (mergeId is not null && finalId.Kind == DocxTargetKind.MergeGroup)
         {
             finals[mergeId] = finalWire;
         }
