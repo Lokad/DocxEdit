@@ -189,6 +189,27 @@ internal static partial class DocxPatchEngine
             }
             bool operationSuccess = operationDiagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
             bool operationMutated = operationSuccess && operationDiagnostics.All(diagnostic => diagnostic.Code != NoOpDiagnosticCode);
+            operation.Fields.TryGetValue("as", out string? aliasName);
+            bool bindsAlias = operationSuccess && aliasName is not null;
+            // C04: creation diffs are read once per operation and shared by report
+            // building and alias binding below. The read union matches the two
+            // consumers exactly: reports need diffs when mutated, binding when an
+            // alias is defined; either side alone triggers the read.
+            HashSet<string>? commentsAfter = null;
+            Dictionary<string, HashSet<string>>? bookmarkIdsAfter = null;
+            if (operationSuccess && (operationMutated || bindsAlias))
+            {
+                if (commentsBefore is not null)
+                {
+                    commentsAfter = ReadCommentIds(package, cancellationToken);
+                }
+
+                if (bookmarkIdsBefore is not null)
+                {
+                    bookmarkIdsAfter = CollectBookmarkOoxmlIds(package, cancellationToken);
+                }
+            }
+
             var (previewBeforeText, previewAfterText, previewTruncated) = FinalizePreview(package, operation, options, previewBefore, operationSuccess, cancellationToken);
             anyMutation |= operationMutated;
             priorFailure |= !operationSuccess;
@@ -201,7 +222,7 @@ internal static partial class DocxPatchEngine
                 operationDiagnostics)
             {
                 AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, package, tableBefore, resolvedBefore, resolvedMark, cancellationToken) : [],
-                CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, bookmarkIdsBefore, cancellationToken) : [],
+                CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, commentsAfter, bookmarkIdsBefore, bookmarkIdsAfter, cancellationToken) : [],
                 PreviewBefore = previewBeforeText,
                 PreviewAfter = previewAfterText,
                 PreviewTruncated = previewTruncated,
@@ -213,9 +234,9 @@ internal static partial class DocxPatchEngine
             {
                 revisionIds.Invalidate();
             }
-            if (operationSuccess && operation.Fields.TryGetValue("as", out string? aliasName) && aliasName is not null)
+            if (bindsAlias && aliasName is not null)
             {
-                if (BindCreatedAlias(operation, package, aliasName, commentsBefore, bookmarkIdsBefore, cancellationToken))
+                if (BindCreatedAlias(operation, package, aliasName, commentsBefore, commentsAfter, bookmarkIdsBefore, bookmarkIdsAfter, cancellationToken))
                 {
                     definedAliases.Add(aliasName);
                 }

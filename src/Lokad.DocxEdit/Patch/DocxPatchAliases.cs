@@ -326,7 +326,9 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         string alias,
         IReadOnlySet<string>? commentsBefore,
+        IReadOnlySet<string>? commentsAfter,
         IReadOnlyDictionary<string, HashSet<string>>? bookmarkIdsBefore,
+        IReadOnlyDictionary<string, HashSet<string>>? bookmarkIdsAfter,
         CancellationToken cancellationToken)
     {
         Dictionary<string, XDocument> touched = new(StringComparer.OrdinalIgnoreCase);
@@ -344,9 +346,9 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null)
+        if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null && commentsAfter is not null)
         {
-            HashSet<string> after = ReadCommentIds(package, cancellationToken);
+            HashSet<string> after = new(commentsAfter, StringComparer.Ordinal);
             after.ExceptWith(commentsBefore);
             bool boundAlias = false;
             foreach (string id in after)
@@ -366,11 +368,10 @@ internal static partial class DocxPatchEngine
             return boundAlias;
         }
 
-        if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null)
+        if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null && bookmarkIdsAfter is not null)
         {
-            Dictionary<string, HashSet<string>> after = CollectBookmarkOoxmlIds(package, cancellationToken);
             bool bookmarkBound = false;
-            foreach ((string partName, HashSet<string> ids) in after)
+            foreach ((string partName, HashSet<string> ids) in bookmarkIdsAfter)
             {
                 bookmarkIdsBefore.TryGetValue(partName, out HashSet<string>? before);
                 List<string> added = ids.Where(id => before is null || !before.Contains(id)).ToList();

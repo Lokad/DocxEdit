@@ -16,7 +16,9 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         OoxmlPackage package,
         IReadOnlySet<string>? commentsBefore,
+        IReadOnlySet<string>? commentsAfter,
         IReadOnlyDictionary<string, HashSet<string>>? bookmarkIdsBefore,
+        IReadOnlyDictionary<string, HashSet<string>>? bookmarkIdsAfter,
         CancellationToken cancellationToken)
     {
         if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after" or "insert-hyperlink-after")
@@ -24,14 +26,14 @@ internal static partial class DocxPatchEngine
             return CreatedInsertParagraphId(operation, package, cancellationToken);
         }
 
-        if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null)
+        if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null && commentsAfter is not null)
         {
-            return CreatedCommentIds(package, commentsBefore, cancellationToken);
+            return CreatedCommentIds(commentsAfter, commentsBefore);
         }
 
-        if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null)
+        if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null && bookmarkIdsAfter is not null)
         {
-            return CreatedBookmarkIds(operation, package, bookmarkIdsBefore, cancellationToken);
+            return CreatedBookmarkIds(operation, package, bookmarkIdsBefore, bookmarkIdsAfter, cancellationToken);
         }
 
         return [];
@@ -66,13 +68,12 @@ internal static partial class DocxPatchEngine
         return wireIds;
     }
     private static IReadOnlyList<string> CreatedCommentIds(
-        OoxmlPackage package,
-        IReadOnlySet<string> commentsBefore,
-        CancellationToken cancellationToken)
+        IReadOnlySet<string> commentsAfter,
+        IReadOnlySet<string> commentsBefore)
     {
-        HashSet<string> after = ReadCommentIds(package, cancellationToken);
-        after.ExceptWith(commentsBefore);
-        return after
+        HashSet<string> added = new(commentsAfter, StringComparer.Ordinal);
+        added.ExceptWith(commentsBefore);
+        return added
             .OrderBy(static id => int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) ? n : int.MaxValue)
             .Select(static id => "comment:" + id)
             .ToArray();
@@ -145,13 +146,13 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         OoxmlPackage package,
         IReadOnlyDictionary<string, HashSet<string>> bookmarksBefore,
+        IReadOnlyDictionary<string, HashSet<string>> bookmarksAfter,
         CancellationToken cancellationToken)
     {
-        Dictionary<string, HashSet<string>> after = CollectBookmarkOoxmlIds(package, cancellationToken);
         var touched = new Dictionary<string, XDocument>(StringComparer.OrdinalIgnoreCase);
         IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
         List<string> created = [];
-        foreach ((string partName, HashSet<string> ids) in after)
+        foreach ((string partName, HashSet<string> ids) in bookmarksAfter)
         {
             bookmarksBefore.TryGetValue(partName, out HashSet<string>? before);
             List<string> added = ids.Where(id => before is null || !before.Contains(id)).ToList();
