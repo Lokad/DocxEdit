@@ -220,7 +220,7 @@ internal static partial class DocxPatchEngine
         };
     }
 
-    private static IReadOnlyList<DocxPatchAffectedTarget> BuildAffectedTargets(DocxPatchOperation operation, TableOperationSnapshot? before, DocxTargetId? resolved)
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildAffectedTargets(DocxPatchOperation operation, OoxmlPackage package, TableOperationSnapshot? before, DocxTargetId? resolved, CancellationToken cancellationToken)
     {
         if (before is not null)
         {
@@ -248,6 +248,16 @@ internal static partial class DocxPatchEngine
             _ => "update"
         };
         string kind = TargetKindWord(resolvedId.Kind);
+        string? aliasTarget = operation.Fields.GetValueOrDefault("target");
+        if (aliasTarget is not null && IsAliasReference(aliasTarget))
+        {
+            ParagraphTarget? aliasPara = ResolveAliasParagraphTarget(package, operation, aliasTarget, cancellationToken, out _);
+            string? aliasMark = (string?)aliasPara?.Paragraph.Attribute(SnapshotCreatedName);
+            if (aliasMark is not null)
+            {
+                return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreatedMark = aliasMark }];
+            }
+        }
         return [new DocxPatchAffectedTarget(resolvedId, kind, action)];
     }
 

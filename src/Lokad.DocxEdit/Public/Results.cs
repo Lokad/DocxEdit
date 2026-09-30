@@ -420,6 +420,8 @@ public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, strin
 {
     /// <summary>Containing target ID, when known.</summary>
     public DocxTargetId? ParentId { get; init; }
+    /// <summary>Execution mark for created objects, when known.</summary>
+    public string? CreatedMark { get; init; }
     /// <summary>1-based row ordinal.</summary>
     public int? RowIndex { get; init; }
     /// <summary>1-based visual column ordinal.</summary>

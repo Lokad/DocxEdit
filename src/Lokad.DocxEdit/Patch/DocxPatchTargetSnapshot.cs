@@ -452,6 +452,14 @@ internal static partial class DocxPatchEngine
             return RebaseInsertedRowEntry(report, entry, finals) ?? entry;
         }
 
+        if (entry.CreatedMark is not null)
+        {
+            if (finals.TryGetValue(entry.CreatedMark, out string? markWire) &&
+                DocxTargetId.TryParse(markWire, out DocxTargetId markId))
+            {
+                return entry with { Id = markId };
+            }
+        }
         if (finals.TryGetValue(entry.Id.ToWireValue(), out string? finalWire) &&
             DocxTargetId.TryParse(finalWire, out DocxTargetId finalId))
         {

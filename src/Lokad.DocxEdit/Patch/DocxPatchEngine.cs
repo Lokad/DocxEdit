@@ -196,7 +196,7 @@ internal static partial class DocxPatchEngine
                 operationSuccess,
                 operationDiagnostics)
             {
-                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore, resolvedBefore) : [],
+                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, package, tableBefore, resolvedBefore, cancellationToken) : [],
                 CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, bookmarkIdsBefore, cancellationToken) : [],
                 PreviewBefore = previewBeforeText,
                 PreviewAfter = previewAfterText,
