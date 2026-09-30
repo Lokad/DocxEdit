@@ -277,18 +277,8 @@ internal static partial class DocxPatchEngine
     // and after-values are re-read post-operation. A null record means previews are
     // disabled or inapplicable; a record with a null value means the value itself
     // was absent (for example no paragraph style). Missing resolution never fails.
-    private static string? ResolvePreviewLocator(
-        OoxmlPackage package,
-        DocxPatchOperation operation,
-        CancellationToken cancellationToken)
+    private static string? DerivePreviewLocator(XElement? element)
     {
-        string? target = operation.Fields.GetValueOrDefault("target");
-        if (string.IsNullOrWhiteSpace(target))
-        {
-            return null;
-        }
-
-        XElement? element = ResolvePreviewElement(package, operation, target, cancellationToken);
         if (element is null)
         {
             return null;
@@ -321,37 +311,6 @@ internal static partial class DocxPatchEngine
         return null;
     }
 
-    private static XElement? ResolvePreviewElement(
-        OoxmlPackage package,
-        DocxPatchOperation operation,
-        string target,
-        CancellationToken cancellationToken)
-    {
-        var created = FindMarkedStoryElement(package, SnapshotCreatedName, target, OoxmlNs.W + "p", cancellationToken);
-        if (created is not null)
-        {
-            return created.Value.Element;
-        }
-        return operation.OperationName switch
-        {
-            "set-cell" or "set-cell-shading" => ResolveCellTarget(package, target, cancellationToken)?.Cell,
-            "set-hyperlink-text" or "set-hyperlink-target" or "remove-hyperlink" => ResolveHyperlinkTarget(package, target, cancellationToken)?.Hyperlink,
-            "set-table-style" => ResolveTableTarget(package, target, cancellationToken)?.Table,
-            "set-row-header" => ResolveRowTarget(package, target, cancellationToken)?.Row,
-            "set-content-control-text" => ResolveContentControlTarget(package, operation, target, cancellationToken, out _)?.ContentControl,
-            "set-image-alt" => ResolveImageBlipTarget(package, target, cancellationToken)?.Blip,
-            "set-field-result" or "set-field-code" or "set-field-dirty" or "set-field-lock" => ResolveFieldTarget(package, target, cancellationToken)?.Element,
-            "set-comment-text" => ResolveCommentTarget(package, target, operation, cancellationToken, out _)?.Comment,
-            "replace-bookmark-text" => ResolveBookmarkTarget(package, operation, target, cancellationToken, out _)?.Start,
-            "set-table-metadata" => ResolveTableTarget(package, target, cancellationToken)?.Table,
-            "delete-block" => ResolveBlockTarget(package, operation, target, cancellationToken, out _)?.Block,
-            "set-section-columns" or "set-section-orientation" => ResolveMainSectionTarget(package, target, cancellationToken)?.SectionProperties,
-            "replace-text" => ResolveCellTarget(package, target, cancellationToken)?.Cell
-                ?? ResolveParagraphTarget(package, operation, target, cancellationToken, out _)?.Paragraph,
-            _ => ResolveParagraphTarget(package, operation, target, cancellationToken, out _)?.Paragraph
-        };
-    }
-
     private sealed record PreviewSnapshot(string? Before, string? Locator);
 
     private static PreviewSnapshot? CapturePreviewBefore(
@@ -365,13 +324,13 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        string? before = ReadPreviewValue(package, operation, cancellationToken);
+        (string? before, XElement? previewElement) = ReadPreviewValueAndElement(package, operation, cancellationToken);
         if (before is null && !PreviewValueMayBeAbsent(operation.OperationName))
         {
             return null;
         }
 
-        return new PreviewSnapshot(before, ResolvePreviewLocator(package, operation, cancellationToken));
+        return new PreviewSnapshot(before, DerivePreviewLocator(previewElement));
     }
 
     private static bool PreviewValueMayBeAbsent(string operationName)
@@ -395,7 +354,7 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation readOperation = before.Locator is null
             ? operation
             : operation with { Fields = new Dictionary<string, string>(operation.Fields) { ["target"] = before.Locator } };
-        string? after = ReadPreviewValue(package, readOperation, cancellationToken);
+        string? after = ReadPreviewValueAndElement(package, readOperation, cancellationToken).Value;
 
         int budget = options.MaxPreviewChars;
         bool truncated = false;
@@ -416,56 +375,56 @@ internal static partial class DocxPatchEngine
         return (boundedBefore, boundedAfter, truncated);
     }
 
-    private static string? ReadPreviewValue(
+    private static (string? Value, XElement? Element) ReadPreviewValueAndElement(
         OoxmlPackage package,
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
         if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-cell" or "set-style" or "set-hyperlink-text" or "set-cell-shading" or "set-table-style" or "set-row-header" or "set-content-control-text" or "set-image-alt" or "set-field-result" or "set-field-code" or "set-comment-text" or "replace-bookmark-text" or "set-table-metadata" or "delete-block" or "set-section-columns" or "set-hyperlink-target" or "set-field-dirty" or "set-field-lock" or "set-section-orientation"))
         {
-            return null;
+            return (null, null);
         }
 
         string? target = operation.Fields.GetValueOrDefault("target");
         if (string.IsNullOrWhiteSpace(target))
         {
-            return null;
+            return (null, null);
         }
 
         if (operation.OperationName == "set-cell")
         {
             CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
-            return cellTarget is null ? null : ReadVisibleText(cellTarget.Cell);
+            return cellTarget is null ? (null, null) : (ReadVisibleText(cellTarget.Cell), cellTarget.Cell);
         }
 
         if (operation.OperationName == "set-hyperlink-text")
         {
             HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
-            return hyperlinkTarget is null ? null : ReadVisibleText(hyperlinkTarget.Hyperlink);
+            return hyperlinkTarget is null ? (null, null) : (ReadVisibleText(hyperlinkTarget.Hyperlink), hyperlinkTarget.Hyperlink);
         }
 
         if (operation.OperationName == "set-cell-shading")
         {
             CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
-            return cellTarget is null ? null : ReadCellShadingFill(cellTarget.Cell);
+            return cellTarget is null ? (null, null) : (ReadCellShadingFill(cellTarget.Cell), cellTarget.Cell);
         }
 
         if (operation.OperationName == "set-table-style")
         {
             TableTarget? tableTarget = ResolveTableTarget(package, target, cancellationToken);
-            return tableTarget is null ? null : ReadTableStyleId(tableTarget.Table);
+            return tableTarget is null ? (null, null) : (ReadTableStyleId(tableTarget.Table), tableTarget.Table);
         }
 
         if (operation.OperationName == "set-row-header")
         {
             RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
-            return rowTarget is null ? null : ReadTableRowHeader(rowTarget.Row).ToString().ToLowerInvariant();
+            return rowTarget is null ? (null, null) : (ReadTableRowHeader(rowTarget.Row).ToString().ToLowerInvariant(), rowTarget.Row);
         }
 
         if (operation.OperationName == "set-content-control-text")
         {
             ContentControlTarget? controlTarget = ResolveContentControlTarget(package, operation, target, cancellationToken, out _);
-            return controlTarget is null ? null : ReadVisibleText(controlTarget.ContentControl);
+            return controlTarget is null ? (null, null) : (ReadVisibleText(controlTarget.ContentControl), controlTarget.ContentControl);
         }
 
         if (operation.OperationName == "set-image-alt")
@@ -473,33 +432,33 @@ internal static partial class DocxPatchEngine
             ImageBlipTarget? imageTarget = ResolveImageBlipTarget(package, target, cancellationToken);
             if (imageTarget is null)
             {
-                return null;
+                return (null, null);
             }
 
             if (!TryGetImageDrawingContainer(imageTarget, target, operation, out XElement? imageContainer, out _))
             {
-                return null;
+                return (null, null);
             }
 
-            return (string?)imageContainer.Element(OoxmlNs.Wp + "docPr")?.Attribute("descr");
+            return ((string?)imageContainer.Element(OoxmlNs.Wp + "docPr")?.Attribute("descr"), imageTarget.Blip);
         }
 
         if (operation.OperationName == "set-field-result")
         {
             FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
-            return fieldTarget is null ? null : ReadVisibleText(fieldTarget.Element);
+            return fieldTarget is null ? (null, null) : (ReadVisibleText(fieldTarget.Element), fieldTarget.Element);
         }
 
         if (operation.OperationName == "set-field-code")
         {
             FieldTarget? codeTarget = ResolveFieldTarget(package, target, cancellationToken);
-            return codeTarget is null ? null : (string?)codeTarget.Element.Attribute(OoxmlNs.W + "instr");
+            return codeTarget is null ? (null, null) : ((string?)codeTarget.Element.Attribute(OoxmlNs.W + "instr"), codeTarget.Element);
         }
 
         if (operation.OperationName == "set-comment-text")
         {
             CommentTarget? commentTarget = ResolveCommentTarget(package, target, operation, cancellationToken, out _);
-            return commentTarget is null ? null : ReadVisibleText(commentTarget.Comment);
+            return commentTarget is null ? (null, null) : (ReadVisibleText(commentTarget.Comment), commentTarget.Comment);
         }
 
         if (operation.OperationName == "replace-bookmark-text")
@@ -507,18 +466,18 @@ internal static partial class DocxPatchEngine
             BookmarkTarget? bookmarkTarget = ResolveBookmarkTarget(package, operation, target, cancellationToken, out _);
             if (bookmarkTarget?.End is null)
             {
-                return null;
+                return (null, bookmarkTarget?.Start);
             }
 
             XElement? startParagraph = bookmarkTarget.Start.Parent;
             XElement? endParagraph = bookmarkTarget.End.Parent;
             if (startParagraph is null || !ReferenceEquals(startParagraph, endParagraph))
             {
-                return null;
+                return (null, bookmarkTarget.Start);
             }
 
             XNode[] bookmarkNodes = bookmarkTarget.Start.NodesAfterSelf().TakeWhile(node => node != bookmarkTarget.End).ToArray();
-            return ReadVisibleText(new XElement(OoxmlNs.W + "p", bookmarkNodes));
+            return (ReadVisibleText(new XElement(OoxmlNs.W + "p", bookmarkNodes)), bookmarkTarget.Start);
         }
 
         if (operation.OperationName == "set-table-metadata")
@@ -526,48 +485,48 @@ internal static partial class DocxPatchEngine
             TableTarget? metadataTarget = ResolveTableTarget(package, target, cancellationToken);
             if (metadataTarget is null)
             {
-                return null;
+                return (null, null);
             }
 
             string? caption = ReadTableTextProperty(metadataTarget.Table, "tblCaption");
             string? description = ReadTableTextProperty(metadataTarget.Table, "tblDescription");
-            return "caption=" + (caption ?? string.Empty) + "; description=" + (description ?? string.Empty);
+            return ("caption=" + (caption ?? string.Empty) + "; description=" + (description ?? string.Empty), metadataTarget.Table);
         }
 
         if (operation.OperationName == "delete-block")
         {
             BlockTarget? blockTarget = ResolveBlockTarget(package, operation, target, cancellationToken, out _);
-            return blockTarget is null ? null : ReadVisibleText(blockTarget.Block);
+            return blockTarget is null ? (null, null) : (ReadVisibleText(blockTarget.Block), blockTarget.Block);
         }
 
         if (operation.OperationName == "set-section-columns")
         {
             SectionTarget? sectionTarget = ResolveMainSectionTarget(package, target, cancellationToken);
-            return sectionTarget is null ? null : ReadSectionColumnCount(sectionTarget.SectionProperties).ToString();
+            return sectionTarget is null ? (null, null) : (ReadSectionColumnCount(sectionTarget.SectionProperties).ToString(), sectionTarget.SectionProperties);
         }
 
         if (operation.OperationName == "set-hyperlink-target")
         {
             HyperlinkTarget? hyperlinkTarget = ResolveHyperlinkTarget(package, target, cancellationToken);
-            return hyperlinkTarget is null ? null : ReadHyperlinkTargetValue(package, hyperlinkTarget, cancellationToken);
+            return hyperlinkTarget is null ? (null, null) : (ReadHyperlinkTargetValue(package, hyperlinkTarget, cancellationToken), hyperlinkTarget.Hyperlink);
         }
 
         if (operation.OperationName == "set-field-dirty")
         {
             FieldTarget? fieldTarget = ResolveFieldTarget(package, target, cancellationToken);
-            return fieldTarget is null ? null : (string?)fieldTarget.Element.Attribute(OoxmlNs.W + "dirty");
+            return fieldTarget is null ? (null, null) : ((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "dirty"), fieldTarget.Element);
         }
 
         if (operation.OperationName == "set-field-lock")
         {
             FieldTarget? lockTarget = ResolveFieldTarget(package, target, cancellationToken);
-            return lockTarget is null ? null : (string?)lockTarget.Element.Attribute(OoxmlNs.W + "fldLock");
+            return lockTarget is null ? (null, null) : ((string?)lockTarget.Element.Attribute(OoxmlNs.W + "fldLock"), lockTarget.Element);
         }
 
         if (operation.OperationName == "set-section-orientation")
         {
             SectionTarget? orientationTarget = ResolveMainSectionTarget(package, target, cancellationToken);
-            return orientationTarget is null ? null : ReadSectionOrientation(orientationTarget.SectionProperties).ToWireValue();
+            return orientationTarget is null ? (null, null) : (ReadSectionOrientation(orientationTarget.SectionProperties).ToWireValue(), orientationTarget.SectionProperties);
         }
 
         if (operation.OperationName == "replace-text"
@@ -575,21 +534,21 @@ internal static partial class DocxPatchEngine
             && cellId.Kind is DocxTargetKind.Cell or DocxTargetKind.MergeGroup)
         {
             CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
-            return cellTarget is null ? null : ReadVisibleText(cellTarget.Cell);
+            return cellTarget is null ? (null, null) : (ReadVisibleText(cellTarget.Cell), cellTarget.Cell);
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
         if (paragraphTarget is null)
         {
-            return null;
+            return (null, null);
         }
 
         if (operation.OperationName == "set-style")
         {
-            return (string?)paragraphTarget.Paragraph.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "pStyle")?.Attribute(OoxmlNs.W + "val");
+            return ((string?)paragraphTarget.Paragraph.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "pStyle")?.Attribute(OoxmlNs.W + "val"), paragraphTarget.Paragraph);
         }
 
-        return ReadVisibleText(paragraphTarget.Paragraph);
+        return (ReadVisibleText(paragraphTarget.Paragraph), paragraphTarget.Paragraph);
     }
 
     private static string? ReadHyperlinkTargetValue(
