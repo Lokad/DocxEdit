@@ -424,7 +424,7 @@ internal static partial class DocxPatchEngine
         {
             return NoOpResult(operation, target, "Set-cell for " + target + " leaves the cell unchanged; nothing was written and no revisions were generated.");
         }
-        if (TryGetStoryProtectedTextEditFeature(cellTarget.Cell, out string cellProtected))
+        if (TryGetStoryEnteringProtectedFeature(cellTarget.Cell, out string cellProtected))
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
