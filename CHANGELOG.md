@@ -44,3 +44,4 @@
 - Documented that semantic selectors search the main story and that `occurrence` selects find/anchor-text matches rather than selector targets.
 - Rendered change reports now print an explicit No changes line instead of empty output when no markup is present; JSON output is unchanged.
 - Added guarded `set-image-size`, `set-image-wrap`, `set-image-position`, `set-image-crop`, and `delete-image` help examples covering the `expect-content-type` guard; every supported operation with guard fields now has a guarded example pinned by tests.
+- Changed the central `Microsoft.SourceLink.GitHub` reference to 10.0.303, clearing the NU1902 audit failure under the strict warnings-as-errors gate; the shipped package still carries no runtime dependencies.
