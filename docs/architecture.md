@@ -42,12 +42,14 @@ parser, catalog, and engine dispatch all project from.
 - Report coordinates (DocxPatchEngine.cs): AffectedTargets and CreatedTargetIds carry
   final-output coordinates: before publication each ID is resolved back to its element
   (snapshot marks for pre-existing objects, creation marks for new ones) and rewritten in
-  final physical order, so a reported ID matches a fresh read. IDs whose object no longer
-  exists are kept as-is and fail loudly on lookup instead of naming a different live object.
+  final physical order, so a live reported ID matches a fresh read. Created identifiers
+  whose object no longer exists are absent from final reports. Deleted affected entries
+  keep input ordinals with an explicit delete action. Those ordinals may coincide with
+  survivors, so re-read the output and check the action instead of assuming liveness.
   Result aliases (@name) always resolve to the current element. Re-read the output for
   final coordinates; check and apply agree on every per-operation report.
 - Range-structure safety (DocxPatchEngine.cs): deleting a block or row that would newly orphan a
-  healthy bookmark, comment range, or field pair is refused (E4305) before publication; removing a
+  healthy bookmark, comment range, field pair, move range, custom-XML range, or table interior is refused (E4305) before publication; removing a
   whole range stays allowed. Post-edit validation reports only violations the patch introduced.
 - Revision identity (DocxPatchEngine.cs): one shared allocator per execution hands out revision IDs;
   comment and bookmark id writes invalidate it so later revisions rescan above them.
