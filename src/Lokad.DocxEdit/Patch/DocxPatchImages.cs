@@ -124,6 +124,7 @@ internal static partial class DocxPatchEngine
         if (operation.Fields.TryGetValue("as", out string? imageAlias) && imageAlias is not null)
         {
             imageParagraph.SetAttributeValue(SnapshotAliasName, imageAlias);
+            imageParagraph.Descendants(OoxmlNs.A + "blip").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, imageAlias);
         }
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];

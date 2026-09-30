@@ -211,8 +211,10 @@ internal static partial class DocxPatchEngine
             }
             if (operationSuccess && operation.Fields.TryGetValue("as", out string? aliasName) && aliasName is not null)
             {
-                BindCreatedAlias(operation, package, aliasName, commentsBefore, bookmarkIdsBefore, cancellationToken);
-                definedAliases.Add(aliasName);
+                if (BindCreatedAlias(operation, package, aliasName, commentsBefore, bookmarkIdsBefore, cancellationToken))
+                {
+                    definedAliases.Add(aliasName);
+                }
             }
         }
 

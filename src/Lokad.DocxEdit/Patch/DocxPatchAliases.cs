@@ -397,7 +397,7 @@ internal static partial class DocxPatchEngine
         return table is null ? null : (anchor.PartName, anchor.Document, sibling);
     }
 
-    private static void BindCreatedAlias(
+    private static bool BindCreatedAlias(
         DocxPatchOperation operation,
         OoxmlPackage package,
         string alias,
@@ -407,12 +407,24 @@ internal static partial class DocxPatchEngine
     {
         Dictionary<string, XDocument> touched = new(StringComparer.OrdinalIgnoreCase);
 
+        var aliasPrefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
+        foreach (var aliasEntry in aliasPrefixes)
+        {
+            XDocument aliasDocument = LoadDocumentPart(package, aliasEntry.Key, cancellationToken, out XElement _);
+            foreach (XElement aliasElement in aliasDocument.Descendants())
+            {
+                if (string.Equals((string?)aliasElement.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
         if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after" or "insert-hyperlink-after")
         {
             BlockTarget? anchor = ResolveInsertAnchor(operation, package, cancellationToken);
             if (anchor is null)
             {
-                return;
+                return false;
             }
 
             bool insertAfter = !string.Equals(operation.OperationName, "insert-before", StringComparison.Ordinal);
@@ -432,13 +444,14 @@ internal static partial class DocxPatchEngine
 
             touched[anchor.PartName] = anchor.Document;
             SaveTouchedParts(package, touched);
-            return;
+            return true;
         }
 
         if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null)
         {
             HashSet<string> after = ReadCommentIds(package, cancellationToken);
             after.ExceptWith(commentsBefore);
+            bool boundAlias = false;
             foreach (string id in after)
             {
                 (string PartName, XDocument Document, XElement Element)? found = FindCommentElementById(package, id, cancellationToken);
@@ -448,16 +461,18 @@ internal static partial class DocxPatchEngine
                 }
 
                 found.Value.Element.SetAttributeValue(SnapshotAliasName, alias);
+                boundAlias = true;
                 touched[found.Value.PartName] = found.Value.Document;
             }
 
             SaveTouchedParts(package, touched);
-            return;
+            return boundAlias;
         }
 
         if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null)
         {
             Dictionary<string, HashSet<string>> after = CollectBookmarkOoxmlIds(package, cancellationToken);
+            bool bookmarkBound = false;
             foreach ((string partName, HashSet<string> ids) in after)
             {
                 bookmarkIdsBefore.TryGetValue(partName, out HashSet<string>? before);
@@ -480,10 +495,12 @@ internal static partial class DocxPatchEngine
                 }
 
                 start.SetAttributeValue(SnapshotAliasName, alias);
+                bookmarkBound = true;
                 touched[partName] = document;
             }
 
             SaveTouchedParts(package, touched);
+            return bookmarkBound;
         }
 
         if (operation.OperationName is "append-row" or "insert-row-before" or "insert-row-after")
@@ -491,13 +508,15 @@ internal static partial class DocxPatchEngine
             (string PartName, XDocument Document, XElement Row)? found = FindCreatedRow(operation, package, cancellationToken);
             if (found is null)
             {
-                return;
+                return false;
             }
 
             found.Value.Row.SetAttributeValue(SnapshotAliasName, alias);
             touched[found.Value.PartName] = found.Value.Document;
             SaveTouchedParts(package, touched);
+            return true;
         }
+        return false;
     }
 
     private static void SaveTouchedParts(OoxmlPackage package, Dictionary<string, XDocument> touched)
