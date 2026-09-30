@@ -601,4 +601,43 @@ public static class PatchHyperlinkTests
         Assert.Contains(result.Diagnostics, static d => d.Code == "E1201");
     }
 
+
+    [Fact]
+    public static void HyperlinkTextInsideBookmarkRangePreservesRange()
+    {
+        const string relationships = """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/" TargetMode="External"/>
+            </Relationships>
+            """;
+        const string body = """
+            <w:p><w:bookmarkStart w:id="1" w:name="Protected"/><w:r><w:t>Start</w:t></w:r></w:p>
+            <w:p><w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink"><w:r><w:t>Middle</w:t></w:r></w:hyperlink></w:p>
+            <w:p><w:r><w:t>End</w:t></w:r><w:bookmarkEnd w:id="1"/></w:p>
+            """;
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(body, relationships);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            text CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.True(read.Success);
+        Assert.Equal("Start", read.Paragraphs[0].Text);
+        Assert.Equal("CHANGED", read.Paragraphs[1].Text);
+        Assert.Equal("End", read.Paragraphs[2].Text);
+        DocxBookmarkInfo bookmark = Assert.Single(read.Bookmarks);
+        Assert.Equal("M.B0001", bookmark.Id.ToWireValue());
+        Assert.Equal("Protected", bookmark.Name);
+    }
+
 }
