@@ -1790,12 +1790,19 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken,
         out XElement root)
     {
+        string cacheKey = OoxmlPath.NormalizePartName(partName);
+        if (package.parsedDocuments.TryGetValue(cacheKey, out XDocument? cached) && cached.Root is not null)
+        {
+            root = cached.Root;
+            return cached;
+        }
         OoxmlPart documentPart = package.GetPart(partName)
             ?? throw new InvalidDataException($"Document part '{partName}' does not exist.");
         using Stream stream = documentPart.OpenRead();
         XDocument document = SafeXml.Load(stream, cancellationToken);
         root = document.Root
             ?? throw new InvalidDataException($"Document part '{partName}' has no XML root.");
+        package.parsedDocuments[cacheKey] = document;
         return document;
     }
 
@@ -1809,6 +1816,7 @@ internal static partial class DocxPatchEngine
         using var output = new MemoryStream();
         document.Save(output, SaveOptions.DisableFormatting);
         package.ReplacePartBytes(partName, output.ToArray());
+        package.parsedDocuments[OoxmlPath.NormalizePartName(partName)] = document;
     }
 
     // D16: semantic no-ops succeed with this informational code instead of

@@ -7,6 +7,7 @@ internal sealed class OoxmlPackage
 {
     private readonly Dictionary<string, OoxmlPart> parts;
     private readonly HashSet<string> touchedPartNames = new(StringComparer.OrdinalIgnoreCase);
+    internal readonly Dictionary<string, XDocument> parsedDocuments = new(StringComparer.OrdinalIgnoreCase);
 
     private OoxmlPackage(Dictionary<string, OoxmlPart> parts, string mainDocumentPartName)
     {
@@ -248,6 +249,7 @@ internal sealed class OoxmlPackage
 
         parts[normalized] = part with { Bytes = bytes };
         touchedPartNames.Add(normalized);
+        parsedDocuments.Remove(normalized);
     }
 
     // D01: snapshot bookkeeping must not mark otherwise-untouched parts as edited.
