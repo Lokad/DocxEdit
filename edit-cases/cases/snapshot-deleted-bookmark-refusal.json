@@ -1,0 +1,39 @@
+{
+  "id": "snapshot-deleted-bookmark-refusal",
+  "description": "Fails a bookmark edit whose anchor paragraph was deleted instead of editing a neighbour.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Plain</w:t></w:r>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"7\" w:name=\"Second\"/>",
+      "      <w:r><w:t>Beta</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"7\"/>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0002",
+    "end",
+    "",
+    "op rename-bookmark",
+    "target M.B0001",
+    "expect-name Second",
+    "name Renamed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1201"
+    ],
+    "diagnosticMessagesContain": [
+      "matched 0 targets"
+    ]
+  }
+}

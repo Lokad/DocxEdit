@@ -1,0 +1,45 @@
+{
+  "id": "snapshot-control-binding",
+  "description": "Binds content-control IDs to the input snapshot so deleting one control paragraph does not retarget the next.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:text/>",
+      "          <w:tag w:val=\"first\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Old1</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:sdt>",
+      "        <w:sdtPr>",
+      "          <w:text/>",
+      "          <w:tag w:val=\"second\"/>",
+      "        </w:sdtPr>",
+      "        <w:sdtContent><w:r><w:t>Old2</w:t></w:r></w:sdtContent>",
+      "      </w:sdt>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end",
+    "",
+    "op set-content-control-text",
+    "target M.CC0002",
+    "expect-text Old2",
+    "text New2",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "New2"
+    ]
+  }
+}

@@ -1329,14 +1329,14 @@ internal static partial class DocxPatchEngine
 
         if (controlId.Story == 'M')
         {
-            return FindContentControlTarget(package, package.MainDocumentPartName, controlId.Primary, cancellationToken);
+            return FindContentControlTarget(package, package.MainDocumentPartName, controlId.Story, controlId.StoryPart, controlId.Primary, cancellationToken);
         }
 
         if (controlId.Story is 'H' or 'F')
         {
             string relationshipType = controlId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
             string? partName = ResolveRelatedStoryPartName(package, relationshipType, controlId.StoryPart, cancellationToken);
-            return partName is null ? null : FindContentControlTarget(package, partName, controlId.Primary, cancellationToken);
+            return partName is null ? null : FindContentControlTarget(package, partName, controlId.Story, controlId.StoryPart, controlId.Primary, cancellationToken);
         }
 
         return null;
@@ -1354,8 +1354,8 @@ internal static partial class DocxPatchEngine
 
         if (fieldId.Story == 'M')
         {
-            XDocument document = LoadMainDocument(package, cancellationToken, out XElement body);
-            XElement? field = FindField(body, fieldId.Primary);
+            XDocument document = LoadMainDocument(package, cancellationToken, out _);
+            XElement? field = FindSnapshotFieldElement(document, fieldId);
             return field is null
                 ? null
                 : new FieldTarget(package.MainDocumentPartName, document, field);
@@ -1365,7 +1365,7 @@ internal static partial class DocxPatchEngine
         {
             string relationshipType = fieldId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
             string? partName = ResolveRelatedStoryPartName(package, relationshipType, fieldId.StoryPart, cancellationToken);
-            return partName is null ? null : FindFieldTarget(package, partName, fieldId.Primary, cancellationToken);
+            return partName is null ? null : FindFieldTarget(package, partName, fieldId.Story, fieldId.StoryPart, fieldId.Primary, cancellationToken);
         }
 
         return null;
@@ -1393,8 +1393,11 @@ internal static partial class DocxPatchEngine
     private static FieldTarget? FindFieldTarget(
         OoxmlPackage package,
         string partName,
+        char story,
+        int storyPart,
         int fieldOrdinal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowLiveFallback = false)
     {
         if (fieldOrdinal < 1)
         {
@@ -1402,8 +1405,21 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadDocumentPart(package, partName, cancellationToken, out XElement root);
-        XElement? field = FindField(root, fieldOrdinal);
+        var snapshotId = new DocxTargetId(story, storyPart, DocxTargetKind.Field, fieldOrdinal, 0, 0);
+        XElement? field = FindSnapshotFieldElement(document, snapshotId);
+        if (field is null && allowLiveFallback)
+        {
+            field = FindField(root, fieldOrdinal);
+        }
+
         return field is null ? null : new FieldTarget(partName, document, field);
+    }
+
+    private static XElement? FindSnapshotFieldElement(XDocument document, DocxTargetId fieldId)
+    {
+        string wireId = fieldId.ToWireValue();
+        return FindSnapshotElement(document, OoxmlNs.W + "fldSimple", wireId)
+            ?? FindSnapshotElement(document, OoxmlNs.W + "fldChar", wireId);
     }
 
     private static XElement? FindField(XElement root, int fieldOrdinal)
@@ -1456,6 +1472,8 @@ internal static partial class DocxPatchEngine
     private static ContentControlTarget? FindContentControlTarget(
         OoxmlPackage package,
         string partName,
+        char story,
+        int storyPart,
         int contentControlOrdinal,
         CancellationToken cancellationToken)
     {
@@ -1465,9 +1483,8 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
-        XElement? contentControl = document
-            .Descendants(OoxmlNs.W + "sdt")
-            .ElementAtOrDefault(contentControlOrdinal - 1);
+        var snapshotId = new DocxTargetId(story, storyPart, DocxTargetKind.ContentControl, contentControlOrdinal, 0, 0);
+        XElement? contentControl = FindSnapshotElement(document, OoxmlNs.W + "sdt", snapshotId.ToWireValue());
         return contentControl is null ? null : new ContentControlTarget(partName, document, contentControl);
     }
 
@@ -1503,14 +1520,14 @@ internal static partial class DocxPatchEngine
 
         if (bookmarkId.Story == 'M')
         {
-            return FindBookmarkTarget(package, package.MainDocumentPartName, bookmarkId.Primary, cancellationToken);
+            return FindBookmarkTarget(package, package.MainDocumentPartName, bookmarkId.Story, bookmarkId.StoryPart, bookmarkId.Primary, cancellationToken);
         }
 
         if (bookmarkId.Story is 'H' or 'F')
         {
             string relationshipType = bookmarkId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
             string? partName = ResolveRelatedStoryPartName(package, relationshipType, bookmarkId.StoryPart, cancellationToken);
-            return partName is null ? null : FindBookmarkTarget(package, partName, bookmarkId.Primary, cancellationToken);
+            return partName is null ? null : FindBookmarkTarget(package, partName, bookmarkId.Story, bookmarkId.StoryPart, bookmarkId.Primary, cancellationToken);
         }
 
         return null;
@@ -1519,8 +1536,11 @@ internal static partial class DocxPatchEngine
     private static BookmarkTarget? FindBookmarkTarget(
         OoxmlPackage package,
         string partName,
+        char story,
+        int storyPart,
         int bookmarkOrdinal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowLiveFallback = false)
     {
         if (bookmarkOrdinal < 1)
         {
@@ -1528,9 +1548,14 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
-        XElement? start = document
-            .Descendants(OoxmlNs.W + "bookmarkStart")
-            .ElementAtOrDefault(bookmarkOrdinal - 1);
+        var snapshotId = new DocxTargetId(story, storyPart, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
+        XElement? start = FindSnapshotElement(document, OoxmlNs.W + "bookmarkStart", snapshotId.ToWireValue());
+        if (start is null && allowLiveFallback && bookmarkOrdinal >= 1)
+        {
+            start = document
+                .Descendants(OoxmlNs.W + "bookmarkStart")
+                .ElementAtOrDefault(bookmarkOrdinal - 1);
+        }
         string? ooxmlId = (string?)start?.Attribute(OoxmlNs.W + "id");
         XElement? end = ooxmlId is null
             ? null

@@ -804,4 +804,39 @@ public static class PatchBookmarkTests
         output.Position = 0;
         Assert.Equal("Before New Client After", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
+
+    [Fact]
+    public static void DeleteDoesNotRetargetLaterExplicitBookmark()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:bookmarkStart w:id="7" w:name="First"/>
+                      <w:r><w:t>Alpha</w:t></w:r>
+                      <w:bookmarkEnd w:id="7"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="8" w:name="Second"/>
+                      <w:r><w:t>Beta</w:t></w:r>
+                      <w:bookmarkEnd w:id="8"/>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0001
+            end
+
+            op replace-bookmark-text
+            target M.B0002
+            text Changed
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Equal("Changed", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+    }
 }

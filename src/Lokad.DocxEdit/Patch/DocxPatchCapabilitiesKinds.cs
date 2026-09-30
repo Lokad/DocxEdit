@@ -795,7 +795,7 @@ internal static partial class DocxPatchEngine
         StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
         FieldTarget? fieldTarget = storyDocument is null
             ? null
-            : FindFieldTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+            : FindFieldTarget(package, storyDocument.PartName, parsed.Story, parsed.StoryPart, parsed.Primary, cancellationToken, allowLiveFallback: true);
         if (storyDocument is null || fieldTarget is null)
         {
             return ParagraphCapabilitiesNotFound(requestedTargetId);
@@ -1550,7 +1550,7 @@ internal static partial class DocxPatchEngine
         StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
         BookmarkTarget? bookmarkTarget = storyDocument is null
             ? null
-            : FindBookmarkTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+            : FindBookmarkTarget(package, storyDocument.PartName, parsed.Story, parsed.StoryPart, parsed.Primary, cancellationToken, allowLiveFallback: true);
         if (storyDocument is null || bookmarkTarget is null)
         {
             return ParagraphCapabilitiesNotFound(requestedTargetId);

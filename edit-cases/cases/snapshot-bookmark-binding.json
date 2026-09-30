@@ -1,0 +1,40 @@
+{
+  "id": "snapshot-bookmark-binding",
+  "description": "Binds bookmark IDs to the input snapshot so deleting one bookmarked paragraph does not retarget the next.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"7\" w:name=\"First\"/>",
+      "      <w:r><w:t>Alpha</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"7\"/>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:bookmarkStart w:id=\"8\" w:name=\"Second\"/>",
+      "      <w:r><w:t>Beta</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"8\"/>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end",
+    "",
+    "op replace-bookmark-text",
+    "target M.B0002",
+    "expect-text Beta",
+    "text Changed",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Changed"
+    ],
+    "bookmarkNames": [
+      "Second"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "snapshot-field-binding",
+  "description": "Binds field IDs to the input snapshot so deleting one field paragraph does not retarget the next.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF First \\h \">",
+      "        <w:r><w:t>R1</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:fldSimple w:instr=\" REF Second \\h \">",
+      "        <w:r><w:t>R2</w:t></w:r>",
+      "      </w:fldSimple>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0001",
+    "end",
+    "",
+    "op set-field-result",
+    "target M.F0002",
+    "expect-result R2",
+    "text Changed",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "W5103"
+    ],
+    "paragraphs": [
+      "Changed"
+    ]
+  }
+}

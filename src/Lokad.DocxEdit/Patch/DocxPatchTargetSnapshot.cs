@@ -11,7 +11,7 @@ namespace Lokad.DocxEdit;
 // live against current content. Newly inserted blocks carry no snapshot mark
 // and are not addressable by pre-discovered explicit IDs in the same patch;
 // deleted targets fail instead of retargeting. Covers paragraphs, tables,
-// rows, cells, sections, and hyperlinks; other ordinal kinds keep live resolution.
+// rows, cells, sections, hyperlinks, bookmarks, content controls, and fields; images, merge groups, and comments keep live resolution.
 internal static partial class DocxPatchEngine
 {
     private static readonly XNamespace SnapshotNs = "http://schemas.lokad.com/docxedit/snapshot";
@@ -78,6 +78,38 @@ internal static partial class DocxPatchEngine
                         annotated = true;
                     }
                 }
+            }
+
+            int bookmarkIndex = 1;
+            foreach (XElement start in document.Descendants(OoxmlNs.W + "bookmarkStart"))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace((string?)start.Attribute(OoxmlNs.W + "name")))
+                {
+                    continue;
+                }
+
+                var bookmarkId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Bookmark, bookmarkIndex++, 0, 0);
+                start.SetAttributeValue(SnapshotIdName, bookmarkId.ToWireValue());
+                annotated = true;
+            }
+
+            int controlIndex = 1;
+            foreach (XElement control in document.Descendants(OoxmlNs.W + "sdt"))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var controlId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.ContentControl, controlIndex++, 0, 0);
+                control.SetAttributeValue(SnapshotIdName, controlId.ToWireValue());
+                annotated = true;
+            }
+
+            int fieldIndex = 1;
+            foreach (XElement field in FindFields(root))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var fieldId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Field, fieldIndex++, 0, 0);
+                field.SetAttributeValue(SnapshotIdName, fieldId.ToWireValue());
+                annotated = true;
             }
 
             int hyperlinkIndex = 1;
