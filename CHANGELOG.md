@@ -43,3 +43,4 @@
 - Made patch parsing tolerate CRLF line endings and a leading UTF-8 BOM.
 - Documented that semantic selectors search the main story and that `occurrence` selects find/anchor-text matches rather than selector targets.
 - Rendered change reports now print an explicit No changes line instead of empty output when no markup is present; JSON output is unchanged.
+- Added guarded `set-image-size`, `set-image-wrap`, `set-image-position`, `set-image-crop`, and `delete-image` help examples covering the `expect-content-type` guard; every supported operation with guard fields now has a guarded example pinned by tests.

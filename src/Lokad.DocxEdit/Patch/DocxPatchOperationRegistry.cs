@@ -1797,6 +1797,15 @@ internal static partial class DocxPatchEngine
                 width 5cm
                 end
                 """,
+                """
+                # Guarded set-image-size: expect-content-type must match before editing.
+                docxpatch 1
+                op set-image-size
+                target M.I0001
+                width 5cm
+                expect-content-type image/png
+                end
+                """,
             ],
             AcceptedKinds = [DocxTargetKind.Image],
         },
@@ -1825,6 +1834,15 @@ internal static partial class DocxPatchEngine
                 op set-image-wrap
                 target M.I0001
                 mode square
+                end
+                """,
+                """
+                # Guarded set-image-wrap: expect-content-type must match before editing.
+                docxpatch 1
+                op set-image-wrap
+                target M.I0001
+                mode square
+                expect-content-type image/png
                 end
                 """,
             ],
@@ -1858,6 +1876,15 @@ internal static partial class DocxPatchEngine
                 horizontal-align center
                 end
                 """,
+                """
+                # Guarded set-image-position: expect-content-type must match before editing.
+                docxpatch 1
+                op set-image-position
+                target M.I0001
+                horizontal-align center
+                expect-content-type image/png
+                end
+                """,
             ],
             AcceptedKinds = [DocxTargetKind.Image],
         },
@@ -1887,6 +1914,15 @@ internal static partial class DocxPatchEngine
                 left-percent 10
                 end
                 """,
+                """
+                # Guarded set-image-crop: expect-content-type must match before editing.
+                docxpatch 1
+                op set-image-crop
+                target M.I0001
+                left-percent 10
+                expect-content-type image/png
+                end
+                """,
             ],
             AcceptedKinds = [DocxTargetKind.Image],
         },
@@ -1909,6 +1945,14 @@ internal static partial class DocxPatchEngine
                 docxpatch 1
                 op delete-image
                 target M.I0001
+                end
+                """,
+                """
+                # Guarded delete-image: expect-content-type must match before editing.
+                docxpatch 1
+                op delete-image
+                target M.I0001
+                expect-content-type image/png
                 end
                 """,
             ],

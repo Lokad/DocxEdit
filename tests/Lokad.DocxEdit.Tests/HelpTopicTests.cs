@@ -141,6 +141,24 @@ public static class HelpTopicTests
     }
 
     [Fact]
+    public static void SupportedOperationsHaveMinimalAndGuardedExamples()
+    {
+        foreach (DocxPatchOperationInfo operation in DocxHelp.Catalog.PatchOperations)
+        {
+            if (operation.TrackChangesSupportClass == "unsupported")
+            {
+                continue;
+            }
+
+            Assert.Contains(operation.Examples, static example => example.Contains("# Minimal", StringComparison.Ordinal));
+            if (operation.OptionalFields.Any(static field => field.StartsWith("expect-", StringComparison.Ordinal)))
+            {
+                Assert.Contains(operation.Examples, static example => example.Contains("# Guarded", StringComparison.Ordinal));
+            }
+        }
+    }
+
+    [Fact]
     public static void PatchOperationTopicRendersMinimalAndGuardedExamples()
     {
         string topic = DocxHelp.RenderTopic("replace-text");
