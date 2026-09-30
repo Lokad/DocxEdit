@@ -136,6 +136,79 @@ internal static partial class DocxPatchEngine
             }
         }
 
+        var startCounts = new Dictionary<(int Row, string Id), int>();
+        var endCounts = new Dictionary<(int Row, string Id), int>();
+        int totalBegins = 0;
+        int totalEnds = 0;
+        foreach (XElement element in root.Descendants())
+        {
+            int hrow = -1;
+            for (int h = 0; h < SpanRangeMarkers.Length; h++)
+            {
+                if (element.Name == SpanRangeMarkers[h].Start || element.Name == SpanRangeMarkers[h].End)
+                {
+                    hrow = h;
+                    break;
+                }
+            }
+            if (hrow >= 0)
+            {
+                string? hid = (string?)element.Attribute(OoxmlNs.W + "id");
+                if (hid is null)
+                {
+                    continue;
+                }
+                var hkey = (hrow, hid);
+                bool hisStart = element.Name == SpanRangeMarkers[hrow].Start;
+                if (hisStart)
+                {
+                    int hc = 0;
+                    startCounts.TryGetValue(hkey, out hc);
+                    startCounts[hkey] = hc + 1;
+                }
+                else
+                {
+                    int hc2 = 0;
+                    endCounts.TryGetValue(hkey, out hc2);
+                    endCounts[hkey] = hc2 + 1;
+                }
+                continue;
+            }
+            if (element.Name == OoxmlNs.W + "fldChar")
+            {
+                string? hkind = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
+                if (string.Equals(hkind, "begin", StringComparison.Ordinal))
+                {
+                    totalBegins++;
+                }
+                else if (string.Equals(hkind, "end", StringComparison.Ordinal))
+                {
+                    totalEnds++;
+                }
+            }
+        }
+
+        var unhealthy = new List<(int Row, string Id)>();
+        foreach (KeyValuePair<(int Row, string Id), int> kv in entering)
+        {
+            int sc = 0;
+            int ec = 0;
+            startCounts.TryGetValue(kv.Key, out sc);
+            endCounts.TryGetValue(kv.Key, out ec);
+            if (sc != 1 || ec != 1)
+            {
+                unhealthy.Add(kv.Key);
+            }
+        }
+        foreach ((int Row, string Id) key in unhealthy)
+        {
+            entering.Remove(key);
+        }
+        if (totalBegins != totalEnds)
+        {
+            enteringFieldDepth = 0;
+        }
+
         return entering;
     }
 
