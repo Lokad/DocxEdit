@@ -923,7 +923,7 @@ public static class PatchReportTests
     }
 
     [Fact]
-    public static void TwoSequentialInsertsReportEachCreatedId()
+    public static void TwoSequentialInsertsReportFinalIds()
     {
         using MemoryStream input = CreateDocx("Alpha");
         using var output = new MemoryStream();
@@ -945,7 +945,7 @@ public static class PatchReportTests
 
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
         Assert.Equal(2, result.Operations.Count);
-        Assert.Equal(new[] { "M.P0002" }, result.Operations[0].CreatedTargetIds);
+        Assert.Equal(new[] { "M.P0003" }, result.Operations[0].CreatedTargetIds);
         Assert.Equal(new[] { "M.P0002" }, result.Operations[1].CreatedTargetIds);
         output.Position = 0;
         Assert.Equal(
@@ -1207,5 +1207,176 @@ public static class PatchReportTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
         Assert.Equal(new[] { "M.B0001" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void SetHyperlinkTextReportsHyperlinkTarget()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-hyperlink-text
+            target M.L0001
+            text New link
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.L0001", affected.Id.ToWireValue());
+        Assert.Equal("hyperlink", affected.Kind);
+        Assert.Equal("update", affected.Action);
+    }
+
+    [Fact]
+    public static void RemoveHyperlinkReportsHyperlinkDelete()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Old link</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op remove-hyperlink
+            target M.L0001
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.L0001", affected.Id.ToWireValue());
+        Assert.Equal("hyperlink", affected.Kind);
+        Assert.Equal("delete", affected.Action);
+    }
+
+    [Fact]
+    public static void SetImageAltReportsImageTarget()
+    {
+        using MemoryStream input = CreateDocxWithImage("png", "image/png", "old-png");
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0001
+            alt Updated chart
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchAffectedTarget affected = Assert.Single(Assert.Single(result.Operations).AffectedTargets);
+        Assert.Equal("M.I0001", affected.Id.ToWireValue());
+        Assert.Equal("image", affected.Kind);
+        Assert.Equal("update", affected.Action);
+    }
+
+    [Fact]
+    public static void AffectedIdsRebaseToFinalCoordinatesAfterShift()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.P0001
+            find Alpha
+            with Beta
+            end
+
+            op insert-before
+            target M.P0001
+            text Leading
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal("M.P0002", Assert.Single(result.Operations[0].AffectedTargets).Id.ToWireValue());
+        output.Position = 0;
+        List<string> ids = new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Id.ToWireValue()).ToList();
+        Assert.Equal(new[] { "M.P0001", "M.P0002" }, ids);
+    }
+
+    [Fact]
+    public static void CreatedIdsRebaseToFinalCoordinatesAfterShift()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Second
+            end
+
+            op insert-before
+            target M.P0001
+            text First
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0003" }, result.Operations[0].CreatedTargetIds);
+        Assert.Equal(new[] { "M.P0001" }, result.Operations[1].CreatedTargetIds);
+        output.Position = 0;
+        List<string> texts = new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Text).ToList();
+        Assert.Equal(new[] { "First", "Alpha", "Second" }, texts);
+    }
+
+    [Fact]
+    public static void CreatedThenDeletedKeepsOperationTimeId()
+    {
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            as newSection
+            text Second
+            end
+
+            op delete-block
+            target @newSection
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0002" }, result.Operations[0].CreatedTargetIds);
+        output.Position = 0;
+        Assert.Equal("Alpha", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
 }

@@ -30,7 +30,7 @@ internal static partial class DocxPatchEngine
 
         if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null)
         {
-            return CreatedBookmarkIds(package, bookmarkIdsBefore, cancellationToken);
+            return CreatedBookmarkIds(operation, package, bookmarkIdsBefore, cancellationToken);
         }
 
         return [];
@@ -68,9 +68,11 @@ internal static partial class DocxPatchEngine
                 return [];
             }
 
+            element.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, wireIds.Count));
             wireIds.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0).ToWireValue());
         }
 
+        SaveDocumentPart(package, anchor.PartName, anchor.Document);
         return wireIds;
     }
 
@@ -151,11 +153,13 @@ internal static partial class DocxPatchEngine
     }
 
     private static IReadOnlyList<string> CreatedBookmarkIds(
+        DocxPatchOperation operation,
         OoxmlPackage package,
         IReadOnlyDictionary<string, HashSet<string>> bookmarksBefore,
         CancellationToken cancellationToken)
     {
         Dictionary<string, HashSet<string>> after = CollectBookmarkOoxmlIds(package, cancellationToken);
+        var touched = new Dictionary<string, XDocument>(StringComparer.OrdinalIgnoreCase);
         IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
         List<string> created = [];
         foreach ((string partName, HashSet<string> ids) in after)
@@ -184,10 +188,17 @@ internal static partial class DocxPatchEngine
                 ordinal++;
                 if (string.Equals((string?)start.Attribute(OoxmlNs.W + "id"), added[0], StringComparison.Ordinal))
                 {
+                    start.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, created.Count));
+                    touched[partName] = document;
                     created.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Bookmark, ordinal, 0, 0).ToWireValue());
                     break;
                 }
             }
+        }
+
+        foreach ((string partName, XDocument document) in touched)
+        {
+            SaveDocumentPart(package, partName, document);
         }
 
         return created;

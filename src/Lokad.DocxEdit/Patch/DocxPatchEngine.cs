@@ -216,6 +216,10 @@ internal static partial class DocxPatchEngine
             }
         }
 
+        // R04: rebase report IDs to final-output coordinates before stripping
+        // transient marks, so reported identities match a fresh read.
+        RebaseReportTargetIds(package, reports, cancellationToken);
+
         // D01: strip snapshot marks before field refresh, validation, and
         // publication so transient IDs never reach validators or output.
         StripTargetSnapshot(package, snapshotOriginals, cancellationToken);

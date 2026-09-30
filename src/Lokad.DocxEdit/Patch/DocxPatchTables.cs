@@ -244,10 +244,10 @@ internal static partial class DocxPatchEngine
         string action = operation.OperationName switch
         {
             "insert-before" or "insert-after" => "insert",
-            "delete-block" => "delete",
+            "delete-block" or "delete-image" or "delete-bookmark" or "delete-comment" or "delete-comment-reply" or "remove-hyperlink" => "delete",
             _ => "update"
         };
-        string kind = resolvedId.Kind == DocxTargetKind.Table ? "table" : "paragraph";
+        string kind = TargetKindWord(resolvedId.Kind);
         return [new DocxPatchAffectedTarget(resolvedId, kind, action)];
     }
 
@@ -765,6 +765,7 @@ internal static partial class DocxPatchEngine
 
 
         XElement newRow = CreateRowFromTemplate(templateRow, cellTexts);
+        newRow.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
         if (useTrackedChanges)
         {
             MarkRowRevision(package, newRow, OoxmlNs.W + "ins", options, generatedRevisionIds, cancellationToken);
@@ -864,6 +865,7 @@ internal static partial class DocxPatchEngine
 
 
         XElement newRow = CreateRowFromTemplate(rowTarget.Row, cellTexts);
+        newRow.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
         if (useTrackedChanges)
         {
             MarkRowRevision(package, newRow, OoxmlNs.W + "ins", options, generatedRevisionIds, cancellationToken);

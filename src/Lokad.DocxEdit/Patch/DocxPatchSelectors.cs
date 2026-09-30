@@ -166,11 +166,6 @@ internal static partial class DocxPatchEngine
         DocxPatchOperation operation,
         CancellationToken cancellationToken)
     {
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block"))
-        {
-            return null;
-        }
-
         string? target = operation.Fields.GetValueOrDefault("target");
         if (string.IsNullOrWhiteSpace(target))
         {
@@ -182,20 +177,81 @@ internal static partial class DocxPatchEngine
             return TryResolveAliasParagraphId(package, target, cancellationToken);
         }
 
-        if (DocxTargetId.TryParse(target, out DocxTargetId explicitId)
-            && explicitId.Kind == DocxTargetKind.Table
-            && operation.OperationName is ("insert-before" or "insert-after" or "delete-block"))
+        if (DocxTargetId.TryParse(target, out DocxTargetId explicitId))
         {
-            return explicitId;
+            if (explicitId.Kind == DocxTargetKind.Table
+                && operation.OperationName is ("insert-before" or "insert-after" or "delete-block"))
+            {
+                return explicitId;
+            }
+
+            if (explicitId.Kind is DocxTargetKind.Paragraph)
+            {
+                if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block"))
+                {
+                    return null;
+                }
+
+                ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
+                if (paragraphTarget is null)
+                {
+                    return null;
+                }
+
+                string? snapshotId = (string?)paragraphTarget.Paragraph.Attribute(SnapshotIdName);
+                return snapshotId is not null && DocxTargetId.TryParse(snapshotId, out DocxTargetId resolved)
+                    ? resolved
+                    : null;
+            }
+
+            return CaptureExplicitTargetSnapshotId(package, operation, explicitId, cancellationToken);
         }
 
-        ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
-        if (paragraphTarget is null)
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block"))
         {
             return null;
         }
 
-        string? snapshotId = (string?)paragraphTarget.Paragraph.Attribute(SnapshotIdName);
+        ParagraphTarget? semanticTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
+        if (semanticTarget is null)
+        {
+            return null;
+        }
+
+        string? semanticSnapshotId = (string?)semanticTarget.Paragraph.Attribute(SnapshotIdName);
+        return semanticSnapshotId is not null && DocxTargetId.TryParse(semanticSnapshotId, out DocxTargetId semanticResolved)
+            ? semanticResolved
+            : null;
+    }
+
+    private static DocxTargetId? CaptureExplicitTargetSnapshotId(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        DocxTargetId explicitId,
+        CancellationToken cancellationToken)
+    {
+        string target = explicitId.ToWireValue();
+        XElement? element = explicitId.Kind switch
+        {
+            DocxTargetKind.Table => ResolveTableTarget(package, target, cancellationToken)?.Table,
+            DocxTargetKind.Row => ResolveRowTarget(package, target, cancellationToken)?.Row,
+            DocxTargetKind.Cell or DocxTargetKind.MergeGroup => ResolveCellTarget(package, target, cancellationToken)?.Cell,
+            DocxTargetKind.Hyperlink => ResolveHyperlinkTarget(package, target, cancellationToken)?.Hyperlink,
+            DocxTargetKind.Bookmark => ResolveBookmarkTarget(package, operation, target, cancellationToken, out _)?.Start,
+            DocxTargetKind.ContentControl => ResolveContentControlTarget(package, operation, target, cancellationToken, out _)?.ContentControl,
+            DocxTargetKind.Field => ResolveFieldTarget(package, target, cancellationToken)?.Element,
+            DocxTargetKind.Image => ResolveImageBlipTarget(package, target, cancellationToken)?.Blip,
+            DocxTargetKind.Section => ResolveMainSectionTarget(package, target, cancellationToken)?.SectionProperties,
+            _ => null
+        };
+
+        if (element is null)
+        {
+            return null;
+        }
+
+        XName markName = explicitId.Kind == DocxTargetKind.MergeGroup ? SnapshotMergeGroupName : SnapshotIdName;
+        string? snapshotId = (string?)element.Attribute(markName);
         return snapshotId is not null && DocxTargetId.TryParse(snapshotId, out DocxTargetId resolved)
             ? resolved
             : null;

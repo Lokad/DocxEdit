@@ -18,6 +18,7 @@ internal static partial class DocxPatchEngine
     private static readonly XName SnapshotIdName = SnapshotNs + "sid";
     private static readonly XName SnapshotAliasName = SnapshotNs + "alias";
     private static readonly XName SnapshotMergeGroupName = SnapshotNs + "mgid";
+    private static readonly XName SnapshotCreatedName = SnapshotNs + "created";
 
     private static void CaptureTargetSnapshot(OoxmlPackage package, CancellationToken cancellationToken)
     {
@@ -215,6 +216,11 @@ internal static partial class DocxPatchEngine
         return names;
     }
 
+    internal static string CreatedMarkValue(DocxPatchOperation operation, int index)
+    {
+        return "op" + operation.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     internal static int? PhysicalParagraphOrdinal(XDocument document, XElement paragraph)
     {
         XElement? root = document.Root;
@@ -240,6 +246,233 @@ internal static partial class DocxPatchEngine
         }
 
         return null;
+    }
+
+    // R04: rebase report IDs to final-output coordinates. Affected entries name
+    // input-snapshot IDs at capture time and created entries name operation-time
+    // IDs; later structural operations can renumber both. Before publication each
+    // ID is resolved back to its element (snapshot marks for pre-existing objects,
+    // creation marks for new ones) and rewritten in final physical order, so a
+    // reported ID always matches a fresh read. IDs whose object no longer exists
+    // are kept as-is: they name the input or operation-time object, which fails
+    // loudly on lookup instead of naming a different live object.
+    internal static void RebaseReportTargetIds(
+        OoxmlPackage package,
+        List<DocxPatchOperationReport> reports,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
+        var finals = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!prefixes.TryGetValue(story.PartName, out string? prefix))
+            {
+                continue;
+            }
+
+            OoxmlPart? part = package.GetPart(story.PartName);
+            if (part is null)
+            {
+                continue;
+            }
+
+            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
+            if (document.Root is null)
+            {
+                continue;
+            }
+
+            (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(prefix);
+            CollectFinalTargetIds(package, story.PartName, document, storyLetter, storyPart, finals, cancellationToken);
+        }
+
+        for (int reportIndex = 0; reportIndex < reports.Count; reportIndex++)
+        {
+            DocxPatchOperationReport report = reports[reportIndex];
+            if (report.AffectedTargets.Count == 0 && report.CreatedTargetIds.Count == 0)
+            {
+                continue;
+            }
+
+            var affected = new List<DocxPatchAffectedTarget>();
+            foreach (DocxPatchAffectedTarget entry in report.AffectedTargets)
+            {
+                affected.Add(RebaseAffectedTarget(report, entry, finals));
+            }
+
+            var created = new List<string>();
+            for (int createdIndex = 0; createdIndex < report.CreatedTargetIds.Count; createdIndex++)
+            {
+                string createdId = report.CreatedTargetIds[createdIndex];
+                string mark = "op" + report.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + createdIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                created.Add(finals.TryGetValue(mark, out string? finalWire) ? finalWire : createdId);
+            }
+
+            reports[reportIndex] = report with { AffectedTargets = affected, CreatedTargetIds = created };
+        }
+    }
+
+    private static void CollectFinalTargetIds(
+        OoxmlPackage package,
+        string partName,
+        XDocument document,
+        char storyLetter,
+        int storyPart,
+        Dictionary<string, string> finals,
+        CancellationToken cancellationToken)
+    {
+        XElement root = document.Root!;
+        XElement container = root.Element(OoxmlNs.W + "body") ?? root;
+        int paragraphOrdinal = 0;
+        int tableOrdinal = 0;
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(container))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.Block.Name == OoxmlNs.W + "p")
+            {
+                paragraphOrdinal++;
+                RecordFinalId(entry.Block, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, paragraphOrdinal, 0, 0), finals);
+            }
+            else if (entry.Block.Name == OoxmlNs.W + "tbl")
+            {
+                tableOrdinal++;
+                var tableId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Table, tableOrdinal, 0, 0);
+                RecordFinalId(entry.Block, tableId, finals);
+                CollectFinalTableIds(entry.Block, tableId, finals, cancellationToken);
+            }
+        }
+
+        CollectFinalDescendantIds(document, OoxmlNs.W + "hyperlink", DocxTargetKind.Hyperlink, storyLetter, storyPart, finals, static _ => true);
+        CollectFinalDescendantIds(document, OoxmlNs.W + "sdt", DocxTargetKind.ContentControl, storyLetter, storyPart, finals, static _ => true);
+        CollectFinalDescendantIds(document, OoxmlNs.W + "bookmarkStart", DocxTargetKind.Bookmark, storyLetter, storyPart, finals, static element => !string.IsNullOrWhiteSpace((string?)element.Attribute(OoxmlNs.W + "name")));
+        int fieldOrdinal = 0;
+        foreach (XElement field in FindFields(root))
+        {
+            fieldOrdinal++;
+            RecordFinalId(field, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Field, fieldOrdinal, 0, 0), finals);
+        }
+
+        int imageOrdinal = 0;
+        foreach (ImageBlipEntry blip in FindImageBlipEntries(package, partName, document, cancellationToken))
+        {
+            imageOrdinal++;
+            RecordFinalId(blip.Blip, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Image, imageOrdinal, 0, 0), finals);
+        }
+    }
+
+    private static void CollectFinalDescendantIds(
+        XDocument document,
+        XName name,
+        DocxTargetKind kind,
+        char storyLetter,
+        int storyPart,
+        Dictionary<string, string> finals,
+        Func<XElement, bool> accept)
+    {
+        int ordinal = 0;
+        foreach (XElement element in document.Descendants(name))
+        {
+            if (!accept(element))
+            {
+                continue;
+            }
+
+            ordinal++;
+            RecordFinalId(element, new DocxTargetId(storyLetter, storyPart, kind, ordinal, 0, 0), finals);
+        }
+    }
+
+    private static void CollectFinalTableIds(
+        XElement table,
+        DocxTargetId tableId,
+        Dictionary<string, string> finals,
+        CancellationToken cancellationToken)
+    {
+        int rowOrdinal = 0;
+        foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            rowOrdinal++;
+            RecordFinalId(row, tableId with { Kind = DocxTargetKind.Row, Secondary = rowOrdinal }, finals);
+            int visualColumn = 1 + ReadTableRowGridOffset(row, "gridBefore");
+            foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+            {
+                RecordFinalId(cell, tableId with { Kind = DocxTargetKind.Cell, Secondary = rowOrdinal, Tertiary = visualColumn }, finals);
+                visualColumn += ReadTableCellColumnSpan(cell);
+            }
+        }
+
+        int mergeOrdinal = 0;
+        XElement? mergeTable = table;
+        while (TryFindMergeGroupRoot(mergeTable, mergeOrdinal + 1, out _, out XElement? mergeRoot, out _, out _))
+        {
+            mergeOrdinal++;
+            RecordFinalId(mergeRoot!, tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeOrdinal }, finals);
+        }
+    }
+
+    private static void RecordFinalId(XElement element, DocxTargetId finalId, Dictionary<string, string> finals)
+    {
+        string finalWire = finalId.ToWireValue();
+        string? snapshotId = (string?)element.Attribute(SnapshotIdName);
+        if (snapshotId is not null)
+        {
+            finals[snapshotId] = finalWire;
+        }
+
+        string? mergeId = (string?)element.Attribute(SnapshotMergeGroupName);
+        if (mergeId is not null)
+        {
+            finals[mergeId] = finalWire;
+        }
+
+        string? createdMark = (string?)element.Attribute(SnapshotCreatedName);
+        if (createdMark is not null)
+        {
+            finals[createdMark] = finalWire;
+        }
+    }
+
+    private static DocxPatchAffectedTarget RebaseAffectedTarget(
+        DocxPatchOperationReport report,
+        DocxPatchAffectedTarget entry,
+        Dictionary<string, string> finals)
+    {
+        if (entry.Kind is "row" or "cell" &&
+            report.OperationName is "append-row" or "insert-row-before" or "insert-row-after")
+        {
+            return RebaseInsertedRowEntry(report, entry, finals) ?? entry;
+        }
+
+        if (finals.TryGetValue(entry.Id.ToWireValue(), out string? finalWire) &&
+            DocxTargetId.TryParse(finalWire, out DocxTargetId finalId))
+        {
+            return entry with { Id = finalId };
+        }
+
+        return entry;
+    }
+
+    private static DocxPatchAffectedTarget? RebaseInsertedRowEntry(
+        DocxPatchOperationReport report,
+        DocxPatchAffectedTarget entry,
+        Dictionary<string, string> finals)
+    {
+        string mark = "op" + report.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-0";
+        if (!finals.TryGetValue(mark, out string? rowWire) ||
+            !DocxTargetId.TryParse(rowWire, out DocxTargetId rowId) ||
+            rowId.Kind != DocxTargetKind.Row)
+        {
+            return null;
+        }
+
+        if (entry.Kind == "row")
+        {
+            return entry with { Id = rowId };
+        }
+
+        return entry with { Id = rowId with { Kind = DocxTargetKind.Cell, Tertiary = entry.Id.Tertiary } };
     }
 
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)
@@ -303,7 +536,7 @@ internal static partial class DocxPatchEngine
             bool dirty = false;
             foreach (XElement element in document.Descendants())
             {
-                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName })
+                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName, SnapshotCreatedName })
                 {
                     XAttribute? attribute = element.Attribute(markName);
                     if (attribute is not null)

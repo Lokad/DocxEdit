@@ -1741,4 +1741,38 @@ public static class PatchTableTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E4202");
     }
 
+    [Fact]
+    public static void AppendedRowRebasesAfterLaterInsert()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Revenue</w:t></w:r></w:p></w:tc></w:tr>
+                      <w:tr><w:tc><w:p><w:r><w:t>South</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Profit</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op append-row
+            target M.T0001
+            cell East
+            cell West
+            end
+
+            op insert-row-before
+            target M.T0001.R01
+            cell New
+            cell Row
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchAffectedTarget appendedRow = Assert.Single(result.Operations[0].AffectedTargets, static target => target.Kind == "row");
+        Assert.Equal("M.T0001.R04", appendedRow.Id.ToWireValue());
+        output.Position = 0;
+        List<string> rows = new DocxEditor().Read(output).Tables.SelectMany(static table => table.Rows.Select(static row => row.Id.ToWireValue())).ToList();
+        Assert.Equal(new[] { "M.T0001.R01", "M.T0001.R02", "M.T0001.R03", "M.T0001.R04" }, rows);
+    }
 }

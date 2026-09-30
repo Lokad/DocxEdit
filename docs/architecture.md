@@ -34,11 +34,18 @@ parser, catalog, and engine dispatch all project from.
   Within one patch, explicit paragraph/table/row/cell/section IDs bind to the input snapshot:
   an earlier insert or delete never renumbers a later explicit ID, a deleted target fails
   instead of editing a neighbour, and newly inserted blocks are not addressable by
-  pre-discovered IDs in the same patch. Semantic selectors (	ext:, heading:, ...)
+  pre-discovered IDs in the same patch. Semantic selectors (text:, heading:, ...)
   keep resolving live against current content. Guards still evaluate sequentially, so
   dependent replacements can assert state produced by a preceding operation.
 - Check and apply parity (DocxPatchEngine.cs): both paths execute the same mutations against the
   disposable package; only apply saves. Check reports keep GeneratedRevisionIds empty by design.
+- Report coordinates (DocxPatchEngine.cs): AffectedTargets and CreatedTargetIds carry
+  final-output coordinates: before publication each ID is resolved back to its element
+  (snapshot marks for pre-existing objects, creation marks for new ones) and rewritten in
+  final physical order, so a reported ID matches a fresh read. IDs whose object no longer
+  exists are kept as-is and fail loudly on lookup instead of naming a different live object.
+  Result aliases (@name) always resolve to the current element. Re-read the output for
+  final coordinates; check and apply agree on every per-operation report.
 - Range-structure safety (DocxPatchEngine.cs): deleting a block or row that would newly orphan a
   healthy bookmark, comment range, or field pair is refused (E4305) before publication; removing a
   whole range stays allowed. Post-edit validation reports only violations the patch introduced.

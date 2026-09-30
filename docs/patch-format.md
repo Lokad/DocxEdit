@@ -181,7 +181,7 @@ with a semantic selector or a follow-up patch. A creation operation can also bin
 against current content, and guards evaluate sequentially, so a later operation
 can still assert text produced by an earlier one. IDs do not establish identity
 across independently modified input versions: re-discover targets and keep
-guards (xpect-text, counts) on every patch. Each insert lands immediately after its anchor as resolved for that operation: two insert-after operations against one anchor produce anchor, Second, First. For an ordered section in file order, use repeated text fields in one operation or chain inserts through result aliases.
+guards (expect-text, counts) on every patch. Each insert lands immediately after its anchor as resolved for that operation: two insert-after operations against one anchor produce anchor, Second, First. For an ordered section in file order, use repeated text fields in one operation or chain inserts through result aliases.
 
 ## Result aliases
 
