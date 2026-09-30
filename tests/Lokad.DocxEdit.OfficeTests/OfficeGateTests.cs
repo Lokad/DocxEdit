@@ -6,14 +6,10 @@ namespace Lokad.DocxEdit.OfficeTests;
 
 public static class OfficeGateTests
 {
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationOpenSaveRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -107,14 +103,10 @@ public static class OfficeGateTests
             }
         }
     }
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationIterativeTrackedRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -194,14 +186,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationBreakStructureRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -289,14 +277,10 @@ public static class OfficeGateTests
     }
 
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTrackedRowRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -368,14 +352,10 @@ public static class OfficeGateTests
             }
         }
     }
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTrackedPropertyRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -451,14 +431,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTrackedStyleRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -527,14 +503,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationResolveCommentRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -594,14 +566,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationCommentReplyRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -665,14 +633,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationFooterEditRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -732,14 +696,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationBookmarkTextRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -800,14 +760,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationContentControlRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -869,14 +825,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationHyperlinkRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -939,14 +891,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationFieldResultRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1007,14 +955,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationFormattedTrackedRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1092,14 +1036,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationMergeCellRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1163,14 +1103,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTrackedRowDeleteRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1240,14 +1176,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationAddBookmarkRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1308,14 +1240,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationHyperlinkInsertRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1377,14 +1305,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationDeleteCommentRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1447,14 +1371,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTableStyleRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1523,14 +1443,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationDeleteBookmarkRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1589,14 +1505,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationVerticalMergeRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1659,14 +1571,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationAnchoredImageRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1736,14 +1644,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationReopenCommentRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1803,14 +1707,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationImageAltRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1880,14 +1780,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTableMetadataRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -1950,14 +1846,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationHyperlinkTextRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2019,14 +1911,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationCheckboxRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2086,14 +1974,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationDeleteBlockRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2152,14 +2036,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationRemoveHyperlinkRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2218,14 +2098,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationImageSizeRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2305,14 +2181,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationDropdownRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2373,14 +2245,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationDateControlRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2443,14 +2311,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationRenameBookmarkRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2511,14 +2375,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationRowHeaderRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2579,14 +2439,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationSectionOrientationRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2645,14 +2501,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationFieldCodeRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2712,14 +2564,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationCommentTextRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -2781,14 +2629,10 @@ public static class OfficeGateTests
         }
     }
 
-    [Fact]
+    [OfficeFact]
     [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationFieldFlagsRoundTripIsOptIn()
     {
-        if (!string.Equals(Environment.GetEnvironmentVariable("DOCXEDIT_ENABLE_OFFICE_TESTS"), "1", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         if (!OperatingSystem.IsWindows())
         {
