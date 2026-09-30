@@ -562,6 +562,11 @@ internal static partial class DocxPatchEngine
             XElement paragraph = useTrackedChanges
                 ? CreateTrackedInsertedParagraph(package, texts[index], paragraphStyleId, paragraphProperties, options, generatedRevisionIds, cancellationToken)
                 : CreateSimpleParagraph(texts[index], paragraphStyleId, paragraphProperties);
+            paragraph.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, index));
+            if (operation.Fields.TryGetValue("as", out string? createdAlias) && createdAlias is not null)
+            {
+                paragraph.SetAttributeValue(SnapshotAliasName, createdAlias);
+            }
             if (insertAfter)
             {
                 sibling.AddAfterSelf(paragraph);
