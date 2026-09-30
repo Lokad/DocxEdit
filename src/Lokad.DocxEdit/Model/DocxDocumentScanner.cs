@@ -484,6 +484,14 @@ internal static partial class DocxDocumentScanner
             : DocxOrientation.Portrait;
         return new DocxSectionInfo(id, story, columns, orientation);
     }
+    // C02: image identity is placement based. Each drawing placement in a
+    // story gets its own public ID in document order. The media part is
+    // a property of the placement, not the identity. Alt text, position,
+    // and size belong to the placement. Repeated use of one media part
+    // yields one ID per placement. Discovery, snapshot binding, mutation,
+    // and reporting must use this same enumeration so an ID from discovery
+    // always addresses the drawing it describes.
+    // Public IDs for repeated media change under this contract.
 
     private static void AddDrawingImages(
         XElement drawing,
@@ -517,11 +525,6 @@ internal static partial class DocxDocumentScanner
 
             OoxmlPart? imagePart = package.GetPart(relationship.ResolvedTarget);
             if (imagePart is null)
-            {
-                continue;
-            }
-
-            if (images.Any(image => string.Equals(image.PartName, imagePart.Name, StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
