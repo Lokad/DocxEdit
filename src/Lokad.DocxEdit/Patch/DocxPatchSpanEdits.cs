@@ -44,6 +44,142 @@ internal static partial class DocxPatchEngine
         return false;
     }
 
+    // C01: story-wide range membership. Walk from the story root in document
+    // order up to the target element and track open bookmark, comment, move,
+    // custom-XML ranges plus complex-field depth. Markers inside deleted or
+    // moved-from subtrees stay invisible and do not contribute. Unmatched ends
+    // before the target do not carry forward. The result describes ranges that
+    // are already open when the target starts, so an interior paragraph with
+    // no local markers is still recognized as protected.
+    internal static Dictionary<(int Row, string Id), int> GetEnteringRangeCounts(
+        XElement target,
+        out int enteringFieldDepth)
+    {
+        var entering = new Dictionary<(int Row, string Id), int>();
+        enteringFieldDepth = 0;
+        XElement root = target;
+        while (root.Parent is not null)
+        {
+            root = root.Parent;
+        }
+
+        foreach (XElement element in root.Descendants())
+        {
+            if (ReferenceEquals(element, target))
+            {
+                break;
+            }
+
+            if (element.Ancestors(OoxmlNs.W + "del").Any() ||
+                element.Ancestors(OoxmlNs.W + "moveFrom").Any())
+            {
+                continue;
+            }
+
+            int row = -1;
+            for (int r = 0; r < SpanRangeMarkers.Length; r++)
+            {
+                if (element.Name == SpanRangeMarkers[r].Start || element.Name == SpanRangeMarkers[r].End)
+                {
+                    row = r;
+                    break;
+                }
+            }
+
+            if (row >= 0)
+            {
+                string? id = (string?)element.Attribute(OoxmlNs.W + "id");
+                if (id is null)
+                {
+                    continue;
+                }
+                var key = (row, id);
+                bool isStart = element.Name == SpanRangeMarkers[row].Start;
+                if (isStart)
+                {
+                    if (!entering.TryGetValue(key, out int count))
+                    {
+                        count = 0;
+                    }
+
+                    entering[key] = count + 1;
+                }
+                else
+                {
+                    if (entering.TryGetValue(key, out int count) && count > 0)
+                    {
+                        if (count == 1)
+                        {
+                            entering.Remove(key);
+                        }
+                        else
+                        {
+                            entering[key] = count - 1;
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if (element.Name == OoxmlNs.W + "fldChar")
+            {
+                string? kind = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
+                if (string.Equals(kind, "begin", StringComparison.Ordinal))
+                {
+                    enteringFieldDepth++;
+                }
+                else if (string.Equals(kind, "end", StringComparison.Ordinal) && enteringFieldDepth > 0)
+                {
+                    enteringFieldDepth--;
+                }
+            }
+        }
+
+        return entering;
+    }
+
+    internal static bool TryGetStoryEnteringProtectedFeature(
+        XElement target,
+        out string feature)
+    {
+        Dictionary<(int Row, string Id), int> entering = GetEnteringRangeCounts(target, out int fieldDepth);
+        foreach (KeyValuePair<(int Row, string Id), int> entry in entering)
+        {
+            if (entry.Value > 0)
+            {
+                feature = SpanRangeMarkers[entry.Key.Row].Feature;
+                return true;
+            }
+        }
+
+        if (fieldDepth > 0)
+        {
+            feature = "field";
+            return true;
+        }
+
+        feature = string.Empty;
+        return false;
+    }
+
+    // Shared gate for whole-paragraph operations. Entering ranges and fields
+    // come first so interior targets with no local markers are still refused.
+    // Otherwise fall back to the paragraph-only protected element scan.
+    internal static bool TryGetStoryProtectedTextEditFeature(
+        XElement paragraph,
+        out string feature)
+    {
+        if (TryGetStoryEnteringProtectedFeature(paragraph, out string entering))
+        {
+            feature = entering;
+            return true;
+        }
+
+        return TryGetProtectedTextEditFeature(paragraph, out feature);
+    }
+
+
     // R02: sibling range markers (bookmark, comment, move, and custom-XML ranges plus complex-field begin/end)
     // are zero-width, so ancestor checks cannot tell whether a match crosses
     // them. Each marker is recorded at its visible-text position during the map
@@ -60,6 +196,22 @@ internal static partial class DocxPatchEngine
         var intervals = new List<ProtectedSpanInterval>();
         var openRanges = new Dictionary<(int Row, string Id), Queue<int>>();
         var fieldBegins = new Stack<int>();
+        Dictionary<(int Row, string Id), int> entering = GetEnteringRangeCounts(paragraph, out int enteringFieldDepth);
+        foreach (KeyValuePair<(int Row, string Id), int> entry in entering)
+        {
+            var starts = new Queue<int>();
+            for (int i = 0; i < entry.Value; i++)
+            {
+                starts.Enqueue(0);
+            }
+            openRanges[entry.Key] = starts;
+        }
+
+        for (int i = 0; i < enteringFieldDepth; i++)
+        {
+            fieldBegins.Push(0);
+        }
+
         foreach (SpanMarkerEvent marker in markers)
         {
             int row = -1;

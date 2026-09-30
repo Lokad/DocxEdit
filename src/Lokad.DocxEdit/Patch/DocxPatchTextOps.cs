@@ -89,7 +89,7 @@ internal static partial class DocxPatchEngine
             ? PlanSpanEdit(paragraphTarget.Paragraph, current, matches)
             : SpanEditPlan.Legacy;
         string? protectedFeature = spanPlan.UseLegacyGate
-            ? TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string legacyFeature) ? legacyFeature : null
+            ? TryGetStoryProtectedTextEditFeature(paragraphTarget.Paragraph, out string legacyFeature) ? legacyFeature : null
             : spanPlan.ProtectedFeature;
         if (protectedFeature is not null)
         {
@@ -292,7 +292,7 @@ internal static partial class DocxPatchEngine
                 ? PlanSpanEdit(hit.Paragraph, hit.Current, hit.Matches)
                 : SpanEditPlan.Legacy;
             string? protectedFeature = spanPlan.UseLegacyGate
-                ? TryGetProtectedTextEditFeature(hit.Paragraph, out string legacyFeature) ? legacyFeature : null
+                ? TryGetStoryProtectedTextEditFeature(hit.Paragraph, out string legacyFeature) ? legacyFeature : null
                 : spanPlan.ProtectedFeature;
             if (protectedFeature is not null)
             {
@@ -447,7 +447,7 @@ internal static partial class DocxPatchEngine
             return NoOpResult(operation, target, "Replace-paragraph for " + target + " leaves the paragraph unchanged; nothing was written and no revisions were generated.");
         }
 
-        if (TryGetProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
+        if (TryGetStoryProtectedTextEditFeature(paragraphTarget.Paragraph, out string protectedFeature))
         {
             if (options.TrackChanges == TrackChangesMode.Require)
             {
@@ -643,7 +643,7 @@ internal static partial class DocxPatchEngine
                     return diagnostics;
                 }
             }
-            else if (TryGetProtectedTextEditFeature(blockTarget.Block, out string protectedFeature))
+            else if (TryGetStoryProtectedTextEditFeature(blockTarget.Block, out string protectedFeature))
             {
                 if (!TryFallbackToDirectEdit(options, operation, target, $"paragraph contains protected OOXML boundary '{protectedFeature}'", diagnostics, ref useTrackedChanges))
                 {
@@ -667,6 +667,10 @@ internal static partial class DocxPatchEngine
             return diagnostics;
         }
 
+        if (TryGetStoryEnteringProtectedFeature(blockTarget.Block, out string enteringFeature))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E4305", "Delete for " + target + " crosses protected OOXML boundary " + Quote(enteringFeature) + ".", operation, target)];
+        }
         if (FindOrphanedRangeBoundary(blockTarget.Document, blockTarget.Block) is { } orphaned)
         {
             return [Diagnostic(DocxSeverity.Error, "E4305", $"Delete for {target} would orphan {orphaned} outside the deleted element. Delete the range first or choose another target.", operation, target)];
