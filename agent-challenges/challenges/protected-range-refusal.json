@@ -1,0 +1,25 @@
+{
+  "id": "protected-range-refusal",
+  "title": "Recover From A Protected Range Refusal",
+  "tags": ["private", "bookmarks", "fields", "patch", "guards"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, inspect the private input copy for a bookmark or complex-field range spanning more than one paragraph.",
+    "Attempt a text edit wholly inside the range and record the refusal diagnostic code; a refusal is the expected safe outcome, so do not force the edit.",
+    "Recover by editing text outside the range (or a guarded edit the diagnostics point at) with an appropriate expect guard.",
+    "Run docxedit check before each apply and write the edited .docx under the run directory.",
+    "Validate the final output with docxedit read and docxedit validate, confirming the range markup survived.",
+    "If no multi-paragraph range exists, stop after the inspection and check attempts and report the range classes found without private text."
+  ],
+  "successCriteria": [
+    "Shows the interior edit refused with a protection diagnostic before any recovery.",
+    "Produces an output .docx where only the outside-range text changed.",
+    "Uses check before apply.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Did the refusal diagnostic name the protected feature and the safe alternative?",
+    "Could the agent distinguish interior targets from range endpoints?",
+    "Did the output validation confirm the range markup survived?"
+  ]
+}

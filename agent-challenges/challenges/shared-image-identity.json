@@ -1,0 +1,25 @@
+{
+  "id": "shared-image-identity",
+  "title": "Verify Per-Placement Image Identity",
+  "tags": ["private", "images", "patch", "guards"],
+  "requiresOutputDocx": true,
+  "task": [
+    "Using docxedit only, inventory the images in the private input copy, including headers and footers, and note any media part used by more than one drawing placement.",
+    "If repeated placements exist, edit exactly one of them with set-image-alt guarded by expect-alt naming its current description, choosing the second placement when two share one media part.",
+    "Run docxedit check before apply and write the edited .docx under the run directory.",
+    "Read the output back and confirm only the intended drawing changed while every other placement keeps its description; report all placement IDs with before and after descriptions but no private image bytes.",
+    "If no repeated placements exist, stop after the inventory and report the placement IDs found without private text."
+  ],
+  "successCriteria": [
+    "Addresses each edited drawing by its own placement ID, never by media part.",
+    "Uses the expect-alt guard.",
+    "Runs check before apply.",
+    "Shows readback where only the intended placement changed.",
+    "Does not inspect raw OOXML package parts or quote private document text."
+  ],
+  "observerQuestions": [
+    "Were per-placement IDs distinguishable when one media part was reused?",
+    "Did the expect-alt guard catch any wrong-drawing addressing before apply?",
+    "Could the agent verify from readback alone that neighbors were untouched?"
+  ]
+}
