@@ -1482,6 +1482,43 @@ public static class PatchReportTests
     }
 
     [Fact]
+    public static void MergeGroupPreviewReportsCellTextBeforeAndAfter()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+                      <w:tr>
+                        <w:tc>
+                          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+                          <w:p><w:r><w:t>Old merged</w:t></w:r></w:p>
+                        </w:tc>
+                      </w:tr>
+                    </w:tbl>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.MG0001
+            text New merged
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Old merged", report.PreviewBefore);
+        Assert.Equal("New merged", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+        DocxPatchAffectedTarget affected = Assert.Single(report.AffectedTargets);
+        Assert.Equal("M.T0001.MG0001", affected.Id.ToWireValue());
+        Assert.Equal("cell", affected.Kind);
+    }
+
+    [Fact]
     public static void DeleteBlockPreviewKeepsBeforeValue()
     {
         var options = new DocxEditOptions { MaxPreviewChars = 100 };
