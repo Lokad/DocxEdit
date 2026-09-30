@@ -248,19 +248,9 @@ internal static partial class DocxPatchEngine
             _ => "update"
         };
         string kind = TargetKindWord(resolvedId.Kind);
-        string? aliasTarget = operation.Fields.GetValueOrDefault("target");
         if (resolvedMark is not null)
         {
             return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreatedMark = resolvedMark }];
-        }
-        if (aliasTarget is not null && IsAliasReference(aliasTarget))
-        {
-            ParagraphTarget? aliasPara = ResolveAliasParagraphTarget(package, operation, aliasTarget, cancellationToken, out _);
-            string? aliasMark = (string?)aliasPara?.Paragraph.Attribute(SnapshotCreatedName);
-            if (aliasMark is not null)
-            {
-                return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreatedMark = aliasMark }];
-            }
         }
         return [new DocxPatchAffectedTarget(resolvedId, kind, action)];
     }
