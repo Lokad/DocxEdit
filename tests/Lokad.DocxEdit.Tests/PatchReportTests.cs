@@ -1460,4 +1460,25 @@ public static class PatchReportTests
         Assert.Equal("Hello There", report.PreviewAfter);
         Assert.False(report.PreviewTruncated);
     }
+    [Fact]
+    public static void DeleteFirstReportsHistoricalIdWithSurvivingNeighbor()
+    {
+        const string body = "<w:p><w:r><w:t>First</w:t></w:r></w:p><w:p><w:r><w:t>Second</w:t></w:r></w:p>";
+        using MemoryStream input = CreateDocxWithBody(body);
+        string patchText = "docxpatch 1\n\nop delete-block\ntarget M.P0001\nend\n";
+        DocxCheckResult check = new DocxEditor().Check(input, new StringReader(patchText));
+        Assert.True(check.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(check.Operations[0].AffectedTargets);
+        Assert.Equal("M.P0001", affected.Id.ToWireValue());
+        Assert.Equal("delete", affected.Action);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.True(apply.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("Second", Assert.Single(read.Paragraphs).Text);
+    }
+
 }
