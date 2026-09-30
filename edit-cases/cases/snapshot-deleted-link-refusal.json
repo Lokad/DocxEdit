@@ -1,0 +1,39 @@
+{
+  "id": "snapshot-deleted-link-refusal",
+  "description": "Fails a hyperlink edit whose anchor paragraph was deleted instead of editing a neighbour.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>First</w:t></w:r>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>Second</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>"
+    ],
+    "hyperlink": "https://example.test/report"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-block",
+    "target M.P0002",
+    "end",
+    "",
+    "op set-hyperlink-text",
+    "target M.L0001",
+    "text CHANGED",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E1201"
+    ],
+    "diagnosticMessagesContain": [
+      "matched 0 targets"
+    ]
+  }
+}

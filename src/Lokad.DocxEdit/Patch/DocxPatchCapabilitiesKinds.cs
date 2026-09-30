@@ -659,7 +659,7 @@ internal static partial class DocxPatchEngine
         StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
         HyperlinkTarget? hyperlinkTarget = storyDocument is null
             ? null
-            : FindHyperlinkTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+            : FindHyperlinkTarget(package, storyDocument.PartName, parsed.Story, parsed.StoryPart, parsed.Primary, cancellationToken, allowLiveFallback: true);
         if (storyDocument is null || hyperlinkTarget is null)
         {
             return ParagraphCapabilitiesNotFound(requestedTargetId);

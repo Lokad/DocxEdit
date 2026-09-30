@@ -1,0 +1,45 @@
+{
+  "id": "snapshot-hyperlink-binding",
+  "description": "Binds hyperlink IDs to the input snapshot so unwrapping one link does not retarget the next.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>First</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>Second</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:hyperlink xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rLink\">",
+      "        <w:r><w:t>Third</w:t></w:r>",
+      "      </w:hyperlink>",
+      "    </w:p>"
+    ],
+    "hyperlink": "https://example.test/report"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op remove-hyperlink",
+    "target M.L0001",
+    "end",
+    "",
+    "op set-hyperlink-text",
+    "target M.L0002",
+    "expect-text Second",
+    "text CHANGED",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "First",
+      "CHANGED",
+      "Third"
+    ]
+  }
+}

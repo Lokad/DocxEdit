@@ -47,3 +47,4 @@
 - Changed the central `Microsoft.SourceLink.GitHub` reference to 10.0.303, clearing the NU1902 audit failure under the strict warnings-as-errors gate; the shipped package still carries no runtime dependencies.
 - Fixed run-preserving text spans that crossed bookmark ranges or complex fields silently hollowing them: overlapping spans now fail with `E4305` (`E6002` under required tracking) while spans that merely touch a protected endpoint still succeed.
 - Extended protected span intervals to comment, move, and custom XML revision ranges, including ranges that start in an earlier paragraph and bookmarked cell text; adjacent plain spans keep succeeding.
+- Fixed explicit hyperlink IDs resolving live: unwrapping or deleting one link no longer retargets later operations onto a neighbour, and deleted links fail instead of editing one. Created links are addressed through result aliases.

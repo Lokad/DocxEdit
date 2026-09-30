@@ -380,12 +380,13 @@ public static class PatchHyperlinkTests
 
             op insert-hyperlink-after
             target M.P0001
+            as newLink
             text Docs
             uri https://docs.example/
             end
 
             op remove-hyperlink
-            target M.L0001
+            target @newLink
             end
             """);
 
@@ -514,6 +515,90 @@ public static class PatchHyperlinkTests
         Assert.Contains(result.Diagnostics, static d => d.Code == "I0001");
         output.Position = 0;
         Assert.Equal(before, ReadDocumentXml(output));
+    }
+
+    [Fact]
+    public static void UnwrapDoesNotRetargetLaterExplicitHyperlink()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>First</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Second</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Third</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op remove-hyperlink
+            target M.L0001
+            end
+
+            op set-hyperlink-text
+            target M.L0002
+            text CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        output.Position = 0;
+        List<string> texts = new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Text).ToList();
+        Assert.Equal(["First", "CHANGED", "Third"], texts);
+    }
+
+    [Fact]
+    public static void DeletedHyperlinkTargetFailsInsteadOfEditingNeighbour()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndRelationships(
+            """
+                    <w:p>
+                      <w:r><w:t>First</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:hyperlink xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rLink">
+                        <w:r><w:t>Second</w:t></w:r>
+                      </w:hyperlink>
+                    </w:p>
+            """,
+            """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
+                </Relationships>
+                """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0002
+            end
+
+            op set-hyperlink-text
+            target M.L0001
+            text CHANGED
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static d => d.Code == "E1201");
     }
 
 }

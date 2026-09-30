@@ -1660,14 +1660,14 @@ internal static partial class DocxPatchEngine
 
         if (hyperlinkId.Story == 'M')
         {
-            return FindHyperlinkTarget(package, package.MainDocumentPartName, hyperlinkId.Primary, cancellationToken);
+            return FindHyperlinkTarget(package, package.MainDocumentPartName, hyperlinkId.Story, hyperlinkId.StoryPart, hyperlinkId.Primary, cancellationToken);
         }
 
         if (hyperlinkId.Story is 'H' or 'F')
         {
             string relationshipType = hyperlinkId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
             string? partName = ResolveRelatedStoryPartName(package, relationshipType, hyperlinkId.StoryPart, cancellationToken);
-            return partName is null ? null : FindHyperlinkTarget(package, partName, hyperlinkId.Primary, cancellationToken);
+            return partName is null ? null : FindHyperlinkTarget(package, partName, hyperlinkId.Story, hyperlinkId.StoryPart, hyperlinkId.Primary, cancellationToken);
         }
 
         return null;
@@ -1676,8 +1676,11 @@ internal static partial class DocxPatchEngine
     private static HyperlinkTarget? FindHyperlinkTarget(
         OoxmlPackage package,
         string partName,
+        char story,
+        int storyPart,
         int hyperlinkOrdinal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowLiveFallback = false)
     {
         if (hyperlinkOrdinal < 1)
         {
@@ -1685,9 +1688,15 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
-        XElement? hyperlink = document
-            .Descendants(OoxmlNs.W + "hyperlink")
-            .ElementAtOrDefault(hyperlinkOrdinal - 1);
+        var snapshotId = new DocxTargetId(story, storyPart, DocxTargetKind.Hyperlink, hyperlinkOrdinal, 0, 0);
+        XElement? hyperlink = FindSnapshotElement(document, OoxmlNs.W + "hyperlink", snapshotId.ToWireValue());
+        if (hyperlink is null && allowLiveFallback && hyperlinkOrdinal >= 1)
+        {
+            hyperlink = document
+                .Descendants(OoxmlNs.W + "hyperlink")
+                .ElementAtOrDefault(hyperlinkOrdinal - 1);
+        }
+
         return hyperlink is null ? null : new HyperlinkTarget(partName, document, hyperlink);
     }
 

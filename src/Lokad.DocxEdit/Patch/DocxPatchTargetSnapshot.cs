@@ -11,7 +11,7 @@ namespace Lokad.DocxEdit;
 // live against current content. Newly inserted blocks carry no snapshot mark
 // and are not addressable by pre-discovered explicit IDs in the same patch;
 // deleted targets fail instead of retargeting. Covers paragraphs, tables,
-// rows, cells, and sections; other ordinal kinds keep live resolution.
+// rows, cells, sections, and hyperlinks; other ordinal kinds keep live resolution.
 internal static partial class DocxPatchEngine
 {
     private static readonly XNamespace SnapshotNs = "http://schemas.lokad.com/docxedit/snapshot";
@@ -80,6 +80,14 @@ internal static partial class DocxPatchEngine
                 }
             }
 
+            int hyperlinkIndex = 1;
+            foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var hyperlinkId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Hyperlink, hyperlinkIndex++, 0, 0);
+                hyperlink.SetAttributeValue(SnapshotIdName, hyperlinkId.ToWireValue());
+                annotated = true;
+            }
             if (annotated)
             {
                 SaveDocumentPart(package, story.PartName, document);
