@@ -290,6 +290,10 @@ internal static partial class DocxPatchEngine
     // and after-values are re-read post-operation. A null record means previews are
     // disabled or inapplicable; a record with a null value means the value itself
     // was absent (for example no paragraph style). Missing resolution never fails.
+    // The before-value reader returns the resolved element alongside the value,
+    // so the locator derives from that same resolution instead of resolving the
+    // target a second time; resolvers are deterministic on the unmutated package.
+    // After-values necessarily re-resolve post-operation through the locator.
     private static string? DerivePreviewLocator(XElement? element)
     {
         if (element is null)
