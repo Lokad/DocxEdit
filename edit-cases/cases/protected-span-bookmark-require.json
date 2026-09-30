@@ -1,0 +1,39 @@
+{
+  "id": "protected-span-bookmark-require",
+  "description": "Refuses a bookmark-crossing span under require policy with E6002.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Before </w:t></w:r>",
+      "      <w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"/>",
+      "      <w:r><w:t>Bookmarked</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"4\"/>",
+      "      <w:r><w:t> After</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "applyOptions": {
+    "trackChanges": "require",
+    "author": "Public Reviewer",
+    "timestampUtc": "2026-06-11T12:00:00Z"
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Before Bookmarked",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E6002"
+    ],
+    "diagnosticMessagesContain": [
+      "bookmark"
+    ]
+  }
+}

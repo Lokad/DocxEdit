@@ -1,0 +1,36 @@
+{
+  "id": "protected-span-field-refusal",
+  "description": "Refuses a text span crossing a complex field with E4305 instead of erasing it.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Before</w:t></w:r>",
+      "      <w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>",
+      "      <w:r><w:instrText xml:space=\"preserve\"> REF ClientName \\h </w:instrText></w:r>",
+      "      <w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>",
+      "      <w:r><w:t>Field</w:t></w:r>",
+      "      <w:r><w:fldChar w:fldCharType=\"end\"/></w:r>",
+      "      <w:r><w:t>After</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find BeforeField",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "crosses protected OOXML boundary"
+    ]
+  }
+}

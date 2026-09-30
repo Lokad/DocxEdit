@@ -23,6 +23,18 @@ public static class PatchSpanEditTests
             </Relationships>
         """;
 
+    private const string ComplexFieldBody = """
+                <w:p>
+                  <w:r><w:t>Before</w:t></w:r>
+                  <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                  <w:r><w:instrText xml:space="preserve"> REF ClientName \h </w:instrText></w:r>
+                  <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                  <w:r><w:t>Field</w:t></w:r>
+                  <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                  <w:r><w:t>After</w:t></w:r>
+                </w:p>
+        """;
+
     private static DocxCheckResult RunCheck(MemoryStream input, string patchText, TrackChangesMode mode)
     {
         input.Position = 0;
@@ -285,5 +297,66 @@ public static class PatchSpanEditTests
 
         Assert.False(check.Success);
         Assert.Contains(check.Diagnostics, static diagnostic => diagnostic.Code == "E4305" || diagnostic.Code == "E6002");
+    }
+
+    [Fact]
+    public static void BookmarkCrossingSpanRefusesWithE4305()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        DocxCheckResult crossing = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Before Old\nwith Pre\nend\n", TrackChangesMode.Off);
+
+        Assert.False(crossing.Success);
+        DocxDiagnostic diagnostic = Assert.Single(crossing.Diagnostics);
+        Assert.Equal("E4305", diagnostic.Code);
+        Assert.Contains("bookmark", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void BookmarkInteriorSpanRefusesWithE4305()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        DocxCheckResult interior = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Old Client\nwith New Client\nend\n", TrackChangesMode.Off);
+
+        Assert.False(interior.Success);
+        Assert.Contains(interior.Diagnostics, static diagnostic => diagnostic.Code == "E4305");
+    }
+
+    [Fact]
+    public static void BookmarkCrossingSpanRefusesUnderRequire()
+    {
+        using MemoryStream input = CreateDocxWithSingleBookmark();
+        DocxCheckResult crossing = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Before Old\nwith Pre\nend\n", TrackChangesMode.Require);
+
+        Assert.False(crossing.Success);
+        DocxDiagnostic diagnostic = Assert.Single(crossing.Diagnostics);
+        Assert.Equal("E6002", diagnostic.Code);
+        Assert.Contains("bookmark", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void FieldCrossingSpanRefusesWithE4305()
+    {
+        using MemoryStream input = CreateDocxWithBody(ComplexFieldBody);
+        DocxCheckResult crossing = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind BeforeField\nwith Changed\nend\n", TrackChangesMode.Off);
+
+        Assert.False(crossing.Success);
+        DocxDiagnostic diagnostic = Assert.Single(crossing.Diagnostics);
+        Assert.Equal("E4305", diagnostic.Code);
+        Assert.Contains("field", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void FieldAdjacentSpanSucceedsAndPreservesField()
+    {
+        using MemoryStream input = CreateDocxWithBody(ComplexFieldBody);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Before\nwith Pre\nend\n");
+        Assert.True(new DocxEditor().Apply(input, patch, output).Success);
+        output.Position = 0;
+        Assert.Equal("PreFieldAfter", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:instrText", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:t>Field</w:t>", xml, StringComparison.Ordinal);
     }
 }

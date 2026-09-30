@@ -1,0 +1,34 @@
+{
+  "id": "protected-span-bookmark-refusal",
+  "description": "Refuses a text span crossing a bookmark range with E4305 instead of hollowing it.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Before </w:t></w:r>",
+      "      <w:bookmarkStart w:id=\"4\" w:name=\"ClientName\"/>",
+      "      <w:r><w:t>Bookmarked</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"4\"/>",
+      "      <w:r><w:t> After</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Before Bookmarked",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "crosses protected OOXML boundary"
+    ]
+  }
+}
