@@ -83,28 +83,6 @@ internal static partial class DocxPatchEngine
         return null;
     }
 
-    private static DocxTargetId? TryResolveAliasParagraphId(
-        OoxmlPackage package,
-        string target,
-        CancellationToken cancellationToken)
-    {
-        string alias = AliasReferenceName(target);
-        var found = FindMarkedStoryElement(package, SnapshotAliasName, alias, OoxmlNs.W + "p", cancellationToken);
-        if (found is null)
-        {
-            return null;
-        }
-
-        int? ordinal = PhysicalParagraphOrdinal(found.Value.Document, found.Value.Element);
-        if (ordinal is null)
-        {
-            return null;
-        }
-
-        (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(found.Value.Story.Prefix);
-        return new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0);
-    }
-
     private static ParagraphTarget? ResolveAliasParagraphTarget(
         OoxmlPackage package,
         DocxPatchOperation operation,

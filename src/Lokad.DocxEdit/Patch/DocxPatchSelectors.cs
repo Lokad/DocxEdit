@@ -177,8 +177,21 @@ internal static partial class DocxPatchEngine
         if (IsAliasReference(target))
         {
             ParagraphTarget? aliasCapture = ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out _);
-            createdMark = (string?)aliasCapture?.Paragraph.Attribute(SnapshotCreatedName);
-            return TryResolveAliasParagraphId(package, target, cancellationToken);
+            if (aliasCapture is null)
+            {
+                return null;
+            }
+
+            createdMark = (string?)aliasCapture.Paragraph.Attribute(SnapshotCreatedName);
+            int? aliasOrdinal = PhysicalParagraphOrdinal(aliasCapture.Document, aliasCapture.Paragraph);
+            if (aliasOrdinal is null)
+            {
+                return null;
+            }
+
+            string aliasPrefix = DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[aliasCapture.PartName];
+            (char aliasStory, int aliasPart) = DocxTargetId.ParseStoryPrefix(aliasPrefix);
+            return new DocxTargetId(aliasStory, aliasPart, DocxTargetKind.Paragraph, aliasOrdinal.Value, 0, 0);
         }
 
         if (DocxTargetId.TryParse(target, out DocxTargetId explicitId))
