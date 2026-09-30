@@ -463,7 +463,29 @@ internal static partial class DocxPatchEngine
         if (finals.TryGetValue(entry.Id.ToWireValue(), out string? finalWire) &&
             DocxTargetId.TryParse(finalWire, out DocxTargetId finalId))
         {
-            return entry with { Id = finalId };
+            DocxTargetId? finalParent = entry.ParentId;
+            if (entry.ParentId is not null)
+            {
+                if (finals.TryGetValue(entry.ParentId.Value.ToWireValue(), out string? parentWire))
+                {
+                    if (DocxTargetId.TryParse(parentWire, out DocxTargetId parentId))
+                    {
+                        finalParent = parentId;
+                    }
+                }
+            }
+            DocxTargetId? finalMerge = entry.MergeGroupId;
+            if (entry.MergeGroupId is not null)
+            {
+                if (finals.TryGetValue(entry.MergeGroupId.Value.ToWireValue(), out string? mergeWire))
+                {
+                    if (DocxTargetId.TryParse(mergeWire, out DocxTargetId mergeId))
+                    {
+                        finalMerge = mergeId;
+                    }
+                }
+            }
+            return entry with { Id = finalId, ParentId = finalParent, MergeGroupId = finalMerge };
         }
 
         return entry;
