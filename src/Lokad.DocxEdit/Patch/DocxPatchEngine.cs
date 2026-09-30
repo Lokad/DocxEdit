@@ -136,7 +136,8 @@ internal static partial class DocxPatchEngine
             var operationDiagnostics = new List<DocxDiagnostic>();
             int revisionMark = revisionIds.Count;
             TableOperationSnapshot? tableBefore = CaptureTableOperationSnapshot(package, operation, cancellationToken);
-            DocxTargetId? resolvedBefore = CaptureResolvedTargetSnapshot(package, operation, cancellationToken);
+            string? resolvedMark = null;
+            DocxTargetId? resolvedBefore = CaptureResolvedTargetSnapshot(package, operation, cancellationToken, out resolvedMark);
             PreviewSnapshot? previewBefore = CapturePreviewBefore(package, operation, options, cancellationToken);
             HashSet<string>? commentsBefore = operation.OperationName is "add-comment" or "add-comment-reply"
                 ? ReadCommentIds(package, cancellationToken)
@@ -196,7 +197,7 @@ internal static partial class DocxPatchEngine
                 operationSuccess,
                 operationDiagnostics)
             {
-                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, package, tableBefore, resolvedBefore, cancellationToken) : [],
+                AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, package, tableBefore, resolvedBefore, resolvedMark, cancellationToken) : [],
                 CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, bookmarkIdsBefore, cancellationToken) : [],
                 PreviewBefore = previewBeforeText,
                 PreviewAfter = previewAfterText,

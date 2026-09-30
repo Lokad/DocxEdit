@@ -164,8 +164,10 @@ internal static partial class DocxPatchEngine
     private static DocxTargetId? CaptureResolvedTargetSnapshot(
         OoxmlPackage package,
         DocxPatchOperation operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out string? createdMark)
     {
+        createdMark = null;
         string? target = operation.Fields.GetValueOrDefault("target");
         if (string.IsNullOrWhiteSpace(target))
         {
@@ -174,6 +176,8 @@ internal static partial class DocxPatchEngine
 
         if (IsAliasReference(target))
         {
+            ParagraphTarget? aliasCapture = ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out _);
+            createdMark = (string?)aliasCapture?.Paragraph.Attribute(SnapshotCreatedName);
             return TryResolveAliasParagraphId(package, target, cancellationToken);
         }
 
