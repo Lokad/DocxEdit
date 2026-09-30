@@ -1355,30 +1355,37 @@ public static class PatchReportTests
     }
 
     [Fact]
-    public static void CreatedThenDeletedKeepsOperationTimeId()
+    public static void CreatedThenDeletedReportsNoSurvivingId()
     {
         using MemoryStream input = CreateDocx("Alpha");
         using var output = new MemoryStream();
-        using var patch = new StringReader("""
-            docxpatch 1
-
-            op insert-after
-            target M.P0001
-            as newSection
-            text Second
-            end
-
-            op delete-block
-            target @newSection
-            end
-            """);
-
+        using var patch = new StringReader("docxpatch 1\n\nop insert-after\ntarget M.P0001\nas newSection\ntext Second\nend\n\nop delete-block\ntarget @newSection\nend\n");
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
-        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
-        Assert.Equal(new[] { "M.P0002" }, result.Operations[0].CreatedTargetIds);
+        Assert.True(result.Success);
+        Assert.Empty(result.Operations[0].CreatedTargetIds);
         output.Position = 0;
         Assert.Equal("Alpha", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
+    [Fact]
+    public static void CreatedSurvivesNeighborDeletedReportsLiveId()
+    {
+        const string body = "<w:p><w:r><w:t>First</w:t></w:r></w:p><w:p><w:r><w:t>Second</w:t></w:r></w:p>";
+        using MemoryStream input = CreateDocxWithBody(body);
+        string patchText = "docxpatch 1\n\nop insert-after\ntarget M.P0001\nas added\ntext Inserted\nend\n\nop delete-block\ntarget M.P0001\nend\n";
+        DocxCheckResult check = new DocxEditor().Check(input, new StringReader(patchText));
+        Assert.True(check.Success);
+        Assert.Equal("M.P0001", Assert.Single(check.Operations[0].CreatedTargetIds));
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.True(apply.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("Inserted", read.Paragraphs[0].Text);
+        Assert.Equal("Second", read.Paragraphs[1].Text);
+    }
+
 
     [Fact]
     public static void SemanticSelectorPreviewSurvivesMatchChange()

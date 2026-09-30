@@ -306,7 +306,14 @@ internal static partial class DocxPatchEngine
             {
                 string createdId = report.CreatedTargetIds[createdIndex];
                 string mark = "op" + report.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + createdIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                created.Add(finals.TryGetValue(mark, out string? finalWire) ? finalWire : createdId);
+                if (finals.TryGetValue(mark, out string? finalWire))
+                {
+                    created.Add(finalWire);
+                }
+                else if (createdId.StartsWith("comment:", StringComparison.Ordinal))
+                {
+                    created.Add(createdId);
+                }
             }
 
             reports[reportIndex] = report with { AffectedTargets = affected, CreatedTargetIds = created };
