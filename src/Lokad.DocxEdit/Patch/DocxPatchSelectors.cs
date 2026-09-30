@@ -1867,13 +1867,14 @@ internal static partial class DocxPatchEngine
 
     private sealed record ImageBlipEntry(XElement Blip, string RelationshipId, OoxmlPart Part);
 
-    // C02: image identity is placement based. Each drawing placement in a
-    // story gets its own public ID in document order. The media part is
-    // a property of the placement, not the identity. Alt text, position,
-    // and size belong to the placement. Repeated use of one media part
-    // yields one ID per placement. Discovery, snapshot binding, mutation,
-    // and reporting must use this same enumeration so an ID from discovery
-    // always addresses the drawing it describes.
+    // C02: image identity is placement based. Each Final-view-visible drawing
+    // placement in a story gets its own public ID in document order. The media
+    // part is a property of the placement, not the identity. Alt text, position,
+    // and size belong to the placement. Repeated use of one media part yields
+    // one ID per placement. Drawings hidden from the Final view own no ID.
+    // Discovery, snapshot binding, mutation, and reporting must use this same
+    // enumeration so an ID from discovery always addresses the drawing it
+    // describes.
     // Public IDs for repeated media change under this contract.
     private static List<ImageBlipEntry> FindImageBlipEntries(
         OoxmlPackage package,
