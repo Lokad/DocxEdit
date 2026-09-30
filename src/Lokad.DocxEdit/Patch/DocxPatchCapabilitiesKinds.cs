@@ -1818,8 +1818,9 @@ internal static partial class DocxPatchEngine
                 operations)
         };
     }
-    // Live copy of the merge-group walk in ResolveMergeGroupCellTarget: finds
-    // the root cell of the Nth merge group in document order.
+    // Canonical merge-group walk: finds
+    // the root cell of the Nth merge group in document order. Snapshot capture
+    // enumerates roots through this walk so patch execution binds the same order.
     private static bool TryFindMergeGroupRoot(
         XElement table,
         int mergeGroupOrdinal,

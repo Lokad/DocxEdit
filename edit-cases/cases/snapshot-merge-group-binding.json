@@ -1,0 +1,36 @@
+{
+  "id": "snapshot-merge-group-binding",
+  "description": "Binds merge-group IDs to the input snapshot so inserting a row does not retarget the group.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr><w:tc><w:p><w:r><w:t>Top</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:tcPr><w:vMerge w:val=\"restart\"/></w:tcPr><w:p><w:r><w:t>Group</w:t></w:r></w:p></w:tc></w:tr>",
+      "      <w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p><w:r><w:t></w:t></w:r></w:p></w:tc></w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op insert-row-before",
+    "target M.T0001.R01",
+    "cell New",
+    "end",
+    "",
+    "op set-cell",
+    "target M.T0001.MG0001",
+    "expect-text Group",
+    "text Changed",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "tableCells": [
+      "New",
+      "Top",
+      "Changed",
+      ""
+    ]
+  }
+}

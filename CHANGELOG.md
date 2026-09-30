@@ -50,3 +50,4 @@
 - Fixed explicit hyperlink IDs resolving live: unwrapping or deleting one link no longer retargets later operations onto a neighbour, and deleted links fail instead of editing one. Created links are addressed through result aliases.
 - Fixed explicit bookmark, content-control, and field IDs resolving live with the same retargeting hazard: structural edits no longer shift later IDs, and deleted targets fail instead of editing neighbours.
 - Fixed explicit image IDs resolving live with the same retargeting hazard, reusing one shared blip enumeration for capture and resolution.
+- Fixed explicit merge-group IDs resolving live: the patch resolver reuses the canonical merge-group walk and binds the discovered root cell, so row insertions no longer shift later group IDs.

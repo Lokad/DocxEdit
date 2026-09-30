@@ -1162,61 +1162,41 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        int mergeGroupIndex = 1;
-        var activeVerticalMerges = new Dictionary<int, MergeGroupRootState>();
-        foreach (XElement row in tableTarget.Table.Elements(OoxmlNs.W + "tr"))
+        string? tableSnapshotId = (string?)tableTarget.Table.Attribute(SnapshotIdName);
+        if (tableSnapshotId is null ||
+            !DocxTargetId.TryParse(tableSnapshotId, out DocxTargetId tableId))
         {
-            int gridBefore = ReadTableRowGridOffset(row, "gridBefore");
-            RemoveActiveMergeGroups(activeVerticalMerges, 1, gridBefore);
-            int columnIndex = 1 + gridBefore;
-            foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
-            {
-                int columnSpan = ReadTableCellColumnSpan(cell);
-                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(cell);
-                if (verticalMerge == DocxVerticalMerge.Restart)
-                {
-                    int currentMergeGroup = mergeGroupIndex++;
-                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(row, cell, columnIndex));
-                    if (currentMergeGroup == mergeGroupOrdinal)
-                    {
-                        return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, cell, columnIndex);
-                    }
-                }
-                else if (verticalMerge is not null)
-                {
-                    MergeGroupRootState? root = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan);
-                    if (root is null)
-                    {
-                        int currentMergeGroup = mergeGroupIndex++;
-                        if (currentMergeGroup == mergeGroupOrdinal)
-                        {
-                            return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, cell, columnIndex);
-                        }
-
-                        SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(row, cell, columnIndex));
-                    }
-                }
-                else
-                {
-                    RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, columnSpan);
-                    if (columnSpan > 1)
-                    {
-                        int currentMergeGroup = mergeGroupIndex++;
-                        if (currentMergeGroup == mergeGroupOrdinal)
-                        {
-                            return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, cell, columnIndex);
-                        }
-                    }
-                }
-
-                columnIndex += columnSpan;
-            }
-
-            int gridAfter = ReadTableRowGridOffset(row, "gridAfter");
-            RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, gridAfter);
+            return null;
         }
 
-        return null;
+        var groupId = new DocxTargetId(tableId.Story, tableId.StoryPart, DocxTargetKind.MergeGroup, tableId.Primary, mergeGroupOrdinal, 0);
+        string groupWireId = groupId.ToWireValue();
+        XElement? root = tableTarget.Table
+            .Descendants(OoxmlNs.W + "tc")
+            .FirstOrDefault(cell => string.Equals((string?)cell.Attribute(SnapshotMergeGroupName), groupWireId, StringComparison.Ordinal));
+        if (root is null)
+        {
+            return null;
+        }
+
+        XElement? row = root.Parent?.Name == OoxmlNs.W + "tr" ? root.Parent : root.Ancestors(OoxmlNs.W + "tr").FirstOrDefault();
+        if (row is null)
+        {
+            return null;
+        }
+
+        int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+        foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+        {
+            if (ReferenceEquals(cell, root))
+            {
+                break;
+            }
+
+            columnIndex += ReadTableCellColumnSpan(cell);
+        }
+
+        return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, root, columnIndex);
     }
 
     private static MergeGroupRootState? FindActiveMergeGroup(

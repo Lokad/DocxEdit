@@ -11,12 +11,13 @@ namespace Lokad.DocxEdit;
 // live against current content. Newly inserted blocks carry no snapshot mark
 // and are not addressable by pre-discovered explicit IDs in the same patch;
 // deleted targets fail instead of retargeting. Covers paragraphs, tables,
-// rows, cells, sections, hyperlinks, bookmarks, content controls, fields, and images; merge groups and comments keep live resolution.
+// rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, and merge groups; comments keep live resolution.
 internal static partial class DocxPatchEngine
 {
     private static readonly XNamespace SnapshotNs = "http://schemas.lokad.com/docxedit/snapshot";
     private static readonly XName SnapshotIdName = SnapshotNs + "sid";
     private static readonly XName SnapshotAliasName = SnapshotNs + "alias";
+    private static readonly XName SnapshotMergeGroupName = SnapshotNs + "mgid";
 
     private static void CaptureTargetSnapshot(OoxmlPackage package, CancellationToken cancellationToken)
     {
@@ -152,6 +153,13 @@ internal static partial class DocxPatchEngine
                 columnIndex += columnSpan;
             }
         }
+        int mergeGroupOrdinal = 1;
+        while (TryFindMergeGroupRoot(table, mergeGroupOrdinal, out _, out XElement? mergeRoot, out _, out _))
+        {
+            var mergeGroupId = tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeGroupOrdinal };
+            mergeRoot?.SetAttributeValue(SnapshotMergeGroupName, mergeGroupId.ToWireValue());
+            mergeGroupOrdinal++;
+        }
     }
 
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)
@@ -215,7 +223,7 @@ internal static partial class DocxPatchEngine
             bool dirty = false;
             foreach (XElement element in document.Descendants())
             {
-                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName })
+                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName })
                 {
                     XAttribute? attribute = element.Attribute(markName);
                     if (attribute is not null)
