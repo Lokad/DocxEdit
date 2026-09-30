@@ -141,8 +141,8 @@ internal static partial class DocxPatchEngine
             HashSet<string>? commentsBefore = operation.OperationName is "add-comment" or "add-comment-reply"
                 ? ReadCommentIds(package, cancellationToken)
                 : null;
-            Dictionary<string, int>? bookmarkCountsBefore = operation.OperationName == "add-bookmark"
-                ? CountBookmarkStarts(package, cancellationToken)
+            Dictionary<string, HashSet<string>>? bookmarkIdsBefore = operation.OperationName == "add-bookmark"
+                ? CollectBookmarkOoxmlIds(package, cancellationToken)
                 : null;
             bool supportsTrackedChanges = SupportsTrackedChangeOutput(operation.OperationName);
             // D15: intrinsic review/annotation operations are permitted under Require:
@@ -197,7 +197,7 @@ internal static partial class DocxPatchEngine
                 operationDiagnostics)
             {
                 AffectedTargets = operationSuccess && operationMutated ? BuildAffectedTargets(operation, tableBefore, resolvedBefore) : [],
-                CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, bookmarkCountsBefore, cancellationToken) : [],
+                CreatedTargetIds = operationSuccess && operationMutated ? BuildCreatedTargetIds(operation, package, commentsBefore, bookmarkIdsBefore, cancellationToken) : [],
                 PreviewBefore = previewBeforeText,
                 PreviewAfter = previewAfterText,
                 PreviewTruncated = previewTruncated,
@@ -211,7 +211,7 @@ internal static partial class DocxPatchEngine
             }
             if (operationSuccess && operation.Fields.TryGetValue("as", out string? aliasName) && aliasName is not null)
             {
-                BindCreatedAlias(operation, package, aliasName, commentsBefore, bookmarkCountsBefore, cancellationToken);
+                BindCreatedAlias(operation, package, aliasName, commentsBefore, bookmarkIdsBefore, cancellationToken);
                 definedAliases.Add(aliasName);
             }
         }

@@ -52,3 +52,4 @@
 - Fixed explicit image IDs resolving live with the same retargeting hazard, reusing one shared blip enumeration for capture and resolution.
 - Fixed explicit merge-group IDs resolving live: the patch resolver reuses the canonical merge-group walk and binds the discovered root cell, so row insertions no longer shift later group IDs.
 - Fixed explicit comment body IDs resolving live: deleting one comment no longer shifts later body IDs, and deleted comments fail instead of editing neighbours. Threaded reply ordinals keep live resolution.
+- Fixed created-target reporting identifying the wrong objects: inserted paragraphs now resolve through physical document order instead of sibling counting, and new bookmarks resolve by allocated ID instead of total count. A test asserting the old count-based bookmark ID was updated to the read-model contract.

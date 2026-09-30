@@ -215,6 +215,33 @@ internal static partial class DocxPatchEngine
         return names;
     }
 
+    internal static int? PhysicalParagraphOrdinal(XDocument document, XElement paragraph)
+    {
+        XElement? root = document.Root;
+        if (root is null)
+        {
+            return null;
+        }
+
+        XElement container = root.Element(OoxmlNs.W + "body") ?? root;
+        int ordinal = 0;
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(container))
+        {
+            if (entry.Block.Name != OoxmlNs.W + "p")
+            {
+                continue;
+            }
+
+            ordinal++;
+            if (ReferenceEquals(entry.Block, paragraph))
+            {
+                return ordinal;
+            }
+        }
+
+        return null;
+    }
+
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)
     {
         var originals = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);

@@ -1072,7 +1072,7 @@ public static class PatchReportTests
     }
 
     [Fact]
-    public static void AddSecondBookmarkReportsNextId()
+    public static void AddBookmarkBeforeExistingReportsFirstId()
     {
         using MemoryStream input = CreateDocxWithBody("""
               <w:p><w:r><w:t>Alpha</w:t></w:r></w:p>
@@ -1083,7 +1083,7 @@ public static class PatchReportTests
         DocxCheckResult result = new DocxEditor().Check(input, patch);
 
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
-        Assert.Equal(new[] { "M.B0002" }, Assert.Single(result.Operations).CreatedTargetIds);
+        Assert.Equal(new[] { "M.B0001" }, Assert.Single(result.Operations).CreatedTargetIds);
     }
 
     [Fact]
@@ -1119,5 +1119,93 @@ public static class PatchReportTests
 
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
         Assert.Equal(new[] { "comment:4" }, Assert.Single(result.Operations).CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void InsertAfterWrappedParagraphReportsFinalId()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>First</w:t></w:r></w:p>
+                    <w:ins w:id="1" w:author="Reviewer" w:date="2026-06-07T12:00:00Z"><w:p><w:r><w:t>Second</w:t></w:r></w:p></w:ins>
+                    <w:p><w:r><w:t>Third</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0003
+            text New
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0004" }, Assert.Single(result.Operations).CreatedTargetIds);
+        output.Position = 0;
+        List<string> ids = new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Id.ToWireValue()).ToList();
+        Assert.Equal(new[] { "M.P0001", "M.P0002", "M.P0003", "M.P0004" }, ids);
+    }
+
+    [Fact]
+    public static void AliasEditAfterInsertReportsFinalId()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>First</w:t></w:r></w:p>
+                    <w:ins w:id="1" w:author="Reviewer" w:date="2026-06-07T12:00:00Z"><w:p><w:r><w:t>Second</w:t></w:r></w:p></w:ins>
+                    <w:p><w:r><w:t>Third</w:t></w:r></w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-after
+            target M.P0003
+            as newSection
+            text New
+            end
+
+            op replace-text
+            target @newSection
+            find New
+            with Changed
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.P0004" }, result.Operations[0].CreatedTargetIds);
+        Assert.Contains("M.P0004", result.Operations[1].AffectedTargets.Select(static target => target.Id.ToWireValue()));
+    }
+
+    [Fact]
+    public static void AddFirstBookmarkReportsFirstId()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p><w:r><w:t>First</w:t></w:r></w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="7" w:name="Second"/>
+                      <w:r><w:t>Second text</w:t></w:r>
+                      <w:bookmarkEnd w:id="7"/>
+                    </w:p>
+                    <w:p>
+                      <w:bookmarkStart w:id="8" w:name="Third"/>
+                      <w:r><w:t>Third text</w:t></w:r>
+                      <w:bookmarkEnd w:id="8"/>
+                    </w:p>
+            """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op add-bookmark
+            target M.P0001
+            name Intro
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        Assert.Equal(new[] { "M.B0001" }, Assert.Single(result.Operations).CreatedTargetIds);
     }
 }

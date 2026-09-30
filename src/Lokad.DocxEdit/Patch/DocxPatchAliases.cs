@@ -104,9 +104,14 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            int ordinal = match.ElementsBeforeSelf(OoxmlNs.W + "p").Count() + 1;
+            int? ordinal = PhysicalParagraphOrdinal(document, match);
+            if (ordinal is null)
+            {
+                return null;
+            }
+
             (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(story.Prefix);
-            return new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, ordinal, 0, 0);
+            return new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0);
         }
 
         return null;
@@ -328,21 +333,6 @@ internal static partial class DocxPatchEngine
         return null;
     }
 
-    private static (string PartName, XDocument Document, XElement Element)? FindNthBookmarkStart(
-        OoxmlPackage package,
-        string partName,
-        int ordinal,
-        CancellationToken cancellationToken)
-    {
-        if (package.GetPart(partName) is null || ordinal < 1)
-        {
-            return null;
-        }
-
-        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
-        XElement? match = document.Descendants(OoxmlNs.W + "bookmarkStart").ElementAtOrDefault(ordinal - 1);
-        return match is null ? null : (partName, document, match);
-    }
 
     private static RowTarget? ResolveAliasRowTarget(
         OoxmlPackage package,
@@ -412,7 +402,7 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         string alias,
         IReadOnlySet<string>? commentsBefore,
-        IReadOnlyDictionary<string, int>? bookmarkCountsBefore,
+        IReadOnlyDictionary<string, HashSet<string>>? bookmarkIdsBefore,
         CancellationToken cancellationToken)
     {
         Dictionary<string, XDocument> touched = new(StringComparer.OrdinalIgnoreCase);
@@ -465,24 +455,32 @@ internal static partial class DocxPatchEngine
             return;
         }
 
-        if (operation.OperationName == "add-bookmark" && bookmarkCountsBefore is not null)
+        if (operation.OperationName == "add-bookmark" && bookmarkIdsBefore is not null)
         {
-            Dictionary<string, int> after = CountBookmarkStarts(package, cancellationToken);
-            foreach ((string partName, int count) in after)
+            Dictionary<string, HashSet<string>> after = CollectBookmarkOoxmlIds(package, cancellationToken);
+            foreach ((string partName, HashSet<string> ids) in after)
             {
-                if (count - bookmarkCountsBefore.GetValueOrDefault(partName) != 1)
+                bookmarkIdsBefore.TryGetValue(partName, out HashSet<string>? before);
+                List<string> added = ids.Where(id => before is null || !before.Contains(id)).ToList();
+                if (added.Count != 1)
                 {
                     continue;
                 }
 
-                (string PartName, XDocument Document, XElement Element)? found = FindNthBookmarkStart(package, partName, count, cancellationToken);
-                if (found is null)
+                if (package.GetPart(partName) is null)
                 {
                     continue;
                 }
 
-                found.Value.Element.SetAttributeValue(SnapshotAliasName, alias);
-                touched[found.Value.PartName] = found.Value.Document;
+                XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+                XElement? start = document.Descendants(OoxmlNs.W + "bookmarkStart").FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "id"), added[0], StringComparison.Ordinal));
+                if (start is null)
+                {
+                    continue;
+                }
+
+                start.SetAttributeValue(SnapshotAliasName, alias);
+                touched[partName] = document;
             }
 
             SaveTouchedParts(package, touched);
