@@ -1818,6 +1818,51 @@ internal static partial class DocxPatchEngine
                 operations)
         };
     }
+    // Single-pass merge-group enumeration shared by snapshot, reporting,
+    // alias, capability, and template consumers. Same encounter order as the
+    // Nth-root walk below, collected once instead of rescanned per ordinal.
+    internal static List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)> EnumerateMergeGroupRoots(XElement table)
+    {
+        var roots = new List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)>();
+        var activeVerticalMerges = new Dictionary<int, MergeGroupRootState>();
+        int currentRowOrdinal = 0;
+        foreach (XElement currentRow in table.Elements(OoxmlNs.W + "tr"))
+        {
+            currentRowOrdinal++;
+            int gridBefore = ReadTableRowGridOffset(currentRow, "gridBefore");
+            RemoveActiveMergeGroups(activeVerticalMerges, 1, gridBefore);
+            int columnIndex = 1 + gridBefore;
+            foreach (XElement currentCell in currentRow.Elements(OoxmlNs.W + "tc"))
+            {
+                int columnSpan = ReadTableCellColumnSpan(currentCell);
+                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(currentCell);
+                if (verticalMerge == DocxVerticalMerge.Restart)
+                {
+                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
+                    roots.Add((currentRow, currentCell, columnIndex, currentRowOrdinal));
+                }
+                else if (verticalMerge is not null)
+                {
+                    MergeGroupRootState? root = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan);
+                    if (root is null)
+                    {
+                        roots.Add((currentRow, currentCell, columnIndex, currentRowOrdinal));
+                        SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
+                    }
+                }
+                else
+                {
+                    RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, columnSpan);
+                    if (columnSpan > 1)
+                    {
+                        roots.Add((currentRow, currentCell, columnIndex, currentRowOrdinal));
+                    }
+                }
+                columnIndex += columnSpan;
+            }
+        }
+        return roots;
+    }
     // Canonical merge-group walk: finds
     // the root cell of the Nth merge group in document order. Snapshot capture
     // enumerates roots through this walk so patch execution binds the same order.

@@ -191,12 +191,12 @@ internal static partial class DocxPatchEngine
                 columnIndex += columnSpan;
             }
         }
-        int mergeGroupOrdinal = 1;
-        while (TryFindMergeGroupRoot(table, mergeGroupOrdinal, out _, out XElement? mergeRoot, out _, out _))
+        int mergeGroupOrdinal = 0;
+        foreach (var merge in EnumerateMergeGroupRoots(table))
         {
-            var mergeGroupId = tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeGroupOrdinal };
-            mergeRoot?.SetAttributeValue(SnapshotMergeGroupName, mergeGroupId.ToWireValue());
             mergeGroupOrdinal++;
+            var mergeGroupId = tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeGroupOrdinal };
+            merge.Cell.SetAttributeValue(SnapshotMergeGroupName, mergeGroupId.ToWireValue());
         }
     }
 
@@ -415,11 +415,10 @@ internal static partial class DocxPatchEngine
         }
 
         int mergeOrdinal = 0;
-        XElement? mergeTable = table;
-        while (TryFindMergeGroupRoot(mergeTable, mergeOrdinal + 1, out _, out XElement? mergeRoot, out _, out _))
+        foreach (var merge in EnumerateMergeGroupRoots(table))
         {
             mergeOrdinal++;
-            RecordFinalId(mergeRoot!, tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeOrdinal }, finals);
+            RecordFinalId(merge.Cell, tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeOrdinal }, finals);
         }
     }
 
