@@ -224,9 +224,11 @@ internal static partial class DocxPatchEngine
 
         string? semanticSnapshotId = (string?)semanticTarget.Paragraph.Attribute(SnapshotIdName);
         createdMark = (string?)semanticTarget.Paragraph.Attribute(SnapshotCreatedName);
-        return semanticSnapshotId is not null && DocxTargetId.TryParse(semanticSnapshotId, out DocxTargetId semanticResolved)
-            ? semanticResolved
-            : null;
+        if (semanticSnapshotId is not null && DocxTargetId.TryParse(semanticSnapshotId, out DocxTargetId semanticResolved))
+        {
+            return semanticResolved;
+        }
+        return null;
     }
 
     private static DocxTargetId? CaptureExplicitTargetSnapshotId(
