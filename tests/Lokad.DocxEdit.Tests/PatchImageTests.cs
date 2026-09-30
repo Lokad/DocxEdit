@@ -913,6 +913,215 @@ public static class PatchImageTests
         return stream;
     }
 
+    private static MemoryStream CreateDocxWithSharedHeaderMedia()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                ZipArchiveEntry entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+
+            Add("[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                </Types>
+                """);
+            Add("_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.png"/>
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/header1.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.png"/>
+                  <Relationship Id="rUnique" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unique.png"/>
+                </Relationships>
+                """);
+            Add("word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="MainShared"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rShared"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            Add("word/header1.xml", """
+                <w:hdr
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:p>
+                    <w:r>
+                      <w:drawing>
+                        <wp:inline>
+                          <wp:extent cx="914400" cy="457200"/>
+                          <wp:docPr id="2" name="Picture 2" descr="HeaderShared"/>
+                          <a:graphic>
+                            <a:graphicData>
+                              <pic:pic>
+                                <pic:blipFill>
+                                  <a:blip r:embed="rShared"/>
+                                </pic:blipFill>
+                              </pic:pic>
+                            </a:graphicData>
+                          </a:graphic>
+                        </wp:inline>
+                      </w:drawing>
+                    </w:r>
+                  </w:p>
+                  <w:p>
+                    <w:r>
+                      <w:drawing>
+                        <wp:inline>
+                          <wp:extent cx="914400" cy="457200"/>
+                          <wp:docPr id="3" name="Picture 3" descr="HeaderUnique"/>
+                          <a:graphic>
+                            <a:graphicData>
+                              <pic:pic>
+                                <pic:blipFill>
+                                  <a:blip r:embed="rUnique"/>
+                                </pic:blipFill>
+                              </pic:pic>
+                            </a:graphicData>
+                          </a:graphic>
+                        </wp:inline>
+                      </w:drawing>
+                    </w:r>
+                  </w:p>
+                </w:hdr>
+                """);
+            Add("word/media/shared.png", "shared-bytes");
+            Add("word/media/unique.png", "unique-bytes");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithRepeatedMedia()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                ZipArchiveEntry entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+
+            Add("[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            Add("_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.png"/>
+                </Relationships>
+                """);
+            Add("word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="First shared"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rShared"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="2" name="Picture 2" descr="Second shared"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rShared"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            Add("word/media/shared.png", "shared-bytes");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
     [Fact]
     public static void DeleteDoesNotRetargetLaterExplicitImage()
     {
@@ -960,4 +1169,85 @@ public static class PatchImageTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
     }
 
+
+    [Fact]
+    public static void SharedHeaderPlacementIdentityAddressesDiscoveredDrawing()
+    {
+        using MemoryStream probe = CreateDocxWithSharedHeaderMedia();
+        DocxReadResult before = new DocxEditor().Read(probe, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.True(before.Success);
+        Assert.Equal(3, before.Images.Count);
+        Assert.Equal("M.I0001", before.Images[0].Id.ToWireValue());
+        Assert.Equal("MainShared", before.Images[0].Description);
+        Assert.Equal("H001.I0001", before.Images[1].Id.ToWireValue());
+        Assert.Equal("HeaderShared", before.Images[1].Description);
+        Assert.Equal("H001.I0002", before.Images[2].Id.ToWireValue());
+        Assert.Equal("HeaderUnique", before.Images[2].Description);
+
+        using MemoryStream input = CreateDocxWithSharedHeaderMedia();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target H001.I0002
+            alt CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        output.Position = 0;
+        string header = ReadEntry(output, "word/header1.xml");
+        Assert.Contains("descr=\"HeaderShared\"", header, StringComparison.Ordinal);
+        Assert.Contains("descr=\"CHANGED\"", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"HeaderUnique\"", header, StringComparison.Ordinal);
+        output.Position = 0;
+        Assert.Contains("descr=\"MainShared\"", ReadDocumentXml(output), StringComparison.Ordinal);
+
+        output.Position = 0;
+        DocxReadResult after = new DocxEditor().Read(output, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Equal("MainShared", after.Images[0].Description);
+        Assert.Equal("HeaderShared", after.Images[1].Description);
+        Assert.Equal("CHANGED", after.Images[2].Description);
+    }
+
+    [Fact]
+    public static void RepeatedMediaPlacementsHaveDistinctPlacementIds()
+    {
+        using MemoryStream probe = CreateDocxWithRepeatedMedia();
+        DocxReadResult before = new DocxEditor().Read(probe);
+        Assert.True(before.Success);
+        Assert.Equal(2, before.Images.Count);
+        Assert.Equal("M.I0001", before.Images[0].Id.ToWireValue());
+        Assert.Equal("First shared", before.Images[0].Description);
+        Assert.Equal("M.I0002", before.Images[1].Id.ToWireValue());
+        Assert.Equal("Second shared", before.Images[1].Description);
+
+        using MemoryStream input = CreateDocxWithRepeatedMedia();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0001
+            alt CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("descr=\"CHANGED\"", xml, StringComparison.Ordinal);
+        Assert.Contains("descr=\"Second shared\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"First shared\"", xml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        DocxReadResult after = new DocxEditor().Read(output);
+        Assert.Equal("CHANGED", after.Images[0].Description);
+        Assert.Equal("Second shared", after.Images[1].Description);
+    }
 }
