@@ -57,3 +57,9 @@
 - Fixed opt-in previews dropping both sides when a semantic selector stopped matching: previews now bind to the resolved object, so changed text still reports before/after; deletions report the before value with a null after.
 - Fixed the canonical patch writer emitting a bare `<<<` literal that the parser reads as a heredoc opener: reserved literals now render quoted, and generated templates fall back to the canonical writer instead of raw heredocs for delimiter-hostile text.
 - Synchronized agent guidance with the implemented contracts: target-lifetime help and docs now cover every bound ID kind, the patch reference shows a positional multi-style insertion example, the CLI workflow leads with lint, and reports are documented per kind.
+- Fixed text and cell edits inside protected ranges that span multiple paragraphs or table cells.
+- Changed image inventory to one identifier per drawing placement.
+- Fixed creation reporting and alias binding to register once at execution.
+- Fixed affected reporting to preserve kinds and rebase related identities together.
+- Fixed previews for new and aliased targets to capture before and after values.
+- Improved empty-patch check cost and merge-group enumeration to single passes.
