@@ -29,6 +29,7 @@ public static class EditCaseTests
         "changeSummary",
         "commentResolved",
         "bookmarkNames",
+        "paragraphStyles",
     };
 
     public static IEnumerable<object[]> EditCases()
@@ -375,6 +376,11 @@ public static class EditCaseTests
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("paragraphs", out JsonElement paragraphs))
         {
             AssertStringArraysEqual(manifestId, "Paragraphs", paragraphs.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("Paragraphs").EnumerateArray().Select(item => item.GetProperty("Text").GetString() ?? string.Empty).ToList());
+        }
+
+        if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("paragraphStyles", out JsonElement paragraphStyles))
+        {
+            AssertStringArraysEqual(manifestId, "Paragraph styles", paragraphStyles.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToList(), readJson.RootElement.GetProperty("Paragraphs").EnumerateArray().Select(item => item.GetProperty("StyleId").GetString() ?? string.Empty).ToList());
         }
 
         if (expect.ValueKind == JsonValueKind.Object && expect.TryGetProperty("tableCells", out JsonElement tableCells))

@@ -27,6 +27,11 @@
       "Alpha",
       "First",
       "Second"
+    ],
+    "paragraphStyles": [
+      "",
+      "Heading1",
+      "Normal"
     ]
   }
 }
