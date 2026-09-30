@@ -49,3 +49,4 @@
 - Extended protected span intervals to comment, move, and custom XML revision ranges, including ranges that start in an earlier paragraph and bookmarked cell text; adjacent plain spans keep succeeding.
 - Fixed explicit hyperlink IDs resolving live: unwrapping or deleting one link no longer retargets later operations onto a neighbour, and deleted links fail instead of editing one. Created links are addressed through result aliases.
 - Fixed explicit bookmark, content-control, and field IDs resolving live with the same retargeting hazard: structural edits no longer shift later IDs, and deleted targets fail instead of editing neighbours.
+- Fixed explicit image IDs resolving live with the same retargeting hazard, reusing one shared blip enumeration for capture and resolution.

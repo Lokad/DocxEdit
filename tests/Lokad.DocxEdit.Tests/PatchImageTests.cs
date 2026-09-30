@@ -825,4 +825,139 @@ public static class PatchImageTests
         Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E3201");
     }
 
+    private static MemoryStream CreateDocxWithTwoImages()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                ZipArchiveEntry entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+
+            Add("[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            Add("_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rImage1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                  <Relationship Id="rImage2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image2.png"/>
+                </Relationships>
+                """);
+            Add("word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="First chart"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rImage1"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="2" name="Picture 2" descr="Second chart"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rImage2"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            Add("word/media/image1.png", "old-png-1");
+            Add("word/media/image2.png", "old-png-2");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    [Fact]
+    public static void DeleteDoesNotRetargetLaterExplicitImage()
+    {
+        using MemoryStream input = CreateDocxWithTwoImages();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-image
+            target M.I0001
+            end
+
+            op set-image-alt
+            target M.I0002
+            expect-alt Second chart
+            alt Updated chart
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        Assert.Equal("Updated chart", Assert.Single(new DocxEditor().Read(output).Images).Description);
+    }
+
+    [Fact]
+    public static void DeletedImageTargetFailsInsteadOfEditingNeighbour()
+    {
+        using MemoryStream input = CreateDocxWithTwoImages();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-image
+            target M.I0001
+            end
+
+            op set-image-alt
+            target M.I0001
+            alt Updated chart
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch);
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
 }

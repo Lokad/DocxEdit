@@ -768,7 +768,7 @@ internal static partial class DocxPatchEngine
         OoxmlPackage package,
         CancellationToken cancellationToken)
     {
-        ImageBlipTarget? imageTarget = FindImageBlipTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+        ImageBlipTarget? imageTarget = FindImageBlipTarget(package, storyDocument.PartName, parsed.Story, parsed.StoryPart, parsed.Primary, cancellationToken, allowLiveFallback: true);
         if (imageTarget is null)
         {
             return null;

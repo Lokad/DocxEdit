@@ -1742,36 +1742,32 @@ internal static partial class DocxPatchEngine
 
         if (imageId.Story == 'M')
         {
-            return FindImageBlipTarget(package, package.MainDocumentPartName, imageId.Primary, cancellationToken);
+            return FindImageBlipTarget(package, package.MainDocumentPartName, imageId.Story, imageId.StoryPart, imageId.Primary, cancellationToken);
         }
 
         if (imageId.Story is 'H' or 'F')
         {
             string relationshipType = imageId.Story == 'H' ? OoxmlRelTypes.Header : OoxmlRelTypes.Footer;
             string? partName = ResolveRelatedStoryPartName(package, relationshipType, imageId.StoryPart, cancellationToken);
-            return partName is null ? null : FindImageBlipTarget(package, partName, imageId.Primary, cancellationToken);
+            return partName is null ? null : FindImageBlipTarget(package, partName, imageId.Story, imageId.StoryPart, imageId.Primary, cancellationToken);
         }
 
         return null;
     }
 
-    private static ImageBlipTarget? FindImageBlipTarget(
+    private sealed record ImageBlipEntry(XElement Blip, string RelationshipId, OoxmlPart Part);
+
+    private static List<ImageBlipEntry> FindImageBlipEntries(
         OoxmlPackage package,
         string partName,
-        int imageOrdinal,
+        XDocument document,
         CancellationToken cancellationToken)
     {
-        if (imageOrdinal < 1)
-        {
-            return null;
-        }
-
-        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
         IReadOnlyDictionary<string, OoxmlRelationship> relationships = package
             .GetRelationships(partName, cancellationToken)
             .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
         var seenParts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        int currentOrdinal = 0;
+        var entries = new List<ImageBlipEntry>();
         foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1790,14 +1786,33 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            currentOrdinal++;
-            if (currentOrdinal == imageOrdinal)
-            {
-                return new ImageBlipTarget(partName, document, blip, relationshipId, part);
-            }
+            entries.Add(new ImageBlipEntry(blip, relationshipId, part));
         }
 
-        return null;
+        return entries;
+    }
+
+    private static ImageBlipTarget? FindImageBlipTarget(
+        OoxmlPackage package,
+        string partName,
+        char story,
+        int storyPart,
+        int imageOrdinal,
+        CancellationToken cancellationToken,
+        bool allowLiveFallback = false)
+    {
+        if (imageOrdinal < 1)
+        {
+            return null;
+        }
+
+        XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
+        List<ImageBlipEntry> entries = FindImageBlipEntries(package, partName, document, cancellationToken);
+        var snapshotId = new DocxTargetId(story, storyPart, DocxTargetKind.Image, imageOrdinal, 0, 0);
+        string wireId = snapshotId.ToWireValue();
+        ImageBlipEntry? entry = entries.FirstOrDefault(candidate => string.Equals((string?)candidate.Blip.Attribute(SnapshotIdName), wireId, StringComparison.Ordinal));
+        entry ??= allowLiveFallback ? entries.ElementAtOrDefault(imageOrdinal - 1) : null;
+        return entry is null ? null : new ImageBlipTarget(partName, document, entry.Blip, entry.RelationshipId, entry.Part);
     }
 
     private static string? ResolveRelatedStoryPartName(

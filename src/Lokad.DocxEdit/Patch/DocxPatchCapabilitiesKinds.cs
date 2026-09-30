@@ -1045,7 +1045,7 @@ internal static partial class DocxPatchEngine
         StoryDocument? storyDocument = TryResolveStoryDocument(package, parsed, cancellationToken);
         ImageBlipTarget? imageTarget = storyDocument is null
             ? null
-            : FindImageBlipTarget(package, storyDocument.PartName, parsed.Primary, cancellationToken);
+            : FindImageBlipTarget(package, storyDocument.PartName, parsed.Story, parsed.StoryPart, parsed.Primary, cancellationToken, allowLiveFallback: true);
         if (storyDocument is null || imageTarget is null)
         {
             return ParagraphCapabilitiesNotFound(requestedTargetId);

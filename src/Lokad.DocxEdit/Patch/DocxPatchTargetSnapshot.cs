@@ -11,7 +11,7 @@ namespace Lokad.DocxEdit;
 // live against current content. Newly inserted blocks carry no snapshot mark
 // and are not addressable by pre-discovered explicit IDs in the same patch;
 // deleted targets fail instead of retargeting. Covers paragraphs, tables,
-// rows, cells, sections, hyperlinks, bookmarks, content controls, and fields; images, merge groups, and comments keep live resolution.
+// rows, cells, sections, hyperlinks, bookmarks, content controls, fields, and images; merge groups and comments keep live resolution.
 internal static partial class DocxPatchEngine
 {
     private static readonly XNamespace SnapshotNs = "http://schemas.lokad.com/docxedit/snapshot";
@@ -118,6 +118,14 @@ internal static partial class DocxPatchEngine
                 cancellationToken.ThrowIfCancellationRequested();
                 var hyperlinkId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Hyperlink, hyperlinkIndex++, 0, 0);
                 hyperlink.SetAttributeValue(SnapshotIdName, hyperlinkId.ToWireValue());
+                annotated = true;
+            }
+
+            int imageIndex = 1;
+            foreach (ImageBlipEntry entry in FindImageBlipEntries(package, story.PartName, document, cancellationToken))
+            {
+                var imageId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Image, imageIndex++, 0, 0);
+                entry.Blip.SetAttributeValue(SnapshotIdName, imageId.ToWireValue());
                 annotated = true;
             }
             if (annotated)
