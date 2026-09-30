@@ -5,10 +5,11 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// D13: created target IDs for operation reports. Inserted paragraphs are
-// identified by adjacency to the anchor element at report time, so earlier
-// structural edits cannot shift the answer; new comments use allocated IDs,
-// which are stable. Rows already report inserted IDs through affected targets.
+// D13: created target IDs for operation reports. Inserted paragraphs carry
+// the execution creation mark and resolve through physical document order
+// at report time, so earlier structural edits cannot shift the answer; new
+// comments use allocated IDs, which are stable. Rows already report inserted
+// IDs through affected targets.
 internal static partial class DocxPatchEngine
 {
     private static IReadOnlyList<string> BuildCreatedTargetIds(
