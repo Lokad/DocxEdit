@@ -219,4 +219,56 @@ public static class HostAdapterTests
         Assert.Equal(0, store.CurrentVersion(handle));
         Assert.Equal(original, store.Snapshot(handle, 0));
     }
+
+    [Fact]
+    public static void ReconcileUncertainRetryAvoidsDuplicatePublish()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string patch = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n";
+
+        // The original request succeeds, but its response is lost in transit.
+        store.Apply(handle, 0, patch);
+
+        // The retry reconciles from current state instead of re-applying blindly.
+        (bool alreadyApplied, long version) = Reconcile(store, handle, patch, ["Beta"]);
+        Assert.True(alreadyApplied);
+        Assert.Equal(1, version);
+        Assert.Equal(1, store.CurrentVersion(handle));
+        Assert.Equal(["Beta"], ReadParagraphs(store.Snapshot(handle, 1)));
+    }
+
+    [Fact]
+    public static void ReconcileUncertainRetryAppliesWhenAbsent()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string patch = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n";
+
+        // An ambiguous attempt actually failed, and its outcome was lost too.
+        store.Apply(handle, 0, "docxpatch 1\n\nop replace-text\ntarget M.P9999\nfind Alpha\nwith Beta\nend\n");
+
+        (bool alreadyApplied, long version) = Reconcile(store, handle, patch, ["Beta"]);
+        Assert.False(alreadyApplied);
+        Assert.Equal(1, version);
+        Assert.Equal(["Beta"], ReadParagraphs(store.Snapshot(handle, 1)));
+    }
+
+    private static (bool AlreadyApplied, long Version) Reconcile(
+        VersionedDocumentStore store,
+        string handle,
+        string patchText,
+        string[] expectedParagraphs,
+        DocxEditOptions? options = null)
+    {
+        long current = store.CurrentVersion(handle);
+        if (ReadParagraphs(store.Snapshot(handle, current)).SequenceEqual(expectedParagraphs))
+        {
+            return (true, current);
+        }
+
+        DocxApplyResult result = store.Apply(handle, current, patchText, options);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        return (false, store.CurrentVersion(handle));
+    }
 }
