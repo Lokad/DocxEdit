@@ -333,17 +333,9 @@ internal static partial class DocxPatchEngine
     {
         Dictionary<string, XDocument> touched = new(StringComparer.OrdinalIgnoreCase);
 
-        var aliasPrefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
-        foreach (var aliasEntry in aliasPrefixes)
+        if (FindMarkedStoryElement(package, SnapshotAliasName, alias, null, cancellationToken) is not null)
         {
-            XDocument aliasDocument = LoadDocumentPart(package, aliasEntry.Key, cancellationToken, out XElement _);
-            foreach (XElement aliasElement in aliasDocument.Descendants())
-            {
-                if (string.Equals((string?)aliasElement.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
+            return true;
         }
 
         if ((operation.OperationName == "add-comment" || operation.OperationName == "add-comment-reply") && commentsBefore is not null && commentsAfter is not null)
