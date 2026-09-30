@@ -293,6 +293,16 @@ internal static partial class DocxPatchEngine
             return commentWire;
         }
 
+        string? aliasName = (string?)element.Attribute(SnapshotAliasName);
+        if (aliasName is not null)
+        {
+            return "@" + aliasName;
+        }
+        string? createdLoc = (string?)element.Attribute(SnapshotCreatedName);
+        if (createdLoc is not null)
+        {
+            return createdLoc;
+        }
         return null;
     }
 
@@ -302,6 +312,22 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            OoxmlPart? storyPart = package.GetPart(story.PartName);
+            if (storyPart is null)
+            {
+                continue;
+            }
+            XDocument storyDocument = LoadDocumentPart(package, story.PartName, cancellationToken, out XElement _);
+            foreach (XElement candidate in storyDocument.Descendants(OoxmlNs.W + "p"))
+            {
+                if (string.Equals((string?)candidate.Attribute(SnapshotCreatedName), target, StringComparison.Ordinal))
+                {
+                    return candidate;
+                }
+            }
+        }
         return operation.OperationName switch
         {
             "set-cell" or "set-cell-shading" => ResolveCellTarget(package, target, cancellationToken)?.Cell,
