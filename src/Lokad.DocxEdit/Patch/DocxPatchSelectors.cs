@@ -228,6 +228,14 @@ internal static partial class DocxPatchEngine
         {
             return semanticResolved;
         }
+        if (createdMark is not null)
+        {
+            int? fallbackOrdinal = PhysicalParagraphOrdinal(semanticTarget.Document, semanticTarget.Paragraph);
+            if (fallbackOrdinal is not null && DocxPartRoles.GetStoryPrefixes(package, cancellationToken).TryGetValue(semanticTarget.PartName, out string? fallbackPrefix) && TryParseStoryPrefix(fallbackPrefix, out char fallbackStory, out int fallbackPart))
+            {
+                return new DocxTargetId(fallbackStory, fallbackPart, DocxTargetKind.Paragraph, fallbackOrdinal.Value, 0, 0);
+            }
+        }
         return null;
     }
 
