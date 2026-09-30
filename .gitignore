@@ -2,4 +2,5 @@ artifacts/
 private-cases/
 bin/
 obj/
+TestResults/
 
