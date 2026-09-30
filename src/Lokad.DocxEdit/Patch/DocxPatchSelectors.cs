@@ -327,21 +327,10 @@ internal static partial class DocxPatchEngine
         string target,
         CancellationToken cancellationToken)
     {
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        var created = FindMarkedStoryElement(package, SnapshotCreatedName, target, OoxmlNs.W + "p", cancellationToken);
+        if (created is not null)
         {
-            OoxmlPart? storyPart = package.GetPart(story.PartName);
-            if (storyPart is null)
-            {
-                continue;
-            }
-            XDocument storyDocument = LoadDocumentPart(package, story.PartName, cancellationToken, out XElement _);
-            foreach (XElement candidate in storyDocument.Descendants(OoxmlNs.W + "p"))
-            {
-                if (string.Equals((string?)candidate.Attribute(SnapshotCreatedName), target, StringComparison.Ordinal))
-                {
-                    return candidate;
-                }
-            }
+            return created.Value.Element;
         }
         return operation.OperationName switch
         {

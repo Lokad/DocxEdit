@@ -42,45 +42,24 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         var wireIds = new List<string>();
-        var prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
         int createdIndex = 0;
         while (true)
         {
             string mark = CreatedMarkValue(operation, createdIndex);
-            bool found = false;
-            foreach (var entry in prefixes)
-            {
-                if (!TryParseStoryPrefix(entry.Value, out char story, out int storyPart))
-                {
-                    continue;
-                }
-                XDocument document = LoadDocumentPart(package, entry.Key, cancellationToken, out XElement _);
-                XElement? created = null;
-                foreach (XElement element in document.Descendants())
-                {
-                    if (string.Equals((string?)element.Attribute(SnapshotCreatedName), mark, StringComparison.Ordinal))
-                    {
-                        created = element;
-                        break;
-                    }
-                }
-                if (created is null)
-                {
-                    continue;
-                }
-                int? ordinal = PhysicalParagraphOrdinal(document, created);
-                if (ordinal is null)
-                {
-                    return [];
-                }
-                wireIds.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0).ToWireValue());
-                found = true;
-                break;
-            }
-            if (!found)
+            var found = FindMarkedStoryElement(package, SnapshotCreatedName, mark, null, cancellationToken);
+            if (found is null
+                || !TryParseStoryPrefix(found.Value.Story.Prefix, out char story, out int storyPart))
             {
                 break;
             }
+
+            int? ordinal = PhysicalParagraphOrdinal(found.Value.Document, found.Value.Element);
+            if (ordinal is null)
+            {
+                return [];
+            }
+
+            wireIds.Add(new DocxTargetId(story, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0).ToWireValue());
             createdIndex++;
         }
         return wireIds;

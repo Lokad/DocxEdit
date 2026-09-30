@@ -89,32 +89,20 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         string alias = AliasReferenceName(target);
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        var found = FindMarkedStoryElement(package, SnapshotAliasName, alias, OoxmlNs.W + "p", cancellationToken);
+        if (found is null)
         {
-            OoxmlPart? part = package.GetPart(story.PartName);
-            if (part is null)
-            {
-                continue;
-            }
-
-            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
-            XElement? match = document.Descendants(OoxmlNs.W + "p").FirstOrDefault(element => string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
-            if (match is null)
-            {
-                continue;
-            }
-
-            int? ordinal = PhysicalParagraphOrdinal(document, match);
-            if (ordinal is null)
-            {
-                return null;
-            }
-
-            (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(story.Prefix);
-            return new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0);
+            return null;
         }
 
-        return null;
+        int? ordinal = PhysicalParagraphOrdinal(found.Value.Document, found.Value.Element);
+        if (ordinal is null)
+        {
+            return null;
+        }
+
+        (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(found.Value.Story.Prefix);
+        return new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, ordinal.Value, 0, 0);
     }
 
     private static ParagraphTarget? ResolveAliasParagraphTarget(
@@ -227,21 +215,13 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         string alias = AliasReferenceName(target);
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        var found = FindMarkedStoryElement(package, SnapshotAliasName, alias, OoxmlNs.W + "hyperlink", cancellationToken);
+        if (found is null)
         {
-            OoxmlPart? part = package.GetPart(story.PartName);
-            if (part is null)
-            {
-                continue;
-            }
-            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
-            XElement? match = document.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault(element => string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
-            if (match is not null)
-            {
-                return new HyperlinkTarget(story.PartName, document, match);
-            }
+            return null;
         }
-        return null;
+
+        return new HyperlinkTarget(found.Value.Story.PartName, found.Value.Document, found.Value.Element);
     }
 
     private static ImageBlipTarget? ResolveAliasImageBlipTarget(
@@ -250,37 +230,30 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         string alias = AliasReferenceName(target);
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        var found = FindMarkedStoryElement(package, SnapshotAliasName, alias, OoxmlNs.A + "blip", cancellationToken);
+        if (found is null)
         {
-            OoxmlPart? storyPart = package.GetPart(story.PartName);
-            if (storyPart is null)
-            {
-                continue;
-            }
-            XDocument document = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
-            XElement? match = document.Descendants(OoxmlNs.A + "blip").FirstOrDefault(element => string.Equals((string?)element.Attribute(SnapshotAliasName), alias, StringComparison.Ordinal));
-            if (match is null)
-            {
-                continue;
-            }
-            string? relationshipId = (string?)match.Attribute(OoxmlNs.R + "embed");
-            if (relationshipId is null)
-            {
-                return null;
-            }
-            OoxmlRelationship? relationship = package.GetRelationships(story.PartName, cancellationToken).FirstOrDefault(candidate => string.Equals(candidate.Id, relationshipId, StringComparison.Ordinal));
-            if (relationship is null || relationship.IsExternal || relationship.ResolvedTarget is null)
-            {
-                return null;
-            }
-            OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
-            if (part is null)
-            {
-                return null;
-            }
-            return new ImageBlipTarget(story.PartName, document, match, relationshipId, part);
+            return null;
         }
-        return null;
+
+        XDocument document = found.Value.Document;
+        XElement match = found.Value.Element;
+        string? relationshipId = (string?)match.Attribute(OoxmlNs.R + "embed");
+        if (relationshipId is null)
+        {
+            return null;
+        }
+        OoxmlRelationship? relationship = package.GetRelationships(found.Value.Story.PartName, cancellationToken).FirstOrDefault(candidate => string.Equals(candidate.Id, relationshipId, StringComparison.Ordinal));
+        if (relationship is null || relationship.IsExternal || relationship.ResolvedTarget is null)
+        {
+            return null;
+        }
+        OoxmlPart? part = package.GetPart(relationship.ResolvedTarget);
+        if (part is null)
+        {
+            return null;
+        }
+        return new ImageBlipTarget(found.Value.Story.PartName, document, match, relationshipId, part);
     }
 
     private static BlockTarget? ResolveInsertAnchor(
