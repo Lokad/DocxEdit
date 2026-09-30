@@ -38,6 +38,24 @@ Copy the template for each run and keep every field sanitized.
 - Notes:
 ```
 
+## Deferred live follow-up set
+
+Backend stalled repeatedly through 2026-09-30, so no new live runs were
+launched for the R02-R06 repairs. When health is independently confirmed,
+run this small set with bounded timeouts and sparse polling, then record
+per-run entries below. Do not launch repeated canaries solely to avoid
+reporting an external limit.
+
+- markup-targeting: R02 protected-interval targeting and refusal behavior.
+- unsupported-recovery: R02 E4305 refusal recovery and safe alternatives.
+- alias-compose-probe: R03 snapshot identity plus R04 created IDs and aliases.
+- table-guarded-edit: R03 cell and merge-group identity plus normal guarded workflow.
+- story-scope-selector: R03 cross-story identity recovery.
+- semantic-anchor-edit: R02 bookmark intervals through semantic anchors.
+- tracked-dump-verification: R04 affected IDs and R05 preview verification.
+- tracked-replace-probe: normal guarded tracked workflow (control case).
+- iterative-tracked-edit: D05 follow-up edits beside existing revisions.
+
 ## Runs
 
 ### 2026-09-29 — tracked-replace-probe (synthetic self-run) — completed
@@ -459,3 +477,13 @@ Copy the template for each run and keep every field sanitized.
 - Counts: 2 commands, 0 failing, 0 retries; about 52k input tokens with about 32k cached
 - Artifacts: artifacts/agent-challenges/markup-targeting/20260929T210936Z/summary.json
 - Notes: first run on the third model with no cold-start delay and the leanest token spend yet. Took the revision-pair path like the default model, unlike the comment path on gpt-5.5. Agent-reported notes: dumps expose document text so small max-text matters, and comment bodies stay out of the read model by design. No text disclosed.
+
+### 2026-09-30 — markup-targeting (infrastructure probe) — failed
+
+- Commands: none by the agent (prepare-only succeeded: input copy, wrapper, prompt, build)
+- Diagnostics: none observed
+- Target IDs: none
+- Markup types: none
+- Counts: 0 agent commands, 0 events; runner killed at about 2 minutes on sustained multi-core burn with zero run-directory output beyond prepare material
+- Artifacts: none (no sanitized summary; ignored run directory retained locally only)
+- Notes: about half a dozen prior attempts with the same stall signature preceded this run. Live runs stay paused until backend health is independently confirmed. No private text involved.
