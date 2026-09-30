@@ -1006,4 +1006,50 @@ public static class PatchCommentTests
             Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Code == "E6001");
         }
     }
+
+    [Fact]
+    public static void DeleteDoesNotRetargetLaterExplicitComment()
+    {
+        using MemoryStream input = CreateDocxWithBodyAndComments(
+            """
+                    <w:p>
+                      <w:commentRangeStart w:id="3"/>
+                      <w:r><w:t>First anchored</w:t></w:r>
+                      <w:commentRangeEnd w:id="3"/>
+                      <w:r><w:commentReference w:id="3"/></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:commentRangeStart w:id="4"/>
+                      <w:r><w:t>Second anchored</w:t></w:r>
+                      <w:commentRangeEnd w:id="4"/>
+                      <w:r><w:commentReference w:id="4"/></w:r>
+                    </w:p>
+            """,
+            """
+                <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:comment w:id="3" w:author="Reviewer">
+                    <w:p><w:r><w:t>First comment</w:t></w:r></w:p>
+                  </w:comment>
+                  <w:comment w:id="4" w:author="Reviewer">
+                    <w:p><w:r><w:t>Second comment</w:t></w:r></w:p>
+                  </w:comment>
+                </w:comments>
+                """);
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-comment
+            target comment:3
+            end
+
+            op set-comment-text
+            target C001.C0002
+            text Changed comment
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
 }

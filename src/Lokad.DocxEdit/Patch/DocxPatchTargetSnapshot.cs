@@ -11,7 +11,7 @@ namespace Lokad.DocxEdit;
 // live against current content. Newly inserted blocks carry no snapshot mark
 // and are not addressable by pre-discovered explicit IDs in the same patch;
 // deleted targets fail instead of retargeting. Covers paragraphs, tables,
-// rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, and merge groups; comments keep live resolution.
+// rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, merge groups, and comment bodies; threaded replies and semantic selectors keep live resolution.
 internal static partial class DocxPatchEngine
 {
     private static readonly XNamespace SnapshotNs = "http://schemas.lokad.com/docxedit/snapshot";
@@ -134,6 +134,43 @@ internal static partial class DocxPatchEngine
                 SaveDocumentPart(package, story.PartName, document);
             }
         }
+
+        int commentsPartOrdinal = 1;
+        foreach (string commentsPartName in GetCommentsPartNames(package, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? commentsPart = package.GetPart(commentsPartName);
+            if (commentsPart is null)
+            {
+                continue;
+            }
+
+            using Stream commentsStream = commentsPart.OpenRead();
+            XDocument commentsDocument = SafeXml.Load(commentsStream, cancellationToken);
+            XElement? commentsRoot = commentsDocument.Root;
+            if (commentsRoot is null)
+            {
+                commentsPartOrdinal++;
+                continue;
+            }
+
+            int commentOrdinal = 1;
+            bool commentsAnnotated = false;
+            foreach (XElement comment in commentsRoot.Elements(OoxmlNs.W + "comment"))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string wireId = "C" + commentsPartOrdinal.ToString("D3", System.Globalization.CultureInfo.InvariantCulture) + ".C" + commentOrdinal++.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+                comment.SetAttributeValue(SnapshotIdName, wireId);
+                commentsAnnotated = true;
+            }
+
+            if (commentsAnnotated)
+            {
+                SaveDocumentPart(package, commentsPartName, commentsDocument);
+            }
+
+            commentsPartOrdinal++;
+        }
     }
 
     private static void AnnotateTableRowsAndCells(XElement table, DocxTargetId tableId)
@@ -162,15 +199,31 @@ internal static partial class DocxPatchEngine
         }
     }
 
+    private static List<string> SnapshotPartNames(OoxmlPackage package, CancellationToken cancellationToken)
+    {
+        var names = new List<string>();
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            names.Add(story.PartName);
+        }
+
+        foreach (string commentsPartName in GetCommentsPartNames(package, cancellationToken))
+        {
+            names.Add(commentsPartName);
+        }
+
+        return names;
+    }
+
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)
     {
         var originals = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        foreach (string partName in SnapshotPartNames(package, cancellationToken))
         {
-            OoxmlPart? part = package.GetPart(story.PartName);
+            OoxmlPart? part = package.GetPart(partName);
             if (part is not null)
             {
-                originals[story.PartName] = part.Bytes;
+                originals[partName] = part.Bytes;
             }
         }
 
@@ -179,9 +232,9 @@ internal static partial class DocxPatchEngine
 
     private static void UnmarkStoryParts(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        foreach (string partName in SnapshotPartNames(package, cancellationToken))
         {
-            package.UnmarkPartTouched(story.PartName);
+            package.UnmarkPartTouched(partName);
         }
     }
 
@@ -191,28 +244,28 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken)
     {
         var operationTouched = new HashSet<string>(package.TouchedPartNames, StringComparer.OrdinalIgnoreCase);
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        foreach (string partName in SnapshotPartNames(package, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!operationTouched.Contains(story.PartName))
+            if (!operationTouched.Contains(partName))
             {
                 // No operation edited this part: restore input bytes exactly so
                 // snapshot bookkeeping never rewrites otherwise-untouched output.
-                if (originals.TryGetValue(story.PartName, out byte[]? original))
+                if (originals.TryGetValue(partName, out byte[]? original))
                 {
-                    OoxmlPart? part = package.GetPart(story.PartName);
+                    OoxmlPart? part = package.GetPart(partName);
                     if (part is not null && !part.Bytes.SequenceEqual(original))
                     {
-                        package.ReplacePartBytes(story.PartName, original);
+                        package.ReplacePartBytes(partName, original);
                     }
 
-                    package.UnmarkPartTouched(story.PartName);
+                    package.UnmarkPartTouched(partName);
                 }
 
                 continue;
             }
 
-            OoxmlPart? edited = package.GetPart(story.PartName);
+            OoxmlPart? edited = package.GetPart(partName);
             if (edited is null)
             {
                 continue;
@@ -248,7 +301,7 @@ internal static partial class DocxPatchEngine
 
             if (dirty)
             {
-                SaveDocumentPart(package, story.PartName, document);
+                SaveDocumentPart(package, partName, document);
             }
         }
     }

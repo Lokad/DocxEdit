@@ -508,7 +508,7 @@ internal static partial class DocxPatchEngine
         if (TryParseCommentBodyTarget(target, out int storyOrdinal, out int commentOrdinal))
         {
             string? partName = GetCommentsPartNames(package, cancellationToken).ElementAtOrDefault(storyOrdinal - 1);
-            return partName is null ? null : FindCommentTargetByOrdinal(package, partName, commentOrdinal, cancellationToken);
+            return partName is null ? null : FindCommentTargetByOrdinal(package, partName, storyOrdinal, commentOrdinal, cancellationToken);
         }
 
         diagnostic = Diagnostic(DocxSeverity.Error, "E1203", "Comment target must be comment:<id> or C001.C0001.", operation, target);
@@ -680,6 +680,7 @@ internal static partial class DocxPatchEngine
     private static CommentTarget? FindCommentTargetByOrdinal(
         OoxmlPackage package,
         string partName,
+        int storyOrdinal,
         int commentOrdinal,
         CancellationToken cancellationToken)
     {
@@ -689,9 +690,8 @@ internal static partial class DocxPatchEngine
         }
 
         XDocument document = LoadDocumentPart(package, partName, cancellationToken, out _);
-        XElement? comment = document
-            .Descendants(OoxmlNs.W + "comment")
-            .ElementAtOrDefault(commentOrdinal - 1);
+        string wireId = "C" + storyOrdinal.ToString("D3", System.Globalization.CultureInfo.InvariantCulture) + ".C" + commentOrdinal.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+        XElement? comment = FindSnapshotElement(document, OoxmlNs.W + "comment", wireId);
         return comment is null ? null : new CommentTarget(partName, document, comment);
     }
 

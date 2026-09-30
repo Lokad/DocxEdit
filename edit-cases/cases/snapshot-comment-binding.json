@@ -1,0 +1,46 @@
+{
+  "id": "snapshot-comment-binding",
+  "description": "Binds comment body IDs to the input snapshot so deleting one comment does not retarget the next.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:commentRangeStart w:id=\"3\"/>",
+      "      <w:r><w:t>First anchored</w:t></w:r>",
+      "      <w:commentRangeEnd w:id=\"3\"/>",
+      "      <w:r><w:commentReference w:id=\"3\"/></w:r>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:commentRangeStart w:id=\"4\"/>",
+      "      <w:r><w:t>Second anchored</w:t></w:r>",
+      "      <w:commentRangeEnd w:id=\"4\"/>",
+      "      <w:r><w:commentReference w:id=\"4\"/></w:r>",
+      "    </w:p>"
+    ],
+    "commentsXml": [
+      "    <w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">",
+      "      <w:comment w:id=\"3\" w:author=\"Reviewer\" w:initials=\"RV\" w:date=\"2026-06-07T12:00:00Z\">",
+      "        <w:p><w:r><w:t>First comment</w:t></w:r></w:p>",
+      "      </w:comment>",
+      "      <w:comment w:id=\"4\" w:author=\"Reviewer\" w:initials=\"RV\" w:date=\"2026-06-07T12:00:00Z\">",
+      "        <w:p><w:r><w:t>Second comment</w:t></w:r></w:p>",
+      "      </w:comment>",
+      "    </w:comments>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op delete-comment",
+    "target comment:3",
+    "end",
+    "",
+    "op set-comment-text",
+    "target C001.C0002",
+    "expect-text Second comment",
+    "text Changed comment",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0
+  }
+}
