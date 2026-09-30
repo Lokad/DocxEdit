@@ -250,6 +250,8 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Tables | `read`, `context` | Cell IDs use visual grid coordinates; a multi-paragraph cell reads and finds as flat concatenated text with no boundary marker; `set-cell` and `set-cell-shading` can target merge-group IDs and horizontal spans, but reject vertical-merge continuations; direct row edits can clone safe visual-grid row shapes, while tracked row revisions require simple rectangular tables |
 | Sections | `read`, `outline` | Section operations target main-document section IDs |
 
+Image identifiers name drawing placements, not media parts: repeated use of one media part yields one identifier per placement.
+
 For a full inventory of supported and unsupported shapes, see
 [status.md](status.md).
 
