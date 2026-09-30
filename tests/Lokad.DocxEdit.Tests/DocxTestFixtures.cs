@@ -73,11 +73,10 @@ internal static class DocxTestFixtures
 
         throw new InvalidOperationException("Could not find repository root.");
     }
-    internal sealed record CliResult(int ExitCode, string Output, string Error);
 
     // Shared process console capture. Callers keep their scenario setup. Console
     // redirection stays serialized through the callers collection membership.
-    public static CliResult CaptureCliOutput(string? standardInput, string[] args)
+    public static (int ExitCode, string Output, string Error) CaptureCliOutput(string? standardInput, string[] args)
     {
         TextWriter savedOut = Console.Out;
         TextWriter savedError = Console.Error;
@@ -93,7 +92,7 @@ internal static class DocxTestFixtures
                 Console.SetIn(new StringReader(standardInput));
             }
             int exitCode = ProgramMain.Run(args);
-            return new CliResult(exitCode, output.ToString(), error.ToString());
+            return (exitCode, output.ToString(), error.ToString());
         }
         finally
         {

@@ -1140,29 +1140,8 @@ public static class CliTests
 
     private static CliResult RunInProcess(string? standardInput, string[] args)
     {
-        TextWriter savedOut = Console.Out;
-        TextWriter savedError = Console.Error;
-        TextReader savedIn = Console.In;
-        var output = new StringWriter();
-        var error = new StringWriter();
-        try
-        {
-            Console.SetOut(output);
-            Console.SetError(error);
-            if (standardInput is not null)
-            {
-                Console.SetIn(new StringReader(standardInput));
-            }
-
-            int exitCode = ProgramMain.Run(args);
-            return new CliResult(exitCode, output.ToString(), error.ToString());
-        }
-        finally
-        {
-            Console.SetOut(savedOut);
-            Console.SetError(savedError);
-            Console.SetIn(savedIn);
-        }
+        var captured = DocxTestFixtures.CaptureCliOutput(standardInput, args);
+        return new CliResult(captured.ExitCode, captured.Output, captured.Error);
     }
 
     private static RawCliResult RunCliOutOfProcessRaw(byte[]? standardInput, params string[] args)

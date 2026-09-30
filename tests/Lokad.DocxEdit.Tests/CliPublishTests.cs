@@ -135,22 +135,8 @@ public static class CliPublishTests
 
     private static CliOutcome RunCli(params string[] args)
     {
-        TextWriter savedOut = Console.Out;
-        TextWriter savedError = Console.Error;
-        var output = new StringWriter();
-        var error = new StringWriter();
-        try
-        {
-            Console.SetOut(output);
-            Console.SetError(error);
-            int exitCode = ProgramMain.Run(args);
-            return new CliOutcome(exitCode, output.ToString(), error.ToString());
-        }
-        finally
-        {
-            Console.SetOut(savedOut);
-            Console.SetError(savedError);
-        }
+        var captured = DocxTestFixtures.CaptureCliOutput(null, args);
+        return new CliOutcome(captured.ExitCode, captured.Output, captured.Error);
     }
 
 
