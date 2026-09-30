@@ -1,0 +1,37 @@
+{
+  "id": "plain-span-beside-comment",
+  "description": "Edits plain text beside a comment range and preserves the comment anchor.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Note </w:t></w:r>",
+      "      <w:commentRangeStart w:id=\"3\"/>",
+      "      <w:r><w:t>Commented</w:t></w:r>",
+      "      <w:commentRangeEnd w:id=\"3\"/>",
+      "      <w:r><w:commentReference w:id=\"3\"/></w:r>",
+      "    </w:p>"
+    ],
+    "commentsXml": [
+      "    <w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">",
+      "      <w:comment w:id=\"3\" w:author=\"Reviewer\" w:initials=\"RV\" w:date=\"2026-06-07T12:00:00Z\">",
+      "        <w:p><w:r><w:t>Old comment</w:t></w:r></w:p>",
+      "      </w:comment>",
+      "    </w:comments>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Note",
+    "with Memo",
+    "end"
+  ],
+  "expect": {
+    "diagnosticCount": 0,
+    "paragraphs": [
+      "Memo Commented"
+    ]
+  }
+}

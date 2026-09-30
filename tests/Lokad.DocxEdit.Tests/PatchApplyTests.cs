@@ -385,7 +385,7 @@ public static class PatchApplyTests
     }
 
     [Fact]
-    public static void CheckReplaceTextInsideCommentRangePreservesMarkers()
+    public static void CheckReplaceTextInsideCommentRangeRefusesWithE4305()
     {
         using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
         using var patch = new StringReader("""
@@ -400,7 +400,10 @@ public static class PatchApplyTests
 
         DocxCheckResult check = new DocxEditor().Check(input, patch);
 
-        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.False(check.Success);
+        DocxDiagnostic diagnostic = Assert.Single(check.Diagnostics);
+        Assert.Equal("E4305", diagnostic.Code);
+        Assert.Contains("comment", diagnostic.Message, StringComparison.Ordinal);
 
         using MemoryStream applyInput = CreateDocxWithCommentAnchoredParagraph();
         using var output = new MemoryStream();
@@ -414,12 +417,9 @@ public static class PatchApplyTests
             end
             """);
 
-        Assert.True(new DocxEditor().Apply(applyInput, applyPatch, output).Success);
-        output.Position = 0;
-        string xml = ReadDocumentXml(output);
-        Assert.Contains("<w:t>Updated</w:t>", xml, StringComparison.Ordinal);
-        Assert.Contains("commentRangeStart", xml, StringComparison.Ordinal);
-        Assert.Contains("commentRangeEnd", xml, StringComparison.Ordinal);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.False(apply.Success);
+        Assert.Contains(apply.Diagnostics, static diagnostic => diagnostic.Code == "E4305");
     }
 
     [Fact]

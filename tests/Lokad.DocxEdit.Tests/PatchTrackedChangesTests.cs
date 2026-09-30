@@ -2192,7 +2192,7 @@ public static class PatchTrackedChangesTests
     }
 
     [Fact]
-    public static void CheckTrackChangesRequireTracksTextInsideCommentRange()
+    public static void CheckTrackChangesRequireRefusesTextInsideCommentRange()
     {
         using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
         using var patch = new StringReader("""
@@ -2207,7 +2207,10 @@ public static class PatchTrackedChangesTests
 
         DocxCheckResult result = new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
 
-        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.False(result.Success);
+        DocxDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("E6002", diagnostic.Code);
+        Assert.Contains("comment", diagnostic.Message, StringComparison.Ordinal);
 
         using MemoryStream applyInput = CreateDocxWithCommentAnchoredParagraph();
         using var output = new MemoryStream();
@@ -2222,13 +2225,8 @@ public static class PatchTrackedChangesTests
             """);
 
         DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
-        Assert.True(apply.Success);
-        output.Position = 0;
-        string xml = ReadDocumentXml(output);
-        Assert.Contains("<w:delText>Commented</w:delText>", xml, StringComparison.Ordinal);
-        Assert.Contains("<w:t>Updated</w:t>", xml, StringComparison.Ordinal);
-        Assert.Contains("commentRangeStart", xml, StringComparison.Ordinal);
-        Assert.Contains("commentRangeEnd", xml, StringComparison.Ordinal);
+        Assert.False(apply.Success);
+        Assert.Contains(apply.Diagnostics, static diagnostic => diagnostic.Code == "E6002");
     }
 
     [Theory]

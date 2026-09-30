@@ -19,7 +19,32 @@ internal static partial class DocxPatchEngine
 
     internal sealed record ProtectedSpanInterval(int Start, int End, string Feature);
 
-    // R02: sibling range markers (bookmarkStart/End, complex-field begin/end)
+    private static readonly (XName Start, XName End, string Feature)[] SpanRangeMarkers =
+    [
+        (OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd", "bookmark"),
+        (OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", "comment"),
+        (OoxmlNs.W + "moveFromRangeStart", OoxmlNs.W + "moveFromRangeEnd", "tracked-move-from-range"),
+        (OoxmlNs.W + "moveToRangeStart", OoxmlNs.W + "moveToRangeEnd", "tracked-move-to-range"),
+        (OoxmlNs.W + "customXmlInsRangeStart", OoxmlNs.W + "customXmlInsRangeEnd", "tracked-custom-xml-insertion"),
+        (OoxmlNs.W + "customXmlDelRangeStart", OoxmlNs.W + "customXmlDelRangeEnd", "tracked-custom-xml-deletion"),
+        (OoxmlNs.W + "customXmlMoveFromRangeStart", OoxmlNs.W + "customXmlMoveFromRangeEnd", "tracked-custom-xml-move-from"),
+        (OoxmlNs.W + "customXmlMoveToRangeStart", OoxmlNs.W + "customXmlMoveToRangeEnd", "tracked-custom-xml-move-to"),
+    ];
+
+    private static bool IsSpanRangeMarker(XName name)
+    {
+        foreach ((XName start, XName end, string _) in SpanRangeMarkers)
+        {
+            if (name == start || name == end)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // R02: sibling range markers (bookmark, comment, move, and custom-XML ranges plus complex-field begin/end)
     // are zero-width, so ancestor checks cannot tell whether a match crosses
     // them. Each marker is recorded at its visible-text position during the map
     // walk and paired into half-open intervals, including ranges that start
@@ -33,11 +58,21 @@ internal static partial class DocxPatchEngine
         IReadOnlyList<TextRange> matches)
     {
         var intervals = new List<ProtectedSpanInterval>();
-        var bookmarkStarts = new Dictionary<string, Queue<int>>(StringComparer.Ordinal);
+        var openRanges = new Dictionary<(int Row, string Id), Queue<int>>();
         var fieldBegins = new Stack<int>();
         foreach (SpanMarkerEvent marker in markers)
         {
-            if (marker.Element.Name == OoxmlNs.W + "bookmarkStart")
+            int row = -1;
+            for (int r = 0; r < SpanRangeMarkers.Length; r++)
+            {
+                if (marker.Element.Name == SpanRangeMarkers[r].Start || marker.Element.Name == SpanRangeMarkers[r].End)
+                {
+                    row = r;
+                    break;
+                }
+            }
+
+            if (row >= 0 && marker.Element.Name == SpanRangeMarkers[row].Start)
             {
                 string? id = (string?)marker.Element.Attribute(OoxmlNs.W + "id");
                 if (id is null)
@@ -45,15 +80,16 @@ internal static partial class DocxPatchEngine
                     continue;
                 }
 
-                if (!bookmarkStarts.TryGetValue(id, out Queue<int>? starts))
+                var key = (row, id);
+                if (!openRanges.TryGetValue(key, out Queue<int>? starts))
                 {
                     starts = new Queue<int>();
-                    bookmarkStarts[id] = starts;
+                    openRanges[key] = starts;
                 }
 
                 starts.Enqueue(marker.Position);
             }
-            else if (marker.Element.Name == OoxmlNs.W + "bookmarkEnd")
+            else if (row >= 0)
             {
                 string? id = (string?)marker.Element.Attribute(OoxmlNs.W + "id");
                 if (id is null)
@@ -61,13 +97,14 @@ internal static partial class DocxPatchEngine
                     continue;
                 }
 
-                if (bookmarkStarts.TryGetValue(id, out Queue<int>? starts) && starts.Count > 0)
+                var key = (row, id);
+                if (openRanges.TryGetValue(key, out Queue<int>? starts) && starts.Count > 0)
                 {
-                    intervals.Add(new ProtectedSpanInterval(starts.Dequeue(), marker.Position, "bookmark"));
+                    intervals.Add(new ProtectedSpanInterval(starts.Dequeue(), marker.Position, SpanRangeMarkers[row].Feature));
                 }
                 else
                 {
-                    intervals.Add(new ProtectedSpanInterval(0, marker.Position, "bookmark"));
+                    intervals.Add(new ProtectedSpanInterval(0, marker.Position, SpanRangeMarkers[row].Feature));
                 }
             }
             else if (marker.Element.Name == OoxmlNs.W + "fldChar")
@@ -86,11 +123,11 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        foreach (KeyValuePair<string, Queue<int>> pending in bookmarkStarts)
+        foreach (KeyValuePair<(int Row, string Id), Queue<int>> pending in openRanges)
         {
             while (pending.Value.Count > 0)
             {
-                intervals.Add(new ProtectedSpanInterval(pending.Value.Dequeue(), visibleLength, "bookmark"));
+                intervals.Add(new ProtectedSpanInterval(pending.Value.Dequeue(), visibleLength, SpanRangeMarkers[pending.Key.Row].Feature));
             }
         }
 
@@ -219,9 +256,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            if (element.Name == OoxmlNs.W + "bookmarkStart" ||
-                element.Name == OoxmlNs.W + "bookmarkEnd" ||
-                element.Name == OoxmlNs.W + "fldChar")
+            if (element.Name == OoxmlNs.W + "fldChar" || IsSpanRangeMarker(element.Name))
             {
                 markers?.Add(new SpanMarkerEvent(element, map.Count));
             }

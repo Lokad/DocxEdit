@@ -1,0 +1,40 @@
+{
+  "id": "protected-span-cell-bookmark",
+  "description": "Refuses a cell substring that crosses a bookmark range with E4305.",
+  "input": {
+    "bodyXml": [
+      "    <w:tbl>",
+      "      <w:tr>",
+      "        <w:tc>",
+      "          <w:p>",
+      "            <w:r><w:t>Cell </w:t></w:r>",
+      "            <w:bookmarkStart w:id=\"6\" w:name=\"CellMark\"/>",
+      "            <w:r><w:t>Marked</w:t></w:r>",
+      "            <w:bookmarkEnd w:id=\"6\"/>",
+      "          </w:p>",
+      "        </w:tc>",
+      "        <w:tc><w:p><w:r><w:t>Other</w:t></w:r></w:p></w:tc>",
+      "      </w:tr>",
+      "    </w:tbl>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.T0001.R01.C01",
+    "find Cell Marked",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "bookmark"
+    ]
+  }
+}

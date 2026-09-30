@@ -1,0 +1,36 @@
+{
+  "id": "protected-span-moveto-refusal",
+  "description": "Refuses a text span crossing a tracked move destination range with E4305.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Keep </w:t></w:r>",
+      "      <w:moveToRangeStart w:id=\"1\" w:name=\"mv\"/>",
+      "      <w:moveTo w:id=\"1\" w:author=\"Reviewer\" w:date=\"2026-06-07T12:00:00Z\">",
+      "        <w:r><w:t>Moved</w:t></w:r>",
+      "      </w:moveTo>",
+      "      <w:moveToRangeEnd w:id=\"1\"/>",
+      "      <w:r><w:t> After</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Keep Moved",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "tracked-move"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "protected-span-customxml-refusal",
+  "description": "Refuses a text span crossing a custom XML deletion range with E4305.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>Kept </w:t></w:r>",
+      "      <w:customXmlDelRangeStart w:id=\"1\"/>",
+      "      <w:r><w:t>Removed</w:t></w:r>",
+      "      <w:customXmlDelRangeEnd w:id=\"1\"/>",
+      "      <w:r><w:t> After</w:t></w:r>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0001",
+    "find Kept Removed",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "tracked-custom-xml-deletion"
+    ]
+  }
+}

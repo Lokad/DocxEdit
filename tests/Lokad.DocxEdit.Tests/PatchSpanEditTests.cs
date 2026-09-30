@@ -359,4 +359,36 @@ public static class PatchSpanEditTests
         Assert.Contains("<w:instrText", xml, StringComparison.Ordinal);
         Assert.Contains("<w:t>Field</w:t>", xml, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public static void CommentInteriorSpanRefusesWithE4305()
+    {
+        using MemoryStream input = CreateDocxWithCommentAnchoredParagraph();
+        DocxCheckResult crossing = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Comment\nwith Remark\nend\n", TrackChangesMode.Off);
+
+        Assert.False(crossing.Success);
+        DocxDiagnostic diagnostic = Assert.Single(crossing.Diagnostics);
+        Assert.Equal("E4305", diagnostic.Code);
+        Assert.Contains("comment", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void MoveRangeCrossingSpanRefusesWithE4305()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:p>
+                      <w:r><w:t>Keep </w:t></w:r>
+                      <w:moveToRangeStart w:id="1" w:name="mv"/>
+                      <w:r><w:t>Moved</w:t></w:r>
+                      <w:moveToRangeEnd w:id="1"/>
+                      <w:r><w:t> After</w:t></w:r>
+                    </w:p>
+            """);
+        DocxCheckResult crossing = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Keep Moved\nwith Changed\nend\n", TrackChangesMode.Off);
+
+        Assert.False(crossing.Success);
+        DocxDiagnostic diagnostic = Assert.Single(crossing.Diagnostics);
+        Assert.Equal("E4305", diagnostic.Code);
+        Assert.Contains("tracked-move-to-range", diagnostic.Message, StringComparison.Ordinal);
+    }
 }

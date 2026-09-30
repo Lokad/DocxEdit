@@ -1,0 +1,35 @@
+{
+  "id": "protected-span-multiparagraph-bookmark",
+  "description": "Refuses a span inside a bookmark range that started in an earlier paragraph.",
+  "input": {
+    "bodyXml": [
+      "    <w:p>",
+      "      <w:r><w:t>First</w:t></w:r>",
+      "      <w:bookmarkStart w:id=\"5\" w:name=\"Span\"/>",
+      "    </w:p>",
+      "    <w:p>",
+      "      <w:r><w:t>Second</w:t></w:r>",
+      "      <w:bookmarkEnd w:id=\"5\"/>",
+      "    </w:p>"
+    ]
+  },
+  "patch": [
+    "docxpatch 1",
+    "",
+    "op replace-text",
+    "target M.P0002",
+    "find Second",
+    "with Changed",
+    "end"
+  ],
+  "expect": {
+    "applySuccess": false,
+    "diagnosticCount": 1,
+    "diagnosticCodes": [
+      "E4305"
+    ],
+    "diagnosticMessagesContain": [
+      "bookmark"
+    ]
+  }
+}
