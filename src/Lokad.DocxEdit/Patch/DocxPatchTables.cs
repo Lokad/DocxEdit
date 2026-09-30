@@ -410,6 +410,15 @@ internal static partial class DocxPatchEngine
         {
             return NoOpResult(operation, target, "Set-cell for " + target + " leaves the cell unchanged; nothing was written and no revisions were generated.");
         }
+        if (TryGetStoryProtectedTextEditFeature(cellTarget.Cell, out string cellProtected))
+        {
+            if (options.TrackChanges == TrackChangesMode.Require)
+            {
+                TrackUnsupportedShape(options, operation, target, "paragraph contains protected OOXML boundary " + Quote(cellProtected), diagnostics);
+                return diagnostics;
+            }
+            return [Diagnostic(DocxSeverity.Error, "E4305", "Set-cell for " + target + " crosses protected OOXML boundary " + Quote(cellProtected) + ".", operation, target)];
+        }
 
         if (IsVerticalMergeContinuation(cellTarget.Cell))
         {
