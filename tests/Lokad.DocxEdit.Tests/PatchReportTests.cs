@@ -1379,4 +1379,78 @@ public static class PatchReportTests
         output.Position = 0;
         Assert.Equal("Alpha", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
     }
+
+    [Fact]
+    public static void SemanticSelectorPreviewSurvivesMatchChange()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target text:"Alpha"
+            text Beta
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Alpha", report.PreviewBefore);
+        Assert.Equal("Beta", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
+
+    [Fact]
+    public static void DeleteBlockPreviewKeepsBeforeValue()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocx("Alpha");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op delete-block
+            target M.P0001
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Alpha", report.PreviewBefore);
+        Assert.Null(report.PreviewAfter);
+    }
+
+    [Fact]
+    public static void CellSubstringPreviewReportsBeforeAndAfter()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("""
+                    <w:tbl>
+                      <w:tr><w:tc><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+            """);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-text
+            target M.T0001.R01.C01
+            find World
+            with There
+            end
+            """);
+
+        DocxCheckResult result = new DocxEditor().Check(input, patch, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        Assert.Equal("Hello World", report.PreviewBefore);
+        Assert.Equal("Hello There", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+    }
 }

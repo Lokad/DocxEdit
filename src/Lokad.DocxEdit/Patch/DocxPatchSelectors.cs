@@ -262,7 +262,67 @@ internal static partial class DocxPatchEngine
     // and after-values are re-read post-operation. A null record means previews are
     // disabled or inapplicable; a record with a null value means the value itself
     // was absent (for example no paragraph style). Missing resolution never fails.
-    private sealed record PreviewSnapshot(string? Before);
+    private static string? ResolvePreviewLocator(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        CancellationToken cancellationToken)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        XElement? element = ResolvePreviewElement(package, operation, target, cancellationToken);
+        if (element is null)
+        {
+            return null;
+        }
+
+        string? mark = (string?)element.Attribute(SnapshotIdName)
+            ?? (string?)element.Attribute(SnapshotMergeGroupName)
+            ?? (string?)element.Attribute(SnapshotAliasName);
+        if (mark is not null && DocxTargetId.TryParse(mark, out _))
+        {
+            return mark;
+        }
+
+        string? commentWire = (string?)element.Attribute(SnapshotIdName);
+        if (commentWire is not null && TryParseCommentBodyTarget(commentWire, out _, out _))
+        {
+            return commentWire;
+        }
+
+        return null;
+    }
+
+    private static XElement? ResolvePreviewElement(
+        OoxmlPackage package,
+        DocxPatchOperation operation,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        return operation.OperationName switch
+        {
+            "set-cell" or "set-cell-shading" => ResolveCellTarget(package, target, cancellationToken)?.Cell,
+            "set-hyperlink-text" or "set-hyperlink-target" or "remove-hyperlink" => ResolveHyperlinkTarget(package, target, cancellationToken)?.Hyperlink,
+            "set-table-style" => ResolveTableTarget(package, target, cancellationToken)?.Table,
+            "set-row-header" => ResolveRowTarget(package, target, cancellationToken)?.Row,
+            "set-content-control-text" => ResolveContentControlTarget(package, operation, target, cancellationToken, out _)?.ContentControl,
+            "set-image-alt" => ResolveImageBlipTarget(package, target, cancellationToken)?.Blip,
+            "set-field-result" or "set-field-code" or "set-field-dirty" or "set-field-lock" => ResolveFieldTarget(package, target, cancellationToken)?.Element,
+            "set-comment-text" => ResolveCommentTarget(package, target, operation, cancellationToken, out _)?.Comment,
+            "replace-bookmark-text" => ResolveBookmarkTarget(package, operation, target, cancellationToken, out _)?.Start,
+            "set-table-metadata" => ResolveTableTarget(package, target, cancellationToken)?.Table,
+            "delete-block" => ResolveBlockTarget(package, operation, target, cancellationToken, out _)?.Block,
+            "set-section-columns" or "set-section-orientation" => ResolveMainSectionTarget(package, target, cancellationToken)?.SectionProperties,
+            "replace-text" => ResolveCellTarget(package, target, cancellationToken)?.Cell
+                ?? ResolveParagraphTarget(package, operation, target, cancellationToken, out _)?.Paragraph,
+            _ => ResolveParagraphTarget(package, operation, target, cancellationToken, out _)?.Paragraph
+        };
+    }
+
+    private sealed record PreviewSnapshot(string? Before, string? Locator);
 
     private static PreviewSnapshot? CapturePreviewBefore(
         OoxmlPackage package,
@@ -276,7 +336,12 @@ internal static partial class DocxPatchEngine
         }
 
         string? before = ReadPreviewValue(package, operation, cancellationToken);
-        return before is null && !PreviewValueMayBeAbsent(operation.OperationName) ? null : new PreviewSnapshot(before);
+        if (before is null && !PreviewValueMayBeAbsent(operation.OperationName))
+        {
+            return null;
+        }
+
+        return new PreviewSnapshot(before, ResolvePreviewLocator(package, operation, cancellationToken));
     }
 
     private static bool PreviewValueMayBeAbsent(string operationName)
@@ -297,11 +362,10 @@ internal static partial class DocxPatchEngine
             return (null, null, false);
         }
 
-        string? after = ReadPreviewValue(package, operation, cancellationToken);
-        if (after is null && !PreviewValueMayBeAbsent(operation.OperationName))
-        {
-            return (null, null, false);
-        }
+        DocxPatchOperation readOperation = before.Locator is null
+            ? operation
+            : operation with { Fields = new Dictionary<string, string>(operation.Fields) { ["target"] = before.Locator } };
+        string? after = ReadPreviewValue(package, readOperation, cancellationToken);
 
         int budget = options.MaxPreviewChars;
         bool truncated = false;
@@ -474,6 +538,14 @@ internal static partial class DocxPatchEngine
         {
             SectionTarget? orientationTarget = ResolveMainSectionTarget(package, target, cancellationToken);
             return orientationTarget is null ? null : ReadSectionOrientation(orientationTarget.SectionProperties).ToWireValue();
+        }
+
+        if (operation.OperationName == "replace-text"
+            && DocxTargetId.TryParse(target, out DocxTargetId cellId)
+            && cellId.Kind is DocxTargetKind.Cell or DocxTargetKind.MergeGroup)
+        {
+            CellTarget? cellTarget = ResolveCellTarget(package, target, cancellationToken);
+            return cellTarget is null ? null : ReadVisibleText(cellTarget.Cell);
         }
 
         ParagraphTarget? paragraphTarget = ResolveParagraphTarget(package, operation, target, cancellationToken, out _);
