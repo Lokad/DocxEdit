@@ -478,6 +478,16 @@ public static class PatchSpanEditTests
         Assert.Contains("<w:bookmarkEnd", xml, StringComparison.Ordinal);
         Assert.True(read.Success);
     }
+    [Fact]
+    public static void CrossCellBookmarkInteriorRefuses()
+    {
+        const string body = "<w:tbl><w:tblPr><w:tblStyle w:val='TableGrid' /></w:tblPr><w:tblGrid><w:gridCol /></w:tblGrid><w:tr><w:tc><w:p><w:bookmarkStart w:id='1' w:name='Span' /><w:r><w:t>Top</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Mid</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Bottom</w:t></w:r><w:bookmarkEnd w:id='1' /></w:p></w:tc></w:tr></w:tbl>";
+        using MemoryStream input = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop set-cell\ntarget M.T0001.R02.C01\ntext CHANGED\nend\n", TrackChangesMode.Off);
+        Assert.False(result.Success);
+        Assert.Equal("E4305", Assert.Single(result.Diagnostics).Code);
+    }
+
 
 
 
