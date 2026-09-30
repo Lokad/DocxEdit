@@ -265,6 +265,14 @@ internal static partial class DocxPatchEngine
         {
             return;
         }
+
+        // C04: reports without identities need no coordinate rewrite; skip the
+        // story sweeps entirely for validation-only or fully refused patches.
+        if (reports.All(static report => report.AffectedTargets.Count == 0 && report.CreatedTargetIds.Count == 0))
+        {
+            return;
+        }
+
         IReadOnlyDictionary<string, string> prefixes = DocxPartRoles.GetStoryPrefixes(package, cancellationToken);
         var finals = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
