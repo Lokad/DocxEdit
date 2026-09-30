@@ -1924,9 +1924,21 @@ internal static partial class DocxPatchEngine
             .GetRelationships(partName, cancellationToken)
             .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
         var entries = new List<ImageBlipEntry>();
+        XElement? storyRoot = document.Root;
+        if (storyRoot is null)
+        {
+            return entries;
+        }
+
+        XElement storyContainer = storyRoot.Element(OoxmlNs.W + "body") ?? storyRoot;
         foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (IsBlipHiddenInFinalView(blip, storyContainer))
+            {
+                continue;
+            }
+
             string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed");
             if (relationshipId is null ||
                 !relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship) ||
@@ -1946,6 +1958,27 @@ internal static partial class DocxPatchEngine
         }
 
         return entries;
+    }
+
+    // C02: revision-hidden placements stay out of the placement enumeration.
+    // Read and dump report images from Final-view-visible blocks only, so a
+    // drawing inside a del/moveFrom-wrapped block owns no public ID. The patch
+    // enumeration agrees: hidden blips are skipped, while blips in revision
+    // runs inside a visible block still count on both sides.
+    private static bool IsBlipHiddenInFinalView(XElement blip, XElement container)
+    {
+        XElement top = blip;
+        while (top.Parent is not null && !ReferenceEquals(top.Parent, container))
+        {
+            top = top.Parent;
+        }
+
+        if (ReferenceEquals(top, container) || DocxStoryBlocks.IsStoryBlock(top))
+        {
+            return false;
+        }
+
+        return !DocxStoryBlocks.IsVisibleInView(top, DocxTextView.Final);
     }
 
     private static ImageBlipTarget? FindImageBlipTarget(
