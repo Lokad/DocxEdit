@@ -1449,6 +1449,37 @@ public static class PatchReportTests
         Assert.Equal("M.P0002", read.Paragraphs[1].Id.ToWireValue());
     }
 
+    [Fact]
+    public static void SemanticSelectorWithInnerQuotesResolvesEscapedText()
+    {
+        var options = new DocxEditOptions { MaxPreviewChars = 100 };
+        using MemoryStream input = CreateDocxWithBody("<w:p><w:r><w:t>Say \"hi\" there</w:t></w:r></w:p>");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op replace-paragraph
+            target text:"Say \"hi\" there"
+            text CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output, options);
+
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
+        DocxPatchOperationReport report = Assert.Single(result.Operations);
+        DocxPatchAffectedTarget affected = Assert.Single(report.AffectedTargets);
+        Assert.Equal("M.P0001", affected.Id.ToWireValue());
+        Assert.Equal("paragraph", affected.Kind);
+        Assert.Equal("update", affected.Action);
+        Assert.Equal("Say \"hi\" there", report.PreviewBefore);
+        Assert.Equal("CHANGED", report.PreviewAfter);
+        Assert.False(report.PreviewTruncated);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("CHANGED", read.Paragraphs[0].Text);
+        Assert.Equal("M.P0001", read.Paragraphs[0].Id.ToWireValue());
+    }
 
     [Fact]
     public static void DeleteBlockPreviewKeepsBeforeValue()
