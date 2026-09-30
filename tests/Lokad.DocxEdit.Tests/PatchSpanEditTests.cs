@@ -400,4 +400,24 @@ public static class PatchSpanEditTests
         Assert.False(result.Success);
         Assert.Equal("E4305", Assert.Single(result.Diagnostics).Code);
     }
+    [Fact]
+    public static void BookmarkInteriorThreeParagraphRequireRefuses()
+    {
+        const string body = "<w:p><w:r><w:t>Before </w:t></w:r><w:bookmarkStart w:id='1' w:name='Protected' /><w:r><w:t>Start</w:t></w:r></w:p><w:p><w:r><w:t>Middle</w:t></w:r></w:p><w:p><w:r><w:t>End</w:t></w:r><w:bookmarkEnd w:id='1' /></w:p>";
+        using MemoryStream input = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n", TrackChangesMode.Require);
+        Assert.False(result.Success);
+        Assert.Equal("E6002", Assert.Single(result.Diagnostics).Code);
+    }
+    [Fact]
+    public static void FieldInteriorThreeParagraphRefuses()
+    {
+        const string body = "<w:p><w:r><w:fldChar w:fldCharType='begin' /></w:r></w:p><w:p><w:r><w:t>Middle</w:t></w:r></w:p><w:p><w:r><w:fldChar w:fldCharType='end' /></w:r></w:p>";
+        using MemoryStream input = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n", TrackChangesMode.Off);
+        Assert.False(result.Success);
+        Assert.Equal("E4305", Assert.Single(result.Diagnostics).Code);
+    }
+
+
 }
