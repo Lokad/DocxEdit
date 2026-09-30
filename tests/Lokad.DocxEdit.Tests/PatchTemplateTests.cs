@@ -417,4 +417,21 @@ public static class PatchTemplateTests
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
 
+    [Fact]
+    public static void DelimiterOnlyTextTemplatePassesCheck()
+    {
+        const string body = """
+                <w:p><w:r><w:t>&gt;&gt;&gt;</w:t></w:r></w:p>
+            """;
+        DocxTemplateResult template;
+        using (MemoryStream input = CreateDocxWithBody(body))
+        {
+            template = GetTemplate(input, "M.P0001", TrackChangesMode.Off);
+        }
+
+        Assert.Equal(1, CountActiveOps(template.Template));
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        DocxCheckResult result = RunCheck(checkInput, template.Template);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
 }

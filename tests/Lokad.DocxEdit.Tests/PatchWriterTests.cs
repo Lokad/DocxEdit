@@ -18,6 +18,7 @@ public static class PatchWriterTests
     [InlineData("a\n\nb")]
     [InlineData("before\n>>>\nafter")]
     [InlineData(">>>")]
+    [InlineData("<<<")]
     [InlineData("trailing\n")]
     [InlineData("\nleading")]
     [InlineData("héllo ✓")]
@@ -147,5 +148,29 @@ public static class PatchWriterTests
         Assert.Throws<ArgumentNullException>(() => DocxPatchWriter.WriteField("with", null!));
         Assert.Throws<ArgumentNullException>(() => DocxPatchWriter.WriteOperation(null!));
         Assert.Throws<ArgumentNullException>(() => DocxPatchWriter.WritePatch(null!));
+    }
+
+    [Fact]
+    public static void SemanticSelectorValueRoundTrips()
+    {
+        Assert.Equal("target bookmark:ReviewAnchor", DocxPatchWriter.WriteField("target", "bookmark:ReviewAnchor"));
+
+        var draft = new DocxPatchOperationDraft("replace-bookmark-text", new[]
+        {
+            new KeyValuePair<string, string>("target", "bookmark:ReviewAnchor"),
+            new KeyValuePair<string, string>("text", "New text"),
+        });
+
+        string patch = DocxPatchWriter.WritePatch(new[] { draft });
+        DocxPatch parsed = new DocxEditor().ParsePatch(new StringReader(patch));
+
+        Assert.True(parsed.Success, string.Join("|", parsed.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal("bookmark:ReviewAnchor", Assert.Single(parsed.Operations).Fields["target"]);
+    }
+
+    [Fact]
+    public static void ReservedLiteralRendersQuoted()
+    {
+        Assert.Equal("with \"<<<\"", DocxPatchWriter.WriteField("with", "<<<"));
     }
 }

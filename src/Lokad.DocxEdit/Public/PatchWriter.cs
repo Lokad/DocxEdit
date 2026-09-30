@@ -30,10 +30,9 @@ public static class DocxPatchWriter
             return field + " \"\"";
         }
 
-        string[] lines = normalized.Split(LineSplit, StringSplitOptions.None);
-        if (lines.Length > 1)
+        if (normalized.Split(LineSplit, StringSplitOptions.None).Length > 1)
         {
-            if (!lines.Any(static line => line.Trim() == ">>>"))
+            if (IsSafeHeredocBody(normalized))
             {
                 return field + " <<<\n" + normalized + "\n>>>";
             }
@@ -71,6 +70,15 @@ public static class DocxPatchWriter
         return "docxpatch 1\n\n" + string.Join("\n\n", operations.Select(WriteOperation)) + "\n";
     }
 
+    /// <summary>Whether a value can render as a heredoc body without a delimiter-like line ending the block early.</summary>
+    /// <param name="value">Field value; carriage returns normalize to line feeds.</param>
+    internal static bool IsSafeHeredocBody(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        string normalized = value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+        return !normalized.Split(LineSplit, StringSplitOptions.None).Any(static line => line.Trim() == ">>>");
+    }
+
     private static bool NeedsQuoting(string value)
     {
         if (char.IsWhiteSpace(value[0]) || char.IsWhiteSpace(value[^1]))
@@ -79,6 +87,11 @@ public static class DocxPatchWriter
         }
 
         if (value.StartsWith("\"", StringComparison.Ordinal) || value.EndsWith("\"", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (value == "<<<")
         {
             return true;
         }

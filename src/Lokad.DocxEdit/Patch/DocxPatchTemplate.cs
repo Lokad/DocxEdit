@@ -112,6 +112,12 @@ internal static partial class DocxPatchEngine
 
     private static void AppendHeredoc(StringBuilder builder, string field, string value)
     {
+        if (!DocxPatchWriter.IsSafeHeredocBody(value))
+        {
+            builder.AppendLine(DocxPatchWriter.WriteField(field, value));
+            return;
+        }
+
         builder.Append(field).AppendLine(" <<<");
         builder.AppendLine(value);
         builder.AppendLine(">>>");
