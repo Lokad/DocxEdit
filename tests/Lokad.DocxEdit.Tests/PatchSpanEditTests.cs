@@ -454,6 +454,31 @@ public static class PatchSpanEditTests
         Assert.False(result.Success);
         Assert.Equal("E4305", Assert.Single(result.Diagnostics).Code);
     }
+    [Fact]
+    public static void BookmarkOutsideAllowedAndApplyParity()
+    {
+        const string body = "<w:p><w:r><w:t>Before </w:t></w:r><w:bookmarkStart w:id='1' w:name='Protected' /><w:r><w:t>Start</w:t></w:r></w:p><w:p><w:r><w:t>Middle</w:t></w:r></w:p><w:p><w:r><w:t>End</w:t></w:r><w:bookmarkEnd w:id='1' /></w:p>";
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        DocxCheckResult check = RunCheck(checkInput, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Before\nwith Pre\nend\n", TrackChangesMode.Off);
+        Assert.True(check.Success);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Before\nwith Pre\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.True(apply.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal("Pre Start", read.Paragraphs[0].Text);
+        Assert.Equal("Middle", read.Paragraphs[1].Text);
+        Assert.Equal("End", read.Paragraphs[2].Text);
+        Assert.Single(read.Bookmarks);
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("<w:bookmarkStart", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:bookmarkEnd", xml, StringComparison.Ordinal);
+        Assert.True(read.Success);
+    }
+
 
 
 
