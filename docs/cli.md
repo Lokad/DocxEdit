@@ -68,9 +68,10 @@ docxedit capabilities report.docx --id M.P0004
 docxedit template report.docx --id M.P0004
 ```
 
-Write an `edits.docxpatch`, then validate it before producing a new document:
+Write an `edits.docxpatch`, lint it without a document, then validate it before producing a new document:
 
 ```text
+docxedit lint edits.docxpatch
 docxedit check report.docx edits.docxpatch
 docxedit apply report.docx edits.docxpatch --output report.edited.docx
 docxedit validate report.edited.docx
@@ -272,7 +273,9 @@ Both commands report one operation line per patch operation. Table operations al
 report affected row/cell IDs with visual-grid metadata such as column spans,
 omitted-column offsets, merge groups, and nested-table paths when relevant. Text
 and structural paragraph operations report the resolved paragraph ID (or the table
-anchor for table targets) with update, insert, or delete actions. Use
+anchor for table targets) with update, insert, or delete actions. Other explicit-ID mutations
+report the resolved hyperlink, bookmark, content-control, field, image, section, row, cell,
+or merge-group ID the same way. Creations additionally report created IDs per operation. Use
 `--report path` for the full JSON report.
 Generated revision IDs from the report can be correlated with
 `changes --operation-report`.

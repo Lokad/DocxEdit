@@ -132,6 +132,21 @@ alt Updated chart
 end
 ```
 
+Insert two styled paragraphs in file order with one operation (styles pair
+positionally with text fields; a single style would apply to both):
+
+```text
+docxpatch 1
+
+op insert-after
+target M.P0001
+text First
+style Heading1
+text Second
+style Normal
+end
+```
+
 ## Selectors
 
 Explicit IDs are the safest selectors:
@@ -170,7 +185,7 @@ Explicit ID kinds are validated without a document by lint; semantic selectors a
 
 ## Target lifetime
 
-Explicit paragraph, table, row, cell, and section IDs bind to the input
+Explicit IDs for paragraphs, tables, rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, merge groups, and comment bodies bind to the input
 snapshot for the duration of one patch. An earlier insert or delete never
 renumbers a later explicit ID: the later operation edits the originally
 discovered element. A target deleted earlier in the same patch fails with
