@@ -1401,4 +1401,35 @@ public static class PatchImageTests
         Assert.Equal("CHANGED", after.Images[1].Description);
     }
 
+    [Fact]
+    public static void PlacementCapabilitiesAgreeWithDiscovery()
+    {
+        using (MemoryStream input = CreateDocxWithRepeatedMedia())
+        {
+            AssertCapabilitiesDescribeImage(input, "M.I0001");
+            AssertCapabilitiesDescribeImage(input, "M.I0002");
+        }
+
+        using (MemoryStream input = CreateDocxWithDeletedParagraphImage())
+        {
+            AssertCapabilitiesDescribeImage(input, "M.I0001");
+            AssertCapabilitiesDescribeImage(input, "M.I0002");
+        }
+    }
+
+    private static void AssertCapabilitiesDescribeImage(MemoryStream input, string targetId)
+    {
+        input.Position = 0;
+        DocxCapabilitiesResult result = new DocxEditor().GetCapabilities(input, targetId, new DocxCapabilitiesOptions { TrackChanges = TrackChangesMode.Off });
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(targetId, result.TargetId);
+        Assert.NotNull(result.Capabilities);
+        Assert.Equal("image", result.Capabilities!.Kind);
+        Assert.Equal("supported", result.Capabilities.Operations.First(static operation => operation.Operation == "set-image-alt").Support);
+
+        input.Position = 0;
+        using var patch = new StringReader("docxpatch 1\n\nop set-image-alt\ntarget " + targetId + "\nalt Updated\nend\n");
+        DocxCheckResult check = new DocxEditor().Check(input, patch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+    }
 }
