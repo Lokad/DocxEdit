@@ -399,6 +399,12 @@ public static class PatchSpanEditTests
         DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n", TrackChangesMode.Off);
         Assert.False(result.Success);
         Assert.Equal("E4305", Assert.Single(result.Diagnostics).Code);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.False(apply.Success);
+        Assert.Equal(0, output.Length);
     }
     [Fact]
     public static void BookmarkInteriorThreeParagraphRequireRefuses()
@@ -408,6 +414,12 @@ public static class PatchSpanEditTests
         DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n", TrackChangesMode.Require);
         Assert.False(result.Success);
         Assert.Equal("E6002", Assert.Single(result.Diagnostics).Code);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+        Assert.False(apply.Success);
+        Assert.Equal(0, output.Length);
     }
     [Fact]
     public static void FieldInteriorThreeParagraphRefuses()
@@ -417,6 +429,12 @@ public static class PatchSpanEditTests
         DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n", TrackChangesMode.Off);
         Assert.False(result.Success);
         Assert.Equal("E4305", Assert.Single(result.Diagnostics).Code);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.False(apply.Success);
+        Assert.Equal(0, output.Length);
     }
     [Fact]
     public static void FieldInteriorThreeParagraphRequireRefuses()
@@ -426,6 +444,12 @@ public static class PatchSpanEditTests
         DocxCheckResult result = RunCheck(input, "docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n", TrackChangesMode.Require);
         Assert.False(result.Success);
         Assert.Equal("E6002", Assert.Single(result.Diagnostics).Code);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("docxpatch 1\n\nop replace-text\ntarget M.P0002\nfind Middle\nwith CHANGED\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output, new DocxEditOptions { TrackChanges = TrackChangesMode.Require });
+        Assert.False(apply.Success);
+        Assert.Equal(0, output.Length);
     }
     [Fact]
     public static void CommentInteriorThreeParagraphRefuses()
