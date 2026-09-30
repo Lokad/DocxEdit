@@ -73,6 +73,35 @@ internal static class DocxTestFixtures
 
         throw new InvalidOperationException("Could not find repository root.");
     }
+    internal sealed record CliResult(int ExitCode, string Output, string Error);
+
+    // Shared process console capture. Callers keep their scenario setup. Console
+    // redirection stays serialized through the callers collection membership.
+    public static CliResult CaptureCliOutput(string? standardInput, string[] args)
+    {
+        TextWriter savedOut = Console.Out;
+        TextWriter savedError = Console.Error;
+        TextReader savedIn = Console.In;
+        var output = new StringWriter();
+        var error = new StringWriter();
+        try
+        {
+            Console.SetOut(output);
+            Console.SetError(error);
+            if (standardInput is not null)
+            {
+                Console.SetIn(new StringReader(standardInput));
+            }
+            int exitCode = ProgramMain.Run(args);
+            return new CliResult(exitCode, output.ToString(), error.ToString());
+        }
+        finally
+        {
+            Console.SetOut(savedOut);
+            Console.SetError(savedError);
+            Console.SetIn(savedIn);
+        }
+    }
 
     public sealed class TempDirectory : IDisposable
     {
