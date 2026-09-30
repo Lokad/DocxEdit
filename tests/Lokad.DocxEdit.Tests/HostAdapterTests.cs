@@ -271,4 +271,11 @@ public static class HostAdapterTests
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
         return (false, store.CurrentVersion(handle));
     }
+
+    [Fact]
+    public static void LibraryVersionIsPinned()
+    {
+        Assert.Equal(new Version(0, 1, 0, 0), typeof(DocxEditor).Assembly.GetName().Version);
+    }
+
 }
