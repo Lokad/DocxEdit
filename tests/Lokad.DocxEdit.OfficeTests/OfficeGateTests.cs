@@ -241,12 +241,7 @@ public static class OfficeGateTests
             Assert.Equal("Line one\nLine two\tTab", read.Paragraphs[0].Text);
             Assert.Equal("Second\nPart", read.Paragraphs[1].Text);
 
-            using FileStream xmlStream = File.OpenRead(outputPath);
-            using var archive = new ZipArchive(xmlStream, ZipArchiveMode.Read);
-            ZipArchiveEntry entry = archive.GetEntry("word/document.xml") ?? throw new InvalidOperationException("Missing word/document.xml.");
-            using Stream entryStream = entry.Open();
-            using var reader = new StreamReader(entryStream, Encoding.UTF8);
-            string xml = reader.ReadToEnd();
+            string xml = ReadEntryText(outputPath, "word/document.xml");
             Assert.Equal(2, CountOccurrences(xml, "<w:br"));
             Assert.Equal(1, CountOccurrences(xml, "<w:tab"));
         }
@@ -1010,12 +1005,7 @@ public static class OfficeGateTests
             Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
             Assert.Equal("Omega Beta", Assert.Single(read.Paragraphs).Text);
 
-            using FileStream xmlStream = File.OpenRead(outputPath);
-            using var archive = new ZipArchive(xmlStream, ZipArchiveMode.Read);
-            ZipArchiveEntry entry = archive.GetEntry("word/document.xml") ?? throw new InvalidOperationException("Missing word/document.xml.");
-            using Stream entryStream = entry.Open();
-            using var reader = new StreamReader(entryStream, Encoding.UTF8);
-            string xml = reader.ReadToEnd();
+            string xml = ReadEntryText(outputPath, "word/document.xml");
             Assert.Contains("<w:b", xml, StringComparison.Ordinal);
 
             using FileStream savedChanges = File.OpenRead(outputPath);
@@ -1624,12 +1614,7 @@ public static class OfficeGateTests
             byte[] expected = MinimalPng();
             Assert.Equal(expected, ReadEntryBytes(outputPath, "word/media/image1.png"));
 
-            using FileStream xmlStream = File.OpenRead(outputPath);
-            using var archive = new ZipArchive(xmlStream, ZipArchiveMode.Read);
-            ZipArchiveEntry entry = archive.GetEntry("word/document.xml") ?? throw new InvalidOperationException("Missing word/document.xml.");
-            using Stream entryStream = entry.Open();
-            using var reader = new StreamReader(entryStream, Encoding.UTF8);
-            Assert.Contains("wp:anchor", reader.ReadToEnd(), StringComparison.Ordinal);
+            Assert.Contains("wp:anchor", ReadEntryText(outputPath, "word/document.xml"), StringComparison.Ordinal);
         }
         finally
         {
@@ -2781,11 +2766,7 @@ public static class OfficeGateTests
               <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -2833,11 +2814,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -2872,11 +2849,7 @@ public static class OfficeGateTests
               <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
@@ -2915,11 +2888,7 @@ public static class OfficeGateTests
               <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
@@ -2967,11 +2936,7 @@ public static class OfficeGateTests
               <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
@@ -3004,11 +2969,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3039,11 +3000,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3078,11 +3035,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/old" TargetMode="External"/>
@@ -3113,11 +3066,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3151,11 +3100,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3180,11 +3125,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3217,11 +3158,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3256,11 +3193,7 @@ public static class OfficeGateTests
               <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
@@ -3303,11 +3236,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3348,11 +3277,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
@@ -3416,6 +3341,16 @@ public static class OfficeGateTests
         return memory.ToArray();
     }
 
+    private static string ReadEntryText(string docxPath, string entryName)
+    {
+        using FileStream file = File.OpenRead(docxPath);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Read);
+        ZipArchiveEntry entry = archive.GetEntry(entryName) ?? throw new InvalidOperationException("Missing " + entryName + ".");
+        using Stream stream = entry.Open();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
     private static void CreateCaptionedTableDocx(string path)
     {
         using FileStream file = File.Create(path);
@@ -3428,11 +3363,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3465,11 +3396,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3506,11 +3433,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3546,11 +3469,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3586,11 +3505,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3619,11 +3534,7 @@ public static class OfficeGateTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
             </Types>
             """);
-        AddEntry(archive, "_rels/.rels", """
-            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-            </Relationships>
-            """);
+        AddPackageRelsEntry(archive);
         AddEntry(archive, "word/_rels/document.xml.rels", """
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
             """);
@@ -3648,6 +3559,15 @@ public static class OfficeGateTests
         using Stream stream = entry.Open();
         byte[] bytes = Encoding.UTF8.GetBytes(text);
         stream.Write(bytes, 0, bytes.Length);
+    }
+
+    private static void AddPackageRelsEntry(ZipArchive archive)
+    {
+        AddEntry(archive, "_rels/.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """);
     }
 
     private static byte[] MinimalPng()
@@ -3700,3 +3620,4 @@ public static class OfficeGateTests
 
     private static string FormatDiagnostic(DocxDiagnostic diagnostic) => $"{diagnostic.Code}: {diagnostic.Message}";
 }
+
