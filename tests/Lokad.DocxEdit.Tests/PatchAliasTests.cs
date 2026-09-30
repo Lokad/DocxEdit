@@ -842,6 +842,31 @@ public static class PatchAliasTests
         Assert.Equal("CHANGED", read.Paragraphs[1].Text);
         Assert.Equal("Second", read.Paragraphs[2].Text);
     }
+    [Fact]
+    public static void AliasRebaseReportsFinalId()
+    {
+        const string body = "<w:p><w:r><w:t>First</w:t></w:r></w:p><w:p><w:r><w:t>Second</w:t></w:r></w:p>";
+        using MemoryStream input = CreateDocxWithBody(body);
+        string patchText = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Inserted\nas added\nend\n\nop replace-paragraph\ntarget @added\ntext CHANGED\nend\n\nop insert-before\ntarget M.P0001\ntext Earlier\nend\n";
+        DocxCheckResult check = new DocxEditor().Check(input, new StringReader(patchText));
+        Assert.True(check.Success);
+        DocxPatchAffectedTarget affected = Assert.Single(check.Operations[1].AffectedTargets);
+        Assert.Equal("M.P0003", affected.Id.ToWireValue());
+        Assert.Equal("op1-0", affected.CreatedMark);
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.True(apply.Success);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.Equal(4, read.Paragraphs.Count);
+        Assert.Equal("Earlier", read.Paragraphs[0].Text);
+        Assert.Equal("First", read.Paragraphs[1].Text);
+        Assert.Equal("CHANGED", read.Paragraphs[2].Text);
+        Assert.Equal("Second", read.Paragraphs[3].Text);
+    }
+
 
 
 }
