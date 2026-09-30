@@ -1233,6 +1233,178 @@ public static class PatchImageTests
         return stream;
     }
 
+    private static MemoryStream CreateDocxWithSdtParagraphImage()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                ZipArchiveEntry entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+
+            Add("[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            Add("_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/>
+                  <Relationship Id="rS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/s.png"/>
+                  <Relationship Id="rC" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/c.png"/>
+                </Relationships>
+                """);
+            Add("word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="VisibleA"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rA"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:sdt>
+                      <w:sdtPr><w:alias w:val="Box"/></w:sdtPr>
+                      <w:sdtContent>
+                        <w:p>
+                          <w:r>
+                            <w:drawing>
+                              <wp:inline>
+                                <wp:extent cx="914400" cy="457200"/>
+                                <wp:docPr id="9" name="Picture 9" descr="SdtInner"/>
+                                <a:graphic>
+                                  <a:graphicData>
+                                    <pic:pic>
+                                      <pic:blipFill>
+                                        <a:blip r:embed="rS"/>
+                                      </pic:blipFill>
+                                    </pic:pic>
+                                  </a:graphicData>
+                                </a:graphic>
+                              </wp:inline>
+                            </w:drawing>
+                          </w:r>
+                        </w:p>
+                      </w:sdtContent>
+                    </w:sdt>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="3" name="Picture 3" descr="VisibleC"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rC"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            Add("word/media/a.png", "bytes-a");
+            Add("word/media/s.png", "bytes-s");
+            Add("word/media/c.png", "bytes-c");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static MemoryStream CreateDocxWithDeletedRowImage()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                ZipArchiveEntry entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+
+            Add("[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+            Add("_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/>
+                  <Relationship Id="rB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/b.png"/>
+                  <Relationship Id="rC" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/c.png"/>
+                </Relationships>
+                """);
+            Add("word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:tbl>
+                      <w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid>
+                      <w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><wp:docPr id="1" name="Picture 1" descr="VisibleA"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rA"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr>
+                      <w:tr><w:trPr><w:del w:id="10" w:author="Example" w:date="2026-01-01T00:00:00Z"/></w:trPr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><wp:docPr id="2" name="Picture 2" descr="HiddenB"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rB"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr>
+                      <w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><wp:docPr id="3" name="Picture 3" descr="VisibleC"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rC"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr>
+                    </w:tbl>
+                  </w:body>
+                </w:document>
+                """);
+            Add("word/media/a.png", "bytes-a");
+            Add("word/media/b.png", "bytes-b");
+            Add("word/media/c.png", "bytes-c");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
     [Fact]
     public static void DeleteDoesNotRetargetLaterExplicitImage()
     {
@@ -1432,4 +1604,83 @@ public static class PatchImageTests
         DocxCheckResult check = new DocxEditor().Check(input, patch);
         Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
+
+    [Fact]
+    public static void BlockSdtDrawingOwnsNoPlacementId()
+    {
+        using MemoryStream probe = CreateDocxWithSdtParagraphImage();
+        DocxReadResult before = new DocxEditor().Read(probe);
+        Assert.True(before.Success);
+        Assert.Equal(2, before.Images.Count);
+        Assert.Equal("M.I0001", before.Images[0].Id.ToWireValue());
+        Assert.Equal("VisibleA", before.Images[0].Description);
+        Assert.Equal("M.I0002", before.Images[1].Id.ToWireValue());
+        Assert.Equal("VisibleC", before.Images[1].Description);
+
+        using MemoryStream input = CreateDocxWithSdtParagraphImage();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0002
+            alt CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("descr=\"VisibleA\"", xml, StringComparison.Ordinal);
+        Assert.Contains("descr=\"SdtInner\"", xml, StringComparison.Ordinal);
+        Assert.Contains("descr=\"CHANGED\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"VisibleC\"", xml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        DocxReadResult after = new DocxEditor().Read(output);
+        Assert.Equal("VisibleA", after.Images[0].Description);
+        Assert.Equal("CHANGED", after.Images[1].Description);
+    }
+
+    [Fact]
+    public static void DeletedRowDrawingOwnsNoPlacementId()
+    {
+        using MemoryStream probe = CreateDocxWithDeletedRowImage();
+        DocxReadResult before = new DocxEditor().Read(probe);
+        Assert.True(before.Success);
+        Assert.Equal(2, before.Images.Count);
+        Assert.Equal("M.I0001", before.Images[0].Id.ToWireValue());
+        Assert.Equal("VisibleA", before.Images[0].Description);
+        Assert.Equal("M.I0002", before.Images[1].Id.ToWireValue());
+        Assert.Equal("VisibleC", before.Images[1].Description);
+
+        using MemoryStream input = CreateDocxWithDeletedRowImage();
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-image-alt
+            target M.I0002
+            alt CHANGED
+            end
+            """);
+
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        output.Position = 0;
+        string xml = ReadDocumentXml(output);
+        Assert.Contains("descr=\"VisibleA\"", xml, StringComparison.Ordinal);
+        Assert.Contains("descr=\"HiddenB\"", xml, StringComparison.Ordinal);
+        Assert.Contains("descr=\"CHANGED\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("descr=\"VisibleC\"", xml, StringComparison.Ordinal);
+
+        output.Position = 0;
+        DocxReadResult after = new DocxEditor().Read(output);
+        Assert.Equal("VisibleA", after.Images[0].Description);
+        Assert.Equal("CHANGED", after.Images[1].Description);
+    }
+
 }

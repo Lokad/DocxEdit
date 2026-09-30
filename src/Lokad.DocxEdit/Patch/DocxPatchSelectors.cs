@@ -1949,25 +1949,31 @@ internal static partial class DocxPatchEngine
         return entries;
     }
 
-    // C02: revision-hidden placements stay out of the placement enumeration.
-    // Read and dump report images from Final-view-visible blocks only, so a
-    // drawing inside a del/moveFrom-wrapped block owns no public ID. The patch
-    // enumeration agrees: hidden blips are skipped, while blips in revision
-    // runs inside a visible block still count on both sides.
+    // C02: hidden placements stay out of the placement enumeration. Read and
+    // dump report images from Final-view-visible content only: a drawing owns
+    // no public ID when a top-level del/moveFrom wrapper hides its block, when
+    // a trPr deletion hides its table row, or when only a block-level sdt (whose
+    // paragraphs are not enumerated) contains it. Blips in revision runs inside
+    // visible content still count on both sides.
     private static bool IsBlipHiddenInFinalView(XElement blip, XElement container)
     {
-        XElement top = blip;
-        while (top.Parent is not null && !ReferenceEquals(top.Parent, container))
+        for (XElement? current = blip.Parent; current is not null && !ReferenceEquals(current, container); current = current.Parent)
         {
-            top = top.Parent;
+            if (current.Name == OoxmlNs.W + "tr"
+                && current.Element(OoxmlNs.W + "trPr")?.Element(OoxmlNs.W + "del") is not null)
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(current.Parent, container)
+                && current.Name.Namespace == OoxmlNs.W
+                && (current.Name.LocalName is "del" or "moveFrom" || current.Name == OoxmlNs.W + "sdt"))
+            {
+                return true;
+            }
         }
 
-        if (ReferenceEquals(top, container) || DocxStoryBlocks.IsStoryBlock(top))
-        {
-            return false;
-        }
-
-        return !DocxStoryBlocks.IsVisibleInView(top, DocxTextView.Final);
+        return false;
     }
 
     private static ImageBlipTarget? FindImageBlipTarget(
