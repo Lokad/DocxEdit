@@ -1,6 +1,3 @@
-using System.IO.Compression;
-using System.Text;
-
 using static Lokad.DocxEdit.Tests.DocxTestFixtures;
 
 namespace Lokad.DocxEdit.Tests;
@@ -210,38 +207,4 @@ public static class TargetIdentityTests
         Assert.False(apply.Success);
         Assert.Contains(apply.Diagnostics, static diagnostic => diagnostic.Code == "E1202");
     }
-    private static MemoryStream CreateDocxWithBody(string bodyXml)
-    {
-        var stream = new MemoryStream();
-        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
-        {
-            AddEntry(archive, "[Content_Types].xml", """
-                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-                  <Default Extension="xml" ContentType="application/xml"/>
-                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-                </Types>
-                """);
-            AddEntry(archive, "_rels/.rels", """
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-                </Relationships>
-                """);
-            AddEntry(archive, "word/_rels/document.xml.rels", """
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />
-                """);
-            string documentXml = """
-                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-                  <w:body>
-                """ + bodyXml + """
-                  </w:body>
-                </w:document>
-                """;
-            AddEntry(archive, "word/document.xml", documentXml);
-        }
-
-        stream.Position = 0;
-        return stream;
-    }
-
 }
