@@ -11,11 +11,7 @@ internal static partial class DocxDocumentScanner
         DocxTargetId tableId,
         string story,
         DocxTextView textView,
-        OoxmlPackage package,
-        IReadOnlyDictionary<string, OoxmlRelationship> relationships,
-        List<DocxImageInfo> images,
-        Dictionary<XElement, string> targets,
-        ref int imageIndex)
+        Dictionary<XElement, string> targets)
     {
         var cells = new List<DocxTableCellInfo>();
         var rows = new List<DocxTableRowInfo>();
@@ -76,13 +72,6 @@ internal static partial class DocxDocumentScanner
                 }
 
                 targets[cell] = cellId.ToWireValue();
-                if (rowVisible)
-                {
-                    foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
-                    {
-                        AddDrawingImages(drawing, package, relationships, images, cellId, ref imageIndex);
-                    }
-                }
                 string cellText = ReadText(cell, textView);
                 if (textView == DocxTextView.Markup)
                 {

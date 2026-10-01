@@ -149,7 +149,6 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-
         XDocument mainDocument = LoadMainDocument(package, cancellationToken, out XElement mainBody);
         XElement? selectedParagraph = ResolveMainParagraphElementBySelector(package, mainBody, selector, operation, cancellationToken, out diagnostics);
         return selectedParagraph is null
@@ -1897,14 +1896,11 @@ internal static partial class DocxPatchEngine
         }
 
         XElement storyContainer = storyRoot.Element(OoxmlNs.W + "body") ?? storyRoot;
-        foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
+        foreach (DocxImagePlacements.Placement placement in DocxImagePlacements.EnumerateFinalDrawings(storyContainer))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (IsBlipHiddenInFinalView(blip, storyContainer))
+            foreach (XElement blip in placement.Drawing.Descendants(OoxmlNs.A + "blip"))
             {
-                continue;
-            }
-
             string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed");
             if (relationshipId is null ||
                 !relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship) ||
@@ -1920,37 +1916,11 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            entries.Add(new ImageBlipEntry(blip, relationshipId, part));
+                entries.Add(new ImageBlipEntry(blip, relationshipId, part));
+            }
         }
 
         return entries;
-    }
-
-    // C02: hidden placements stay out of the placement enumeration. Read and
-    // dump report images from Final-view-visible content only: a drawing owns
-    // no public ID when a top-level del/moveFrom wrapper hides its block, when
-    // a trPr deletion hides its table row, or when only a block-level sdt (whose
-    // paragraphs are not enumerated) contains it. Blips in revision runs inside
-    // visible content still count on both sides.
-    private static bool IsBlipHiddenInFinalView(XElement blip, XElement container)
-    {
-        for (XElement? current = blip.Parent; current is not null && !ReferenceEquals(current, container); current = current.Parent)
-        {
-            if (current.Name == OoxmlNs.W + "tr"
-                && current.Element(OoxmlNs.W + "trPr")?.Element(OoxmlNs.W + "del") is not null)
-            {
-                return true;
-            }
-
-            if (ReferenceEquals(current.Parent, container)
-                && current.Name.Namespace == OoxmlNs.W
-                && (current.Name.LocalName is "del" or "moveFrom" || current.Name == OoxmlNs.W + "sdt"))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static ImageBlipTarget? FindImageBlipTarget(

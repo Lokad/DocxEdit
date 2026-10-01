@@ -90,7 +90,6 @@ internal static partial class DocxDocumentScanner
 
         int paragraphIndex = 1;
         int tableIndex = 1;
-        int imageIndex = 1;
         (char storyLetter, int storyPartNumber) = DocxTargetId.ParseStoryPrefix(idPrefix);
         int sectionIndex = sections.Count(section => section.Id.Kind == DocxTargetKind.Section && section.Id.Story == storyLetter && section.Id.StoryPart == storyPartNumber) + 1;
         var targets = new Dictionary<XElement, string>();
@@ -107,7 +106,7 @@ internal static partial class DocxDocumentScanner
                 targets[block] = paragraphId.ToWireValue();
                 if (visible)
                 {
-                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, relationships, stylesById, numbering, numberingLabeler, images, ref imageIndex, cancellationToken));
+                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, stylesById, numbering, numberingLabeler, cancellationToken));
                     sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
                 }
             }
@@ -117,7 +116,7 @@ internal static partial class DocxDocumentScanner
                 targets[block] = tableId.ToWireValue();
                 if (visible)
                 {
-                    tables.Add(ReadTable(block, tableId, story, textView, package, relationships, images, targets, ref imageIndex));
+                    tables.Add(ReadTable(block, tableId, story, textView, targets));
                 }
             }
             else if (block.Name == OoxmlNs.W + "sectPr")
@@ -136,6 +135,24 @@ internal static partial class DocxDocumentScanner
             }
         }
 
+        int imageIndex = 1;
+        foreach (DocxImagePlacements.Placement placement in DocxImagePlacements.EnumerateFinalDrawings(body))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DocxTargetId containing;
+            if (!placement.IsTableCell)
+            {
+                containing = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Paragraph, placement.PhysicalBlockIndex, 0, 0);
+            }
+            else
+            {
+                DocxTargetId tableId = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Table, placement.PhysicalBlockIndex, 0, 0);
+                containing = tableId with { Kind = DocxTargetKind.Cell, Secondary = placement.PhysicalRowIndex, Tertiary = placement.VisualColumnIndex };
+            }
+
+            AddDrawingImages(placement.Drawing, package, relationships, images, containing, ref imageIndex);
+        }
+
         bookmarks.AddRange(ReadBookmarks(document, partName, story, idPrefix, targets));
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
         fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
@@ -148,20 +165,12 @@ internal static partial class DocxDocumentScanner
         string story,
         DocxTextView textView,
         OoxmlPackage package,
-        IReadOnlyDictionary<string, OoxmlRelationship> relationships,
         IReadOnlyDictionary<string, DocxStyleInfo> stylesById,
         DocxNumberingCatalog numbering,
         DocxNumberingLabeler numberingLabeler,
-        List<DocxImageInfo> images,
-        ref int imageIndex,
         CancellationToken cancellationToken)
     {
         DocxRunInfo[] runs = ReadRuns(paragraph, textView);
-        foreach (XElement drawing in paragraph.Descendants(OoxmlNs.W + "drawing"))
-        {
-            AddDrawingImages(drawing, package, relationships, images, id, ref imageIndex);
-        }
-
         string? styleId = ReadParagraphStyleId(paragraph);
         stylesById.TryGetValue(styleId ?? string.Empty, out DocxStyleInfo? style);
         return new DocxParagraphInfo(
