@@ -175,22 +175,159 @@ internal static partial class DocxPatchEngine
 
         if (IsAliasReference(target))
         {
-            ParagraphTarget? aliasCapture = ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out _);
-            if (aliasCapture is null)
+            if (operation.OperationName is "replace-image" or "delete-image" or "set-image-alt" or "set-image-metadata" or "set-image-size" or "set-image-wrap" or "set-image-position" or "set-image-crop")
             {
-                return null;
+                ImageBlipTarget? imageAlias = ResolveAliasImageBlipTarget(package, target, cancellationToken);
+                if (imageAlias is null)
+                {
+                    return null;
+                }
+
+                createdMark = (string?)imageAlias.Blip.Attribute(SnapshotCreatedName);
+                List<ImageBlipEntry> aliasEntries = FindImageBlipEntries(package, imageAlias.PartName, imageAlias.Document, cancellationToken);
+                int aliasImageOrdinal = 0;
+                for (int i = 0; i < aliasEntries.Count; i++)
+                {
+                    if (ReferenceEquals(aliasEntries[i].Blip, imageAlias.Blip))
+                    {
+                        aliasImageOrdinal = i + 1;
+                        break;
+                    }
+                }
+
+                if (aliasImageOrdinal < 1)
+                {
+                    return null;
+                }
+
+                string imagePrefix = DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[imageAlias.PartName];
+                (char imageStory, int imagePart) = DocxTargetId.ParseStoryPrefix(imagePrefix);
+                return new DocxTargetId(imageStory, imagePart, DocxTargetKind.Image, aliasImageOrdinal, 0, 0);
             }
 
-            createdMark = (string?)aliasCapture.Paragraph.Attribute(SnapshotCreatedName);
-            int? aliasOrdinal = PhysicalParagraphOrdinal(aliasCapture.Document, aliasCapture.Paragraph);
-            if (aliasOrdinal is null)
+            if (operation.OperationName is "set-hyperlink-text" or "set-hyperlink-target" or "remove-hyperlink")
             {
-                return null;
+                HyperlinkTarget? linkAlias = ResolveAliasHyperlinkTarget(package, target, cancellationToken);
+                if (linkAlias is null)
+                {
+                    return null;
+                }
+
+                createdMark = (string?)linkAlias.Hyperlink.Attribute(SnapshotCreatedName);
+                int linkOrdinal = 0;
+                int linkIndex = 0;
+                foreach (XElement linkElement in linkAlias.Document.Descendants(OoxmlNs.W + "hyperlink"))
+                {
+                    linkIndex++;
+                    if (ReferenceEquals(linkElement, linkAlias.Hyperlink))
+                    {
+                        linkOrdinal = linkIndex;
+                        break;
+                    }
+                }
+
+                if (linkOrdinal < 1)
+                {
+                    return null;
+                }
+
+                string linkPrefix = DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[linkAlias.PartName];
+                (char linkStory, int linkPart) = DocxTargetId.ParseStoryPrefix(linkPrefix);
+                return new DocxTargetId(linkStory, linkPart, DocxTargetKind.Hyperlink, linkOrdinal, 0, 0);
             }
 
-            string aliasPrefix = DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[aliasCapture.PartName];
-            (char aliasStory, int aliasPart) = DocxTargetId.ParseStoryPrefix(aliasPrefix);
-            return new DocxTargetId(aliasStory, aliasPart, DocxTargetKind.Paragraph, aliasOrdinal.Value, 0, 0);
+            if (operation.OperationName is "replace-bookmark-text" or "rename-bookmark" or "delete-bookmark")
+            {
+                BookmarkTarget? bookmarkAlias = ResolveAliasBookmarkTarget(package, operation, target, cancellationToken, out _);
+                if (bookmarkAlias is null)
+                {
+                    return null;
+                }
+
+                createdMark = (string?)bookmarkAlias.Start.Attribute(SnapshotCreatedName);
+                int bookmarkOrdinal = 0;
+                int bookmarkIndex = 0;
+                foreach (XElement startElement in bookmarkAlias.Document.Descendants(OoxmlNs.W + "bookmarkStart"))
+                {
+                    if (string.IsNullOrWhiteSpace((string?)startElement.Attribute(OoxmlNs.W + "name")))
+                    {
+                        continue;
+                    }
+
+                    bookmarkIndex++;
+                    if (ReferenceEquals(startElement, bookmarkAlias.Start))
+                    {
+                        bookmarkOrdinal = bookmarkIndex;
+                        break;
+                    }
+                }
+
+                if (bookmarkOrdinal < 1)
+                {
+                    return null;
+                }
+
+                string bookmarkPrefix = DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[bookmarkAlias.PartName];
+                (char bookmarkStory, int bookmarkPart) = DocxTargetId.ParseStoryPrefix(bookmarkPrefix);
+                return new DocxTargetId(bookmarkStory, bookmarkPart, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
+            }
+
+            if (operation.OperationName is "insert-row-before" or "insert-row-after" or "delete-row" or "set-row-header")
+            {
+                RowTarget? rowAlias = ResolveAliasRowTarget(package, target, cancellationToken);
+                if (rowAlias is null)
+                {
+                    return null;
+                }
+
+                createdMark = (string?)rowAlias.Row.Attribute(SnapshotCreatedName);
+                string? rowTableSnapshot = (string?)rowAlias.Table.Attribute(SnapshotIdName);
+                if (rowTableSnapshot is null || !DocxTargetId.TryParse(rowTableSnapshot, out DocxTargetId aliasTableId))
+                {
+                    return null;
+                }
+
+                int rowOrdinal = 0;
+                int rowIndex = 0;
+                foreach (XElement rowElement in rowAlias.Table.Elements(OoxmlNs.W + "tr"))
+                {
+                    rowIndex++;
+                    if (ReferenceEquals(rowElement, rowAlias.Row))
+                    {
+                        rowOrdinal = rowIndex;
+                        break;
+                    }
+                }
+
+                if (rowOrdinal < 1)
+                {
+                    return null;
+                }
+
+                return aliasTableId with { Kind = DocxTargetKind.Row, Secondary = rowOrdinal };
+            }
+
+            if (operation.OperationName is "replace-text" or "replace-paragraph" or "set-style" or "delete-block" or "insert-before" or "insert-after")
+            {
+                ParagraphTarget? aliasCapture = ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out _);
+                if (aliasCapture is null)
+                {
+                    return null;
+                }
+
+                createdMark = (string?)aliasCapture.Paragraph.Attribute(SnapshotCreatedName);
+                int? aliasOrdinal = PhysicalParagraphOrdinal(aliasCapture.Document, aliasCapture.Paragraph);
+                if (aliasOrdinal is null)
+                {
+                    return null;
+                }
+
+                string aliasPrefix = DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[aliasCapture.PartName];
+                (char aliasStory, int aliasPart) = DocxTargetId.ParseStoryPrefix(aliasPrefix);
+                return new DocxTargetId(aliasStory, aliasPart, DocxTargetKind.Paragraph, aliasOrdinal.Value, 0, 0);
+            }
+
+            return null;
         }
 
         if (DocxTargetId.TryParse(target, out DocxTargetId explicitId))

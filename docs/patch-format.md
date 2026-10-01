@@ -204,8 +204,9 @@ Creation operations (insert-before, insert-after, insert-image-after, insert-hyp
 
 - Names start with a letter and contain only letters, digits, underscore, or hyphen.
 - Bindings resolve sequentially within one patch: using a name before its operation fails, rebinding a bound name fails, and using a deleted target fails.
-- An alias on an insert names a single created paragraph, so combining as with several text fields fails.
+- An alias on an insert names a single created object. For text inserts it names the new paragraph. For image, hyperlink, bookmark, comment, and row inserts it names the new child object in addition to the parent paragraph, so later mutations address the child.
 - Reports list created wire IDs per operation; aliases never leak into output documents.
+- Mutation reports name the resolved object, not the parent paragraph. A semantic selector that matches a historical object reports its input snapshot ID with Coordinate input. An alias or semantic selector that matches a created object reports its operation time ID with Coordinate operation time. Id stays historical while FinalId alone carries the live final ID, staying absent for deleted objects. A deleted image or link never acquires its surviving containing paragraph identity. Compare reported kinds and IDs to fresh readback, not only check versus apply.
 
 Example:
 

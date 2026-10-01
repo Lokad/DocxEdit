@@ -1299,7 +1299,7 @@ public static class PatchReportTests
     }
 
     [Fact]
-    public static void AffectedIdsRebaseToFinalCoordinatesAfterShift()
+    public static void AffectedIdsPreserveHistoricalCoordinatesAfterShift()
     {
         using MemoryStream input = CreateDocx("Alpha");
         using var output = new MemoryStream();
@@ -1852,6 +1852,196 @@ public static class PatchReportTests
 
 
 
+
+
+    [Fact]
+    public static void SemanticAfterShiftReportsHistoricalInputCoordinate()
+    {
+        using MemoryStream input = CreateDocx("Anchor");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("docxpatch 1\n\nop insert-before\ntarget M.P0001\ntext Earlier\nend\n\nop replace-paragraph\ntarget text:\"Anchor\"\ntext Changed\nend\n");
+        DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(2, result.Operations.Count);
+        DocxPatchAffectedTarget affected = Assert.Single(result.Operations[1].AffectedTargets);
+        Assert.Equal("M.P0001", affected.Id.ToWireValue());
+        Assert.Equal("paragraph", affected.Kind);
+        Assert.Equal("update", affected.Action);
+        Assert.Equal("input", affected.Coordinate);
+        Assert.Equal("M.P0002", affected.FinalId?.ToWireValue());
+        output.Position = 0;
+        IReadOnlyList<DocxParagraphInfo> paras = new DocxEditor().Read(output).Paragraphs;
+        Assert.Equal(new[] { "Earlier", "Changed" }, paras.Select(static paragraph => paragraph.Text).ToArray());
+        Assert.Equal(new[] { "M.P0001", "M.P0002" }, paras.Select(static paragraph => paragraph.Id.ToWireValue()).ToArray());
+        Assert.Equal(affected.FinalId, paras.Single(static paragraph => paragraph.Text == "Changed").Id);
+    }
+
+    [Fact]
+    public static void ImageAliasDeleteReportsImageDeleteWithNullFinal()
+    {
+        byte[] replacement = CreatePngBytes(4, 3);
+        var assets = new MemoryAssetProvider("new.png", replacement, null, "new.png");
+        const string patchText = "docxpatch 1\n\nop insert-image-after\ntarget M.P0001\nasset new.png\nas picture\nend\n\nop delete-image\ntarget @picture\nend\n";
+        using MemoryStream checkInput = CreateDocx("Anchor");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocx("Anchor");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(2, apply.Operations.Count);
+        Assert.Empty(apply.Operations[0].AffectedTargets);
+        Assert.Equal(new[] { "M.P0002" }, apply.Operations[0].CreatedTargetIds);
+        DocxPatchAffectedTarget affected = Assert.Single(apply.Operations[1].AffectedTargets);
+        Assert.Equal("image", affected.Kind);
+        Assert.Equal("delete", affected.Action);
+        Assert.Equal("M.I0001", affected.Id.ToWireValue());
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Null(affected.FinalId);
+        Assert.Equal(check.Operations[1].AffectedTargets.Single().Id.ToWireValue(), affected.Id.ToWireValue());
+        Assert.Equal(check.Operations[1].AffectedTargets.Single().Kind, affected.Kind);
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        Assert.True(read.Success);
+        Assert.Empty(read.Images);
+        Assert.Equal(new[] { "Anchor", "" }, read.Paragraphs.Select(static paragraph => paragraph.Text).ToArray());
+        applyOutput.Position = 0;
+        string xml = ReadDocumentXml(applyOutput);
+        Assert.DoesNotContain("a:blip", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public static void HyperlinkAliasTextReportsHyperlinkUpdate()
+    {
+        const string patchText = "docxpatch 1\n\nop insert-hyperlink-after\ntarget M.P0001\ntext Initial\nuri https://example.com/\nas link\nend\n\nop set-hyperlink-text\ntarget @link\ntext Changed\nend\n";
+        using MemoryStream checkInput = CreateDocx("Anchor");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocx("Anchor");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(2, apply.Operations.Count);
+        DocxPatchAffectedTarget affected = Assert.Single(apply.Operations[1].AffectedTargets);
+        Assert.Equal("hyperlink", affected.Kind);
+        Assert.Equal("update", affected.Action);
+        Assert.Equal("M.L0001", affected.Id.ToWireValue());
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Equal("M.L0001", affected.FinalId?.ToWireValue());
+        Assert.Equal(check.Operations[1].AffectedTargets.Single().Id.ToWireValue(), affected.Id.ToWireValue());
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        Assert.True(read.Success);
+        Assert.Equal("Changed", read.Paragraphs.Single(static paragraph => paragraph.Text == "Changed").Text);
+        Assert.Equal(affected.FinalId, read.Hyperlinks.Single().Id);
+    }
+
+    [Fact]
+    public static void BookmarkAliasRenameReportsBookmarkUpdate()
+    {
+        const string patchText = "docxpatch 1\n\nop add-bookmark\ntarget M.P0001\nname Mark\nas mark\nend\n\nop rename-bookmark\ntarget @mark\nname Renamed\nend\n";
+        using MemoryStream checkInput = CreateDocx("Anchor");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocx("Anchor");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(2, apply.Operations.Count);
+        Assert.Equal(new[] { "M.B0001" }, apply.Operations[0].CreatedTargetIds);
+        DocxPatchAffectedTarget affected = Assert.Single(apply.Operations[1].AffectedTargets);
+        Assert.Equal("bookmark", affected.Kind);
+        Assert.Equal("update", affected.Action);
+        Assert.Equal("M.B0001", affected.Id.ToWireValue());
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Equal("M.B0001", affected.FinalId?.ToWireValue());
+        Assert.Equal(check.Operations[1].AffectedTargets.Single().Id.ToWireValue(), affected.Id.ToWireValue());
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        Assert.True(read.Success);
+        Assert.Equal("Renamed", read.Bookmarks.Single().Name);
+        Assert.Equal(affected.FinalId, read.Bookmarks.Single().Id);
+    }
+
+    [Fact]
+    public static void RowAliasDeleteReportsRowDeleteWithNullFinal()
+    {
+        const string body = "<w:tbl><w:tblGrid><w:gridCol /><w:gridCol /></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc></w:tr></w:tbl>";
+        const string patchText = "docxpatch 1\n\nop append-row\ntarget M.T0001\ncell A2\ncell B2\nas newRow\nend\n\nop delete-row\ntarget @newRow\nend\n";
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(2, apply.Operations.Count);
+        DocxPatchAffectedTarget affected = Assert.Single(apply.Operations[1].AffectedTargets, static target => target.Kind == "row");
+        Assert.Equal("delete", affected.Action);
+        Assert.Equal("M.T0001.R02", affected.Id.ToWireValue());
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Null(affected.FinalId);
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        Assert.True(read.Success);
+        Assert.Single(Assert.Single(read.Tables).Rows);
+    }
+
+    [Fact]
+    public static void ParagraphAliasWithLaterShiftRebasesFinal()
+    {
+        const string patchText = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Inserted\nas sec1\nend\n\nop replace-text\ntarget @sec1\nfind Inserted\nwith Changed\nend\n\nop insert-before\ntarget M.P0001\ntext Leading\nend\n";
+        using MemoryStream checkInput = CreateDocx("Alpha");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocx("Alpha");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(3, apply.Operations.Count);
+        DocxPatchAffectedTarget affected = Assert.Single(apply.Operations[1].AffectedTargets);
+        Assert.Equal("paragraph", affected.Kind);
+        Assert.Equal("update", affected.Action);
+        Assert.Equal("M.P0002", affected.Id.ToWireValue());
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Equal("M.P0003", affected.FinalId?.ToWireValue());
+        applyOutput.Position = 0;
+        IReadOnlyList<DocxParagraphInfo> paras = new DocxEditor().Read(applyOutput).Paragraphs;
+        Assert.Equal(new[] { "Leading", "Alpha", "Changed" }, paras.Select(static paragraph => paragraph.Text).ToArray());
+        Assert.Equal(new[] { "M.P0001", "M.P0002", "M.P0003" }, paras.Select(static paragraph => paragraph.Id.ToWireValue()).ToArray());
+        Assert.Equal(affected.FinalId, paras.Single(static paragraph => paragraph.Text == "Changed").Id);
+    }
+
+    [Fact]
+    public static void CommentAliasDoesNotMisreportParagraph()
+    {
+        const string patchText = "docxpatch 1\n\nop add-comment\ntarget M.P0001\ntext Fresh note\nas note1\nend\n\nop set-comment-text\ntarget @note1\ntext Edited note\nend\n";
+        using MemoryStream checkInput = CreateDocx("Anchor");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocx("Anchor");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(new[] { "comment:0" }, apply.Operations[0].CreatedTargetIds);
+        Assert.Empty(apply.Operations[1].AffectedTargets);
+        applyOutput.Position = 0;
+        string xml = System.Text.Encoding.UTF8.GetString(ReadEntryBytes(applyOutput, "word/comments.xml"));
+        Assert.Contains("Edited note", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fresh note", xml, StringComparison.Ordinal);
+    }
 
 
 }

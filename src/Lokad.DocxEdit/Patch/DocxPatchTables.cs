@@ -244,7 +244,7 @@ internal static partial class DocxPatchEngine
         string action = operation.OperationName switch
         {
             "insert-before" or "insert-after" => "insert",
-            "delete-block" or "delete-image" or "delete-bookmark" or "delete-comment" or "delete-comment-reply" or "remove-hyperlink" => "delete",
+            "delete-block" or "delete-image" or "delete-bookmark" or "delete-comment" or "delete-comment-reply" or "remove-hyperlink" or "delete-row" => "delete",
             _ => "update"
         };
         string kind = TargetKindWord(resolvedId.Kind);
@@ -255,15 +255,14 @@ internal static partial class DocxPatchEngine
         return [new DocxPatchAffectedTarget(resolvedId, kind, action) { Coordinate = ResolveTargetCoordinate(operation), FinalId = resolvedId }];
     }
 
+    // Snapshot identities are historical input coordinates. A resolved target
+    // without a creation mark always names an input snapshot object, even when
+    // the selector was semantic. Created objects always carry a creation mark
+    // and use the operation time path above, so this path is always input.
     private static string ResolveTargetCoordinate(DocxPatchOperation operation)
     {
-        string? target = operation.Fields.GetValueOrDefault("target");
-        if (!string.IsNullOrWhiteSpace(target) && !IsAliasReference(target) && DocxTargetId.TryParse(target, out _))
-        {
-            return "input";
-        }
-
-        return "operation-time";
+        _ = operation;
+        return "input";
     }
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildSetCellAffectedTargets(TableOperationSnapshot before)

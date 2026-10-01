@@ -220,7 +220,9 @@ internal static partial class DocxPatchEngine
         if (operation.Fields.TryGetValue("as", out string? imageAlias) && imageAlias is not null)
         {
             imageParagraph.SetAttributeValue(SnapshotAliasName, imageAlias);
-            imageParagraph.Descendants(OoxmlNs.A + "blip").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, imageAlias);
+            XElement? aliasedBlip = imageParagraph.Descendants(OoxmlNs.A + "blip").FirstOrDefault();
+            aliasedBlip?.SetAttributeValue(SnapshotAliasName, imageAlias);
+            aliasedBlip?.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0) + "-image");
         }
         SaveDocumentPart(package, paragraphTarget.PartName, paragraphTarget.Document);
         return [];

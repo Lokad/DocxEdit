@@ -201,7 +201,9 @@ internal static partial class DocxPatchEngine
         if (operation.Fields.TryGetValue("as", out string? hyperlinkAlias) && hyperlinkAlias is not null)
         {
             paragraph.SetAttributeValue(SnapshotAliasName, hyperlinkAlias);
-                paragraph.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault()?.SetAttributeValue(SnapshotAliasName, hyperlinkAlias);
+            XElement? aliasedLink = paragraph.Descendants(OoxmlNs.W + "hyperlink").FirstOrDefault();
+            aliasedLink?.SetAttributeValue(SnapshotAliasName, hyperlinkAlias);
+            aliasedLink?.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0) + "-link");
         }
         if (useTrackedChanges)
         {
