@@ -19,14 +19,22 @@ public static class HostAdapterTests
         public long ActualVersion { get; } = actual;
     }
 
+    private sealed record CommitRecord(long Version, DocxApplyResult Result, string PatchText);
+
     private sealed class VersionedDocumentStore
     {
+        private readonly object gate = new();
         private readonly Dictionary<string, List<byte[]>> versionsByHandle = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Dictionary<string, CommitRecord>> commitsByHandle = new(StringComparer.Ordinal);
 
         public string Ingest(byte[] docx)
         {
             string handle = Guid.NewGuid().ToString("N");
-            versionsByHandle[handle] = [(byte[])docx.Clone()];
+            lock (gate)
+            {
+                versionsByHandle[handle] = [(byte[])docx.Clone()];
+            }
+
             return handle;
         }
 
@@ -59,21 +67,67 @@ public static class HostAdapterTests
             long expectedVersion,
             string patchText,
             DocxEditOptions? options = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            string? requestId = null,
+            Action? onStaged = null)
         {
-            long current = GuardVersion(handle, expectedVersion);
-            using var input = new MemoryStream(Snapshot(handle, current), writable: false);
+            byte[] basis;
+            lock (gate)
+            {
+                if (requestId is not null
+                    && commitsByHandle.TryGetValue(handle, out Dictionary<string, CommitRecord>? prior)
+                    && prior.TryGetValue(requestId, out CommitRecord? record))
+                {
+                    if (!string.Equals(record.PatchText, patchText, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException($"Request {requestId} was already committed with different patch text.");
+                    }
+
+                    return record.Result;
+                }
+
+                long current = GuardVersion(handle, expectedVersion);
+                basis = Snapshot(handle, current);
+            }
+
+            using var input = new MemoryStream(basis, writable: false);
             using var patch = new StringReader(patchText);
             using var staged = new MemoryStream();
             DocxApplyResult result = new DocxEditor().Apply(
                 input, patch, staged, options ?? new DocxEditOptions(), cancellationToken);
-            if (result.Success)
+            onStaged?.Invoke();
+            if (!result.Success)
             {
+                return result;
+            }
+
+            lock (gate)
+            {
+                long current = GuardVersion(handle, expectedVersion);
+                if (current != expectedVersion)
+                {
+                    throw new StaleVersionException(expectedVersion, current);
+                }
+
                 versionsByHandle[handle].Add(staged.ToArray());
+                long published = versionsByHandle[handle].Count - 1;
+                DocxApplyResult published_result = result;
+                if (requestId is not null)
+                {
+                    if (!commitsByHandle.TryGetValue(handle, out Dictionary<string, CommitRecord>? perHandle))
+                    {
+                        perHandle = new Dictionary<string, CommitRecord>(StringComparer.Ordinal);
+                        commitsByHandle[handle] = perHandle;
+                    }
+
+                    perHandle[requestId] = new CommitRecord(published, published_result, patchText);
+                }
             }
 
             return result;
         }
+
+
 
         private long GuardVersion(string handle, long expectedVersion)
         {
@@ -89,12 +143,15 @@ public static class HostAdapterTests
 
         private List<byte[]> Versions(string handle)
         {
-            if (!versionsByHandle.TryGetValue(handle, out List<byte[]>? versions))
+            lock (gate)
             {
-                throw new InvalidOperationException("Unknown document handle.");
-            }
+                if (!versionsByHandle.TryGetValue(handle, out List<byte[]>? versions))
+                {
+                    throw new InvalidOperationException("Unknown document handle.");
+                }
 
-            return versions;
+                return versions;
+            }
         }
     }
 
@@ -221,61 +278,88 @@ public static class HostAdapterTests
     }
 
     [Fact]
-    public static void ReconcileUncertainRetryAvoidsDuplicatePublish()
+    public static void PublicationIsAtomicCompareAndSwap()
     {
         var store = new VersionedDocumentStore();
         string handle = store.Ingest(SeedBytes("Alpha"));
-        const string patch = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n";
-
-        // The original request succeeds, but its response is lost in transit.
-        store.Apply(handle, 0, patch);
-
-        // The retry reconciles from current state instead of re-applying blindly.
-        (bool alreadyApplied, long version) = Reconcile(store, handle, patch, ["Beta"]);
-        Assert.True(alreadyApplied);
-        Assert.Equal(1, version);
+        StaleVersionException stale = Assert.Throws<StaleVersionException>(() =>
+            store.Apply(
+                handle,
+                0,
+                "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n",
+                requestId: "loser",
+                onStaged: () => Assert.True(store.Apply(
+                    handle,
+                    0,
+                    "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Gamma\nend\n").Success)));
+        Assert.Equal(0, stale.ExpectedVersion);
+        Assert.Equal(1, stale.ActualVersion);
         Assert.Equal(1, store.CurrentVersion(handle));
-        Assert.Equal(["Beta"], ReadParagraphs(store.Snapshot(handle, 1)));
+        Assert.Equal(["Alpha", "Gamma"], ReadParagraphs(store.Snapshot(handle, 1)));
     }
 
     [Fact]
-    public static void ReconcileUncertainRetryAppliesWhenAbsent()
+    public static void RepeatingRequestReturnsCommittedOutcomeWithoutDuplication()
     {
         var store = new VersionedDocumentStore();
         string handle = store.Ingest(SeedBytes("Alpha"));
-        const string patch = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n";
-
-        // An ambiguous attempt actually failed, and its outcome was lost too.
-        store.Apply(handle, 0, "docxpatch 1\n\nop replace-text\ntarget M.P9999\nfind Alpha\nwith Beta\nend\n");
-
-        (bool alreadyApplied, long version) = Reconcile(store, handle, patch, ["Beta"]);
-        Assert.False(alreadyApplied);
-        Assert.Equal(1, version);
-        Assert.Equal(["Beta"], ReadParagraphs(store.Snapshot(handle, 1)));
-    }
-
-    private static (bool AlreadyApplied, long Version) Reconcile(
-        VersionedDocumentStore store,
-        string handle,
-        string patchText,
-        string[] expectedParagraphs,
-        DocxEditOptions? options = null)
-    {
-        long current = store.CurrentVersion(handle);
-        if (ReadParagraphs(store.Snapshot(handle, current)).SequenceEqual(expectedParagraphs))
-        {
-            return (true, current);
-        }
-
-        DocxApplyResult result = store.Apply(handle, current, patchText, options);
-        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
-        return (false, store.CurrentVersion(handle));
+        const string patch = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Gamma\nend\n";
+        DocxApplyResult first = store.Apply(handle, 0, patch, requestId: "req-1");
+        Assert.True(first.Success);
+        Assert.Equal(1, store.CurrentVersion(handle));
+        DocxApplyResult replay = store.Apply(handle, 0, patch, requestId: "req-1");
+        Assert.True(replay.Success);
+        Assert.Equal(1, store.CurrentVersion(handle));
+        Assert.Equal(["Alpha", "Gamma"], ReadParagraphs(store.Snapshot(handle, 1)));
     }
 
     [Fact]
-    public static void LibraryVersionIsPinned()
+    public static void AbsentAttemptRetryAppliesOnce()
     {
-        Assert.Equal(new Version(0, 1, 0, 0), typeof(DocxEditor).Assembly.GetName().Version);
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string bad = "docxpatch 1\n\nop replace-text\ntarget M.P9999\nfind Alpha\nwith Beta\nend\n";
+        Assert.False(store.Apply(handle, 0, bad, requestId: "req-absent").Success);
+        Assert.Equal(0, store.CurrentVersion(handle));
+        const string good = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Gamma\nend\n";
+        Assert.True(store.Apply(handle, 0, good, requestId: "req-absent").Success);
+        Assert.Equal(1, store.CurrentVersion(handle));
+        Assert.Equal(["Alpha", "Gamma"], ReadParagraphs(store.Snapshot(handle, 1)));
     }
+
+    [Fact]
+    public static void ConflictingRequestWithStaleVersionRefuses()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        Assert.True(store.Apply(handle, 0, "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Gamma\nend\n", requestId: "req-a").Success);
+        StaleVersionException stale = Assert.Throws<StaleVersionException>(() =>
+            store.Apply(handle, 0, "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Delta\nend\n", requestId: "req-b"));
+        Assert.Equal(0, stale.ExpectedVersion);
+        Assert.Equal(1, stale.ActualVersion);
+        Assert.Equal(["Alpha", "Gamma"], ReadParagraphs(store.Snapshot(handle, 1)));
+    }
+
+    [Fact]
+    public static void ConflictingPatchTextUnderSameRequestRefuses()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string first = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Gamma\nend\n";
+        Assert.True(store.Apply(handle, 0, first, requestId: "req-same").Success);
+        Assert.Throws<InvalidOperationException>(() =>
+            store.Apply(handle, 0, "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Delta\nend\n", requestId: "req-same"));
+        Assert.Equal(1, store.CurrentVersion(handle));
+        Assert.Equal(["Alpha", "Gamma"], ReadParagraphs(store.Snapshot(handle, 1)));
+    }
+
+    [Fact]
+    public static void ReferenceDeclaresTestedLibraryContract()
+    {
+        System.Reflection.AssemblyName name = typeof(DocxEditor).Assembly.GetName();
+        Assert.Equal("Lokad.DocxEdit", name.Name);
+        Assert.NotNull(name.Version);
+    }
+
 
 }
