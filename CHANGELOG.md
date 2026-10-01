@@ -1,70 +1,20 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0 - First NuGet release
 
-- Added the stream-first `DocxEditor` public API and CLI commands for read, outline, find, dump, styles, media, tracked-change markup summaries, check, and apply.
-- Added `.docxpatch` parsing and edit support for paragraph text, blocks, styles, simple main/header/footer tables, inline images, and basic section settings.
-- Added simple tracked-change output for `replace-text` with author, timestamp, and revision IDs.
-- Added comment/revision markup metadata scanning without exposing comment or revision text.
-- Added package safety checks for ZIP paths, size limits, relationships, macro policy, unknown part preservation, and touched-part post-edit validation.
-- Made NuGet packaging explicit and Release-only, producing both `.nupkg` and `.snupkg` artifacts under `artifacts/nuget/`.
-- Added no-content private validation tooling for ignored local `.docx` cases.
-- Added initial documentation for CLI usage, patch syntax, diagnostics, validation, and architecture.
-- Changed `DocxSectionInfo.Orientation` from `string` to the `DocxOrientation` enum (`Portrait`/`Landscape`); text, JSON, and patch wire values stay lowercase strings.
-- Changed change-target annotation (`TargetStatus`/`TargetSource`/`TargetReason`) and field `RefreshPolicy` from `string` to enums (`DocxTargetStatus`, `DocxTargetSource`, `DocxTargetReason`, `DocxRefreshPolicy`); text and JSON wire values stay lowercase strings.
-- Documented the full public API surface (missing-docs warning enforced by the build) and cataloged every diagnostic code in `docs/diagnostics.md`.
-- Added `docxedit version`, catalog-sourced usage errors with help pointers, and unknown-command guidance.
-- Changed numbering label `LabelStatus`/`Source` from `string` to enums (`DocxLabelStatus`, `DocxLabelSource`); text and JSON wire values stay lowercase strings.
-- Changed table `VerticalMerge` from `string` to the `DocxVerticalMerge` enum (`Restart`/`Continue`, null when unmerged); text and JSON wire values stay lowercase strings.
-- Added the public `DocxChangeId` struct for change-record IDs (`M.CH0001`, `H001.CH0002`, comments `C001.CH0001`); change-record text and JSON shapes are unchanged.
-- Changed bookmark, content-control, field, and hyperlink `Id` plus their target-ID fields from `string` to the `DocxTargetId` struct (`required` IDs, nullable targets); text and JSON wire values are unchanged.
-- Changed paragraph, table, row, cell, section, and image `Id` fields (plus image `ContainingTargetId` and media `ImageId`) from `string` to the `DocxTargetId` struct; text and JSON wire values are unchanged.
-- Changed patch affected-target `Id`/`ParentId` from `string` to the `DocxTargetId` struct, threading the resolved target through table snapshots (string-surgery `ExtractTableId` plus two dead fallbacks deleted); report text and JSON shapes are unchanged.
-- Changed merge-group and merge-root-cell IDs from `string` to the `DocxTargetId` struct across scanners, snapshots, and DTOs, sharing one internal allocator (twin helpers deleted); text and JSON wire values are unchanged.
-- Fixed quoted single-line patch values being treated verbatim: surrounding quotes are stripped and the documented escapes decode, so quoted styles match and escaped newlines insert real line breaks; heredoc content stays raw.
-- Fixed image assets whose file extension disagrees with the magic bytes being embedded under the wrong content type: extension/content mismatches now fail with `E5203`.
-- Added named result bindings for created objects: creation operations accept `as` and later operations address them as `@name`, with created target IDs in operation reports; same-anchor insertion order is documented.
-- Added per-target editing capabilities for every target kind and guarded patch templates for every kind, both reusing execution predicates so guidance agrees with check.
-- Added executable minimal examples (plus guarded variants where guards exist) for every supported patch operation in built-in help, including an alias composition example for insert-after, and documented the normalized-selector versus exact-guard whitespace contract in the patch help overview.
-- Added bookmark targets to `dump` and `context`, including the anchor-paragraph neighborhood.
-- Added row targets to `dump` with member cells, matching merge-group dumps.
-- Added hyperlink, field, and content-control targets to `dump`, reusing the read metadata lines.
-- Added hyperlink, field, and content-control targets to `context` with the anchor-paragraph neighborhood, matching bookmark context.
-- Zero-match selector diagnostics now carry match count 0 with the nearby candidate IDs.
-- Zero-match text selectors now point at table cells when the query matches cell text.
-- Added optional `expect-name` guards to `delete-bookmark` an optional `expect-text` guard to `delete-comment`, and an optional `expect-text` guard to `remove-hyperlink` so agents can verify delete targets before deleting them; mismatches fail with `E3201`.
-- Operation previews now cover cell-shading, table-style, row-header, content-control-text, image-alt, field-result, delete-block, section-columns, hyperlink-target, field-dirty, field-lock, section-orientation, field-code, comment-text, bookmark-text, and table-metadata changes alongside text, style, cell, and hyperlink-text edits.
-- Unknown `dump`/`context` target IDs now suggest the nearest known ID on near misses.
-- Fixed contradictory track-change notes for comment annotation operations: they stay permitted under Require instead of claiming Require fails with E6001; refreshed the frozen support table.
-- Single-line patch values with an unmatched double quote now fail parsing with E2007 and a repair hint instead of inserting the stray quote literally.
-- Fixed comment extended/ID part content types to the Word-accepted Open XML forms so resolved and replied comment documents open in Word.
-- Fixed unknown-style errors to suggest the nearest style ID or name.
-- Fixed failed apply to preserve any pre-existing destination file byte-for-byte.
-- Made patch parsing tolerate CRLF line endings and a leading UTF-8 BOM.
-- Documented that semantic selectors search the main story and that `occurrence` selects find/anchor-text matches rather than selector targets.
-- Rendered change reports now print an explicit No changes line instead of empty output when no markup is present; JSON output is unchanged.
-- Added guarded `set-image-size`, `set-image-wrap`, `set-image-position`, `set-image-crop`, and `delete-image` help examples covering the `expect-content-type` guard; every supported operation with guard fields now has a guarded example pinned by tests.
-- Changed the central `Microsoft.SourceLink.GitHub` reference to 10.0.303, clearing the NU1902 audit failure under the strict warnings-as-errors gate; the shipped package still carries no runtime dependencies.
-- Fixed run-preserving text spans that crossed bookmark ranges or complex fields silently hollowing them: overlapping spans now fail with `E4305` (`E6002` under required tracking) while spans that merely touch a protected endpoint still succeed.
-- Extended protected span intervals to comment, move, and custom XML revision ranges, including ranges that start in an earlier paragraph and bookmarked cell text; adjacent plain spans keep succeeding.
-- Fixed explicit hyperlink IDs resolving live: unwrapping or deleting one link no longer retargets later operations onto a neighbour, and deleted links fail instead of editing one. Created links are addressed through result aliases.
-- Fixed explicit bookmark, content-control, and field IDs resolving live with the same retargeting hazard: structural edits no longer shift later IDs, and deleted targets fail instead of editing neighbours.
-- Fixed explicit image IDs resolving live with the same retargeting hazard, reusing one shared blip enumeration for capture and resolution.
-- Fixed explicit merge-group IDs resolving live: the patch resolver reuses the canonical merge-group walk and binds the discovered root cell, so row insertions no longer shift later group IDs.
-- Fixed explicit comment body IDs resolving live: deleting one comment no longer shifts later body IDs, and deleted comments fail instead of editing neighbours. Threaded reply ordinals keep live resolution.
-- Fixed created-target reporting identifying the wrong objects: inserted paragraphs now resolve through physical document order instead of sibling counting, and new bookmarks resolve by allocated ID instead of total count. A test asserting the old count-based bookmark ID was updated to the read-model contract.
-- Fixed operation reports naming stale objects: affected targets carry input or operation-time coordinates plus a live final ID that stays absent for deleted objects, so a historical ordinal that coincides with a survivor never reads as live. Created identifiers whose object no longer exists are absent, including comments with reused numbers. XML snapshot and creation marks stay internal with no public mark scaffolding.
-- Fixed opt-in previews dropping both sides when a semantic selector stopped matching: previews now bind to the resolved object, so changed text still reports before/after; deletions report the before value with a null after.
-- Fixed the canonical patch writer emitting a bare `<<<` literal that the parser reads as a heredoc opener: reserved literals now render quoted, and generated templates fall back to the canonical writer instead of raw heredocs for delimiter-hostile text.
-- Synchronized agent guidance with the implemented contracts: target-lifetime help and docs now cover every bound ID kind, the patch reference shows a positional multi-style insertion example, the CLI workflow leads with lint, and reports are documented per kind.
-- Fixed text and cell edits inside protected ranges that span multiple paragraphs or table cells.
-- Changed image inventory to one identifier per drawing placement.
-- Fixed creation reporting and alias binding to register once at execution.
-- Fixed affected reporting to preserve kinds and rebase related identities together.
-- Fixed previews for new and aliased targets to capture before and after values.
-- Fixed affected targets missing for semantic selectors matching newly created paragraphs: the resolved paragraph now reports with operation-time coordinates, so affected IDs rebase to final-output coordinates instead of coming back empty.
-- Excluded revision-hidden drawings from image placement enumeration: drawings inside del/moveFrom-wrapped blocks own no public ID, so discovery and patch binding agree and a visible drawing keeps its published identity.
-- Extended hidden-placement exclusion to drawings in trPr-deleted table rows and block-level structured-document-tag content, whose paragraphs are not enumerated: their IDs now agree across discovery and patch binding as well.
-- Unified image placement enumeration across discovery, snapshot marking, resolution, and reporting: custom-XML wrapped drawings own no placement ID and image identity no longer shifts across text views.
-- Extended image inventory and extraction across header and footer stories with single-placement selection, and made replace-image affect only the selected placement with PNG and JPEG interchange updating the media content type.
-- Improved empty-patch check cost and merge-group enumeration to single passes.
+Shipped as a net10.0 library with no runtime package dependencies, plus source CLI for development. The CLI is not installed by the package.
+
+Library and patch behavior shipped:
+
+- Stream-first DocxEditor for read, outline, find, dump, styles, media extraction, tracked-change summaries, check, and apply, with caller-owned streams.
+- Docxpatch DSL for paragraph text, blocks, styles, main header footer tables with visual grid coordinates, inline images with PNG JPEG interchange, bookmarks, hyperlinks, comments, fields, content controls, sections, and rows with guarded templates.
+- Positional target IDs from fresh read output, with explicit input binding, live semantic resolution, and patch-local aliases. Reports carry Id with Coordinate input or operation-time and FinalId live, absent when deleted. Deleted objects never acquire survivor identity.
+- Asset boundary where image edits use caller-supplied bytes via AssetProvider. Extraction returns bytes for external tools, replacement inserts caller bytes. No pixel editing in the library.
+- Tracked output with off suggest require modes and generated revision IDs. Annotation operations stay permitted under Require. Complex shapes warn or fail with explicit diagnostics.
+- Package validation for ZIP paths, size limits, relationships, macro policy, unknown part preservation, and touched-part checks. Failed CLI apply preserves any pre-existing destination file byte for byte. Library callers stage output and publish only on success.
+- No layout, rendering, pagination, or Word fidelity guarantees. Word open and save checks are bounded compatibility only.
+
+Notes:
+
+- This is the first published version. There is no migration from a prior NuGet release.
+- Source documentation lives in docs in the repository. Package consumers use the library API and the guidance in this README.
