@@ -1857,9 +1857,13 @@ public static class OfficeGateTests
         // must clone fresh media for it while the header bytes stay untouched,
         // before and after Word opens and saves the result. Byte and reference
         // checks are the primary oracle; the Word pass only proves the shared
-        // media fixture is accepted by Word. Package root thumbnail and legacy
-        // VML fixtures stay byte level only because Word rejects a package root
-        // thumbnail relationship outright, even at conventional locations.
+        // media fixture is accepted by Word. Package root thumbnail fixtures
+        // stay byte level only: a valid JPEG root thumbnail round-trips through
+        // Word while the PNG control is rejected, so PNG rejection proves no
+        // universal limitation. Legacy VML outputs stay byte level only as well:
+        // VML input opens, but VML packages carrying updateFields stall Word
+        // Open past bounded attempts, with or without the cloned media, while
+        // the same outputs open normally with field-dirty marking off.
         if (!OperatingSystem.IsWindows())
         {
             throw new InvalidOperationException("Office integration tests require Windows.");
@@ -1907,6 +1911,118 @@ public static class OfficeGateTests
 
             using (FileStream edited = File.OpenRead(outputPath))
             {
+                DocxReadResult read = new DocxEditor().Read(edited, new DocxReadOptions { IncludeHeadersFooters = true });
+                Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+                Assert.Equal(2, read.Images.Count);
+                DocxImageInfo mainImage = read.Images.Single(static image => image.Id.ToWireValue() == "M.I0001");
+                Assert.Equal("image/jpeg", mainImage.ContentType);
+                Assert.True(mainImage.RelationshipId is not null, "Selected placement must resolve its relationship.");
+                DocxImageInfo headerImage = read.Images.Single(static image => image.Id.ToWireValue() == "H001.I0001");
+                Assert.Equal("image/png", headerImage.ContentType);
+                Assert.True(headerImage.RelationshipId is not null, "Unselected placement must resolve its relationship.");
+            }
+
+            using (FileStream extracted = File.OpenRead(outputPath))
+            {
+                DocxMediaExtractResult media = new DocxEditor().ExtractMedia(extracted, new DocxMediaOptions { IncludeHeadersFooters = true });
+                Assert.True(media.Success, string.Join(Environment.NewLine, media.Diagnostics.Select(FormatDiagnostic)));
+                Assert.Equal(2, media.Files.Count);
+                Assert.Equal(MinimalJpeg(), media.Files.Single(static file => file.ImageId.ToWireValue() == "M.I0001").Content);
+                Assert.Equal(sharedBefore, media.Files.Single(static file => file.ImageId.ToWireValue() == "H001.I0001").Content);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using (FileStream savedExtract = File.OpenRead(outputPath))
+            {
+                DocxMediaExtractResult savedMedia = new DocxEditor().ExtractMedia(savedExtract, new DocxMediaOptions { IncludeHeadersFooters = true });
+                Assert.True(savedMedia.Success, string.Join(Environment.NewLine, savedMedia.Diagnostics.Select(FormatDiagnostic)));
+                Assert.Equal(2, savedMedia.Files.Count);
+                Assert.Equal(MinimalJpeg(), savedMedia.Files.Single(static file => file.ImageId.ToWireValue() == "M.I0001").Content);
+                Assert.Equal(sharedBefore, savedMedia.Files.Single(static file => file.ImageId.ToWireValue() == "H001.I0001").Content);
+            }
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult reread = new DocxEditor().Read(saved, new DocxReadOptions { IncludeHeadersFooters = true });
+            Assert.True(reread.Success, string.Join(Environment.NewLine, reread.Diagnostics.Select(FormatDiagnostic)));
+            Assert.Equal(2, reread.Images.Count);
+            DocxImageInfo savedMain = reread.Images.Single(static image => image.Id.ToWireValue() == "M.I0001");
+            Assert.Equal("image/jpeg", savedMain.ContentType);
+            Assert.True(savedMain.RelationshipId is not null, "Selected placement must resolve its relationship after Word saves.");
+            DocxImageInfo savedHeader = reread.Images.Single(static image => image.Id.ToWireValue() == "H001.I0001");
+            Assert.Equal("image/png", savedHeader.ContentType);
+            Assert.True(savedHeader.RelationshipId is not null, "Unselected placement must resolve its relationship after Word saves.");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    [OfficeFact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationSharedVmlNoDirtyMarkingRoundTripIsOptIn()
+    {
+        // VML preservation boundary: the DrawingML placement and the legacy VML
+        // reference share one relationship, and replacing the drawing must leave
+        // the VML bytes and relationship untouched. That preservation is proven
+        // by byte and reference checks with and without Word. Word itself hangs
+        // opening VML packages whose settings carry updateFields enabled: the
+        // VML input opens, while the edited output, a metadata-only edit, and a
+        // hand-built equivalent all stall past bounded attempts with only owned
+        // processes cleaned up. With field-dirty marking off, the edited VML
+        // package round-trips normally, so this test pins that boundary instead
+        // of asserting a Word pass that cannot complete.
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateSharedVmlDocx(inputPath);
+            byte[] sharedBefore = ReadEntryBytes(inputPath, "word/media/shared.png");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("docxpatch 1\n\nop replace-image\ntarget M.I0001\nasset photo.jpeg\nend\n"))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+                {
+                    AssetProvider = new MemoryAssetProvider("photo.jpeg", MinimalJpeg(), "photo.jpeg"),
+                    MarkFieldsDirtyWhenEditing = false
+                });
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            Assert.Equal(sharedBefore, ReadEntryBytes(outputPath, "word/media/shared.png"));
+            string documentRels = Encoding.UTF8.GetString(ReadEntryBytes(outputPath, "word/_rels/document.xml.rels"));
+            Assert.Contains("rShared", documentRels, StringComparison.Ordinal);
+            string document = Encoding.UTF8.GetString(ReadEntryBytes(outputPath, "word/document.xml"));
+            Assert.Contains("v:imagedata", document, StringComparison.Ordinal);
+            Assert.Contains("r:id=\"rShared\"", document, StringComparison.Ordinal);
+
+            using (FileStream edited = File.OpenRead(outputPath))
+            {
                 DocxReadResult read = new DocxEditor().Read(edited);
                 Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
                 DocxImageInfo image = Assert.Single(read.Images);
@@ -1916,6 +2032,9 @@ public static class OfficeGateTests
             OpenSaveWithWord(wordApplicationType, outputPath);
 
             Assert.Equal(sharedBefore, ReadEntryBytes(outputPath, "word/media/shared.png"));
+            string savedDocument = Encoding.UTF8.GetString(ReadEntryBytes(outputPath, "word/document.xml"));
+            Assert.Contains("v:imagedata", savedDocument, StringComparison.Ordinal);
+            Assert.Contains("r:id=\"rShared\"", savedDocument, StringComparison.Ordinal);
 
             using FileStream saved = File.OpenRead(outputPath);
             DocxReadResult reread = new DocxEditor().Read(saved);
@@ -1933,6 +2052,61 @@ public static class OfficeGateTests
             {
             }
         }
+    }
+
+    private static void CreateSharedVmlDocx(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Default Extension="png" ContentType="image/png"/>
+              <Default Extension="jpeg" ContentType="image/jpeg"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+            </Types>
+            """);
+        AddPackageRelsEntry(archive);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.png"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <w:body>
+                <w:p><w:r><w:t>Shared VML body</w:t></w:r></w:p>
+                <w:p>
+                  <w:r>
+                    <w:drawing>
+                      <wp:inline>
+                        <wp:extent cx="914400" cy="457200"/>
+                        <wp:docPr id="1" name="Picture 1"/>
+                        <a:graphic>
+                          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                            <pic:pic>
+                              <pic:nvPicPr><pic:cNvPr id="1" name="Picture 1"/><pic:cNvPicPr/></pic:nvPicPr>
+                              <pic:blipFill><a:blip r:embed="rShared"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                              <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                            </pic:pic>
+                          </a:graphicData>
+                        </a:graphic>
+                      </wp:inline>
+                    </w:drawing>
+                  </w:r>
+                </w:p>
+                <w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml" id="Legacy" style="width:72pt;height:72pt"><v:imagedata r:id="rShared"/></v:shape></w:pict></w:r></w:p>
+              </w:body>
+            </w:document>
+            """);
+        AddBinaryEntry(archive, "word/media/shared.png", MinimalPng());
     }
 
     private static void CreateSharedHeaderImageDocx(string path)
@@ -2026,22 +2200,146 @@ public static class OfficeGateTests
         AddBinaryEntry(archive, "word/media/shared.png", MinimalPng());
     }
 
+    // Small genuinely decodable assets shared by the format-swap and ownership
+    // tests, validated by ImageFixtureBytesDecodeIndependently below with an
+    // independent structural check instead of a decoder package.
+    [Fact]
+    public static void ImageFixtureBytesDecodeIndependently()
+    {
+        // The shared Office image fixtures must be genuinely decodable image
+        // content, not header or magic stubs. These structural checks verify
+        // chunk integrity independently of the library under test and need no
+        // decoder package: every PNG chunk passes its CRC and the scan data
+        // inflates to the expected pixel rows, while the JPEG frame header,
+        // scan data, and end marker are all present with expected dimensions.
+        AssertPngDecodes(MinimalPng(), 4, 3);
+        AssertJpegStructure(MinimalJpeg(), 4, 3);
+    }
+
+    private static void AssertPngDecodes(byte[] bytes, int expectedWidth, int expectedHeight)
+    {
+        byte[] signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        Assert.True(bytes.Length > signature.Length + 25, "PNG too short for header and footer chunks.");
+        for (int i = 0; i < signature.Length; i++)
+        {
+            Assert.True(bytes[i] == signature[i], "PNG signature mismatch.");
+        }
+
+        uint[] crc = BuildCrc32Table();
+        int offset = 8;
+        bool seenHeader = false;
+        var scan = new MemoryStream();
+        while (true)
+        {
+            Assert.True(offset + 12 <= bytes.Length, "PNG ends inside a chunk header.");
+            int length = (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+            Assert.True(offset + 12 + length <= bytes.Length, "PNG chunk overruns the buffer.");
+            string type = Encoding.ASCII.GetString(bytes, offset + 4, 4);
+            uint actual = Crc32(crc, bytes, offset + 4, 4 + length);
+            uint stored = ((uint)bytes[offset + 8 + length] << 24) | ((uint)bytes[offset + 9 + length] << 16) | ((uint)bytes[offset + 10 + length] << 8) | bytes[offset + 11 + length];
+            Assert.True(actual == stored, "PNG chunk fails its integrity check: " + type);
+            if (type == "IHDR")
+            {
+                seenHeader = true;
+                int width = (bytes[offset + 8] << 24) | (bytes[offset + 9] << 16) | (bytes[offset + 10] << 8) | bytes[offset + 11];
+                int height = (bytes[offset + 12] << 24) | (bytes[offset + 13] << 16) | (bytes[offset + 14] << 8) | bytes[offset + 15];
+                Assert.Equal(expectedWidth, width);
+                Assert.Equal(expectedHeight, height);
+                Assert.True(bytes[offset + 16] == 8, "PNG fixture must use 8-bit samples.");
+                Assert.True(bytes[offset + 17] == 2, "PNG fixture must use truecolor.");
+            }
+            if (type == "IDAT" && length > 0)
+            {
+                scan.Write(bytes, offset + 8, length);
+            }
+            offset += 12 + length;
+            if (type == "IEND")
+            {
+                break;
+            }
+        }
+        Assert.True(seenHeader, "PNG has no header chunk.");
+        Assert.True(scan.Length > 0, "PNG has no scan data.");
+        byte[] payload = scan.ToArray();
+        Assert.True(payload.Length > 6, "PNG scan stream too short for framing bytes.");
+        using var zlib = new MemoryStream(payload, 2, payload.Length - 6, writable: false);
+        using var inflate = new System.IO.Compression.DeflateStream(zlib, System.IO.Compression.CompressionMode.Decompress);
+        using var pixels = new MemoryStream();
+        inflate.CopyTo(pixels);
+        Assert.Equal((1 + 3 * expectedWidth) * expectedHeight, (int)pixels.Length);
+    }
+
+    private static void AssertJpegStructure(byte[] bytes, int expectedWidth, int expectedHeight)
+    {
+        Assert.True(bytes.Length > 4, "JPEG too short for markers.");
+        Assert.True(bytes[0] == 0xFF && bytes[1] == 0xD8, "JPEG must start with its image marker.");
+        Assert.True(bytes[bytes.Length - 2] == 0xFF && bytes[bytes.Length - 1] == 0xD9, "JPEG must end with its end marker.");
+        int offset = 2;
+        bool seenFrame = false;
+        bool seenScan = false;
+        while (offset + 4 <= bytes.Length)
+        {
+            Assert.True(bytes[offset] == 0xFF, "JPEG segment must start with a marker prefix.");
+            byte marker = bytes[offset + 1];
+            if (marker == 0xD9)
+            {
+                break;
+            }
+            if (marker == 0xDA)
+            {
+                seenScan = true;
+                break;
+            }
+            if (marker == 0xD8 || (marker >= 0xD0 && marker <= 0xD7))
+            {
+                offset += 2;
+                continue;
+            }
+            int length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+            Assert.True(length >= 2, "JPEG segment too short.");
+            Assert.True(offset + 2 + length <= bytes.Length, "JPEG segment overruns the buffer.");
+            if (marker == 0xC0 || marker == 0xC2)
+            {
+                seenFrame = true;
+                int height = (bytes[offset + 5] << 8) | bytes[offset + 6];
+                int width = (bytes[offset + 7] << 8) | bytes[offset + 8];
+                Assert.Equal(expectedHeight, height);
+                Assert.Equal(expectedWidth, width);
+            }
+            offset += 2 + length;
+        }
+        Assert.True(seenFrame, "JPEG has no frame header.");
+        Assert.True(seenScan, "JPEG has no scan data.");
+    }
+
+    private static uint[] BuildCrc32Table()
+    {
+        var table = new uint[256];
+        for (uint i = 0; i < 256; i++)
+        {
+            uint value = i;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = ((value & 1u) == 1u) ? (0xEDB88320u ^ (value >> 1)) : (value >> 1);
+            }
+            table[i] = value;
+        }
+        return table;
+    }
+
+    private static uint Crc32(uint[] table, byte[] bytes, int offset, int length)
+    {
+        uint value = 0xFFFFFFFFu;
+        for (int i = 0; i < length; i++)
+        {
+            value = table[(int)((value ^ bytes[offset + i]) & 0xFF)] ^ (value >> 8);
+        }
+        return value ^ 0xFFFFFFFFu;
+    }
+
     private static byte[] MinimalJpeg()
     {
-        return new byte[]
-        {
-            0xFF, 0xD8,
-            0xFF, 0xC0,
-            0x00, 0x11,
-            0x08,
-            0x00, 0x03,
-            0x00, 0x04,
-            0x03,
-            0x01, 0x11, 0x00,
-            0x02, 0x11, 0x00,
-            0x03, 0x11, 0x00,
-            0xFF, 0xD9
-        };
+        return Convert.FromBase64String("/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAADAAQDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDl6KKKZ+jn/9k=");
     }
 
 
@@ -3852,20 +4150,7 @@ public static class OfficeGateTests
 
     private static byte[] MinimalPng()
     {
-        using var stream = new MemoryStream();
-        stream.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
-        WritePngChunk(stream, "IHDR", [0, 0, 0, 2, 0, 0, 0, 2, 0x08, 0x02, 0x00, 0x00, 0x00]);
-        WritePngChunk(stream, "IDAT", []);
-        WritePngChunk(stream, "IEND", []);
-        return stream.ToArray();
-    }
-
-    private static void WritePngChunk(MemoryStream stream, string type, byte[] data)
-    {
-        stream.Write([(byte)((data.Length >> 24) & 0xFF), (byte)((data.Length >> 16) & 0xFF), (byte)((data.Length >> 8) & 0xFF), (byte)(data.Length & 0xFF)]);
-        stream.Write(Encoding.ASCII.GetBytes(type));
-        stream.Write(data);
-        stream.Write([0, 0, 0, 0]);
+        return Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAGklEQVR4nGNkYGCwZdCHIBaGYH0GBihC4QAARUkDbIjjm+8AAAAASUVORK5CYII=");
     }
 
     private sealed class MemoryAssetProvider : IDocxAssetProvider
