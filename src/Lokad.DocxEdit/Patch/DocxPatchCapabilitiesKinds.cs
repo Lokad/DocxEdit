@@ -1831,12 +1831,12 @@ internal static partial class DocxPatchEngine
         foreach (XElement currentRow in table.Elements(OoxmlNs.W + "tr"))
         {
             currentRowOrdinal++;
-            int gridBefore = ReadTableRowGridOffset(currentRow, "gridBefore");
+            int gridBefore = DocxTableGrid.ReadGridOffset(currentRow, "gridBefore");
             RemoveActiveMergeGroups(activeVerticalMerges, 1, gridBefore);
             int columnIndex = 1 + gridBefore;
             foreach (XElement currentCell in currentRow.Elements(OoxmlNs.W + "tc"))
             {
-                int columnSpan = ReadTableCellColumnSpan(currentCell);
+                int columnSpan = DocxTableGrid.ReadColumnSpan(currentCell);
                 DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(currentCell);
                 if (verticalMerge == DocxVerticalMerge.Restart)
                 {
@@ -1883,7 +1883,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            int startColumn = 1 + ReadTableRowGridOffset(rows[index], "gridBefore");
+            int startColumn = 1 + DocxTableGrid.ReadGridOffset(rows[index], "gridBefore");
             foreach (XElement candidate in rows[index].Elements(OoxmlNs.W + "tc"))
             {
                 if (ReferenceEquals(candidate, covering))
@@ -1891,7 +1891,7 @@ internal static partial class DocxPatchEngine
                     break;
                 }
 
-                startColumn += ReadTableCellColumnSpan(candidate);
+                startColumn += DocxTableGrid.ReadColumnSpan(candidate);
             }
 
             return new DocxTargetId(parsed.Story, parsed.StoryPart, DocxTargetKind.Cell, parsed.Primary, index + 1, startColumn).ToWireValue();

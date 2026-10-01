@@ -64,11 +64,11 @@ internal static class DocxImagePlacements
                         continue;
                     }
 
-                    int gridBefore = ReadGridOffset(row, "gridBefore");
+                    int gridBefore = DocxTableGrid.ReadGridOffset(row, "gridBefore");
                     int columnIndex = 1 + gridBefore;
                     foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
                     {
-                        int columnSpan = ReadColumnSpan(cell);
+                        int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
                         int currentColumn = columnIndex;
                         foreach (XElement drawing in cell.Descendants(OoxmlNs.W + "drawing"))
                         {
@@ -82,21 +82,4 @@ internal static class DocxImagePlacements
         }
     }
 
-    public static int ReadGridOffset(XElement row, string localName)
-    {
-        string? value = (string?)row
-            .Element(OoxmlNs.W + "trPr")
-            ?.Element(OoxmlNs.W + localName)
-            ?.Attribute(OoxmlNs.W + "val");
-        return int.TryParse(value, out int parsed) && parsed > 0 ? parsed : 0;
-    }
-
-    public static int ReadColumnSpan(XElement cell)
-    {
-        string? spanText = (string?)cell
-            .Element(OoxmlNs.W + "tcPr")
-            ?.Element(OoxmlNs.W + "gridSpan")
-            ?.Attribute(OoxmlNs.W + "val");
-        return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
-    }
 }

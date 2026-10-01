@@ -35,8 +35,8 @@ internal static partial class DocxDocumentScanner
                 (textView == DocxTextView.Original && rowInserted));
             int currentRowIndex = rowIndex++;
 
-            int gridBefore = ReadRowGridOffset(row, "gridBefore");
-            int gridAfter = ReadRowGridOffset(row, "gridAfter");
+            int gridBefore = DocxTableGrid.ReadGridOffset(row, "gridBefore");
+            int gridAfter = DocxTableGrid.ReadGridOffset(row, "gridAfter");
             RemoveActiveVerticalMerges(activeVerticalMerges, 1, gridBefore);
             int columnIndex = 1 + gridBefore;
             int physicalColumnIndex = 1;
@@ -44,7 +44,7 @@ internal static partial class DocxDocumentScanner
             targets[row] = rowId.ToWireValue();
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
-                int columnSpan = ReadCellColumnSpan(cell);
+                int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
                 DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = currentRowIndex, Tertiary = columnIndex };
                 DocxVerticalMerge? verticalMerge = ReadCellVerticalMerge(cell);
                 DocxTargetId? mergeGroupId = null;
@@ -173,14 +173,7 @@ internal static partial class DocxDocumentScanner
         }
     }
 
-    private static int ReadRowGridOffset(XElement row, string localName)
-    {
-        string? value = (string?)row
-            .Element(OoxmlNs.W + "trPr")
-            ?.Element(OoxmlNs.W + localName)
-            ?.Attribute(OoxmlNs.W + "val");
-        return int.TryParse(value, out int parsed) && parsed > 0 ? parsed : 0;
-    }
+    
 
     private static bool ReadRowFlag(XElement row, string localName)
     {

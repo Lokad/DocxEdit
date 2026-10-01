@@ -92,8 +92,8 @@ internal static partial class DocxPatchEngine
         int columnCount = TryGetConsistentVisualColumnCount(table, out int visualColumnCount)
             ? visualColumnCount
             : table.Elements(OoxmlNs.W + "tr").Select(ReadTableRowVisualColumnCount).DefaultIfEmpty(0).Max();
-        int? gridBefore = row is null ? null : ReadTableRowGridOffset(row, "gridBefore");
-        int? gridAfter = row is null ? null : ReadTableRowGridOffset(row, "gridAfter");
+        int? gridBefore = row is null ? null : DocxTableGrid.ReadGridOffset(row, "gridBefore");
+        int? gridAfter = row is null ? null : DocxTableGrid.ReadGridOffset(row, "gridAfter");
         IReadOnlyList<TableCellSnapshot> cells = row is null
             ? []
             : CreateTableCellSnapshots(resolved.TableId, table, row, rowIndex);
@@ -113,12 +113,12 @@ internal static partial class DocxPatchEngine
         foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
         {
             rowIndex++;
-            int gridBefore = ReadTableRowGridOffset(row, "gridBefore");
+            int gridBefore = DocxTableGrid.ReadGridOffset(row, "gridBefore");
             RemoveActiveMergeGroupIds(activeVerticalMerges, 1, gridBefore);
             int columnIndex = 1 + gridBefore;
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
-                int columnSpan = ReadTableCellColumnSpan(cell);
+                int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
                 DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(cell);
                 DocxTargetId? mergeGroupId = null;
                 if (verticalMerge == DocxVerticalMerge.Restart)
@@ -155,7 +155,7 @@ internal static partial class DocxPatchEngine
                 columnIndex += columnSpan;
             }
 
-            int gridAfter = ReadTableRowGridOffset(row, "gridAfter");
+            int gridAfter = DocxTableGrid.ReadGridOffset(row, "gridAfter");
             RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, gridAfter);
         }
 
@@ -1220,7 +1220,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            int nextCellSpan = ReadTableCellColumnSpan(nextCell);
+            int nextCellSpan = DocxTableGrid.ReadColumnSpan(nextCell);
             if (nextCellSpan != deletedSlot.ColumnSpan)
             {
                 unsupportedReason = "a vertical merge continuation below the deleted root has a different column span";
@@ -1327,10 +1327,10 @@ internal static partial class DocxPatchEngine
 
     private static int ReadTableRowVisualColumnCount(XElement row)
     {
-        int visualColumnCount = ReadTableRowGridOffset(row, "gridBefore") + ReadTableRowGridOffset(row, "gridAfter");
+        int visualColumnCount = DocxTableGrid.ReadGridOffset(row, "gridBefore") + DocxTableGrid.ReadGridOffset(row, "gridAfter");
         foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
         {
-            visualColumnCount += ReadTableCellColumnSpan(cell);
+            visualColumnCount += DocxTableGrid.ReadColumnSpan(cell);
         }
 
         return visualColumnCount;
@@ -1338,10 +1338,10 @@ internal static partial class DocxPatchEngine
 
     private static IEnumerable<TableCellGridSlot> EnumerateTableRowCells(XElement row)
     {
-        int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+        int columnIndex = 1 + DocxTableGrid.ReadGridOffset(row, "gridBefore");
         foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
         {
-            int columnSpan = ReadTableCellColumnSpan(cell);
+            int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
             yield return new TableCellGridSlot(cell, columnIndex, columnSpan);
             columnIndex += columnSpan;
         }
@@ -1359,8 +1359,8 @@ internal static partial class DocxPatchEngine
         int? expectedColumnCount = null;
         foreach (XElement row in rows)
         {
-            if (ReadTableRowGridOffset(row, "gridBefore") != 0 ||
-                ReadTableRowGridOffset(row, "gridAfter") != 0)
+            if (DocxTableGrid.ReadGridOffset(row, "gridBefore") != 0 ||
+                DocxTableGrid.ReadGridOffset(row, "gridAfter") != 0)
             {
                 return false;
             }
@@ -1368,7 +1368,7 @@ internal static partial class DocxPatchEngine
             int visualColumnCount = 0;
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
-                int columnSpan = ReadTableCellColumnSpan(cell);
+                int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
                 if (columnSpan != 1 || ReadTableCellVerticalMerge(cell) is not null)
                 {
                     return false;
@@ -1398,23 +1398,9 @@ internal static partial class DocxPatchEngine
         return columnCount != 0;
     }
 
-    private static int ReadTableRowGridOffset(XElement row, string localName)
-    {
-        string? value = (string?)row
-            .Element(OoxmlNs.W + "trPr")
-            ?.Element(OoxmlNs.W + localName)
-            ?.Attribute(OoxmlNs.W + "val");
-        return int.TryParse(value, out int parsed) && parsed > 0 ? parsed : 0;
-    }
+    
 
-    private static int ReadTableCellColumnSpan(XElement cell)
-    {
-        string? spanText = (string?)cell
-            .Element(OoxmlNs.W + "tcPr")
-            ?.Element(OoxmlNs.W + "gridSpan")
-            ?.Attribute(OoxmlNs.W + "val");
-        return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
-    }
+    
 
     private static DocxVerticalMerge? ReadTableCellVerticalMerge(XElement cell)
     {

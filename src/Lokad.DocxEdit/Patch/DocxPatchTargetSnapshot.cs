@@ -182,10 +182,10 @@ internal static partial class DocxPatchEngine
             int currentRow = rowIndex++;
             var rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = currentRow };
             row.SetAttributeValue(SnapshotIdName, rowId.ToWireValue());
-            int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+            int columnIndex = 1 + DocxTableGrid.ReadGridOffset(row, "gridBefore");
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
-                int columnSpan = ReadTableCellColumnSpan(cell);
+                int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
                 var cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = currentRow, Tertiary = columnIndex };
                 cell.SetAttributeValue(SnapshotIdName, cellId.ToWireValue());
                 columnIndex += columnSpan;
@@ -452,11 +452,11 @@ internal static partial class DocxPatchEngine
             cancellationToken.ThrowIfCancellationRequested();
             rowOrdinal++;
             RecordFinalId(row, tableId with { Kind = DocxTargetKind.Row, Secondary = rowOrdinal }, finals);
-            int visualColumn = 1 + ReadTableRowGridOffset(row, "gridBefore");
+            int visualColumn = 1 + DocxTableGrid.ReadGridOffset(row, "gridBefore");
             foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
             {
                 RecordFinalId(cell, tableId with { Kind = DocxTargetKind.Cell, Secondary = rowOrdinal, Tertiary = visualColumn }, finals);
-                visualColumn += ReadTableCellColumnSpan(cell);
+                visualColumn += DocxTableGrid.ReadColumnSpan(cell);
             }
         }
 
@@ -647,7 +647,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            int span = ReadTableCellColumnSpan(cell);
+            int span = DocxTableGrid.ReadColumnSpan(cell);
             if (cellId.Tertiary >= annotated.Tertiary && cellId.Tertiary < annotated.Tertiary + span)
             {
                 return cell;

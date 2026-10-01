@@ -362,14 +362,6 @@ internal static partial class DocxDocumentScanner
         return text;
     }
 
-    private static int ReadCellColumnSpan(XElement cell)
-    {
-        string? spanText = (string?)cell
-            .Element(OoxmlNs.W + "tcPr")
-            ?.Element(OoxmlNs.W + "gridSpan")
-            ?.Attribute(OoxmlNs.W + "val");
-        return int.TryParse(spanText, out int span) && span > 0 ? span : 1;
-    }
 
     private static DocxVerticalMerge? ReadCellVerticalMerge(XElement cell)
     {

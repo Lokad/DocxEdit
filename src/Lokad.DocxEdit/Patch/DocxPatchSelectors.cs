@@ -1273,10 +1273,10 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+        int columnIndex = 1 + DocxTableGrid.ReadGridOffset(row, "gridBefore");
         foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
         {
-            int columnSpan = ReadTableCellColumnSpan(cell);
+            int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
             if (visualColumnIndex >= columnIndex && visualColumnIndex < columnIndex + columnSpan)
             {
                 return cell;
@@ -1318,7 +1318,7 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        int columnIndex = 1 + ReadTableRowGridOffset(row, "gridBefore");
+        int columnIndex = 1 + DocxTableGrid.ReadGridOffset(row, "gridBefore");
         foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
         {
             if (ReferenceEquals(cell, root))
@@ -1326,7 +1326,7 @@ internal static partial class DocxPatchEngine
                 break;
             }
 
-            columnIndex += ReadTableCellColumnSpan(cell);
+            columnIndex += DocxTableGrid.ReadColumnSpan(cell);
         }
 
         return new CellTarget(tableTarget.PartName, tableTarget.Document, tableTarget.Table, row, root, columnIndex);
