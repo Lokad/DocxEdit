@@ -396,6 +396,98 @@ function Test-AnyCommand([object[]] $Commands, [string] $Pattern) {
     return $false
 }
 
+function Get-ReadModel([string] $DocxPath, [bool] $Headers) {
+    $headersFlag = @()
+    if ($Headers) {
+        $headersFlag = @("--headers-footers")
+    }
+
+    $read = Invoke-RunnerProcess "dotnet" (@(
+        "run",
+        "--no-build",
+        "--project",
+        $CliProject,
+        "--",
+        "read",
+        $DocxPath,
+        "--max-text",
+        "0",
+        "--json") + $headersFlag) -WorkingDirectory $RepoRoot
+    if ($read.ExitCode -ne 0) {
+        return $null
+    }
+
+    try {
+        return $read.StdOut | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+}
+
+function Get-SemanticEvidence([object] $Manifest, [string] $RunDirectory, [string] $InputCopy, [string[]] $OutputDocx) {
+    $verification = Get-ObjectProperty $Manifest "verification"
+    $kind = [string](Get-ObjectProperty $verification "kind")
+    if ([string]::IsNullOrWhiteSpace($kind)) {
+        return ""
+    }
+
+    $candidate = ""
+    $declared = [string](Get-ObjectProperty (Read-FinalResponse (Join-Path $RunDirectory "final-response.json") $true).Final "output_docx")
+    foreach ($name in @($declared) + @($OutputDocx)) {
+        if (-not [string]::IsNullOrWhiteSpace($name)) {
+            $path = Join-Path $RunDirectory $name
+            if (Test-Path -LiteralPath $path) {
+                $candidate = $path
+                break
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        return ""
+    }
+
+    $before = Get-ReadModel $InputCopy $true
+    $after = Get-ReadModel $candidate $true
+    if ($kind -eq "single-image-change") {
+        return Test-SingleImageChange $before $after
+    }
+
+    if ($kind -eq "markup-preserved") {
+        $markup = @(Get-ObjectProperty $verification "markup")
+        if ($markup.Count -eq 0) {
+            $markup = @("bookmark", "field")
+        }
+
+        return Test-MarkupPreserved $before $after $markup
+    }
+
+    if ($kind -eq "output-differs") {
+        return Test-OutputDiffers $before $after
+    }
+
+    return ""
+}
+
+function Get-FeatureEvidence([object] $Manifest, [string] $InputCopy) {
+    $check = Get-ObjectProperty $Manifest "applicabilityCheck"
+    $kind = [string](Get-ObjectProperty $check "kind")
+    if ([string]::IsNullOrWhiteSpace($kind)) {
+        return ""
+    }
+
+    $model = Get-ReadModel $InputCopy $true
+    if ($kind -eq "requires-shared-media") {
+        return Test-SharedMediaFeature $model
+    }
+
+    if ($kind -eq "requires-multiparagraph-range") {
+        return Test-MultiparagraphRangeFeature $model
+    }
+
+    return ""
+}
+
 function Invoke-PostChecks([string] $RunDirectory) {
     $postRoot = Join-Path $RunDirectory "postcheck"
     New-Item -ItemType Directory -Force -Path $postRoot | Out-Null
@@ -564,7 +656,9 @@ $outputDocx = @(Get-ChildItem -LiteralPath $runDirectory -Filter "*.docx" -File 
 $finalResult = Read-FinalResponse $finalPath $useOutputSchema
 $manifestApplicability = [string] (Get-ObjectProperty $manifest "applicability")
 $manifestRequiresOutput = [bool] (Get-ObjectProperty $manifest "requiresOutputDocx")
-$outcome = Get-ChallengeOutcome -ProcessOk ($run.ExitCode -eq 0 -and -not $run.TimedOut) -Final $finalResult.Final -FinalParseError $finalResult.ParseError -RequiresOutput $manifestRequiresOutput -Applicability $manifestApplicability -OutputDocx $outputDocx -PostChecks $postChecks -InputModified ($inputHashBefore -ne $inputHashAfter) -ForbiddenInspection $metrics.UsedForbiddenDocxInspection -CommandCount $metrics.CommandCount -UsedDocxEdit $metrics.UsedDocxEdit
+$semanticEvidence = Get-SemanticEvidence $manifest $runDirectory $inputCopy $outputDocx
+$featureEvidence = Get-FeatureEvidence $manifest $inputCopy
+$outcome = Get-ChallengeOutcome -ProcessOk ($run.ExitCode -eq 0 -and -not $run.TimedOut) -Final $finalResult.Final -FinalParseError $finalResult.ParseError -RequiresOutput $manifestRequiresOutput -Applicability $manifestApplicability -OutputDocx $outputDocx -PostChecks $postChecks -InputModified ($inputHashBefore -ne $inputHashAfter) -ForbiddenInspection $metrics.UsedForbiddenDocxInspection -CommandCount $metrics.CommandCount -UsedDocxEdit $metrics.UsedDocxEdit -EventParseErrors $events.ParseErrors -SemanticEvidence $semanticEvidence -FeatureEvidence $featureEvidence
 $summary = [pscustomobject]@{
     ChallengeId = $challengeId
     Title = [string] (Get-ObjectProperty $manifest "title")

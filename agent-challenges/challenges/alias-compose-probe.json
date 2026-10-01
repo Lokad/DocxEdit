@@ -1,7 +1,12 @@
 {
   "id": "alias-compose-probe",
   "title": "Insert A Paragraph Then Edit It Through A Result Alias",
-  "tags": ["private", "patch", "aliases", "composition"],
+  "tags": [
+    "private",
+    "patch",
+    "aliases",
+    "composition"
+  ],
   "requiresOutputDocx": true,
   "task": [
     "Create an edited output document in the run directory using docxedit only.",
@@ -21,5 +26,8 @@
     "Was the as and @name mechanism discoverable from help without source inspection?",
     "Did created-target-ids and affected targets agree between check and apply?",
     "Did the agent recover cleanly from a failed check using docxedit output?"
-  ]
+  ],
+  "verification": {
+    "kind": "output-differs"
+  }
 }

@@ -28,5 +28,11 @@
     "Did the expect-alt guard catch any wrong-drawing addressing before apply?",
     "Could the agent verify from readback alone that neighbors were untouched?"
   ],
-  "applicability": "Requires repeated image placements sharing one media part; without them, stop after the inventory and report the placement IDs found. That path is not-applicable, not success."
+  "applicability": "Requires repeated image placements sharing one media part; without them, stop after the inventory and report the placement IDs found. That path is not-applicable, not success.",
+  "applicabilityCheck": {
+    "kind": "requires-shared-media"
+  },
+  "verification": {
+    "kind": "single-image-change"
+  }
 }

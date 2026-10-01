@@ -28,5 +28,15 @@
     "Could the agent distinguish interior targets from range endpoints?",
     "Did the output validation confirm the range markup survived?"
   ],
-  "applicability": "Requires a bookmark or complex-field range spanning more than one paragraph; without one, stop after the inspection and check attempts. That path is not-applicable, not success."
+  "applicability": "Requires a bookmark or complex-field range spanning more than one paragraph; without one, stop after the inspection and check attempts. That path is not-applicable, not success.",
+  "applicabilityCheck": {
+    "kind": "requires-multiparagraph-range"
+  },
+  "verification": {
+    "kind": "markup-preserved",
+    "markup": [
+      "bookmark",
+      "field"
+    ]
+  }
 }

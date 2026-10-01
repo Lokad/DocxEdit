@@ -327,13 +327,180 @@ function Read-FinalResponse([string] $FinalPath, [bool] $UseOutputSchema) {
         return [pscustomobject]@{ Final = $null; ParseError = "final-invalid" }
     }
 
+    $declared = Get-ObjectProperty $parsed "output_docx"
+    if ($null -ne $declared -and $declared -isnot [string]) {
+        return [pscustomobject]@{ Final = $null; ParseError = "final-invalid" }
+    }
+
+    foreach ($field in @("used_docxedit_commands", "validation", "observations", "docxedit_weaknesses", "privacy_notes")) {
+        $value = Get-ObjectProperty $parsed $field
+        if ($null -ne $value -and $value -isnot [array]) {
+            return [pscustomobject]@{ Final = $null; ParseError = "final-invalid" }
+        }
+    }
+
+    if ($declared -is [string] -and ($declared -match "[\\/]" -or $declared -like "..*")) {
+        return [pscustomobject]@{ Final = $null; ParseError = "final-invalid" }
+    }
+
     return [pscustomobject]@{ Final = $parsed; ParseError = $null }
 }
 
-function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $FinalParseError, [bool] $RequiresOutput, [string] $Applicability, [string[]] $OutputDocx, [object[]] $PostChecks, [bool] $InputModified, [bool] $ForbiddenInspection, [int] $CommandCount, [bool] $UsedDocxEdit) {
+function Get-ParagraphCoordinate([string] $WireId) {
+    if ($WireId -match "^([A-Za-z]+)([0-9]*)\.P([0-9]+)$") {
+        return [pscustomobject]@{ Story = $Matches[1] + $Matches[2]; Ordinal = [int]$Matches[3] }
+    }
+
+    return $null
+}
+
+function Test-SharedMediaFeature([object] $ReadJson) {
+    if ($null -eq $ReadJson) {
+        return ""
+    }
+
+    $images = @(Get-ObjectProperty $ReadJson "Images")
+    $counts = @{}
+    foreach ($image in $images) {
+        $part = [string](Get-ObjectProperty $image "PartName")
+        if ([string]::IsNullOrWhiteSpace($part)) {
+            continue
+        }
+
+        if (-not $counts.ContainsKey($part)) {
+            $counts[$part] = 0
+        }
+
+        $counts[$part]++
+    }
+
+    foreach ($entry in $counts.GetEnumerator()) {
+        if ($entry.Value -gt 1) {
+            return "present"
+        }
+    }
+
+    return "absent"
+}
+
+function Test-MultiparagraphRangeFeature([object] $ReadJson) {
+    if ($null -eq $ReadJson) {
+        return ""
+    }
+
+    foreach ($bookmark in @(Get-ObjectProperty $ReadJson "Bookmarks")) {
+        $from = Get-ParagraphCoordinate ([string](Get-ObjectProperty $bookmark "StartTargetId"))
+        $to = Get-ParagraphCoordinate ([string](Get-ObjectProperty $bookmark "EndTargetId"))
+        if ($null -ne $from -and $null -ne $to -and $from.Story -eq $to.Story -and $from.Ordinal -ne $to.Ordinal) {
+            return "present"
+        }
+    }
+
+    foreach ($field in @(Get-ObjectProperty $ReadJson "Fields")) {
+        if ([string](Get-ObjectProperty $field "Kind") -eq "complex") {
+            return "present"
+        }
+    }
+
+    return "absent"
+}
+
+function Test-SingleImageChange([object] $Before, [object] $After) {
+    if ($null -eq $Before -or $null -eq $After) {
+        return ""
+    }
+
+    $beforeById = @{}
+    foreach ($image in @(Get-ObjectProperty $Before "Images")) {
+        $beforeById[[string](Get-ObjectProperty $image "Id")] = [string](Get-ObjectProperty $image "Description")
+    }
+
+    $afterById = @{}
+    foreach ($image in @(Get-ObjectProperty $After "Images")) {
+        $afterById[[string](Get-ObjectProperty $image "Id")] = [string](Get-ObjectProperty $image "Description")
+    }
+
+    if ($beforeById.Count -eq 0 -or $beforeById.Count -ne $afterById.Count) {
+        return "mismatch"
+    }
+
+    $changed = 0
+    foreach ($entry in $beforeById.GetEnumerator()) {
+        if (-not $afterById.ContainsKey($entry.Key)) {
+            return "mismatch"
+        }
+
+        if ($afterById[$entry.Key] -cne $entry.Value) {
+            $changed++
+        }
+    }
+
+    if ($changed -eq 1) {
+        return "verified"
+    }
+
+    return "mismatch"
+}
+
+function Test-MarkupPreserved([object] $Before, [object] $After, [string[]] $Kinds) {
+    if ($null -eq $Before -or $null -eq $After) {
+        return ""
+    }
+
+    $kept = $false
+    foreach ($kind in @($Kinds)) {
+        if ($kind -eq "bookmark") {
+            $beforeCount = @(Get-ObjectProperty $Before "Bookmarks").Count
+            $afterCount = @(Get-ObjectProperty $After "Bookmarks").Count
+        }
+        elseif ($kind -eq "field") {
+            $beforeCount = @(Get-ObjectProperty $Before "Fields").Count
+            $afterCount = @(Get-ObjectProperty $After "Fields").Count
+        }
+        else {
+            continue
+        }
+
+        if ($beforeCount -gt 0 -and $beforeCount -eq $afterCount) {
+            $kept = $true
+        }
+    }
+
+    if (-not $kept) {
+        return "mismatch"
+    }
+
+    $beforeText = @((Get-ObjectProperty $Before "Paragraphs") | ForEach-Object { [string](Get-ObjectProperty $_ "Text") })
+    $afterText = @((Get-ObjectProperty $After "Paragraphs") | ForEach-Object { [string](Get-ObjectProperty $_ "Text") })
+    if ((Compare-Object $beforeText $afterText) -ne $null) {
+        return "verified"
+    }
+
+    return "mismatch"
+}
+
+function Test-OutputDiffers([object] $Before, [object] $After) {
+    if ($null -eq $Before -or $null -eq $After) {
+        return ""
+    }
+
+    $beforeText = @((Get-ObjectProperty $Before "Paragraphs") | ForEach-Object { [string](Get-ObjectProperty $_ "Text") })
+    $afterText = @((Get-ObjectProperty $After "Paragraphs") | ForEach-Object { [string](Get-ObjectProperty $_ "Text") })
+    if ((Compare-Object $beforeText $afterText) -ne $null) {
+        return "verified"
+    }
+
+    return "mismatch"
+}
+
+function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $FinalParseError, [bool] $RequiresOutput, [string] $Applicability, [string[]] $OutputDocx, [object[]] $PostChecks, [bool] $InputModified, [bool] $ForbiddenInspection, [int] $CommandCount, [bool] $UsedDocxEdit, [int] $EventParseErrors = 0, [string] $SemanticEvidence = "", [string] $FeatureEvidence = "") {
     $reasons = [System.Collections.Generic.List[string]]::new()
     if (-not $ProcessOk) {
         $reasons.Add("process-failed")
+    }
+
+    if ($EventParseErrors -gt 0) {
+        $reasons.Add("event-parse-errors")
     }
 
     $taskCompleted = $null
@@ -354,7 +521,10 @@ function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $Fina
         if ($outputNames.Count -eq 0) {
             $reasons.Add("no-output")
         }
-        elseif ($null -ne $declaredOutput -and -not ($outputNames -contains $declaredOutput)) {
+        elseif ($null -eq $declaredOutput) {
+            $reasons.Add("undeclared-output")
+        }
+        elseif (-not ($outputNames -contains $declaredOutput)) {
             $reasons.Add("output-mismatch")
         }
     }
@@ -374,8 +544,17 @@ function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $Fina
         $reasons.Add("forbidden-inspection")
     }
 
+    if ($CommandCount -eq 0) {
+        $reasons.Add("no-task-evidence")
+    }
+
+    if ($SemanticEvidence -eq "mismatch") {
+        $reasons.Add("semantic-mismatch")
+    }
+
     $distinct = @($reasons | Sort-Object -Unique)
-    if ($null -eq $Final -and $ProcessOk) {
+    $responseOnly = @($distinct | Where-Object { $_ -eq "final-missing" -or $_ -eq "final-unparseable" -or $_ -eq "final-invalid" -or $_ -eq "unstructured-final" })
+    if ($null -eq $Final -and $responseOnly.Count -eq $distinct.Count -and $distinct.Count -gt 0) {
         return [pscustomobject]@{
             Verdict = "unevaluated"
             TaskCompleted = $null
@@ -383,7 +562,7 @@ function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $Fina
         }
     }
 
-    if ($distinct.Count -eq 0) {
+    if ($distinct.Count -eq 0 -and $SemanticEvidence -eq "verified") {
         return [pscustomobject]@{
             Verdict = "passed"
             TaskCompleted = $taskCompleted
@@ -391,7 +570,15 @@ function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $Fina
         }
     }
 
-    if ($taskCompleted -eq $false -and $outputNames.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($Applicability) -and $UsedDocxEdit -and $CommandCount -gt 0) {
+    if ($distinct.Count -eq 0) {
+        return [pscustomobject]@{
+            Verdict = "unverified"
+            TaskCompleted = $taskCompleted
+            FailureReasons = @("unverified-semantics")
+        }
+    }
+
+    if ($taskCompleted -eq $false -and $outputNames.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($Applicability) -and $FeatureEvidence -eq "absent" -and $UsedDocxEdit -and $CommandCount -gt 0) {
         $benign = @($distinct | Where-Object { $_ -eq "final-incomplete" -or $_ -eq "no-output" })
         if ($benign.Count -eq $distinct.Count) {
             return [pscustomobject]@{
@@ -399,6 +586,14 @@ function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $Fina
                 TaskCompleted = $false
                 FailureReasons = @("feature-absent")
             }
+        }
+    }
+
+    if ($distinct.Count -eq 1 -and $distinct[0] -eq "final-incomplete") {
+        return [pscustomobject]@{
+            Verdict = "incomplete"
+            TaskCompleted = $taskCompleted
+            FailureReasons = $distinct
         }
     }
 
