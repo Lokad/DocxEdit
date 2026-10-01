@@ -299,6 +299,32 @@ internal static partial class DocxPatchEngine
             CollectFinalTargetIds(package, story.PartName, document, storyLetter, storyPart, finals, cancellationToken);
         }
 
+        foreach (string commentsPartName in GetCommentsPartNames(package, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OoxmlPart? commentsPart = package.GetPart(commentsPartName);
+            if (commentsPart is null)
+            {
+                continue;
+            }
+
+            XDocument commentsDocument = LoadDocumentPart(package, commentsPartName, cancellationToken, out _);
+            if (commentsDocument.Root is null)
+            {
+                continue;
+            }
+
+            foreach (XElement comment in commentsDocument.Descendants(OoxmlNs.W + "comment"))
+            {
+                string? createdMark = (string?)comment.Attribute(SnapshotCreatedName);
+                string? numericId = (string?)comment.Attribute(OoxmlNs.W + "id");
+                if (createdMark is not null && numericId is not null)
+                {
+                    finals[createdMark] = "comment:" + numericId;
+                }
+            }
+        }
+
         for (int reportIndex = 0; reportIndex < reports.Count; reportIndex++)
         {
             DocxPatchOperationReport report = reports[reportIndex];
@@ -321,10 +347,6 @@ internal static partial class DocxPatchEngine
                 if (finals.TryGetValue(mark, out string? finalWire))
                 {
                     created.Add(finalWire);
-                }
-                else if (createdId.StartsWith("comment:", StringComparison.Ordinal))
-                {
-                    created.Add(createdId);
                 }
             }
 
@@ -463,9 +485,9 @@ internal static partial class DocxPatchEngine
             return RebaseInsertedRowEntry(report, entry, finals) ?? entry;
         }
 
-        if (entry.CreatedMark is not null)
+        if (entry.CreationMark is not null)
         {
-            if (finals.TryGetValue(entry.CreatedMark, out string? markWire) &&
+            if (finals.TryGetValue(entry.CreationMark, out string? markWire) &&
                 DocxTargetId.TryParse(markWire, out DocxTargetId markId))
             {
                 return entry with { Id = markId, FinalId = markId };

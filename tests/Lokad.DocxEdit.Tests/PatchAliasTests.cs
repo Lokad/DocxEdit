@@ -875,7 +875,8 @@ public static class PatchAliasTests
         Assert.True(check.Success);
         DocxPatchAffectedTarget affected = Assert.Single(check.Operations[1].AffectedTargets);
         Assert.Equal("M.P0003", affected.Id.ToWireValue());
-        Assert.Equal("op1-0", affected.CreatedMark);
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Equal("M.P0003", affected.FinalId?.ToWireValue());
         using MemoryStream applyInput = CreateDocxWithBody(body);
         using var output = new MemoryStream();
         using var applyPatch = new StringReader(patchText);

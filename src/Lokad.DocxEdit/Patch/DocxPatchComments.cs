@@ -125,7 +125,9 @@ internal static partial class DocxPatchEngine
 
         CommentsPartTarget commentsPart = ResolveOrCreateCommentsPart(package, cancellationToken);
         string commentId = AllocateCommentId(package, cancellationToken);
-        commentsPart.Root.Add(CreateComment(commentId, text, author, initials, timestampUtc));
+        XElement createdComment = CreateComment(commentId, text, author, initials, timestampUtc);
+        createdComment.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
+        commentsPart.Root.Add(createdComment);
         if (anchorRange is TextRange selectedRange)
         {
             AddSelectedCommentAnchor(paragraphTarget.Paragraph, commentId, selectedRange);
@@ -392,7 +394,9 @@ internal static partial class DocxPatchEngine
         string replyParaId = AllocateCommentParaId(package, [parentParaId], cancellationToken);
         string replyCommentId = AllocateCommentId(package, cancellationToken);
         EnsureNamespaceDeclaration(parentTarget.Document.Root, "w15", OoxmlNs.W15);
-        parentTarget.Comment.AddAfterSelf(CreateComment(replyCommentId, text, author, initials, timestampUtc, replyParaId));
+        XElement createdReply = CreateComment(replyCommentId, text, author, initials, timestampUtc, replyParaId);
+        createdReply.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
+        parentTarget.Comment.AddAfterSelf(createdReply);
 
         XElement parentExtensionRoot = parentExtensionTarget?.Document.Root
             ?? throw new InvalidDataException("commentsExtended document has no XML root.");

@@ -250,7 +250,7 @@ internal static partial class DocxPatchEngine
         string kind = TargetKindWord(resolvedId.Kind);
         if (resolvedMark is not null)
         {
-            return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreatedMark = resolvedMark, Coordinate = "operation-time", FinalId = resolvedId }];
+            return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreationMark = resolvedMark, Coordinate = "operation-time", FinalId = resolvedId }];
         }
         return [new DocxPatchAffectedTarget(resolvedId, kind, action) { Coordinate = ResolveTargetCoordinate(operation), FinalId = resolvedId }];
     }

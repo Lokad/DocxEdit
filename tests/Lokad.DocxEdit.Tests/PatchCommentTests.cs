@@ -1052,4 +1052,72 @@ public static class PatchCommentTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
     }
+
+    [Fact]
+    public static void AddedThenDeletedCommentPublishesNoCreatedId()
+    {
+        const string patchText = """
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text First comment
+            end
+
+            op delete-comment
+            target comment:0
+            end
+            """;
+        using MemoryStream checkInput = CreateDocx("Anchor paragraph.");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Empty(check.Operations[0].CreatedTargetIds);
+        Assert.Empty(check.Operations[1].CreatedTargetIds);
+
+        using MemoryStream applyInput = CreateDocx("Anchor paragraph.");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Empty(apply.Operations[0].CreatedTargetIds);
+    }
+
+    [Fact]
+    public static void ReusedCommentNumberDoesNotProveContinuity()
+    {
+        const string patchText = """
+            docxpatch 1
+
+            op add-comment
+            target M.P0001
+            text First comment
+            end
+
+            op delete-comment
+            target comment:0
+            end
+
+            op add-comment
+            target M.P0001
+            text Second comment
+            end
+            """;
+        using MemoryStream checkInput = CreateDocx("Anchor paragraph.");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Empty(check.Operations[0].CreatedTargetIds);
+        Assert.Equal(["comment:0"], check.Operations[2].CreatedTargetIds);
+
+        using MemoryStream applyInput = CreateDocx("Anchor paragraph.");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Empty(apply.Operations[0].CreatedTargetIds);
+        Assert.Equal(["comment:0"], apply.Operations[2].CreatedTargetIds);
+    }
+
+
 }

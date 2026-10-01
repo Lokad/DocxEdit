@@ -39,15 +39,7 @@ parser, catalog, and engine dispatch all project from.
   dependent replacements can assert state produced by a preceding operation.
 - Check and apply parity (DocxPatchEngine.cs): both paths execute the same mutations against the
   disposable package; only apply saves. Check reports keep GeneratedRevisionIds empty by design.
-- Report coordinates (DocxPatchEngine.cs): AffectedTargets and CreatedTargetIds carry
-  final-output coordinates: before publication each ID is resolved back to its element
-  (snapshot marks for pre-existing objects, creation marks for new ones) and rewritten in
-  final physical order, so a live reported ID matches a fresh read. Created identifiers
-  whose object no longer exists are absent from final reports. Deleted affected entries
-  keep input ordinals with an explicit delete action. Those ordinals may coincide with
-  survivors, so re-read the output and check the action instead of assuming liveness.
-  Result aliases (@name) always resolve to the current element. Re-read the output for
-  final coordinates; check and apply agree on every per-operation report.
+- Report coordinates (DocxPatchEngine.cs): AffectedTargets carry historical identity plus lifetime: Coordinate names input or operation-time identity, FinalId carries the live final ID matching a fresh read and stays absent for deleted objects, so a historical ordinal that coincides with a survivor never reads as live. CreatedTargetIds carry live final IDs only; vanished creations, including comments with reused numbers, are absent. XML snapshot and creation marks stay internal. Result aliases (@name) always resolve to the current element. Re-read the output for final coordinates; check and apply agree on every per-operation report.
 - Range-structure safety (DocxPatchEngine.cs): deleting a block or row that would newly orphan a
   healthy bookmark, comment range, field pair, move range, custom-XML range, or table interior is refused (E4305) before publication; removing a
   whole range stays allowed. Post-edit validation reports only violations the patch introduced.

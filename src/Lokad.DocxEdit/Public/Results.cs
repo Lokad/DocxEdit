@@ -420,8 +420,7 @@ public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, strin
 {
     /// <summary>Containing target ID, when known.</summary>
     public DocxTargetId? ParentId { get; init; }
-    /// <summary>Execution mark for created objects, when known.</summary>
-    public string? CreatedMark { get; init; }
+    internal string? CreationMark { get; init; }
     /// <summary>How to interpret the historical identity: input for an explicit input snapshot coordinate, operation-time for an alias, semantic, or created coordinate.</summary>
     public string Coordinate { get; init; } = "input";
     /// <summary>Live final target ID identifying the same object on a fresh read; absent when the object was deleted.</summary>

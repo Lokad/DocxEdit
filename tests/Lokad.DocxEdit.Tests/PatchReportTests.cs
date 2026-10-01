@@ -1440,7 +1440,8 @@ public static class PatchReportTests
         Assert.Equal("M.P0002", affected.Id.ToWireValue());
         Assert.Equal("paragraph", affected.Kind);
         Assert.Equal("update", affected.Action);
-        Assert.Equal("op1-0", affected.CreatedMark);
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Equal("M.P0002", affected.FinalId?.ToWireValue());
         Assert.Equal("Inserted", second.PreviewBefore);
         Assert.Equal("CHANGED", second.PreviewAfter);
         output.Position = 0;
@@ -1548,7 +1549,8 @@ public static class PatchReportTests
         DocxPatchAffectedTarget affected = Assert.Single(second.AffectedTargets);
         Assert.Equal("delete", affected.Action);
         Assert.Equal("M.P0002", affected.Id.ToWireValue());
-        Assert.Equal("op1-0", affected.CreatedMark);
+        Assert.Equal("operation-time", affected.Coordinate);
+        Assert.Null(affected.FinalId);
         output.Position = 0;
         DocxReadResult read = new DocxEditor().Read(output);
         Assert.Equal(["First", "Second"], read.Paragraphs.Select(static paragraph => paragraph.Text).ToArray());
