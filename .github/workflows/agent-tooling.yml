@@ -63,14 +63,17 @@ jobs:
             $outside = Join-Path ([System.IO.Path]::GetTempPath()) ("docxedit-outside-" + [Guid]::NewGuid().ToString("N"))
             New-Item -ItemType Directory -Force -Path $outside | Out-Null
             try {
-              Set-Content -LiteralPath (Join-Path $outside "secret.docx") -Value "synthetic stand-in" -Encoding UTF8
+              Set-Content -LiteralPath (Join-Path $outside 'secret.docx') -Value 'synthetic stand-in' -Encoding UTF8
+              $link = $null
               try {
-                $link = New-Item -ItemType Junction -Path (Join-Path $fakeRoot "link") -Target $outside -ErrorAction Stop
-                $resolved = (Resolve-Path -LiteralPath $link.FullName).Path
-                if (Test-IsUnderPath (Join-Path $resolved "secret.docx") $fakeRoot) { throw "Resolved junction escaped the root." }
-                Write-Host "Junction bypass rejected."
+                $link = New-Item -ItemType Junction -Path (Join-Path $fakeRoot 'link') -Target $outside -ErrorAction Stop
               } catch {
-                Write-Host ("WARNING: junction probe skipped: " + $_.Exception.Message)
+                Write-Host ('SKIPPED: junction creation is unsupported here: ' + $_.Exception.Message)
+              }
+              if ($null -ne $link) {
+                $resolved = (Resolve-Path -LiteralPath $link.FullName).Path
+                if (Test-IsUnderPath (Join-Path $resolved 'secret.docx') $fakeRoot) { throw 'Resolved junction escaped the root.' }
+                Write-Host 'Junction bypass rejected.'
               }
             } finally {
               Remove-Item -LiteralPath $outside -Recurse -Force -ErrorAction SilentlyContinue
@@ -203,7 +206,16 @@ jobs:
             }
             $sleepy = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", "Start-Sleep 60") 3
             if (-not $sleepy.TimedOut -or $sleepy.ExitCode -ne -1) { throw "Expired timeout did not kill the child." }
-            Write-Host "Process capture drains concurrently, quotes round-trip, and timeouts kill."
+            $stdinEcho = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", "[Console]::In.ReadToEnd()") -StandardInput "first"
+            if ($stdinEcho.ExitCode -ne 0) { throw "Stdin child failed." }
+            if ($stdinEcho.StdOut.Trim() -cne "first") { throw "Stdin was not delivered." }
+            $pipeWatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $pipeChild = "Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 30'; Start-Sleep 60"
+            $pipeHeld = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", $pipeChild) 2
+            $pipeWatch.Stop()
+            if (-not $pipeHeld.TimedOut -or $pipeHeld.ExitCode -ne -1) { throw "Pipe-holding descendant did not time out." }
+            if ($pipeWatch.Elapsed.TotalSeconds -ge 20) { throw "Deadline was held open by the output pipe." }
+            Write-Host "Process capture drains concurrently, quotes round-trip, stdin is delivered, and timeouts hold against pipe-holding descendants."
           } finally {
             Remove-Item -LiteralPath $echoScript -Force -ErrorAction SilentlyContinue
           }

@@ -2,13 +2,40 @@
 # Dot-sourced by CheckPrivateCase.ps1 and RunAgentChallenge.ps1.
 # Callers must define $RepoRoot (process working directory, git checks, relative paths);
 # Assert-PrivatePath additionally needs $PrivateRoot.
-# RunAgentChallenge.ps1 keeps its own Invoke-ProcessCapture (timeouts and stdin).
+# RunAgentChallenge.ps1 adapts process invocation (ps1 and codex-shim resolution) and forwards to the shared Invoke-ProcessCapture core below.
 
 function Test-IsUnderPath([string] $Path, [string] $Root) {
     $resolvedPath = [System.IO.Path]::GetFullPath($Path).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
     $resolvedRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-    return $resolvedPath.Equals($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $lexicallyInside = $resolvedPath.Equals($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
         $resolvedPath.StartsWith($resolvedRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+    if (-not $lexicallyInside) {
+        return $false
+    }
+
+    return -not (Test-PathHasReparsePoint $resolvedPath)
+}
+
+function Test-PathHasReparsePoint([string] $FullPath) {
+    $cursor = $FullPath
+    while ($null -ne $cursor -and $cursor -ne "") {
+        if (Test-Path -LiteralPath $cursor) {
+            try {
+                $attributes = (Get-Item -LiteralPath $cursor -Force).Attributes
+                if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    return $true
+                }
+            } catch {
+            }
+            if ($cursor -eq [System.IO.Path]::GetPathRoot($cursor)) {
+                break
+            }
+            $cursor = [System.IO.Path]::GetDirectoryName($cursor)
+            continue
+        }
+        $cursor = [System.IO.Path]::GetDirectoryName($cursor)
+    }
+    return $false
 }
 
 function Get-RepoRelativePath([string] $Path) {
@@ -52,12 +79,18 @@ function ConvertTo-ProcessArgument([string] $Argument) {
     return '"' + $escaped + '"'
 }
 
-function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [int] $TimeoutSeconds = 0) {
+function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [int] $TimeoutSeconds = 0, [string] $WorkingDirectory = "", [string] $StandardInput = $null) {
+    $directory = $WorkingDirectory
+    if ([string]::IsNullOrWhiteSpace($directory)) {
+        $directory = $RepoRoot
+    }
+
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $FileName
-    $startInfo.WorkingDirectory = $RepoRoot
+    $startInfo.WorkingDirectory = $directory
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
+    $startInfo.RedirectStandardInput = $null -ne $StandardInput
     $startInfo.UseShellExecute = $false
     $startInfo.Arguments = (($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
 
@@ -68,23 +101,49 @@ function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [int] 
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
         $stderrTask = $process.StandardError.ReadToEndAsync()
 
+        if ($null -ne $StandardInput) {
+            $stdinTask = $process.StandardInput.WriteAsync($StandardInput)
+            if (-not $stdinTask.Wait(10000)) {
+                Stop-ProcessTree $process.Id
+                try { $process.Kill() } catch { }
+            }
+
+            try { $process.StandardInput.Close() } catch { }
+        }
+
         $timedOut = $false
         if ($TimeoutSeconds -gt 0) {
             if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
                 $timedOut = $true
+                Stop-ProcessTree $process.Id
                 try { $process.Kill() } catch { }
-                $process.WaitForExit()
+                $process.WaitForExit(5000) | Out-Null
             }
         }
         else {
             $process.WaitForExit()
         }
 
+        if ($TimeoutSeconds -gt 0) {
+            $stdoutDone = $stdoutTask.Wait(5000)
+            $stderrDone = $stderrTask.Wait(5000)
+            if (-not ($stdoutDone -and $stderrDone)) {
+                Stop-ProcessTree $process.Id
+                $timedOut = $true
+                $stdoutDone = $stdoutTask.Wait(5000)
+                $stderrDone = $stderrTask.Wait(5000)
+            }
+        }
+        else {
+            $stdoutDone = $true
+            $stderrDone = $true
+        }
+
         [pscustomobject]@{
             ExitCode = if ($timedOut) { -1 } else { $process.ExitCode }
             TimedOut = $timedOut
-            StdOut = $stdoutTask.GetAwaiter().GetResult()
-            StdErr = $stderrTask.GetAwaiter().GetResult()
+            StdOut = if ($stdoutDone) { $stdoutTask.Result } else { "" }
+            StdErr = if ($stderrDone) { $stderrTask.Result } else { "" }
         }
     }
     finally {
@@ -92,6 +151,18 @@ function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [int] 
     }
 }
 
+function Stop-ProcessTree([int] $ProcessId) {
+    try {
+        $children = @(Get-CimInstance Win32_Process -Filter ("ParentProcessId=" + $ProcessId) -ErrorAction SilentlyContinue)
+    } catch {
+        return
+    }
+
+    foreach ($child in $children) {
+        Stop-ProcessTree $child.ProcessId
+        try { Stop-Process -Id $child.ProcessId -Force -ErrorAction SilentlyContinue } catch { }
+    }
+}
 function Get-FileHashSha256([string] $Path) {
     if ($null -eq (Get-Command Get-FileHash -ErrorAction SilentlyContinue)) {
         throw "File hashing needs the Get-FileHash cmdlet (pwsh 7+ or a full Windows PowerShell 5.1 install); refusing to continue with an unverified copy."

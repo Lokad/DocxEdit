@@ -122,50 +122,10 @@ function Resolve-ProcessInvocation([string] $FileName, [string[]] $Arguments) {
     }
 }
 
-function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [string] $WorkingDirectory, [string] $StandardInput = $null, [int] $TimeoutSeconds = 0) {
+function Invoke-RunnerProcess([string] $FileName, [string[]] $Arguments, [string] $WorkingDirectory, [string] $StandardInput = $null, [int] $TimeoutSeconds = 0) {
     $invocation = Resolve-ProcessInvocation $FileName $Arguments
-    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $invocation.FileName
-    $startInfo.WorkingDirectory = $WorkingDirectory
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.RedirectStandardInput = $null -ne $StandardInput
-    $startInfo.UseShellExecute = $false
-    $startInfo.Arguments = (($invocation.Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
-
-    $process = [System.Diagnostics.Process]::Start($startInfo)
-    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $stderrTask = $process.StandardError.ReadToEndAsync()
-
-    if ($null -ne $StandardInput) {
-        $process.StandardInput.Write($StandardInput)
-        $process.StandardInput.Close()
-    }
-
-    $timedOut = $false
-    if ($TimeoutSeconds -gt 0) {
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            $timedOut = $true
-            try {
-                $process.Kill()
-            }
-            catch {
-            }
-            $process.WaitForExit()
-        }
-    }
-    else {
-        $process.WaitForExit()
-    }
-
-    [pscustomobject]@{
-        ExitCode = if ($timedOut) { -1 } else { $process.ExitCode }
-        TimedOut = $timedOut
-        StdOut = $stdoutTask.GetAwaiter().GetResult()
-        StdErr = $stderrTask.GetAwaiter().GetResult()
-    }
+    return Invoke-ProcessCapture $invocation.FileName $invocation.Arguments -TimeoutSeconds $TimeoutSeconds -WorkingDirectory $WorkingDirectory -StandardInput $StandardInput
 }
-
 function Get-ChallengeFiles {
     if (-not (Test-Path -LiteralPath $ChallengeRoot)) {
         return @()
@@ -439,7 +399,7 @@ function Invoke-PostChecks([string] $RunDirectory) {
     $docxFiles = @(Get-ChildItem -LiteralPath $RunDirectory -Filter "*.docx" -File | Where-Object { $_.Name -ne "input.docx" } | Sort-Object Name)
     foreach ($docx in $docxFiles) {
         $safeName = [System.IO.Path]::GetFileNameWithoutExtension($docx.Name)
-        $read = Invoke-ProcessCapture "dotnet" @(
+        $read = Invoke-RunnerProcess "dotnet" @(
             "run",
             "--no-build",
             "--project",
@@ -449,8 +409,8 @@ function Invoke-PostChecks([string] $RunDirectory) {
             $docx.FullName,
             "--max-text",
             "0",
-            "--json") $RepoRoot
-        $changes = Invoke-ProcessCapture "dotnet" @(
+            "--json") -WorkingDirectory $RepoRoot
+        $changes = Invoke-RunnerProcess "dotnet" @(
             "run",
             "--no-build",
             "--project",
@@ -458,7 +418,7 @@ function Invoke-PostChecks([string] $RunDirectory) {
             "--",
             "changes",
             $docx.FullName,
-            "--json") $RepoRoot
+            "--json") -WorkingDirectory $RepoRoot
 
         Set-Content -LiteralPath (Join-Path $postRoot "$safeName.read.json") -Value $read.StdOut -Encoding UTF8
         Set-Content -LiteralPath (Join-Path $postRoot "$safeName.read.stderr.log") -Value $read.StdErr -Encoding UTF8
@@ -535,7 +495,7 @@ $promptPath = Join-Path $runDirectory "prompt.md"
 Set-Content -LiteralPath $promptPath -Value $prompt -Encoding UTF8
 
 if (-not $NoBuild) {
-    $build = Invoke-ProcessCapture "dotnet" @("build", $CliProject, "--nologo", "--verbosity", "minimal") $RepoRoot
+    $build = Invoke-RunnerProcess "dotnet" @("build", $CliProject, "--nologo", "--verbosity", "minimal") -WorkingDirectory $RepoRoot
     Set-Content -LiteralPath (Join-Path $runDirectory "build.stdout.log") -Value $build.StdOut -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $runDirectory "build.stderr.log") -Value $build.StdErr -Encoding UTF8
     if ($build.ExitCode -ne 0) {
@@ -571,10 +531,10 @@ $finalPath = Join-Path $runDirectory $(if ($useOutputSchema) { "final-response.j
 $eventsPath = Join-Path $runDirectory "events.jsonl"
 $stderrPath = Join-Path $runDirectory "codex.stderr.log"
 $codexArgs = Get-CodexCommandArgs $runDirectory $finalPath $useOutputSchema
-$codexVersion = Invoke-ProcessCapture $Codex @("--version") $RepoRoot
+$codexVersion = Invoke-RunnerProcess $Codex @("--version") -WorkingDirectory $RepoRoot
 $trackedStatusBefore = @(& git -C $RepoRoot status --short --untracked-files=no)
 
-$run = Invoke-ProcessCapture $Codex $codexArgs $runDirectory $prompt ($TimeoutMinutes * 60)
+$run = Invoke-RunnerProcess $Codex $codexArgs -WorkingDirectory $runDirectory -StandardInput $prompt -TimeoutSeconds ($TimeoutMinutes * 60)
 Set-Content -LiteralPath $eventsPath -Value $run.StdOut -Encoding UTF8
 Set-Content -LiteralPath $stderrPath -Value $run.StdErr -Encoding UTF8
 
