@@ -468,8 +468,10 @@ internal static partial class DocxPatchEngine
             if (finals.TryGetValue(entry.CreatedMark, out string? markWire) &&
                 DocxTargetId.TryParse(markWire, out DocxTargetId markId))
             {
-                return entry with { Id = markId };
+                return entry with { Id = markId, FinalId = markId };
             }
+
+            return entry with { FinalId = null };
         }
         if (finals.TryGetValue(entry.Id.ToWireValue(), out string? finalWire) &&
             DocxTargetId.TryParse(finalWire, out DocxTargetId finalId))
@@ -496,10 +498,10 @@ internal static partial class DocxPatchEngine
                     }
                 }
             }
-            return entry with { Id = finalId, ParentId = finalParent, MergeGroupId = finalMerge };
+            return entry with { Id = finalId, ParentId = finalParent, MergeGroupId = finalMerge, FinalId = finalId };
         }
 
-        return entry;
+        return entry with { FinalId = null };
     }
 
     private static DocxPatchAffectedTarget? RebaseInsertedRowEntry(
@@ -517,10 +519,11 @@ internal static partial class DocxPatchEngine
 
         if (entry.Kind == "row")
         {
-            return entry with { Id = rowId };
+            return entry with { Id = rowId, FinalId = rowId };
         }
 
-        return entry with { Id = rowId with { Kind = DocxTargetKind.Cell, Tertiary = entry.Id.Tertiary } };
+        DocxTargetId cellId = rowId with { Kind = DocxTargetKind.Cell, Tertiary = entry.Id.Tertiary };
+        return entry with { Id = cellId, FinalId = cellId };
     }
 
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)

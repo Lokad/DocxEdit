@@ -549,6 +549,8 @@ public static class DocxTextRenderer
                 string gridAfter = affected.GridAfter is null ? string.Empty : $" grid-after={affected.GridAfter}";
                 string mergeGroup = affected.MergeGroupId is { } affectedMergeGroup ? $" merge-group={affectedMergeGroup.ToWireValue()}" : string.Empty;
                 string nestedTablePath = affected.NestedTablePath is null ? string.Empty : $" nested-table-path={affected.NestedTablePath}";
+                string coordinate = string.IsNullOrWhiteSpace(affected.Coordinate) ? string.Empty : $" coordinate={affected.Coordinate}";
+                string finalId = affected.FinalId is { } affectedFinal ? $" final={affectedFinal.ToWireValue()}" : " final=none";
                 builder.Append("  affected id=")
                     .Append(affected.Id.ToWireValue())
                     .Append(" kind=")
@@ -567,6 +569,8 @@ public static class DocxTextRenderer
                     .Append(rowsAfter)
                     .Append(columns)
                     .Append(cells)
+                    .Append(coordinate)
+                    .Append(finalId)
                     .AppendLine();
             }
         }

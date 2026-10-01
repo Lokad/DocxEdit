@@ -1624,4 +1624,108 @@ public static class PatchReportTests
         Assert.Equal("Second", Assert.Single(read.Paragraphs).Text);
     }
 
+    [Fact]
+    public static void EditedThenDeletedKeepsHistoricalIdentityWithAbsentFinal()
+    {
+        using MemoryStream checkInput = CreateDocxWithBody(
+            "<w:p><w:r><w:t>First</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>Second</w:t></w:r></w:p>");
+        const string patchText = """
+            docxpatch 1
+
+            op replace-paragraph
+            target M.P0001
+            text Changed
+            end
+
+            op delete-block
+            target M.P0001
+            end
+            """;
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchAffectedTarget checkUpdate = Assert.Single(check.Operations[0].AffectedTargets);
+        Assert.Equal("M.P0001", checkUpdate.Id.ToWireValue());
+        Assert.Equal("update", checkUpdate.Action);
+        Assert.Equal("input", checkUpdate.Coordinate);
+        Assert.Null(checkUpdate.FinalId);
+        DocxPatchAffectedTarget checkDelete = Assert.Single(check.Operations[1].AffectedTargets);
+        Assert.Equal("M.P0001", checkDelete.Id.ToWireValue());
+        Assert.Equal("delete", checkDelete.Action);
+        Assert.Null(checkDelete.FinalId);
+
+        using MemoryStream applyInput = CreateDocxWithBody(
+            "<w:p><w:r><w:t>First</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>Second</w:t></w:r></w:p>");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchAffectedTarget applyUpdate = Assert.Single(apply.Operations[0].AffectedTargets);
+        Assert.Equal("M.P0001", applyUpdate.Id.ToWireValue());
+        Assert.Null(applyUpdate.FinalId);
+        DocxPatchAffectedTarget applyDelete = Assert.Single(apply.Operations[1].AffectedTargets);
+        Assert.Equal("M.P0001", applyDelete.Id.ToWireValue());
+        Assert.Null(applyDelete.FinalId);
+
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        DocxParagraphInfo survivor = Assert.Single(read.Paragraphs);
+        Assert.Equal("Second", survivor.Text);
+        Assert.Equal("M.P0001", survivor.Id.ToWireValue());
+    }
+
+    [Fact]
+    public static void VanishedAliasDoesNotRetargetSurvivor()
+    {
+        using MemoryStream checkInput = CreateDocxWithBody(
+            "<w:p><w:r><w:t>Alpha Alpha</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>Beta</w:t></w:r></w:p>");
+        const string patchText = """
+            docxpatch 1
+
+            op insert-after
+            target M.P0001
+            text Inserted
+            as added
+            end
+
+            op replace-paragraph
+            target @added
+            text Changed
+            end
+
+            op delete-block
+            target @added
+            end
+            """;
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchAffectedTarget edit = Assert.Single(check.Operations[1].AffectedTargets);
+        Assert.Equal("operation-time", edit.Coordinate);
+        Assert.Null(edit.FinalId);
+        DocxPatchAffectedTarget delete = Assert.Single(check.Operations[2].AffectedTargets);
+        Assert.Null(delete.FinalId);
+
+        using MemoryStream applyInput = CreateDocxWithBody(
+            "<w:p><w:r><w:t>Alpha Alpha</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>Beta</w:t></w:r></w:p>");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Null(Assert.Single(apply.Operations[1].AffectedTargets).FinalId);
+        Assert.Null(Assert.Single(apply.Operations[2].AffectedTargets).FinalId);
+
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        Assert.Equal(2, read.Paragraphs.Count);
+        Assert.DoesNotContain(read.Paragraphs, static paragraph => paragraph.Text == "Changed");
+        Assert.DoesNotContain(read.Paragraphs, static paragraph => paragraph.Text == "Inserted");
+    }
+
+
+
 }

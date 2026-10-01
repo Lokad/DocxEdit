@@ -250,9 +250,20 @@ internal static partial class DocxPatchEngine
         string kind = TargetKindWord(resolvedId.Kind);
         if (resolvedMark is not null)
         {
-            return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreatedMark = resolvedMark }];
+            return [new DocxPatchAffectedTarget(resolvedId, kind, action) { CreatedMark = resolvedMark, Coordinate = "operation-time", FinalId = resolvedId }];
         }
-        return [new DocxPatchAffectedTarget(resolvedId, kind, action)];
+        return [new DocxPatchAffectedTarget(resolvedId, kind, action) { Coordinate = ResolveTargetCoordinate(operation), FinalId = resolvedId }];
+    }
+
+    private static string ResolveTargetCoordinate(DocxPatchOperation operation)
+    {
+        string? target = operation.Fields.GetValueOrDefault("target");
+        if (!string.IsNullOrWhiteSpace(target) && !IsAliasReference(target) && DocxTargetId.TryParse(target, out _))
+        {
+            return "input";
+        }
+
+        return "operation-time";
     }
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildSetCellAffectedTargets(TableOperationSnapshot before)
@@ -294,6 +305,7 @@ internal static partial class DocxPatchEngine
         {
             new(rowId, "row", action)
             {
+                Coordinate = "operation-time",
                 ParentId = tableId,
                 RowIndex = insertedRowIndex,
                 RowCountBefore = before.RowCountBefore,
@@ -308,6 +320,7 @@ internal static partial class DocxPatchEngine
         {
             affected.Add(new DocxPatchAffectedTarget(rowId with { Kind = DocxTargetKind.Cell, Tertiary = cell.ColumnIndex }, "cell", action)
             {
+                Coordinate = "operation-time",
                 ParentId = rowId,
                 RowIndex = insertedRowIndex,
                 ColumnIndex = cell.ColumnIndex,
