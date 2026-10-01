@@ -1892,4 +1892,53 @@ public static class PatchImageTests
         return stream;
     }
 
+    [Fact]
+    public static void MediaListsHeaderPlacementsWhenRequested()
+    {
+        using MemoryStream probe = CreateDocxWithSharedHeaderMedia();
+        DocxMediaResult mainOnly = new DocxEditor().Media(probe);
+        Assert.True(mainOnly.Success);
+        DocxImageInfo single = Assert.Single(mainOnly.Images);
+        Assert.Equal("M.I0001", single.Id.ToWireValue());
+
+        using MemoryStream full = CreateDocxWithSharedHeaderMedia();
+        DocxMediaResult all = new DocxEditor().Media(full, new DocxMediaOptions { IncludeHeadersFooters = true });
+        Assert.True(all.Success);
+        Assert.Equal(3, all.Images.Count);
+        Assert.Equal("M.I0001", all.Images[0].Id.ToWireValue());
+        Assert.Equal("H001.I0001", all.Images[1].Id.ToWireValue());
+        Assert.Equal("H001.I0002", all.Images[2].Id.ToWireValue());
+
+        using MemoryStream extractInput = CreateDocxWithSharedHeaderMedia();
+        DocxMediaExtractResult extracted = new DocxEditor().ExtractMedia(extractInput, new DocxMediaOptions { IncludeHeadersFooters = true });
+        Assert.True(extracted.Success);
+        Assert.Equal(3, extracted.Files.Count);
+        Assert.Equal(extracted.Files[0].Content, extracted.Files[1].Content);
+    }
+
+    [Fact]
+    public static void ExtractMediaSelectsSinglePlacementById()
+    {
+        using MemoryStream probe = CreateDocxWithSharedHeaderMedia();
+        DocxMediaExtractResult result = new DocxEditor().ExtractMedia(probe, new DocxMediaOptions { IncludeHeadersFooters = true, ImageId = "H001.I0001" });
+        Assert.True(result.Success);
+        DocxMediaFile file = Assert.Single(result.Files);
+        Assert.Equal("H001.I0001", file.ImageId.ToWireValue());
+        Assert.Equal("/word/media/shared.png", file.PartName);
+
+        using MemoryStream compare = CreateDocxWithSharedHeaderMedia();
+        DocxMediaExtractResult main = new DocxEditor().ExtractMedia(compare, new DocxMediaOptions { ImageId = "M.I0001" });
+        Assert.True(main.Success);
+        DocxMediaFile mainFile = Assert.Single(main.Files);
+        Assert.Equal(mainFile.Content, file.Content);
+        Assert.Equal(mainFile.PartName, file.PartName);
+
+        using MemoryStream unknown = CreateDocxWithSharedHeaderMedia();
+        DocxMediaExtractResult missing = new DocxEditor().ExtractMedia(unknown, new DocxMediaOptions { ImageId = "M.I0099" });
+        Assert.False(missing.Success);
+        Assert.Contains(missing.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
+    }
+
+
+
 }

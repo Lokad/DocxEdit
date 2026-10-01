@@ -911,11 +911,13 @@ public static class DocxHelp
                     MaxPositionals = 1,
                     Category = "read",
                     Summary = "List embedded images",
-                    Usage = "docxedit media input.docx [--extract <dir>] [--json] [--compact] [--diagnostics <path>] [--strict]",
+                    Usage = "docxedit media input.docx [--extract <dir>] [--headers-footers] [--id <image-id>] [--json] [--compact] [--diagnostics <path>] [--strict]",
                     Description = "List embedded images.",
                     Options =
                     [
                         new("--extract dir", "Extract embedded image parts to a directory") { Flags = ["--extract"] },
+                        new("--headers-footers", "Include header/footer stories") { Flags = ["--headers-footers"] },
+                        new("--id M.I0001", "Image ID selecting a single discovered placement") { Flags = ["--id"] },
                         new("--json", "Print the result object as JSON") { Flags = ["--json"] },
                         new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
                         new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },

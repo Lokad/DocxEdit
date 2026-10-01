@@ -103,6 +103,10 @@ public sealed class DocxStylesOptions
 /// <summary>Options for the image inventory.</summary>
 public sealed class DocxMediaOptions
 {
+    /// <summary>Whether to include header and footer stories alongside the main story.</summary>
+    public bool IncludeHeadersFooters { get; init; }
+    /// <summary>Optional image wire ID selecting a single discovered placement; unknown IDs fail.</summary>
+    public string? ImageId { get; init; }
     /// <summary>Package quotas: ZIP entry count, total uncompressed bytes, and single-part bytes.</summary>
     public DocxPackageLimits Quotas { get; init; } = DocxPackageLimits.Default;
     /// <summary>Whether to leave the input stream open; when false the input is disposed on every exit (success, failure, or cancellation).</summary>

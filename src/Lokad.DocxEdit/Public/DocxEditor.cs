@@ -631,7 +631,7 @@ public sealed class DocxEditor
             return new DocxMediaResult { Success = false, Diagnostics = diagnostics };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: false, textView: DocxTextView.Final, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: options.IncludeHeadersFooters, textView: DocxTextView.Final, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxMediaResult
             {
@@ -640,7 +640,13 @@ public sealed class DocxEditor
             };
         }
 
-        if (!TryUnsupportedScan(package, includeHeadersFooters: false, cancellationToken, out IReadOnlyList<DocxDiagnostic>? mediaUnsupported, out IReadOnlyList<DocxDiagnostic> mediaUnsupportedFailure))
+        IReadOnlyList<DocxImageInfo> mediaImages = SelectMediaImages(model.Images, options.ImageId, out DocxDiagnostic? mediaSelection);
+        if (mediaSelection is not null)
+        {
+            return new DocxMediaResult { Success = false, Diagnostics = diagnostics.Concat([mediaSelection]).ToArray() };
+        }
+
+        if (!TryUnsupportedScan(package, includeHeadersFooters: options.IncludeHeadersFooters, cancellationToken, out IReadOnlyList<DocxDiagnostic>? mediaUnsupported, out IReadOnlyList<DocxDiagnostic> mediaUnsupportedFailure))
         {
             return new DocxMediaResult { Success = false, Diagnostics = diagnostics.Concat(mediaUnsupportedFailure).ToArray() };
         }
@@ -651,7 +657,7 @@ public sealed class DocxEditor
             Diagnostics = diagnostics
                 .Concat(mediaUnsupported)
                 .ToArray(),
-            Images = model.Images
+            Images = mediaImages
         };
     }
 
@@ -682,7 +688,7 @@ public sealed class DocxEditor
             return new DocxMediaExtractResult { Success = false, Diagnostics = diagnostics };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: false, textView: DocxTextView.Final, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, includeHeadersFooters: options.IncludeHeadersFooters, textView: DocxTextView.Final, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxMediaExtractResult
             {
@@ -691,8 +697,14 @@ public sealed class DocxEditor
             };
         }
 
+        IReadOnlyList<DocxImageInfo> selectedImages = SelectMediaImages(model.Images, options.ImageId, out DocxDiagnostic? extractSelection);
+        if (extractSelection is not null)
+        {
+            return new DocxMediaExtractResult { Success = false, Diagnostics = diagnostics.Concat([extractSelection]).ToArray() };
+        }
+
         var files = new List<DocxMediaFile>();
-        foreach (DocxImageInfo image in model.Images)
+        foreach (DocxImageInfo image in selectedImages)
         {
             cancellationToken.ThrowIfCancellationRequested();
             OoxmlPart? part = package.GetPart(image.PartName);
@@ -704,7 +716,7 @@ public sealed class DocxEditor
             files.Add(new DocxMediaFile(image.Id, image.PartName, $"{image.Id.ToWireValue()}-{Path.GetFileName(image.PartName)}", part.Bytes.ToArray()));
         }
 
-        if (!TryUnsupportedScan(package, includeHeadersFooters: false, cancellationToken, out IReadOnlyList<DocxDiagnostic>? extractUnsupported, out IReadOnlyList<DocxDiagnostic> extractUnsupportedFailure))
+        if (!TryUnsupportedScan(package, includeHeadersFooters: options.IncludeHeadersFooters, cancellationToken, out IReadOnlyList<DocxDiagnostic>? extractUnsupported, out IReadOnlyList<DocxDiagnostic> extractUnsupportedFailure))
         {
             return new DocxMediaExtractResult { Success = false, Diagnostics = diagnostics.Concat(extractUnsupportedFailure).ToArray() };
         }
@@ -717,6 +729,29 @@ public sealed class DocxEditor
                 .ToArray(),
             Files = files
         };
+    }
+
+    private static IReadOnlyList<DocxImageInfo> SelectMediaImages(
+        IReadOnlyList<DocxImageInfo> images,
+        string? imageId,
+        out DocxDiagnostic? selectionDiagnostic)
+    {
+        selectionDiagnostic = null;
+        if (string.IsNullOrWhiteSpace(imageId))
+        {
+            return images;
+        }
+
+        foreach (DocxImageInfo image in images)
+        {
+            if (string.Equals(image.Id.ToWireValue(), imageId, StringComparison.Ordinal))
+            {
+                return [image];
+            }
+        }
+
+        selectionDiagnostic = new DocxDiagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 image targets: {imageId}.") { TargetId = imageId };
+        return [];
     }
 
     /// <summary>Validates a document. Uses default options and no cancellation.</summary>

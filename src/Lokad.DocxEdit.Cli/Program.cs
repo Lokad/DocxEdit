@@ -542,13 +542,13 @@ public static class ProgramMain
             return RunExtractMedia(options, input, extractDirectory);
         }
 
-        DocxMediaResult result = new DocxEditor().Media(input);
+        DocxMediaResult result = new DocxEditor().Media(input, new DocxMediaOptions { IncludeHeadersFooters = options.Flags.Contains("--headers-footers"), ImageId = options.Id });
         return FinishCommand(options, result, static r => r.Diagnostics, static r => r.Success, static r => Console.Write(DocxTextRenderer.RenderMedia(r)));
     }
 
     private static int RunExtractMedia(ParsedOptions options, Stream input, string directory)
     {
-        DocxMediaExtractResult result = new DocxEditor().ExtractMedia(input);
+        DocxMediaExtractResult result = new DocxEditor().ExtractMedia(input, new DocxMediaOptions { IncludeHeadersFooters = options.Flags.Contains("--headers-footers"), ImageId = options.Id });
         if (result.Success)
         {
             Directory.CreateDirectory(directory);
