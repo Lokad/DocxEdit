@@ -10,7 +10,7 @@ Requires net10.0. Installing this package does not install the docxedit command.
 
 ## Library example
 
-The example stages output in memory, checks Success with diagnostics, and publishes only on success. Caller-owned streams stay open by default. Wrap file creation in try catch for publication and input output errors. The CLI preserves any pre-existing destination file byte for byte on failed apply. Library callers get the same safety by staging, as below.
+The example stages output in memory, checks Success with diagnostics, and publishes only on success. Caller-owned streams stay open by default. Wrap file creation in try catch for publication and input output errors. The CLI preserves any pre-existing destination file byte for byte on failed apply. Library callers get similar staging safety as below: staging keeps a failed Apply from reaching the destination, but File.Create followed by CopyToAsync is not atomic and an input output failure during publication can leave a partial file. For CLI equivalent file safety, publish through a temporary file in the same directory and move it over the destination only after the copy succeeds.
 
     using Lokad.DocxEdit;
 
@@ -36,9 +36,9 @@ Input and output streams are left open by default. Set LeaveInputOpen or LeaveOu
 
 ## Essential guidance
 
-Assets: image edits use external assets through AssetProvider. The library never reads asset files directly. Extract bytes with ExtractMedia, edit bytes with external tools, and reinsert with replace-image or insert-image-after using a provider that returns the new bytes. PNG and JPEG interchange updates the media content type and part name.
+Assets: image edits use external assets through AssetProvider. The library never reads asset files directly. Extract bytes with ExtractMedia, edit bytes with external tools, and reinsert with replace-image or insert-image-after using a provider that returns the new bytes. PNG and JPEG interchange updates the media content type. An unshared media part keeps its existing part path, which may retain the old extension, while the exported file name follows the actual content type. Treat part paths as opaque and do not rename package parts to match this prose.
 
-IDs: target IDs enumerate physical document order at inspection time from read output. They are stable for the same document bytes and scanner version, but not across modifications. Within one patch, explicit IDs bind to the input snapshot, semantic selectors resolve live against current content, and created objects are addressed through patch-local aliases with whole target @name. Reports carry Id with Coordinate input or operation-time and FinalId live matching a fresh read, staying absent for deleted objects. A deleted image or link never acquires its surviving containing paragraph identity. Re-read output for final coordinates. Check and apply agree on every per-operation report.
+IDs: target IDs enumerate physical document order at inspection time from read output. They are stable for the same document bytes and scanner version, but not across modifications. Within one patch, explicit IDs bind to the input snapshot, semantic selectors resolve live against current content, and created objects are addressed through patch-local aliases with whole target @name. Reports carry Id with Coordinate input or operation-time and FinalId live matching a fresh read, staying absent for deleted objects. A deleted image or link never acquires its surviving containing paragraph identity. Check and apply agree on Success, diagnostics, and per-operation reports under the same input and options, including affected targets, created IDs, and previews. GeneratedRevisionIds remain empty in check by design and are populated only by apply. Re-read output for final coordinates.
 
 Tracking: track-changes modes are off, suggest, and require. Only some operations generate revision markup with author, timestamp, and revision IDs in reports. Annotation operations such as comments stay permitted under Require. Complex shapes warn or fail with explicit diagnostics. See patch guidance at https://github.com/Lokad/DocxEdit/blob/master/docs/patch-format.md
 

@@ -1,10 +1,10 @@
 # Changelog
 
-## 0.1.0 - First NuGet release
+## 0.1.0 - Prepared first NuGet release (unpublished)
 
-Shipped as a net10.0 library with no runtime package dependencies, plus source CLI for development. The CLI is not installed by the package.
+Prepared as a net10.0 library with no runtime package dependencies, plus source CLI for development. The CLI is not installed by the package.
 
-Library and patch behavior shipped:
+Library and patch behavior prepared:
 
 - Stream-first DocxEditor for read, outline, find, dump, styles, media extraction, tracked-change summaries, check, and apply, with caller-owned streams.
 - Docxpatch DSL for paragraph text, blocks, styles, main header footer tables with visual grid coordinates, inline images with PNG JPEG interchange, bookmarks, hyperlinks, comments, fields, content controls, sections, and rows with guarded templates.
@@ -16,5 +16,5 @@ Library and patch behavior shipped:
 
 Notes:
 
-- This is the first published version. There is no migration from a prior NuGet release.
+- This is the prepared first release. It has not been published yet. There is no migration from a prior NuGet release.
 - Source documentation lives in docs in the repository. Package consumers use the library API and the guidance in this README.

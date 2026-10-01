@@ -23,7 +23,7 @@ copies of generator output — refresh them by hand after registry changes:
 
 ## Current Guarantees
 
-DocxEdit has never been released; these hold today:
+DocxEdit has not been published yet; 0.1.0 is the prepared first release. These hold today:
 
 - Stream-first library with no NuGet dependencies beyond the .NET platform libraries.
 - Repeatable `.docxpatch` edits against discovered target IDs (`read`, `outline`, `find`, `dump`, or `context`): same bytes scan to the same IDs,

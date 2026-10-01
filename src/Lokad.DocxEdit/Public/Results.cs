@@ -425,7 +425,7 @@ public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, strin
     /// <summary>Containing target ID, when known.</summary>
     public DocxTargetId? ParentId { get; init; }
     internal string? CreationMark { get; init; }
-    /// <summary>How to interpret the historical identity: input for an explicit input snapshot coordinate, operation-time for an alias, semantic, or created coordinate.</summary>
+    /// <summary>How to interpret the historical identity. The value is input when the affected object existed in the input snapshot, including explicit IDs and semantic selectors that matched a historical object. The value is operation-time when the affected object was created by the patch, including alias and semantic matches to created objects and inserted rows and cells. Id stays historical while FinalId alone carries the live final ID, staying absent for deleted objects. Table row and cell metadata (RowIndex, ColumnIndex, counts, grid, merge) is defined consistently with Coordinate: input-space indexes for input objects with live before and after counts, and operation-time indexes for created objects. Comment and reply alias mutations report no affected targets because the typed ID space cannot represent a comment; empty AffectedTargets is the documented contract.</summary>
     public string Coordinate { get; init; } = "input";
     /// <summary>Live final target ID identifying the same object on a fresh read; absent when the object was deleted.</summary>
     public DocxTargetId? FinalId { get; init; }
