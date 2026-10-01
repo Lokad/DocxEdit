@@ -874,7 +874,7 @@ public static class PatchAliasTests
         DocxCheckResult check = new DocxEditor().Check(input, new StringReader(patchText));
         Assert.True(check.Success);
         DocxPatchAffectedTarget affected = Assert.Single(check.Operations[1].AffectedTargets);
-        Assert.Equal("M.P0003", affected.Id.ToWireValue());
+        Assert.Equal("M.P0002", affected.Id.ToWireValue());
         Assert.Equal("operation-time", affected.Coordinate);
         Assert.Equal("M.P0003", affected.FinalId?.ToWireValue());
         using MemoryStream applyInput = CreateDocxWithBody(body);
@@ -889,6 +889,7 @@ public static class PatchAliasTests
         Assert.Equal("First", read.Paragraphs[1].Text);
         Assert.Equal("CHANGED", read.Paragraphs[2].Text);
         Assert.Equal("Second", read.Paragraphs[3].Text);
+        Assert.Equal(check.Operations[1].AffectedTargets[0].FinalId, read.Paragraphs[2].Id);
     }
     [Fact]
     public static void AliasPreviewBindsAtExecution()

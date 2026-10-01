@@ -1320,10 +1320,14 @@ public static class PatchReportTests
 
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
-        Assert.Equal("M.P0002", Assert.Single(result.Operations[0].AffectedTargets).Id.ToWireValue());
+        DocxPatchAffectedTarget updated = Assert.Single(result.Operations[0].AffectedTargets);
+        Assert.Equal("M.P0001", updated.Id.ToWireValue());
+        Assert.Equal("input", updated.Coordinate);
+        Assert.Equal("M.P0002", updated.FinalId?.ToWireValue());
         output.Position = 0;
-        List<string> ids = new DocxEditor().Read(output).Paragraphs.Select(static paragraph => paragraph.Id.ToWireValue()).ToList();
-        Assert.Equal(new[] { "M.P0001", "M.P0002" }, ids);
+        IReadOnlyList<DocxParagraphInfo> paras = new DocxEditor().Read(output).Paragraphs;
+        Assert.Equal(new[] { "M.P0001", "M.P0002" }, paras.Select(static paragraph => paragraph.Id.ToWireValue()).ToList());
+        Assert.Equal(updated.FinalId, paras.Single(static paragraph => paragraph.Text == "Beta").Id);
     }
 
     [Fact]
@@ -1727,6 +1731,126 @@ public static class PatchReportTests
         Assert.DoesNotContain(read.Paragraphs, static paragraph => paragraph.Text == "Changed");
         Assert.DoesNotContain(read.Paragraphs, static paragraph => paragraph.Text == "Inserted");
     }
+
+    [Fact]
+    public static void LiveSectionReportsLiveFinalId()
+    {
+        const string sectionBody = "<w:p><w:r><w:t>Main text</w:t></w:r></w:p>" +
+            "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:cols w:num=\"1\"/></w:sectPr>";
+        using MemoryStream input = CreateDocxWithBody(sectionBody);
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op set-section-orientation
+            target M.S0001
+            orientation landscape
+            end
+            """);
+        DocxCheckResult check = new DocxEditor().Check(input, patch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchAffectedTarget affected = Assert.Single(check.Operations[0].AffectedTargets);
+        Assert.Equal("M.S0001", affected.Id.ToWireValue());
+        Assert.Equal("M.S0001", affected.FinalId?.ToWireValue());
+
+        using MemoryStream applyInput = CreateDocxWithBody(sectionBody);
+        using var output = new MemoryStream();
+        using var applyPatch = new StringReader("""
+            docxpatch 1
+
+            op set-section-orientation
+            target M.S0001
+            orientation landscape
+            end
+            """);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, output);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal("M.S0001", Assert.Single(apply.Operations[0].AffectedTargets).FinalId?.ToWireValue());
+        output.Position = 0;
+        Assert.Equal("M.S0001", Assert.Single(new DocxEditor().Read(output).Sections).Id.ToWireValue());
+    }
+
+    [Fact]
+    public static void ExplicitTargetKeepsHistoricalIdWithLiveFinal()
+    {
+        using MemoryStream checkInput = CreateDocxWithBody(
+            "<w:p><w:r><w:t>First</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>Second</w:t></w:r></w:p>");
+        const string patchText = """
+            docxpatch 1
+
+            op insert-before
+            target M.P0001
+            text Leading
+            end
+
+            op replace-paragraph
+            target M.P0001
+            text Changed
+            end
+            """;
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchAffectedTarget edited = check.Operations[1].AffectedTargets[0];
+        Assert.Equal("M.P0001", edited.Id.ToWireValue());
+        Assert.Equal("input", edited.Coordinate);
+        Assert.Equal("M.P0002", edited.FinalId?.ToWireValue());
+
+        using MemoryStream applyInput = CreateDocxWithBody(
+            "<w:p><w:r><w:t>First</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>Second</w:t></w:r></w:p>");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal("M.P0001", apply.Operations[1].AffectedTargets[0].Id.ToWireValue());
+        Assert.Equal("M.P0002", apply.Operations[1].AffectedTargets[0].FinalId?.ToWireValue());
+        applyOutput.Position = 0;
+        IReadOnlyList<DocxParagraphInfo> paras = new DocxEditor().Read(applyOutput).Paragraphs;
+        Assert.Equal(apply.Operations[1].AffectedTargets[0].FinalId, paras.Single(static paragraph => paragraph.Text == "Changed").Id);
+    }
+
+    [Fact]
+    public static void ExistingCellShiftKeepsHistoricalCoordinates()
+    {
+        const string body = "<w:tbl><w:tblPr><w:tblStyle w:val=\"TableGrid\"/></w:tblPr><w:tblGrid><w:gridCol/></w:tblGrid>" +
+            "<w:tr><w:tc><w:p><w:r><w:t>One</w:t></w:r></w:p></w:tc></w:tr></w:tbl>";
+        const string patchText = """
+            docxpatch 1
+
+            op set-cell
+            target M.T0001.R01.C01
+            text Changed
+            end
+
+            op insert-row-before
+            target M.T0001.R01
+            cell Top
+            end
+            """;
+        using MemoryStream checkInput = CreateDocxWithBody(body);
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        DocxPatchAffectedTarget edited = Assert.Single(check.Operations[0].AffectedTargets);
+        Assert.Equal("M.T0001.R01.C01", edited.Id.ToWireValue());
+        Assert.Equal("input", edited.Coordinate);
+        Assert.Equal(1, edited.RowIndex);
+        Assert.Equal("M.T0001.R02.C01", edited.FinalId?.ToWireValue());
+
+        using MemoryStream applyInput = CreateDocxWithBody(body);
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal("M.T0001.R01.C01", Assert.Single(apply.Operations[0].AffectedTargets).Id.ToWireValue());
+        Assert.Equal("M.T0001.R02.C01", Assert.Single(apply.Operations[0].AffectedTargets).FinalId?.ToWireValue());
+        applyOutput.Position = 0;
+        DocxTableInfo table = Assert.Single(new DocxEditor().Read(applyOutput).Tables);
+        Assert.Equal(apply.Operations[0].AffectedTargets[0].FinalId, table.Cells.Single(static cell => cell.Text == "Changed").Id);
+    }
+
+
 
 
 

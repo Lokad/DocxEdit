@@ -228,9 +228,9 @@ internal static partial class DocxPatchEngine
             {
                 "set-cell" or "set-cell-shading" => BuildSetCellAffectedTargets(before),
                 "replace-text" => BuildSetCellAffectedTargets(before),
-                "append-row" => BuildInsertedRowAffectedTargets(before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
-                "insert-row-before" => BuildInsertedRowAffectedTargets(before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
-                "insert-row-after" => BuildInsertedRowAffectedTargets(before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+                "append-row" => BuildInsertedRowAffectedTargets(operation, before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
+                "insert-row-before" => BuildInsertedRowAffectedTargets(operation, before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+                "insert-row-after" => BuildInsertedRowAffectedTargets(operation, before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
                 "delete-row" => BuildDeletedRowAffectedTargets(before),
                 _ => []
             };
@@ -290,6 +290,7 @@ internal static partial class DocxPatchEngine
     }
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildInsertedRowAffectedTargets(
+        DocxPatchOperation operation,
         TableOperationSnapshot before,
         int insertedRowIndex,
         int requestedCellCount,
@@ -306,6 +307,7 @@ internal static partial class DocxPatchEngine
             new(rowId, "row", action)
             {
                 Coordinate = "operation-time",
+                CreationMark = CreatedMarkValue(operation, 0),
                 ParentId = tableId,
                 RowIndex = insertedRowIndex,
                 RowCountBefore = before.RowCountBefore,
@@ -321,6 +323,7 @@ internal static partial class DocxPatchEngine
             affected.Add(new DocxPatchAffectedTarget(rowId with { Kind = DocxTargetKind.Cell, Tertiary = cell.ColumnIndex }, "cell", action)
             {
                 Coordinate = "operation-time",
+                CreationMark = CreatedMarkValue(operation, 0),
                 ParentId = rowId,
                 RowIndex = insertedRowIndex,
                 ColumnIndex = cell.ColumnIndex,

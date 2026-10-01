@@ -1770,7 +1770,9 @@ public static class PatchTableTests
         DocxApplyResult result = new DocxEditor().Apply(input, patch, output);
         Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static d => d.Code + ":" + d.Message)));
         DocxPatchAffectedTarget appendedRow = Assert.Single(result.Operations[0].AffectedTargets, static target => target.Kind == "row");
-        Assert.Equal("M.T0001.R04", appendedRow.Id.ToWireValue());
+        Assert.Equal("M.T0001.R03", appendedRow.Id.ToWireValue());
+        Assert.Equal("operation-time", appendedRow.Coordinate);
+        Assert.Equal("M.T0001.R04", appendedRow.FinalId?.ToWireValue());
         output.Position = 0;
         List<string> rows = new DocxEditor().Read(output).Tables.SelectMany(static table => table.Rows.Select(static row => row.Id.ToWireValue())).ToList();
         Assert.Equal(new[] { "M.T0001.R01", "M.T0001.R02", "M.T0001.R03", "M.T0001.R04" }, rows);
@@ -1798,21 +1800,28 @@ public static class PatchTableTests
         DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
         Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
         DocxPatchAffectedTarget row = check.Operations[0].AffectedTargets[0];
-        Assert.Equal("M.T0001.R02", row.Id.ToWireValue());
-        Assert.Equal("M.T0001", row.ParentId?.ToWireValue());
+        Assert.Equal("M.T0002.R02", row.Id.ToWireValue());
+        Assert.Equal("operation-time", row.Coordinate);
+        Assert.Equal("M.T0002", row.ParentId?.ToWireValue());
         Assert.Equal(2, row.RowIndex);
         Assert.Equal("M.T0001.R02", row.FinalId?.ToWireValue());
         DocxPatchAffectedTarget cell = check.Operations[0].AffectedTargets[1];
-        Assert.Equal("M.T0001.R02", cell.ParentId?.ToWireValue());
+        Assert.Equal("M.T0002.R02.C01", cell.Id.ToWireValue());
+        Assert.Equal("M.T0002.R02", cell.ParentId?.ToWireValue());
         Assert.Equal(2, cell.RowIndex);
+        Assert.Equal("M.T0001.R02.C01", cell.FinalId?.ToWireValue());
 
         using MemoryStream applyInput = CreateDocxWithBody(body);
         using var applyOutput = new MemoryStream();
         using var applyPatch = new StringReader(patchText);
         DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
         Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
-        Assert.Equal("M.T0001.R02", apply.Operations[0].AffectedTargets[0].Id.ToWireValue());
-        Assert.Equal("M.T0001", apply.Operations[0].AffectedTargets[0].ParentId?.ToWireValue());
+        Assert.Equal("M.T0002.R02", apply.Operations[0].AffectedTargets[0].Id.ToWireValue());
+        Assert.Equal("M.T0002", apply.Operations[0].AffectedTargets[0].ParentId?.ToWireValue());
+        Assert.Equal("M.T0001.R02", apply.Operations[0].AffectedTargets[0].FinalId?.ToWireValue());
+        applyOutput.Position = 0;
+        DocxTableInfo liveTable = Assert.Single(new DocxEditor().Read(applyOutput).Tables);
+        Assert.Equal(apply.Operations[0].AffectedTargets[0].FinalId, liveTable.Rows[1].Id);
     }
 
     [Fact]
@@ -1837,20 +1846,27 @@ public static class PatchTableTests
         DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch);
         Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
         DocxPatchAffectedTarget row = check.Operations[0].AffectedTargets[0];
-        Assert.Equal("M.T0001.R03", row.Id.ToWireValue());
-        Assert.Equal(3, row.RowIndex);
+        Assert.Equal("M.T0001.R02", row.Id.ToWireValue());
+        Assert.Equal("operation-time", row.Coordinate);
+        Assert.Equal(2, row.RowIndex);
         Assert.Equal("M.T0001.R03", row.FinalId?.ToWireValue());
         DocxPatchAffectedTarget cell = check.Operations[0].AffectedTargets[1];
-        Assert.Equal("M.T0001.R03", cell.ParentId?.ToWireValue());
-        Assert.Equal(3, cell.RowIndex);
+        Assert.Equal("M.T0001.R02.C01", cell.Id.ToWireValue());
+        Assert.Equal("M.T0001.R02", cell.ParentId?.ToWireValue());
+        Assert.Equal(2, cell.RowIndex);
+        Assert.Equal("M.T0001.R03.C01", cell.FinalId?.ToWireValue());
 
         using MemoryStream applyInput = CreateDocxWithBody(body);
         using var applyOutput = new MemoryStream();
         using var applyPatch = new StringReader(patchText);
         DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput);
         Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
-        Assert.Equal("M.T0001.R03", apply.Operations[0].AffectedTargets[0].Id.ToWireValue());
-        Assert.Equal(3, apply.Operations[0].AffectedTargets[0].RowIndex);
+        Assert.Equal("M.T0001.R02", apply.Operations[0].AffectedTargets[0].Id.ToWireValue());
+        Assert.Equal(2, apply.Operations[0].AffectedTargets[0].RowIndex);
+        Assert.Equal("M.T0001.R03", apply.Operations[0].AffectedTargets[0].FinalId?.ToWireValue());
+        applyOutput.Position = 0;
+        DocxTableInfo shifted = Assert.Single(new DocxEditor().Read(applyOutput).Tables);
+        Assert.Equal(apply.Operations[0].AffectedTargets[0].FinalId, shifted.Rows[2].Id);
     }
 
 

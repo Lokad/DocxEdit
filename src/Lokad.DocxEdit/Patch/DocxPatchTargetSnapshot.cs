@@ -296,7 +296,7 @@ internal static partial class DocxPatchEngine
             }
 
             (char storyLetter, int storyPart) = DocxTargetId.ParseStoryPrefix(prefix);
-            CollectFinalTargetIds(package, story.PartName, document, storyLetter, storyPart, finals, cancellationToken);
+            CollectFinalTargetIds(package, story.PartName, document, storyLetter, storyPart, prefix == "M", finals, cancellationToken);
         }
 
         foreach (string commentsPartName in GetCommentsPartNames(package, cancellationToken))
@@ -360,6 +360,7 @@ internal static partial class DocxPatchEngine
         XDocument document,
         char storyLetter,
         int storyPart,
+        bool collectSections,
         Dictionary<string, string> finals,
         CancellationToken cancellationToken)
     {
@@ -367,6 +368,7 @@ internal static partial class DocxPatchEngine
         XElement container = root.Element(OoxmlNs.W + "body") ?? root;
         int paragraphOrdinal = 0;
         int tableOrdinal = 0;
+        int sectionOrdinal = 0;
         foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(container))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -374,6 +376,15 @@ internal static partial class DocxPatchEngine
             {
                 paragraphOrdinal++;
                 RecordFinalId(entry.Block, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Paragraph, paragraphOrdinal, 0, 0), finals);
+                if (collectSections)
+                {
+                    XElement? sectionProperties = entry.Block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
+                    if (sectionProperties is not null)
+                    {
+                        sectionOrdinal++;
+                        RecordFinalId(sectionProperties, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Section, sectionOrdinal, 0, 0), finals);
+                    }
+                }
             }
             else if (entry.Block.Name == OoxmlNs.W + "tbl")
             {
@@ -381,6 +392,11 @@ internal static partial class DocxPatchEngine
                 var tableId = new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Table, tableOrdinal, 0, 0);
                 RecordFinalId(entry.Block, tableId, finals);
                 CollectFinalTableIds(entry.Block, tableId, finals, cancellationToken);
+            }
+            else if (collectSections && entry.Block.Name == OoxmlNs.W + "sectPr")
+            {
+                sectionOrdinal++;
+                RecordFinalId(entry.Block, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Section, sectionOrdinal, 0, 0), finals);
             }
         }
 
@@ -474,78 +490,42 @@ internal static partial class DocxPatchEngine
         }
     }
 
+    // One shared identity path for existing and inserted targets: Id always
+    // keeps the historical input or operation-time identity named by Coordinate
+    // while FinalId alone carries the live final identity (null when gone).
+    // Parent, merge, path, and index metadata stays in the historical
+    // coordinate space. Cells created with their row share that row mark and
+    // compose their final cell from the final row plus the historical column.
     private static DocxPatchAffectedTarget RebaseAffectedTarget(
         DocxPatchOperationReport report,
         DocxPatchAffectedTarget entry,
         Dictionary<string, string> finals)
     {
-        if (entry.Kind is "row" or "cell" &&
-            report.OperationName is "append-row" or "insert-row-before" or "insert-row-after")
+        if (entry.CreationMark is not null &&
+            finals.TryGetValue(entry.CreationMark, out string? markWire) &&
+            DocxTargetId.TryParse(markWire, out DocxTargetId markId))
         {
-            return RebaseInsertedRowEntry(report, entry, finals) ?? entry;
+            if (entry.Kind == "cell" && markId.Kind == DocxTargetKind.Row)
+            {
+                DocxTargetId cellId = markId with { Kind = DocxTargetKind.Cell, Tertiary = entry.Id.Tertiary };
+                return entry with { FinalId = cellId };
+            }
+
+            return entry with { FinalId = markId };
         }
 
         if (entry.CreationMark is not null)
         {
-            if (finals.TryGetValue(entry.CreationMark, out string? markWire) &&
-                DocxTargetId.TryParse(markWire, out DocxTargetId markId))
-            {
-                return entry with { Id = markId, FinalId = markId };
-            }
-
             return entry with { FinalId = null };
         }
+
         if (finals.TryGetValue(entry.Id.ToWireValue(), out string? finalWire) &&
             DocxTargetId.TryParse(finalWire, out DocxTargetId finalId))
         {
-            DocxTargetId? finalParent = entry.ParentId;
-            if (entry.ParentId is not null)
-            {
-                if (finals.TryGetValue(entry.ParentId.Value.ToWireValue(), out string? parentWire))
-                {
-                    if (DocxTargetId.TryParse(parentWire, out DocxTargetId parentId))
-                    {
-                        finalParent = parentId;
-                    }
-                }
-            }
-            DocxTargetId? finalMerge = entry.MergeGroupId;
-            if (entry.MergeGroupId is not null)
-            {
-                if (finals.TryGetValue(entry.MergeGroupId.Value.ToWireValue(), out string? mergeWire))
-                {
-                    if (DocxTargetId.TryParse(mergeWire, out DocxTargetId mergeId))
-                    {
-                        finalMerge = mergeId;
-                    }
-                }
-            }
-            return entry with { Id = finalId, ParentId = finalParent, MergeGroupId = finalMerge, FinalId = finalId };
+            return entry with { FinalId = finalId };
         }
 
         return entry with { FinalId = null };
-    }
-
-    private static DocxPatchAffectedTarget? RebaseInsertedRowEntry(
-        DocxPatchOperationReport report,
-        DocxPatchAffectedTarget entry,
-        Dictionary<string, string> finals)
-    {
-        string mark = "op" + report.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-0";
-        if (!finals.TryGetValue(mark, out string? rowWire) ||
-            !DocxTargetId.TryParse(rowWire, out DocxTargetId rowId) ||
-            rowId.Kind != DocxTargetKind.Row)
-        {
-            return null;
-        }
-
-        if (entry.Kind == "row")
-        {
-            return entry with { Id = rowId, ParentId = rowId.TableId, RowIndex = rowId.Secondary, FinalId = rowId };
-        }
-
-        DocxTargetId cellId = rowId with { Kind = DocxTargetKind.Cell, Tertiary = entry.Id.Tertiary };
-        return entry with { Id = cellId, ParentId = rowId, RowIndex = rowId.Secondary, FinalId = cellId };
     }
 
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)
