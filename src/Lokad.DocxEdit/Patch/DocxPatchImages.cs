@@ -82,11 +82,14 @@ internal static partial class DocxPatchEngine
         return [];
     }
 
-    // One package-wide media ownership rule shared with deletion cleanup: the
-    // selected placement reuses its media part in place only when no other
-    // relationship in the package targets that part and no second drawing uses
-    // the selected relationship. Any other reference, modeled or not, clones
-    // fresh media so unselected content never observes changed bytes.
+    // One package wide media ownership rule shared by replacement and deletion.
+    // The selected placement reuses media in place only when no other reference
+    // in the same story uses the same relationship and no other relationship
+    // in the package targets the same media part. Package root relationships
+    // such as thumbnails count as owners. References outside the public image
+    // inventory such as legacy VML imagedata count as owners even though the
+    // feature is not editable. Uncertain media is cloned or retained, never
+    // overwritten or removed from under unselected content.
     private static bool IsImageRelationshipShared(
         OoxmlPackage package,
         string storyPartName,
@@ -95,18 +98,42 @@ internal static partial class DocxPatchEngine
         string? resolvedTarget,
         CancellationToken cancellationToken)
     {
-        int uses = 0;
-        foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
+        if (CountRelationshipReferences(document, relationshipId) > 1)
         {
-            if (string.Equals((string?)blip.Attribute(OoxmlNs.R + "embed"), relationshipId, StringComparison.Ordinal) && ++uses > 1)
+            return true;
+        }
+
+        return IsMediaPartTargetedElsewhere(package, storyPartName, relationshipId, resolvedTarget, cancellationToken);
+    }
+
+    private static int CountRelationshipReferences(XDocument document, string relationshipId)
+    {
+        int uses = 0;
+        foreach (XElement element in document.Descendants())
+        {
+            foreach (XAttribute attribute in element.Attributes())
             {
-                return true;
+                if (attribute.Name.Namespace == OoxmlNs.R &&
+                    string.Equals(attribute.Value, relationshipId, StringComparison.Ordinal))
+                {
+                    uses++;
+                }
             }
         }
 
+        return uses;
+    }
+
+    private static bool IsMediaPartTargetedElsewhere(
+        OoxmlPackage package,
+        string storyPartName,
+        string relationshipId,
+        string? resolvedTarget,
+        CancellationToken cancellationToken)
+    {
         if (resolvedTarget is null)
         {
-            return uses > 1;
+            return false;
         }
 
         foreach (OoxmlPart relationshipPart in package.Parts.Values)
@@ -117,11 +144,6 @@ internal static partial class DocxPatchEngine
             }
 
             string sourcePartName = OoxmlPath.GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
-            if (sourcePartName == "/" || package.GetPart(sourcePartName) is null)
-            {
-                continue;
-            }
-
             foreach (OoxmlRelationship relationship in package.GetRelationships(sourcePartName, cancellationToken))
             {
                 if (relationship.IsExternal ||
@@ -143,6 +165,7 @@ internal static partial class DocxPatchEngine
 
         return false;
     }
+
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteInsertImageAfter(
         OoxmlPackage package,
@@ -1382,10 +1405,11 @@ internal static partial class DocxPatchEngine
 
 
         drawing.Remove();
-        if (!UsesRelationship(imageTarget.Document, imageTarget.RelationshipId))
+        if (CountRelationshipReferences(imageTarget.Document, imageTarget.RelationshipId) == 0)
         {
+            bool partSharedElsewhere = IsMediaPartTargetedElsewhere(package, imageTarget.PartName, imageTarget.RelationshipId, imageTarget.Part.Name, cancellationToken);
             package.RemoveRelationship(imageTarget.PartName, imageTarget.RelationshipId, cancellationToken);
-            if (!AnyRelationshipTargetsPart(package, imageTarget.Part.Name, cancellationToken))
+            if (!partSharedElsewhere)
             {
                 package.RemovePart(imageTarget.Part.Name, cancellationToken);
             }
@@ -1395,31 +1419,8 @@ internal static partial class DocxPatchEngine
         return [];
     }
 
-    private static bool UsesRelationship(XDocument document, string relationshipId)
-    {
-        return document
-            .Descendants(OoxmlNs.A + "blip")
-            .Any(blip => string.Equals((string?)blip.Attribute(OoxmlNs.R + "embed"), relationshipId, StringComparison.Ordinal));
-    }
+    // Image ownership helpers live with IsImageRelationshipShared above.
 
-    private static bool AnyRelationshipTargetsPart(OoxmlPackage package, string partName, CancellationToken cancellationToken)
-    {
-        foreach (OoxmlPart relationshipPart in package.Parts.Values.Where(part => part.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)))
-        {
-            string sourcePartName = OoxmlPath.GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
-            foreach (OoxmlRelationship relationship in package.GetRelationships(sourcePartName, cancellationToken))
-            {
-                if (!relationship.IsExternal &&
-                    relationship.ResolvedTarget is not null &&
-                    string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
     private static bool ValidateImageContentTypeGuard(
         DocxPatchOperation operation,
         string target,

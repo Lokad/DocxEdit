@@ -2272,4 +2272,192 @@ public static class PatchImageTests
 
 
 
+    [Fact]
+    public static void ReplaceImageWithSharedVmlRelationshipPreservesUnselectedBytes()
+    {
+        using MemoryStream baseInput = CreateDocxWithSharedVmlMedia();
+        byte[] beforeOld = ReadEntryBytes(baseInput, "word/media/image1.png");
+        byte[] replacement = CreatePngBytes(4, 3);
+        const string patchText = "docxpatch 1\n\nop replace-image\ntarget M.I0001\nasset new.png\nend\n";
+        var assets = new MemoryAssetProvider("new.png", replacement, null, "new.png");
+        using MemoryStream checkInput = CreateDocxWithSharedVmlMedia();
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocxWithSharedVmlMedia();
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        applyOutput.Position = 0;
+        string rels = ReadEntry(applyOutput, "word/_rels/document.xml.rels");
+        Assert.Contains("Id=\"rImage\"", rels, StringComparison.Ordinal);
+        Assert.Contains("media/image1.png", rels, StringComparison.Ordinal);
+        applyOutput.Position = 0;
+        string xml = ReadDocumentXml(applyOutput);
+        Assert.Contains("v:imagedata", xml, StringComparison.Ordinal);
+        Assert.Contains("r:id=\"rImage\"", xml, StringComparison.Ordinal);
+        Assert.Contains("a:blip", xml, StringComparison.Ordinal);
+        applyOutput.Position = 0;
+        byte[] preserved = ReadEntryBytes(applyOutput, "word/media/image1.png");
+        Assert.Equal(beforeOld, preserved);
+        applyOutput.Position = 0;
+        DocxMediaExtractResult after = new DocxEditor().ExtractMedia(applyOutput);
+        Assert.True(after.Success);
+        DocxMediaFile selected = Assert.Single(after.Files);
+        Assert.Equal(replacement, selected.Content);
+        Assert.Equal("image/png", selected.ContentType);
+    }
+
+    [Fact]
+    public static void DeleteImageWithSharedVmlRelationshipPreservesUnselectedBytes()
+    {
+        using MemoryStream baseInput = CreateDocxWithSharedVmlMedia();
+        byte[] beforeOld = ReadEntryBytes(baseInput, "word/media/image1.png");
+        const string patchText = "docxpatch 1\n\nop delete-image\ntarget M.I0001\nend\n";
+        using MemoryStream checkInput = CreateDocxWithSharedVmlMedia();
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocxWithSharedVmlMedia();
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        applyOutput.Position = 0;
+        string xml = ReadDocumentXml(applyOutput);
+        Assert.Contains("v:imagedata", xml, StringComparison.Ordinal);
+        Assert.Contains("r:id=\"rImage\"", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("w:drawing", xml, StringComparison.Ordinal);
+        applyOutput.Position = 0;
+        string rels = ReadEntry(applyOutput, "word/_rels/document.xml.rels");
+        Assert.Contains("Id=\"rImage\"", rels, StringComparison.Ordinal);
+        applyOutput.Position = 0;
+        byte[] preserved = ReadEntryBytes(applyOutput, "word/media/image1.png");
+        Assert.Equal(beforeOld, preserved);
+    }
+
+    [Fact]
+    public static void ReplaceImageWithPackageRootThumbnailPreservesUnselectedBytes()
+    {
+        using MemoryStream baseInput = CreateDocxWithThumbnailMedia();
+        byte[] beforeOld = ReadEntryBytes(baseInput, "word/media/image1.png");
+        byte[] replacement = CreatePngBytes(4, 3);
+        const string patchText = "docxpatch 1\n\nop replace-image\ntarget M.I0001\nasset new.png\nend\n";
+        var assets = new MemoryAssetProvider("new.png", replacement, null, "new.png");
+        using MemoryStream checkInput = CreateDocxWithThumbnailMedia();
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocxWithThumbnailMedia();
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        applyOutput.Position = 0;
+        string rootRels = ReadEntry(applyOutput, "_rels/.rels");
+        Assert.Contains("rThumb", rootRels, StringComparison.Ordinal);
+        Assert.Contains("word/media/image1.png", rootRels, StringComparison.Ordinal);
+        applyOutput.Position = 0;
+        byte[] preserved = ReadEntryBytes(applyOutput, "word/media/image1.png");
+        Assert.Equal(beforeOld, preserved);
+        applyOutput.Position = 0;
+        DocxMediaExtractResult after = new DocxEditor().ExtractMedia(applyOutput);
+        Assert.True(after.Success);
+        DocxMediaFile selected = Assert.Single(after.Files);
+        Assert.Equal(replacement, selected.Content);
+    }
+
+    [Fact]
+    public static void DeleteImageWithPackageRootThumbnailPreservesUnselectedBytes()
+    {
+        using MemoryStream baseInput = CreateDocxWithThumbnailMedia();
+        byte[] beforeOld = ReadEntryBytes(baseInput, "word/media/image1.png");
+        const string patchText = "docxpatch 1\n\nop delete-image\ntarget M.I0001\nend\n";
+        using MemoryStream checkInput = CreateDocxWithThumbnailMedia();
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions());
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using MemoryStream applyInput = CreateDocxWithThumbnailMedia();
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions());
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        applyOutput.Position = 0;
+        string rootRels = ReadEntry(applyOutput, "_rels/.rels");
+        Assert.Contains("rThumb", rootRels, StringComparison.Ordinal);
+        applyOutput.Position = 0;
+        byte[] preserved = ReadEntryBytes(applyOutput, "word/media/image1.png");
+        Assert.Equal(beforeOld, preserved);
+        applyOutput.Position = 0;
+        string rels = ReadEntry(applyOutput, "word/_rels/document.xml.rels");
+        Assert.DoesNotContain("rImage", rels, StringComparison.Ordinal);
+    }
+
+    private static MemoryStream CreateDocxWithSharedVmlMedia()
+    {
+        using MemoryStream baseDocx = CreateDocxWithImage("png", "image/png", "old-png");
+        baseDocx.Position = 0;
+        var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        using (var inputArchive = new ZipArchive(baseDocx, ZipArchiveMode.Read, leaveOpen: true))
+        {
+            foreach (ZipArchiveEntry entry in inputArchive.Entries)
+            {
+                using Stream s = entry.Open();
+                using var m = new MemoryStream();
+                s.CopyTo(m);
+                entries[entry.FullName] = m.ToArray();
+            }
+        }
+        string docXml = Encoding.UTF8.GetString(entries["word/document.xml"]);
+        string vmlParagraph = "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\" id=\"Legacy\" style=\"width:72pt;height:72pt\"><v:imagedata r:id=\"rImage\" /></v:shape></w:pict></w:r></w:p>";
+        docXml = docXml.Replace("</w:body>", vmlParagraph + "</w:body>", StringComparison.Ordinal);
+        entries["word/document.xml"] = Encoding.UTF8.GetBytes(docXml);
+        var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var kv in entries)
+            {
+                ZipArchiveEntry e = archive.CreateEntry(kv.Key);
+                using Stream s = e.Open();
+                s.Write(kv.Value, 0, kv.Value.Length);
+            }
+        }
+        output.Position = 0;
+        return output;
+    }
+
+    private static MemoryStream CreateDocxWithThumbnailMedia()
+    {
+        using MemoryStream baseDocx = CreateDocxWithImage("png", "image/png", "old-png");
+        baseDocx.Position = 0;
+        var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        using (var inputArchive = new ZipArchive(baseDocx, ZipArchiveMode.Read, leaveOpen: true))
+        {
+            foreach (ZipArchiveEntry entry in inputArchive.Entries)
+            {
+                using Stream s = entry.Open();
+                using var m = new MemoryStream();
+                s.CopyTo(m);
+                entries[entry.FullName] = m.ToArray();
+            }
+        }
+        string rootRels = Encoding.UTF8.GetString(entries["_rels/.rels"]);
+        rootRels = rootRels.Replace("</Relationships>", "<Relationship Id=\"rThumb\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail\" Target=\"word/media/image1.png\" /></Relationships>", StringComparison.Ordinal);
+        entries["_rels/.rels"] = Encoding.UTF8.GetBytes(rootRels);
+        var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var kv in entries)
+            {
+                ZipArchiveEntry e = archive.CreateEntry(kv.Key);
+                using Stream s = e.Open();
+                s.Write(kv.Value, 0, kv.Value.Length);
+            }
+        }
+        output.Position = 0;
+        return output;
+    }
+
+
 }
