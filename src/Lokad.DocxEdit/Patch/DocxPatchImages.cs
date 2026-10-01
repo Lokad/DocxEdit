@@ -47,11 +47,6 @@ internal static partial class DocxPatchEngine
             return [assetDiagnostic];
         }
 
-        if (imageTarget.Part.ContentType is not null &&
-            !string.Equals(imageTarget.Part.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
-        {
-            return [Diagnostic(DocxSeverity.Error, "E5204", $"Replacing image content type '{imageTarget.Part.ContentType}' with '{contentType}' is not supported for existing media part {imageTarget.Part.Name}.", operation, target)];
-        }
 
         XElement? imageContainer = null;
         if (hasAlt &&
@@ -61,7 +56,23 @@ internal static partial class DocxPatchEngine
         }
 
 
-        package.ReplacePartBytes(imageTarget.Part.Name, bytes);
+        if (IsImageRelationshipShared(package, imageTarget.PartName, imageTarget.Document, imageTarget.RelationshipId, imageTarget.Part.Name, cancellationToken))
+        {
+            string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType);
+            string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(imageTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
+            package.AddPart(imagePartName, contentType, bytes, cancellationToken);
+            package.AddRelationship(imageTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(imageTarget.PartName, imagePartName), targetMode: null, cancellationToken);
+            imageTarget.Blip.SetAttributeValue(OoxmlNs.R + "embed", relationshipId);
+            SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+        }
+        else if (!string.Equals(imageTarget.Part.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
+        {
+            package.ReplacePartBytesAndContentType(imageTarget.Part.Name, bytes, contentType, cancellationToken);
+        }
+        else
+        {
+            package.ReplacePartBytes(imageTarget.Part.Name, bytes);
+        }
         if (hasAlt && imageContainer is not null)
         {
             SetImageAlt(imageContainer, alt, target);
@@ -69,6 +80,56 @@ internal static partial class DocxPatchEngine
         }
 
         return [];
+    }
+
+    private static bool IsImageRelationshipShared(
+        OoxmlPackage package,
+        string storyPartName,
+        XDocument document,
+        string relationshipId,
+        string? resolvedTarget,
+        CancellationToken cancellationToken)
+    {
+        int uses = 0;
+        foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
+        {
+            if (string.Equals((string?)blip.Attribute(OoxmlNs.R + "embed"), relationshipId, StringComparison.Ordinal) && ++uses > 1)
+            {
+                return true;
+            }
+        }
+
+        if (resolvedTarget is null)
+        {
+            return uses > 1;
+        }
+
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        {
+            if (string.Equals(story.PartName, storyPartName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            XDocument other = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
+            foreach (OoxmlRelationship relationship in package.GetRelationships(story.PartName, cancellationToken))
+            {
+                if (!string.Equals(relationship.ResolvedTarget, resolvedTarget, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (XElement blip in other.Descendants(OoxmlNs.A + "blip"))
+                {
+                    if (string.Equals((string?)blip.Attribute(OoxmlNs.R + "embed"), relationship.Id, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteInsertImageAfter(

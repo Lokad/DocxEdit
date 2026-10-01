@@ -383,6 +383,25 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliMediaSelectsPlacementById()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string extract = Path.Combine(temp.Path, "media");
+        CreateDocx(input);
+
+        CliResult result = RunCli("media", input, "--id", "M.I0001", "--extract", extract);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(Path.Combine(extract, "M.I0001-image1.png")));
+
+        CliResult missing = RunCli("media", input, "--id", "M.I0099");
+
+        Assert.NotEqual(0, missing.ExitCode);
+        Assert.Contains("E1201", missing.Output + missing.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public static void CliApplyCanResolveImageAssetFiles()
     {
         using TempDirectory temp = TempDirectory.Create();

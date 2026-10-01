@@ -1,6 +1,6 @@
 {
-  "id": "invalid-image-replacement",
-  "description": "Refuses replacing PNG media content with JPEG bytes with E5204.",
+  "id": "image-replacement-png-to-jpeg",
+  "description": "Replaces PNG media content with JPEG bytes, updating the media content type while preserving the drawing.",
   "input": {
     "bodyXml": [
       "    <w:p xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">",
@@ -42,13 +42,12 @@
     "end"
   ],
   "expect": {
-    "applySuccess": false,
-    "diagnosticCount": 1,
-    "diagnosticCodes": [
-      "E5204"
+    "diagnosticCount": 0,
+    "paragraphs": [
+      ""
     ],
-    "diagnosticMessagesContain": [
-      "is not supported for existing media part"
+    "images": [
+      "/word/media/image1.png"
     ]
   }
 }

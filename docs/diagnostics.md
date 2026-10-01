@@ -102,7 +102,6 @@ Common code ranges:
 - `E5201`: no asset provider is configured for image operation assets.
 - `E5202`: image asset could not be resolved.
 - `E5203`: image asset is not a supported PNG or JPEG image (missing signature, hint/content disagreement, or structural defect such as truncation).
-- `E5204`: replacing the image content type is not supported for existing media.
 - `E5205`: image lacks editable DrawingML (properties, crop, or anchored-only metadata).
 - `E5206`: invalid image width or height.
 - `E5207`: image asset exceeds the configured maximum single-part size.

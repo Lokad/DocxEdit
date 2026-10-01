@@ -493,7 +493,7 @@ public static class DocxHelp
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
         builder.AppendLine("append-column, insert-column-before, insert-column-after, and delete-column are recognized but fail with E4316 until table-column transforms are safely modeled.");
         builder.AppendLine("set-table-style, set-table-metadata, set-row-header, and set-cell-shading update table properties with explicit guards.");
-        builder.AppendLine("replace-image alt updates the image DrawingML description while replacing the media bytes.");
+        builder.AppendLine("replace-image swaps the selected placement to supplied PNG or JPEG bytes, isolating shared media per placement and preserving layout; replacement across PNG and JPEG updates the media content type.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("set-image-size updates DrawingML extents without replacing media bytes.");
         builder.AppendLine("set-image-wrap updates anchored DrawingML wrap mode and wrap distances.");

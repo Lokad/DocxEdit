@@ -112,13 +112,14 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 | `--strict` | Most commands | Return exit code `3` when warnings are present |
 | `--view final/original/markup` | Text reads and outline | Select how tracked inserted/deleted content is rendered |
 | `--max-text N` | Text reads | Limit body text per field in text and structured/JSON output (0 drops; IDs, counts, and structural metadata retained) |
-| `--headers-footers` | Read commands | Include modeled header and footer stories |
+| `--headers-footers` | Read commands and `media` | Include modeled header and footer stories |
 | `--report path` | `check`, `apply` | Write full operation report JSON |
 | `--track-changes mode` | `check`, `apply`, `capabilities`, `template` | Control generated revision markup (effective policy for capabilities and templates) |
 | `--author name` | `check`, `apply` | Author used for generated revisions |
 | `--timestamp-utc instant` | `check`, `apply` | ISO-8601 UTC timestamp for generated revisions (e.g. `2026-01-01T00:00:00Z`) |
 | `--max-preview-chars N` | `check`, `apply` | Bounded before/after preview text per operation report side (0 disables previews and keeps reports metadata-only) |
 | `--extract dir` | `media` | Extract embedded image parts to a directory |
+| `--id <image-id>` | `media` | Select a single discovered image placement for listing or extraction |
 | `--radius N` | `context` | Number of same-kind neighbors to include |
 | `--max-diagnostics N` | `validate` | Maximum diagnostics to return; default 500 |
 
@@ -251,6 +252,8 @@ cell, and section targets without printing raw OOXML or broad document text.
 | Sections | `read`, `outline` | Section operations target main-document section IDs |
 
 Image identifiers name drawing placements, not media parts: repeated use of one media part yields one identifier per placement. Drawings hidden from the Final view (deleted blocks and rows, block-level structured-document-tag content) own no identifier, so every published ID addresses exactly the drawing discovery describes.
+
+Image workflow: discover placements with `read --headers-footers` or `media --headers-footers`, extract original bytes with `media --extract <dir>` optionally narrowed by `--id`, process the files externally, then bring bytes back with a guarded `replace-image` (optionally swapping PNG and JPEG, which updates the media content type) or `insert-image-after`, and confirm with a readback. Replacement affects only the selected placement: shared media is isolated to fresh parts and relationships while exclusive media is updated in place, preserving size, wrapping, position, crop, and metadata unless explicitly changed. Removing a placement stays an explicit `delete-image` operation.
 
 For a full inventory of supported and unsupported shapes, see
 [status.md](status.md).

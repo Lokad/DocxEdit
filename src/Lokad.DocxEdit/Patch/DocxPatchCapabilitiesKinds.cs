@@ -1094,7 +1094,7 @@ internal static partial class DocxPatchEngine
         return new DocxOperationCapability(
             operation,
             "conditional",
-            "The asset must be readable and its content type must match the existing media part, otherwise check fails with E5204; an optional alt update needs editable DrawingML properties. Guards expect-content-type can assert the current media type. Check remains authoritative for the exact asset.",
+            "The asset must be readable PNG or JPEG bytes; the selected placement is retargeted to fresh media when it shares its part, otherwise the part is updated in place including a PNG or JPEG content-type change. An optional alt update needs editable DrawingML properties. Guards expect-content-type can assert the current media type. Check remains authoritative for the exact asset.",
             operation,
             null);
     }

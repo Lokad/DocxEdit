@@ -252,6 +252,41 @@ internal sealed class OoxmlPackage
         parsedDocuments.Remove(normalized);
     }
 
+    internal void ReplacePartBytesAndContentType(string partName, byte[] bytes, string contentType, CancellationToken cancellationToken)
+    {
+        string normalized = OoxmlPath.NormalizePartName(partName);
+        if (!parts.TryGetValue(normalized, out OoxmlPart? part))
+        {
+            throw new InvalidDataException($"OOXML part '{normalized}' does not exist.");
+        }
+
+        parts[normalized] = part with { Bytes = bytes, ContentType = contentType };
+        touchedPartNames.Add(normalized);
+        parsedDocuments.Remove(normalized);
+        using Stream stream = ContentTypesPart.OpenRead();
+        XDocument document = SafeXml.Load(stream, cancellationToken);
+        XElement? root = document.Root
+            ?? throw new InvalidDataException("Content types part has no XML root.");
+        XElement? existing = root
+            .Elements(OoxmlNs.Ct + "Override")
+            .FirstOrDefault(element => string.Equals((string?)element.Attribute("PartName"), normalized, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.SetAttributeValue("ContentType", contentType);
+        }
+        else
+        {
+            root.Add(new XElement(
+                OoxmlNs.Ct + "Override",
+                new XAttribute("PartName", normalized),
+                new XAttribute("ContentType", contentType)));
+        }
+
+        using var output = new MemoryStream();
+        document.Save(output, SaveOptions.DisableFormatting);
+        ReplacePartBytes("/[Content_Types].xml", output.ToArray());
+    }
+
     // D01: snapshot bookkeeping must not mark otherwise-untouched parts as edited.
     // Capture annotates story parts transiently; untouched parts are restored
     // byte-identical afterwards so output preserves original bytes.

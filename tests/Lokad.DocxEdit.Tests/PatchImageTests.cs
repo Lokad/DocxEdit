@@ -1939,6 +1939,127 @@ public static class PatchImageTests
         Assert.Contains(missing.Diagnostics, static diagnostic => diagnostic.Code == "E1201");
     }
 
+    [Fact]
+    public static void SharedReplaceIsolatesSelectedPlacement()
+    {
+        using MemoryStream baselineInput = CreateDocxWithSharedHeaderMedia();
+        DocxMediaExtractResult baseline = new DocxEditor().ExtractMedia(baselineInput, new DocxMediaOptions { IncludeHeadersFooters = true });
+        Assert.True(baseline.Success);
+        Assert.Equal(3, baseline.Files.Count);
+        byte[] sharedBefore = baseline.Files[0].Content;
+        byte[] uniqueBefore = baseline.Files[2].Content;
+
+        const string patchText = """
+            docxpatch 1
+
+            op replace-image
+            target H001.I0001
+            asset new.png
+            end
+            """;
+        var assets = new MemoryAssetProvider("new.png", CreatePngBytes(4, 3), null, "new.png");
+        using MemoryStream checkInput = CreateDocxWithSharedHeaderMedia();
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocxWithSharedHeaderMedia();
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        applyOutput.Position = 0;
+        DocxMediaExtractResult after = new DocxEditor().ExtractMedia(applyOutput, new DocxMediaOptions { IncludeHeadersFooters = true });
+        Assert.True(after.Success);
+        Assert.Equal(3, after.Files.Count);
+        Assert.Equal(sharedBefore, after.Files[0].Content);
+        Assert.Equal(CreatePngBytes(4, 3), after.Files[1].Content);
+        Assert.Equal(uniqueBefore, after.Files[2].Content);
+
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Equal("MainShared", read.Images[0].Description);
+        Assert.Equal("HeaderShared", read.Images[1].Description);
+        Assert.Equal("HeaderUnique", read.Images[2].Description);
+    }
+
+    [Fact]
+    public static void PngToJpegReplacementUpdatesContentType()
+    {
+        const string patchText = """
+            docxpatch 1
+
+            op replace-image
+            target M.I0001
+            asset photo.jpeg
+            end
+            """;
+        var assets = new MemoryAssetProvider("photo.jpeg", CreateJpegBytes(4, 3), null, "photo.jpeg");
+        using MemoryStream checkInput = CreateDocxWithImage("png", "image/png", "old-png");
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocxWithImage("png", "image/png", "old-png");
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        applyOutput.Position = 0;
+        Assert.Equal(CreateJpegBytes(4, 3), ReadEntryBytes(applyOutput, "word/media/image1.png"));
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput);
+        Assert.True(read.Success);
+        Assert.Equal("image/jpeg", Assert.Single(read.Images).ContentType);
+        Assert.Equal("Old chart", Assert.Single(read.Images).Description);
+    }
+
+    [Fact]
+    public static void ExtractReplaceInsertWorkflowPreservesBytes()
+    {
+        byte[] published = CreatePngBytes(4, 3);
+        var seedAssets = new MemoryAssetProvider("seed.png", published, null, "seed.png");
+        using MemoryStream seed = CreateDocx("Seed paragraph.");
+        using var seeded = new MemoryStream();
+        using var seedPatch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset seed.png
+            end
+            """);
+        Assert.True(new DocxEditor().Apply(seed, seedPatch, seeded, new DocxEditOptions { AssetProvider = seedAssets }).Success);
+        seeded.Position = 0;
+        DocxMediaExtractResult extracted = new DocxEditor().ExtractMedia(seeded);
+        Assert.True(extracted.Success);
+        Assert.Equal(published, Assert.Single(extracted.Files).Content);
+
+        var roundTripAssets = new MemoryAssetProvider("roundtrip.png", published, null, "roundtrip.png");
+        using MemoryStream target = CreateDocx("Target paragraph.");
+        using var output = new MemoryStream();
+        using var patch = new StringReader("""
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset roundtrip.png
+            end
+            """);
+        DocxApplyResult apply = new DocxEditor().Apply(target, patch, output, new DocxEditOptions { AssetProvider = roundTripAssets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        output.Position = 0;
+        DocxMediaExtractResult inserted = new DocxEditor().ExtractMedia(output);
+        Assert.True(inserted.Success);
+        DocxMediaFile file = Assert.Single(inserted.Files);
+        Assert.Equal(published, file.Content);
+    }
+
+
+
 
 
 }
