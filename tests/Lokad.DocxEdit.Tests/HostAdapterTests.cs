@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 using static Lokad.DocxEdit.Tests.DocxTestFixtures;
 
 namespace Lokad.DocxEdit.Tests;
@@ -19,7 +21,11 @@ public static class HostAdapterTests
         public long ActualVersion { get; } = actual;
     }
 
-    private sealed record CommitRecord(long Version, DocxApplyResult Result, string PatchText);
+    // Immutable request identity for idempotent retry: the expected input
+    // version, patch text, effective editing policy, and asset fingerprints.
+    // TimestampUtc is deliberately excluded: replays return the originally
+    // committed bytes, so the outcome is identical either way.
+    private sealed record CommitRecord(long BasisVersion, long Version, DocxApplyResult Result, string PatchText, TrackChangesMode Policy, string Author, string AssetPrints);
 
     private sealed class VersionedDocumentStore
     {
@@ -78,9 +84,11 @@ public static class HostAdapterTests
                     && commitsByHandle.TryGetValue(handle, out Dictionary<string, CommitRecord>? prior)
                     && prior.TryGetValue(requestId, out CommitRecord? record))
                 {
-                    if (!string.Equals(record.PatchText, patchText, StringComparison.Ordinal))
+                    // Side-effect free replay path: the bytes were already committed,
+                    // so the stored outcome returns without consulting cancellation.
+                    if (!RequestIdentityMatches(record, expectedVersion, patchText, options))
                     {
-                        throw new InvalidOperationException($"Request {requestId} was already committed with different patch text.");
+                        throw new InvalidOperationException($"Request {requestId} was already committed with a different request.");
                     }
 
                     return record.Result;
@@ -103,15 +111,18 @@ public static class HostAdapterTests
 
             lock (gate)
             {
-                long current = GuardVersion(handle, expectedVersion);
-                if (current != expectedVersion)
+                if (requestId is not null
+                    && commitsByHandle.TryGetValue(handle, out Dictionary<string, CommitRecord>? raced)
+                    && raced.TryGetValue(requestId, out CommitRecord? committed)
+                    && RequestIdentityMatches(committed, expectedVersion, patchText, options))
                 {
-                    throw new StaleVersionException(expectedVersion, current);
+                    return committed.Result;
                 }
 
+                GuardVersion(handle, expectedVersion);
+                cancellationToken.ThrowIfCancellationRequested();
                 versionsByHandle[handle].Add(staged.ToArray());
                 long published = versionsByHandle[handle].Count - 1;
-                DocxApplyResult published_result = result;
                 if (requestId is not null)
                 {
                     if (!commitsByHandle.TryGetValue(handle, out Dictionary<string, CommitRecord>? perHandle))
@@ -120,7 +131,8 @@ public static class HostAdapterTests
                         commitsByHandle[handle] = perHandle;
                     }
 
-                    perHandle[requestId] = new CommitRecord(published, published_result, patchText);
+                    DocxEditOptions effective = options ?? new DocxEditOptions();
+                    perHandle[requestId] = new CommitRecord(expectedVersion, published, result, patchText, effective.TrackChanges, effective.Author, FingerprintAssets(patchText, options));
                 }
             }
 
@@ -150,8 +162,64 @@ public static class HostAdapterTests
                     throw new InvalidOperationException("Unknown document handle.");
                 }
 
-                return versions;
+                return new List<byte[]>(versions);
             }
+        }
+
+        private static bool RequestIdentityMatches(CommitRecord record, long expectedVersion, string patchText, DocxEditOptions? options)
+        {
+            DocxEditOptions effective = options ?? new DocxEditOptions();
+            return record.BasisVersion == expectedVersion
+                && string.Equals(record.PatchText, patchText, StringComparison.Ordinal)
+                && record.Policy == effective.TrackChanges
+                && string.Equals(record.Author, effective.Author, StringComparison.Ordinal)
+                && string.Equals(record.AssetPrints, FingerprintAssets(patchText, options), StringComparison.Ordinal);
+        }
+
+        private static string FingerprintAssets(string patchText, DocxEditOptions? options)
+        {
+            var names = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (string line in patchText.Split("\n"))
+            {
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith("asset ", StringComparison.Ordinal))
+                {
+                    names.Add(trimmed.Substring(6).Trim());
+                }
+            }
+
+            var parts = new List<string>();
+            foreach (string name in names)
+            {
+                string digest = "no-provider";
+                if (options?.AssetProvider is { } provider)
+                {
+                    try
+                    {
+                        if (provider.TryOpen(name, out Stream stream, out string? hint, out string? file))
+                        {
+                            using (stream)
+                            using (var memory = new MemoryStream())
+                            {
+                                stream.CopyTo(memory);
+                                digest = Convert.ToHexString(SHA256.HashData(memory.ToArray()));
+                            }
+                        }
+                        else
+                        {
+                            digest = "unresolved";
+                        }
+                    }
+                    catch
+                    {
+                        digest = "unreadable";
+                    }
+                }
+
+                parts.Add(name + "=" + digest);
+            }
+
+            return string.Join(";", parts);
         }
     }
 
@@ -354,12 +422,75 @@ public static class HostAdapterTests
     }
 
     [Fact]
-    public static void ReferenceDeclaresTestedLibraryContract()
+    public static void ReferenceSurfacesLibraryToolVersion()
     {
-        System.Reflection.AssemblyName name = typeof(DocxEditor).Assembly.GetName();
-        Assert.Equal("Lokad.DocxEdit", name.Name);
-        Assert.NotNull(name.Version);
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        DocxApplyResult result = store.Apply(handle, 0, "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n");
+        Assert.True(result.Success);
+        Assert.Equal(typeof(DocxEditor).Assembly.GetName().Version?.ToString() ?? "unknown", result.ToolVersion);
     }
+
+    [Fact]
+    public static void CancellationAtPublicationPublishesNothing()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        using var cancelled = new CancellationTokenSource();
+        Assert.Throws<OperationCanceledException>(() =>
+            store.Apply(
+                handle,
+                0,
+                "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n",
+                cancellationToken: cancelled.Token,
+                onStaged: () => cancelled.Cancel()));
+        Assert.Equal(0, store.CurrentVersion(handle));
+        Assert.Equal(["Alpha"], ReadParagraphs(store.Snapshot(handle, 0)));
+    }
+
+    [Fact]
+    public static void ReusedRequestWithDifferentPolicyConflicts()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string patch = "docxpatch 1\n\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n";
+        Assert.True(store.Apply(handle, 0, patch, requestId: "req-policy").Success);
+        Assert.Throws<InvalidOperationException>(() =>
+            store.Apply(handle, 0, patch, new DocxEditOptions { TrackChanges = TrackChangesMode.Require }, requestId: "req-policy"));
+        Assert.Equal(1, store.CurrentVersion(handle));
+        Assert.Equal(["Beta"], ReadParagraphs(store.Snapshot(handle, 1)));
+    }
+
+    [Fact]
+    public static void ReusedRequestWithDifferentAssetsConflicts()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string patch = "docxpatch 1\n\nop insert-image-after\ntarget M.P0001\nasset art.png\nend\n";
+        var first = new DocxEditOptions { AssetProvider = new MemoryAssetProvider("art.png", CreatePngBytes(4, 3), null, "art.png") };
+        var second = new DocxEditOptions { AssetProvider = new MemoryAssetProvider("art.png", CreatePngBytes(5, 6), null, "art.png") };
+        Assert.True(store.Apply(handle, 0, patch, first, requestId: "req-asset").Success);
+        Assert.Throws<InvalidOperationException>(() => store.Apply(handle, 0, patch, second, requestId: "req-asset"));
+        Assert.Equal(1, store.CurrentVersion(handle));
+    }
+
+    [Fact]
+    public static void ReentrantMatchingCommitPublishesOnce()
+    {
+        var store = new VersionedDocumentStore();
+        string handle = store.Ingest(SeedBytes("Alpha"));
+        const string patch = "docxpatch 1\n\nop insert-after\ntarget M.P0001\ntext Gamma\nend\n";
+        DocxApplyResult outer = store.Apply(
+            handle,
+            0,
+            patch,
+            requestId: "req-reentrant",
+            onStaged: () => Assert.True(store.Apply(handle, 0, patch, requestId: "req-reentrant").Success));
+        Assert.True(outer.Success);
+        Assert.Equal(1, store.CurrentVersion(handle));
+        Assert.Equal(["Alpha", "Gamma"], ReadParagraphs(store.Snapshot(handle, 1)));
+    }
+
 
 
 }
