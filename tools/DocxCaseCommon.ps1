@@ -228,6 +228,9 @@ function New-SanitizedChallengeSummary([object] $Summary) {
         UsedCheck = [bool](Get-ObjectProperty $metrics "UsedCheck")
         UsedApply = [bool](Get-ObjectProperty $metrics "UsedApply")
         UsedForbiddenDocxInspection = [bool](Get-ObjectProperty $metrics "UsedForbiddenDocxInspection")
+        TaskCompleted = Get-ObjectProperty $Summary "TaskCompleted"
+        Verdict = [string](Get-ObjectProperty $Summary "Verdict")
+        FailureReasons = @((Get-ObjectProperty $Summary "FailureReasons") | ForEach-Object { [string]$_ })
         OutputDocxCount = @((Get-ObjectProperty $Summary "OutputDocx")).Count
         PostChecks = $postChecks
     }
@@ -259,5 +262,106 @@ function New-SanitizedPrivateCaseSummary([object] $Summary, [string] $CaseKey) {
         DiagnosticCodes = $diagnosticCodes
         DiagnosticCount = @((Get-ObjectProperty $Summary "Diagnostics")).Count
         AggregateFailures = @((Get-ObjectProperty $Summary "AggregateFailures"))
+    }
+}
+
+function Read-FinalResponse([string] $FinalPath, [bool] $UseOutputSchema) {
+    if (-not $UseOutputSchema) {
+        return [pscustomobject]@{ Final = $null; ParseError = "unstructured-final" }
+    }
+
+    if (-not (Test-Path -LiteralPath $FinalPath)) {
+        return [pscustomobject]@{ Final = $null; ParseError = "final-missing" }
+    }
+
+    try {
+        $parsed = Get-Content -LiteralPath $FinalPath -Raw | ConvertFrom-Json
+    } catch {
+        return [pscustomobject]@{ Final = $null; ParseError = "final-unparseable" }
+    }
+
+    if ((Get-ObjectProperty $parsed "completed") -isnot [bool]) {
+        return [pscustomobject]@{ Final = $null; ParseError = "final-invalid" }
+    }
+
+    return [pscustomobject]@{ Final = $parsed; ParseError = $null }
+}
+
+function Get-ChallengeOutcome([bool] $ProcessOk, [object] $Final, [string] $FinalParseError, [bool] $RequiresOutput, [string] $Applicability, [string[]] $OutputDocx, [object[]] $PostChecks, [bool] $InputModified, [bool] $ForbiddenInspection, [int] $CommandCount, [bool] $UsedDocxEdit) {
+    $reasons = [System.Collections.Generic.List[string]]::new()
+    if (-not $ProcessOk) {
+        $reasons.Add("process-failed")
+    }
+
+    $taskCompleted = $null
+    $declaredOutput = $null
+    if ($null -ne $Final) {
+        $taskCompleted = [bool](Get-ObjectProperty $Final "completed")
+        $declaredOutput = Get-ObjectProperty $Final "output_docx"
+        if (-not $taskCompleted) {
+            $reasons.Add("final-incomplete")
+        }
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($FinalParseError)) {
+        $reasons.Add($FinalParseError)
+    }
+
+    $outputNames = @($OutputDocx)
+    if ($RequiresOutput) {
+        if ($outputNames.Count -eq 0) {
+            $reasons.Add("no-output")
+        }
+        elseif ($null -ne $declaredOutput -and -not ($outputNames -contains $declaredOutput)) {
+            $reasons.Add("output-mismatch")
+        }
+    }
+
+    foreach ($post in @($PostChecks)) {
+        if ([int](Get-ObjectProperty $post "ReadExitCode") -ne 0 -or [int](Get-ObjectProperty $post "ChangesExitCode") -ne 0) {
+            $reasons.Add("postcheck-failed")
+            break
+        }
+    }
+
+    if ($InputModified) {
+        $reasons.Add("input-mutated")
+    }
+
+    if ($ForbiddenInspection) {
+        $reasons.Add("forbidden-inspection")
+    }
+
+    $distinct = @($reasons | Sort-Object -Unique)
+    if ($null -eq $Final -and $ProcessOk) {
+        return [pscustomobject]@{
+            Verdict = "unevaluated"
+            TaskCompleted = $null
+            FailureReasons = $distinct
+        }
+    }
+
+    if ($distinct.Count -eq 0) {
+        return [pscustomobject]@{
+            Verdict = "passed"
+            TaskCompleted = $taskCompleted
+            FailureReasons = @()
+        }
+    }
+
+    if ($taskCompleted -eq $false -and $outputNames.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($Applicability) -and $UsedDocxEdit -and $CommandCount -gt 0) {
+        $benign = @($distinct | Where-Object { $_ -eq "final-incomplete" -or $_ -eq "no-output" })
+        if ($benign.Count -eq $distinct.Count) {
+            return [pscustomobject]@{
+                Verdict = "not-applicable"
+                TaskCompleted = $false
+                FailureReasons = @("feature-absent")
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Verdict = "failed"
+        TaskCompleted = $taskCompleted
+        FailureReasons = $distinct
     }
 }

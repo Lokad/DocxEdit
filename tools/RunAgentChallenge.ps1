@@ -260,6 +260,11 @@ function New-ChallengePrompt([object] $Manifest, [string] $RunDirectory, [string
     }
     [void] $lines.Add("")
     [void] $lines.Add("Output document required: $requiresOutput")
+    $applicability = [string] (Get-ObjectProperty $Manifest "applicability")
+    if (-not [string]::IsNullOrWhiteSpace($applicability)) {
+        [void] $lines.Add("Applicability:")
+        [void] $lines.Add("- $applicability")
+    }
     if ($UseOutputSchema) {
         [void] $lines.Add("Final response must match the provided JSON schema. Keep all fields private-text-free.")
     }
@@ -556,11 +561,18 @@ $metrics = [pscustomobject]@{
 }
 
 $outputDocx = @(Get-ChildItem -LiteralPath $runDirectory -Filter "*.docx" -File | Where-Object { $_.Name -ne "input.docx" } | ForEach-Object { $_.Name } | Sort-Object)
+$finalResult = Read-FinalResponse $finalPath $useOutputSchema
+$manifestApplicability = [string] (Get-ObjectProperty $manifest "applicability")
+$manifestRequiresOutput = [bool] (Get-ObjectProperty $manifest "requiresOutputDocx")
+$outcome = Get-ChallengeOutcome -ProcessOk ($run.ExitCode -eq 0 -and -not $run.TimedOut) -Final $finalResult.Final -FinalParseError $finalResult.ParseError -RequiresOutput $manifestRequiresOutput -Applicability $manifestApplicability -OutputDocx $outputDocx -PostChecks $postChecks -InputModified ($inputHashBefore -ne $inputHashAfter) -ForbiddenInspection $metrics.UsedForbiddenDocxInspection -CommandCount $metrics.CommandCount -UsedDocxEdit $metrics.UsedDocxEdit
 $summary = [pscustomobject]@{
     ChallengeId = $challengeId
     Title = [string] (Get-ObjectProperty $manifest "title")
     RunId = $runId
-    Success = ($run.ExitCode -eq 0 -and -not $run.TimedOut)
+    Success = ($outcome.Verdict -eq "passed")
+    TaskCompleted = $outcome.TaskCompleted
+    Verdict = $outcome.Verdict
+    FailureReasons = $outcome.FailureReasons
     ExitCode = $run.ExitCode
     TimedOut = $run.TimedOut
     Sandbox = $Sandbox
@@ -603,8 +615,9 @@ Write-Host "sanitized-artifact: $(Get-RepoRelativePath $publicSummaryPath)"
 Write-Host "codex: exit=$($run.ExitCode) timedOut=$($run.TimedOut) thread=$($events.ThreadId)"
 Write-Host "commands: count=$($metrics.CommandCount) docxedit=$($metrics.UsedDocxEdit) changes=$($metrics.UsedChanges) check=$($metrics.UsedCheck) apply=$($metrics.UsedApply) forbidden-docx-inspection=$($metrics.UsedForbiddenDocxInspection)"
 Write-Host "output-docx: $($outputDocx.Count)"
+Write-Host "verdict: $($outcome.Verdict) reasons: $($outcome.FailureReasons -join ",")"
 Write-Host "input-copy-modified: $($summary.InputCopyModified)"
 
-if ($run.ExitCode -ne 0 -or $run.TimedOut) {
+if ($outcome.Verdict -ne "passed") {
     exit 1
 }
