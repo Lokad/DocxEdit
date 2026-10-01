@@ -63,7 +63,8 @@ internal sealed record TableOperationSnapshot(
     int? CellCount,
     int? GridBefore,
     int? GridAfter,
-    IReadOnlyList<TableCellSnapshot> Cells);
+    IReadOnlyList<TableCellSnapshot> Cells,
+    string? CreationMark = null);
 
 internal sealed record TableCellSnapshot(
     int ColumnIndex,

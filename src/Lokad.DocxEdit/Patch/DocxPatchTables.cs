@@ -24,7 +24,8 @@ internal static partial class DocxPatchEngine
         {
             "set-cell" or "set-cell-shading" or "replace-text" => CaptureCellSnapshot(package, target, cancellationToken),
             "append-row" => CaptureTableSnapshot(package, target, cancellationToken),
-            "insert-row-before" or "insert-row-after" or "delete-row" => CaptureRowSnapshot(package, target, cancellationToken),
+            "insert-row-before" or "insert-row-after" => CaptureInsertAnchorSnapshot(package, target, cancellationToken),
+            "delete-row" or "set-row-header" => CaptureRowSnapshot(package, target, cancellationToken),
             _ => null
         };
     }
@@ -37,14 +38,43 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
-        XElement[] rows = cellTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
+        if (!DocxTargetId.TryParse(target, out DocxTargetId cellId) ||
+            cellId.Kind is not (DocxTargetKind.Cell or DocxTargetKind.MergeGroup))
+        {
+            return null;
+        }
+
         XElement[] cells = cellTarget.Row.Elements(OoxmlNs.W + "tc").ToArray();
-        int rowIndex = Array.IndexOf(rows, cellTarget.Row) + 1;
-        int columnIndex = cellTarget.VisualColumnIndex;
-        return CreateTableOperationSnapshot(target, cellTarget.Table, rowIndex, columnIndex, cells.Length, cellTarget.Row);
+        (int historicalRow, int historicalColumn) = HistoricalCellIndex(cellId, cellTarget);
+        return CreateTableOperationSnapshot(cellId, cellTarget.Table, historicalRow, historicalColumn, cells.Length, cellTarget.Row);
     }
 
     private static TableOperationSnapshot? CaptureRowSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
+    {
+        if (IsAliasReference(target))
+        {
+            return CreateAliasRowSnapshot(package, target, cancellationToken);
+        }
+
+        RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+        if (rowTarget is null)
+        {
+            return null;
+        }
+
+        if (!DocxTargetId.TryParse(target, out DocxTargetId rowId) || rowId.Kind != DocxTargetKind.Row)
+        {
+            return null;
+        }
+
+        int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
+        return CreateTableOperationSnapshot(rowId, rowTarget.Table, rowId.Secondary, columnIndex: null, cellCount, rowTarget.Row);
+    }
+
+    // Insertion anchors report in operation-time space: the new row lands at
+    // the anchor live position, so the anchor index and the table identity
+    // are both measured live. Explicit and alias anchors share this path.
+    private static TableOperationSnapshot? CaptureInsertAnchorSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
     {
         RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
         if (rowTarget is null)
@@ -52,10 +82,144 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
+        DocxTargetId? liveTable = LiveTableId(package, rowTarget.PartName, rowTarget.Document, rowTarget.Table, cancellationToken);
+        if (liveTable is null)
+        {
+            return null;
+        }
+
         XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
-        int rowIndex = Array.IndexOf(rows, rowTarget.Row) + 1;
+        int liveRowIndex = Array.IndexOf(rows, rowTarget.Row) + 1;
+        if (liveRowIndex < 1)
+        {
+            return null;
+        }
+
         int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
-        return CreateTableOperationSnapshot(target, rowTarget.Table, rowIndex, columnIndex: null, cellCount, rowTarget.Row);
+        return CreateTableOperationSnapshot(
+            liveTable.Value with { Kind = DocxTargetKind.Row, Secondary = liveRowIndex },
+            rowTarget.Table,
+            liveRowIndex,
+            columnIndex: null,
+            cellCount,
+            rowTarget.Row);
+    }
+
+    // Alias rows carry their own provenance. Created rows report in
+    // operation-time space with their creation mark; snapshot-only rows fall
+    // back to their historical identity.
+    private static TableOperationSnapshot? CreateAliasRowSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
+    {
+        RowTarget? rowTarget = ResolveAliasRowTarget(package, target, cancellationToken);
+        if (rowTarget is null)
+        {
+            return null;
+        }
+
+        string? creationMark = (string?)rowTarget.Row.Attribute(SnapshotCreatedName);
+        int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
+
+        if (creationMark is null)
+        {
+            string? snapshotId = (string?)rowTarget.Row.Attribute(SnapshotIdName);
+            if (snapshotId is null || !DocxTargetId.TryParse(snapshotId, out DocxTargetId historical) || historical.Kind != DocxTargetKind.Row)
+            {
+                return null;
+            }
+
+            return CreateTableOperationSnapshot(historical, rowTarget.Table, historical.Secondary, columnIndex: null, cellCount, rowTarget.Row);
+        }
+
+        DocxTargetId? liveTable = LiveTableId(package, rowTarget.PartName, rowTarget.Document, rowTarget.Table, cancellationToken);
+        if (liveTable is null)
+        {
+            return null;
+        }
+
+        XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
+        int liveRowIndex = Array.IndexOf(rows, rowTarget.Row) + 1;
+        if (liveRowIndex < 1)
+        {
+            return null;
+        }
+
+        TableOperationSnapshot? maybeSnapshot = CreateTableOperationSnapshot(
+            liveTable.Value with { Kind = DocxTargetKind.Row, Secondary = liveRowIndex },
+            rowTarget.Table,
+            liveRowIndex,
+            columnIndex: null,
+            cellCount,
+            rowTarget.Row);
+        if (maybeSnapshot is null)
+        {
+            return null;
+        }
+
+        return maybeSnapshot with { CreationMark = creationMark };
+    }
+
+    private static DocxTargetId? LiveTableId(OoxmlPackage package, string partName, XDocument document, XElement table, CancellationToken cancellationToken)
+    {
+        if (!DocxPartRoles.GetStoryPrefixes(package, cancellationToken).TryGetValue(partName, out string? prefix))
+        {
+            return null;
+        }
+
+        int? liveOrdinal = PhysicalTableOrdinal(document, table);
+        if (liveOrdinal is null)
+        {
+            return null;
+        }
+
+        (char story, int storyPart) = DocxTargetId.ParseStoryPrefix(prefix);
+        return new DocxTargetId(story, storyPart, DocxTargetKind.Table, liveOrdinal.Value, 0, 0);
+    }
+
+    private static int? PhysicalTableOrdinal(XDocument document, XElement table)
+    {
+        XElement? root = document.Root;
+        if (root is null)
+        {
+            return null;
+        }
+
+        XElement container = root.Element(OoxmlNs.W + "body") ?? root;
+        int ordinal = 0;
+        foreach (DocxStoryBlocks.StoryBlock entry in DocxStoryBlocks.EnumeratePhysicalBlocks(container))
+        {
+            if (entry.Block.Name != OoxmlNs.W + "tbl")
+            {
+                continue;
+            }
+
+            ordinal++;
+            if (ReferenceEquals(entry.Block, table))
+            {
+                return ordinal;
+            }
+        }
+
+        return null;
+    }
+
+    // Input-space indexes for explicitly addressed cells: the parsed cell ID names
+    // the historical row and visual column. Merge-group targets resolve to their
+    // root cell, whose row carries the historical row mark.
+    private static (int rowIndex, int columnIndex) HistoricalCellIndex(DocxTargetId cellId, CellTarget cellTarget)
+    {
+        if (cellId.Kind == DocxTargetKind.Cell)
+        {
+            return (cellId.Secondary, cellId.Tertiary);
+        }
+
+        string? rootSnapshot = (string?)cellTarget.Row.Attribute(SnapshotIdName);
+        if (rootSnapshot is not null && DocxTargetId.TryParse(rootSnapshot, out DocxTargetId rootId) && rootId.Kind == DocxTargetKind.Row)
+        {
+            return (rootId.Secondary, cellTarget.VisualColumnIndex);
+        }
+
+        XElement[] liveRows = cellTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
+        return (Array.IndexOf(liveRows, cellTarget.Row) + 1, cellTarget.VisualColumnIndex);
     }
 
     private static TableOperationSnapshot? CaptureTableSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
@@ -66,28 +230,30 @@ internal static partial class DocxPatchEngine
             return null;
         }
 
+        if (!DocxTargetId.TryParse(target, out DocxTargetId tableId) || tableId.Kind != DocxTargetKind.Table)
+        {
+            return null;
+        }
+
+        // Appended rows report in operation-time space, so the table identity is
+        // measured live: earlier table deletions can renumber it.
+        DocxTargetId liveTable = LiveTableId(package, tableTarget.PartName, tableTarget.Document, tableTarget.Table, cancellationToken) ?? tableId;
+
         XElement? templateRow = tableTarget.Table.Elements(OoxmlNs.W + "tr").LastOrDefault();
-        return CreateTableOperationSnapshot(target, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null, templateRow);
+        return CreateTableOperationSnapshot(liveTable, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null, templateRow);
     }
 
     private static TableOperationSnapshot? CreateTableOperationSnapshot(
-        string target,
+        DocxTargetId resolvedId,
         XElement table,
         int? rowIndex,
         int? columnIndex,
         int? cellCount,
         XElement? row)
     {
-        if (IsAliasReference(target))
-        {
-            return null;
-        }
-
-        if (!DocxTargetId.TryParse(target, out DocxTargetId resolved))
-        {
-            throw new InvalidDataException("Table snapshot requires the resolved explicit target.");
-        }
-
+        // Counts and grid offsets always describe live execution state. Identity
+        // and row/column indexes arrive in report-space provenance from the
+        // caller: historical for explicit targets, live for created anchors.
         int rowCount = table.Elements(OoxmlNs.W + "tr").Count();
         int columnCount = TryGetConsistentVisualColumnCount(table, out int visualColumnCount)
             ? visualColumnCount
@@ -96,8 +262,8 @@ internal static partial class DocxPatchEngine
         int? gridAfter = row is null ? null : DocxTableGrid.ReadGridOffset(row, "gridAfter");
         IReadOnlyList<TableCellSnapshot> cells = row is null
             ? []
-            : CreateTableCellSnapshots(resolved.TableId, table, row, rowIndex);
-        return new TableOperationSnapshot(resolved, rowIndex, columnIndex, rowCount, columnCount, cellCount, gridBefore, gridAfter, cells);
+            : CreateTableCellSnapshots(resolvedId.TableId, table, row, rowIndex);
+        return new TableOperationSnapshot(resolvedId, rowIndex, columnIndex, rowCount, columnCount, cellCount, gridBefore, gridAfter, cells);
     }
 
     private static IReadOnlyList<TableCellSnapshot> CreateTableCellSnapshots(
@@ -232,6 +398,7 @@ internal static partial class DocxPatchEngine
                 "insert-row-before" => BuildInsertedRowAffectedTargets(operation, before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
                 "insert-row-after" => BuildInsertedRowAffectedTargets(operation, before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
                 "delete-row" => BuildDeletedRowAffectedTargets(before),
+                "set-row-header" => BuildRowUpdateAffectedTargets(before),
                 _ => []
             };
         }
@@ -348,6 +515,8 @@ internal static partial class DocxPatchEngine
         {
             new(before.ResolvedTarget, "row", "delete")
             {
+                CreationMark = before.CreationMark,
+                Coordinate = before.CreationMark is null ? "input" : "operation-time",
                 ParentId = before.ResolvedTarget.TableId,
                 RowIndex = rowIndex,
                 RowCountBefore = before.RowCountBefore,
@@ -362,6 +531,8 @@ internal static partial class DocxPatchEngine
         {
             affected.Add(new DocxPatchAffectedTarget(before.ResolvedTarget with { Kind = DocxTargetKind.Cell, Tertiary = cell.ColumnIndex }, "cell", "delete")
             {
+                CreationMark = before.CreationMark,
+                Coordinate = before.CreationMark is null ? "input" : "operation-time",
                 ParentId = before.ResolvedTarget,
                 RowIndex = rowIndex,
                 ColumnIndex = cell.ColumnIndex,
@@ -375,6 +546,24 @@ internal static partial class DocxPatchEngine
         }
 
         return affected;
+    }
+
+    private static IReadOnlyList<DocxPatchAffectedTarget> BuildRowUpdateAffectedTargets(TableOperationSnapshot before)
+    {
+        return
+        [
+            new(before.ResolvedTarget, "row", "update")
+            {
+                CreationMark = before.CreationMark,
+                Coordinate = before.CreationMark is null ? "input" : "operation-time",
+                FinalId = before.ResolvedTarget,
+                ParentId = before.ResolvedTarget.TableId,
+                RowIndex = before.RowIndex,
+                RowCountBefore = before.RowCountBefore,
+                RowCountAfter = before.RowCountBefore,
+                ColumnCount = before.ColumnCount
+            }
+        ];
     }
 
     private static IReadOnlyList<DocxDiagnostic> ExecuteSetCell(

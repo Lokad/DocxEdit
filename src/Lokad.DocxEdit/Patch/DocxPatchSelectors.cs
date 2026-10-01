@@ -272,41 +272,6 @@ internal static partial class DocxPatchEngine
                 return new DocxTargetId(bookmarkStory, bookmarkPart, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
             }
 
-            if (operation.OperationName is "insert-row-before" or "insert-row-after" or "delete-row" or "set-row-header")
-            {
-                RowTarget? rowAlias = ResolveAliasRowTarget(package, target, cancellationToken);
-                if (rowAlias is null)
-                {
-                    return null;
-                }
-
-                createdMark = (string?)rowAlias.Row.Attribute(SnapshotCreatedName);
-                string? rowTableSnapshot = (string?)rowAlias.Table.Attribute(SnapshotIdName);
-                if (rowTableSnapshot is null || !DocxTargetId.TryParse(rowTableSnapshot, out DocxTargetId aliasTableId))
-                {
-                    return null;
-                }
-
-                int rowOrdinal = 0;
-                int rowIndex = 0;
-                foreach (XElement rowElement in rowAlias.Table.Elements(OoxmlNs.W + "tr"))
-                {
-                    rowIndex++;
-                    if (ReferenceEquals(rowElement, rowAlias.Row))
-                    {
-                        rowOrdinal = rowIndex;
-                        break;
-                    }
-                }
-
-                if (rowOrdinal < 1)
-                {
-                    return null;
-                }
-
-                return aliasTableId with { Kind = DocxTargetKind.Row, Secondary = rowOrdinal };
-            }
-
             if (operation.OperationName is "replace-text" or "replace-paragraph" or "set-style" or "delete-block" or "insert-before" or "insert-after")
             {
                 ParagraphTarget? aliasCapture = ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out _);
