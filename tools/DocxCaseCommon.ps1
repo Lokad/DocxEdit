@@ -79,10 +79,28 @@ function ConvertTo-ProcessArgument([string] $Argument) {
     return '"' + $escaped + '"'
 }
 
+function Get-CaptureRemainingMs([DateTime] $Deadline) {
+    if ($Deadline -eq [DateTime]::MaxValue) {
+        return 2147483647
+    }
+
+    $remaining = [int](($Deadline - [DateTime]::UtcNow).TotalMilliseconds)
+    if ($remaining -lt 0) {
+        return 0
+    }
+
+    return $remaining
+}
+
 function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [int] $TimeoutSeconds = 0, [string] $WorkingDirectory = "", [string] $StandardInput = $null) {
     $directory = $WorkingDirectory
     if ([string]::IsNullOrWhiteSpace($directory)) {
         $directory = $RepoRoot
+    }
+
+    $deadline = [DateTime]::MaxValue
+    if ($TimeoutSeconds -gt 0) {
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     }
 
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -100,50 +118,75 @@ function Invoke-ProcessCapture([string] $FileName, [string[]] $Arguments, [int] 
         # once the child fills the pipe nobody is reading.
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
         $stderrTask = $process.StandardError.ReadToEndAsync()
+        $timedOut = $false
+        $cleanupFailed = $false
 
         if ($null -ne $StandardInput) {
             $stdinTask = $process.StandardInput.WriteAsync($StandardInput)
-            if (-not $stdinTask.Wait(10000)) {
-                Stop-ProcessTree $process.Id
-                try { $process.Kill() } catch { }
+            if (-not $stdinTask.Wait((Get-CaptureRemainingMs $deadline))) {
+                $timedOut = $true
             }
 
             try { $process.StandardInput.Close() } catch { }
         }
 
-        $timedOut = $false
-        if ($TimeoutSeconds -gt 0) {
-            if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-                $timedOut = $true
-                Stop-ProcessTree $process.Id
-                try { $process.Kill() } catch { }
-                $process.WaitForExit(5000) | Out-Null
+        if (-not $timedOut) {
+            if ($TimeoutSeconds -gt 0) {
+                if (-not $process.WaitForExit((Get-CaptureRemainingMs $deadline))) {
+                    $timedOut = $true
+                }
             }
-        }
-        else {
-            $process.WaitForExit()
+            else {
+                $process.WaitForExit()
+            }
         }
 
+        if ($timedOut) {
+            Stop-ProcessTree $process.Id
+            try { $process.Kill() } catch { }
+            try {
+                if (-not $process.WaitForExit(5000)) {
+                    $cleanupFailed = $true
+                }
+            } catch {
+                $cleanupFailed = $true
+            }
+        }
+
+        $drained = $false
         if ($TimeoutSeconds -gt 0) {
-            $stdoutDone = $stdoutTask.Wait(5000)
-            $stderrDone = $stderrTask.Wait(5000)
-            if (-not ($stdoutDone -and $stderrDone)) {
-                Stop-ProcessTree $process.Id
+            $drainBudget = Get-CaptureRemainingMs $deadline
+            if ($drainBudget -gt 0 -and [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask), $drainBudget)) {
+                $drained = $true
+            }
+
+            if (-not $drained) {
                 $timedOut = $true
-                $stdoutDone = $stdoutTask.Wait(5000)
-                $stderrDone = $stderrTask.Wait(5000)
+                Stop-ProcessTree $process.Id
+                try {
+                    if (-not ([System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask), 5000))) {
+                        $cleanupFailed = $true
+                    }
+                    else {
+                        $drained = $true
+                    }
+                } catch {
+                    $cleanupFailed = $true
+                }
             }
         }
         else {
-            $stdoutDone = $true
-            $stderrDone = $true
+            $stdoutTask.Wait(-1)
+            $stderrTask.Wait(-1)
+            $drained = $true
         }
 
         [pscustomobject]@{
             ExitCode = if ($timedOut) { -1 } else { $process.ExitCode }
             TimedOut = $timedOut
-            StdOut = if ($stdoutDone) { $stdoutTask.Result } else { "" }
-            StdErr = if ($stderrDone) { $stderrTask.Result } else { "" }
+            CleanupFailed = $cleanupFailed
+            StdOut = if ($drained) { $stdoutTask.Result } else { "" }
+            StdErr = if ($drained) { $stderrTask.Result } else { "" }
         }
     }
     finally {

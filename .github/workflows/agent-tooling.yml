@@ -173,50 +173,12 @@ jobs:
             Write-Host "SKIP: Word open/save round trip did not execute (DOCXEDIT_ENABLE_OFFICE_TESTS is not set to 1)."
           }
 
-      # C05 plumbing: the shared capture must drain both streams concurrently
-      # (a child flooding stdout+stderr terminates with full contents) and quote
-      # arguments so spaces/quotes/backslashes round-trip; an expired timeout
-      # kills the child and reports TimedOut instead of hanging.
-      - name: Unit-test process capture and quoting
+      # Shared capture and verdict checks live in tracked tools/Test-Tooling.ps1
+      # (concurrent dual-stream drain, quoting round trip, stdin delivery,
+      # slow-stdin and pipe-holding-descendant deadlines, and the challenge
+      # verdict matrix), invoked once here and runnable locally as-is.
+      - name: Unit-test tooling (capture and verdicts)
         run: |
-          . ./tools/DocxCaseCommon.ps1
-          $RepoRoot = (Resolve-Path .).Path
-          $echoScript = Join-Path ([System.IO.Path]::GetTempPath()) "docxedit-echo-args.ps1"
-          Set-Content -LiteralPath $echoScript -Value '$args | ConvertTo-Json -Compress' -Encoding UTF8
-          try {
-            $flood = Start-Job -ScriptBlock {
-              $RepoRoot = $using:RepoRoot
-              . (Join-Path $RepoRoot "tools/DocxCaseCommon.ps1")
-              $child = '$o = ''x'' * 200; $e = ''e'' * 200; 1..4000 | ForEach-Object { [Console]::Out.WriteLine($o); [Console]::Error.WriteLine($e) }'
-              Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", $child)
-            }
-            if (-not (Wait-Job $flood -Timeout 120)) { Stop-Job $flood; Remove-Job $flood -Force; throw "Dual-stream capture did not terminate." }
-            $captured = Receive-Job $flood
-            Remove-Job $flood
-            if ($captured.ExitCode -ne 0) { throw "Flood child failed." }
-            if ($captured.StdOut.Length -ne 808000 -or $captured.StdErr.Length -ne 808000) { throw "Lost stream bytes." }
-            $want = @("plain", "with space", 'quote"inside', "trailing-backslash\", "", 'both "\ mix', "C:\Program Files\App\")
-            $echoArgs = @("-NoProfile", "-File", $echoScript) + $want
-            $echoed = Invoke-ProcessCapture "pwsh" $echoArgs
-            if ($echoed.ExitCode -ne 0) { throw "Echo child failed." }
-            $got = @($echoed.StdOut | ConvertFrom-Json)
-            if ($got.Count -ne $want.Count) { throw "Argument count changed in flight." }
-            for ($i = 0; $i -lt $want.Count; $i++) {
-              if ($got[$i] -cne $want[$i]) { throw ("Argument changed in flight.") }
-            }
-            $sleepy = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", "Start-Sleep 60") 3
-            if (-not $sleepy.TimedOut -or $sleepy.ExitCode -ne -1) { throw "Expired timeout did not kill the child." }
-            $stdinEcho = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", "[Console]::In.ReadToEnd()") -StandardInput "first"
-            if ($stdinEcho.ExitCode -ne 0) { throw "Stdin child failed." }
-            if ($stdinEcho.StdOut.Trim() -cne "first") { throw "Stdin was not delivered." }
-            $pipeWatch = [System.Diagnostics.Stopwatch]::StartNew()
-            $pipeChild = "Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 30'; Start-Sleep 60"
-            $pipeHeld = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", $pipeChild) 2
-            $pipeWatch.Stop()
-            if (-not $pipeHeld.TimedOut -or $pipeHeld.ExitCode -ne -1) { throw "Pipe-holding descendant did not time out." }
-            if ($pipeWatch.Elapsed.TotalSeconds -ge 20) { throw "Deadline was held open by the output pipe." }
-            Write-Host "Process capture drains concurrently, quotes round-trip, stdin is delivered, and timeouts hold against pipe-holding descendants."
-          } finally {
-            Remove-Item -LiteralPath $echoScript -Force -ErrorAction SilentlyContinue
-          }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Tooling.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Tooling tests failed." }
 
