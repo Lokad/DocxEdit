@@ -1848,6 +1848,184 @@ public static class OfficeGateTests
         }
     }
 
+    [OfficeFact]
+    [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationSharedHeaderMediaPreservationRoundTripIsOptIn()
+    {
+        // L01: the header drawing owns the same media part as the selected main
+        // drawing through a different relationship. Replacing the main drawing
+        // must clone fresh media for it while the header bytes stay untouched,
+        // before and after Word opens and saves the result. Byte and reference
+        // checks are the primary oracle; the Word pass only proves the shared
+        // media fixture is accepted by Word. Package root thumbnail and legacy
+        // VML fixtures stay byte level only because Word rejects a package root
+        // thumbnail relationship outright, even at conventional locations.
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateSharedHeaderImageDocx(inputPath);
+            byte[] sharedBefore = ReadEntryBytes(inputPath, "word/media/shared.png");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op replace-image
+                target M.I0001
+                asset photo.jpeg
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
+                {
+                    AssetProvider = new MemoryAssetProvider("photo.jpeg", MinimalJpeg(), "photo.jpeg")
+                });
+                Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            Assert.Equal(sharedBefore, ReadEntryBytes(outputPath, "word/media/shared.png"));
+            string headerRels = Encoding.UTF8.GetString(ReadEntryBytes(outputPath, "word/_rels/header1.xml.rels"));
+            Assert.Contains("media/shared.png", headerRels, StringComparison.Ordinal);
+
+            using (FileStream edited = File.OpenRead(outputPath))
+            {
+                DocxReadResult read = new DocxEditor().Read(edited);
+                Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+                DocxImageInfo image = Assert.Single(read.Images);
+                Assert.Equal("image/jpeg", image.ContentType);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            Assert.Equal(sharedBefore, ReadEntryBytes(outputPath, "word/media/shared.png"));
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult reread = new DocxEditor().Read(saved);
+            Assert.True(reread.Success, string.Join(Environment.NewLine, reread.Diagnostics.Select(FormatDiagnostic)));
+            DocxImageInfo savedImage = Assert.Single(reread.Images);
+            Assert.Equal("image/jpeg", savedImage.ContentType);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static void CreateSharedHeaderImageDocx(string path)
+    {
+        using FileStream file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+
+        AddEntry(archive, "[Content_Types].xml", """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Default Extension="png" ContentType="image/png"/>
+              <Default Extension="jpeg" ContentType="image/jpeg"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+            </Types>
+            """);
+        AddPackageRelsEntry(archive);
+        AddEntry(archive, "word/_rels/document.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.png"/>
+              <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/document.xml", """
+            <w:document
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <w:body>
+                <w:p><w:r><w:t>Shared header body</w:t></w:r></w:p>
+                <w:p>
+                  <w:r>
+                    <w:drawing>
+                      <wp:inline>
+                        <wp:extent cx="914400" cy="457200"/>
+                        <wp:docPr id="1" name="Picture 1"/>
+                        <a:graphic>
+                          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                            <pic:pic>
+                              <pic:nvPicPr><pic:cNvPr id="1" name="Picture 1"/><pic:cNvPicPr/></pic:nvPicPr>
+                              <pic:blipFill><a:blip r:embed="rImage"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                              <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                            </pic:pic>
+                          </a:graphicData>
+                        </a:graphic>
+                      </wp:inline>
+                    </w:drawing>
+                  </w:r>
+                </w:p>
+                <w:sectPr><w:headerReference w:type="default" r:id="rHeader"/></w:sectPr>
+              </w:body>
+            </w:document>
+            """);
+        AddEntry(archive, "word/_rels/header1.xml.rels", """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.png"/>
+            </Relationships>
+            """);
+        AddEntry(archive, "word/header1.xml", """
+            <w:hdr
+                xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <w:p><w:r><w:t>Shared header line</w:t></w:r></w:p>
+              <w:p>
+                <w:r>
+                  <w:drawing>
+                    <wp:inline>
+                      <wp:extent cx="914400" cy="457200"/>
+                      <wp:docPr id="2" name="Picture 2"/>
+                      <a:graphic>
+                        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                          <pic:pic>
+                            <pic:nvPicPr><pic:cNvPr id="2" name="Picture 2"/><pic:cNvPicPr/></pic:nvPicPr>
+                            <pic:blipFill><a:blip r:embed="rImage"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                            <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                          </pic:pic>
+                        </a:graphicData>
+                      </a:graphic>
+                    </wp:inline>
+                  </w:drawing>
+                </w:r>
+              </w:p>
+            </w:hdr>
+            """);
+        AddBinaryEntry(archive, "word/media/shared.png", MinimalPng());
+    }
+
     private static byte[] MinimalJpeg()
     {
         return new byte[]
