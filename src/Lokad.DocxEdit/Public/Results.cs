@@ -309,9 +309,13 @@ public sealed record DocxMediaExtractResult : DocxOperationResult
 /// <summary>One extracted image file.</summary>
 /// <param name="ImageId">Stable image ID.</param>
 /// <param name="PartName">Media part path.</param>
-/// <param name="FileName">Suggested file name (image ID plus the part file name).</param>
+/// <param name="FileName">Suggested file name (image ID plus a content-type extension), directly usable as an asset hint.</param>
 /// <param name="Content">Media bytes.</param>
-public sealed record DocxMediaFile(DocxTargetId ImageId, string PartName, string FileName, byte[] Content);
+public sealed record DocxMediaFile(DocxTargetId ImageId, string PartName, string FileName, byte[] Content)
+{
+    /// <summary>Media content type of the extracted bytes, when known.</summary>
+    public string? ContentType { get; init; }
+}
 
 /// <summary>Validation outcome. <see cref="DocxOperationResult.Success"/> means no <see cref="DocxSeverity.Error"/> diagnostic was produced; warnings (including the <c>W9199</c>/<c>E9199</c> cap marker) do not fail validation by themselves.</summary>
 public sealed record DocxValidateResult : DocxOperationResult

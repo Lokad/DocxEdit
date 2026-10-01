@@ -2019,44 +2019,254 @@ public static class PatchImageTests
     [Fact]
     public static void ExtractReplaceInsertWorkflowPreservesBytes()
     {
-        byte[] published = CreatePngBytes(4, 3);
-        var seedAssets = new MemoryAssetProvider("seed.png", published, null, "seed.png");
+        DocxMediaFile pngExport = InsertAndExtractImage(CreatePngBytes(4, 3));
+        DocxMediaFile jpegExport = InsertAndExtractImage(CreateJpegBytes(4, 3));
+        Assert.Equal("image/png", pngExport.ContentType);
+        Assert.EndsWith(".png", pngExport.FileName, StringComparison.Ordinal);
+        Assert.Equal("image/jpeg", jpegExport.ContentType);
+        Assert.EndsWith(".jpeg", jpegExport.FileName, StringComparison.Ordinal);
+
+        DocxMediaFile swappedToJpeg = ReplaceAndExtractImage("png", "image/png", jpegExport);
+        Assert.Equal("image/jpeg", swappedToJpeg.ContentType);
+        Assert.EndsWith(".jpeg", swappedToJpeg.FileName, StringComparison.Ordinal);
+        Assert.Equal(jpegExport.Content, swappedToJpeg.Content);
+
+        DocxMediaFile swappedToPng = ReplaceAndExtractImage("jpeg", "image/jpeg", pngExport);
+        Assert.Equal("image/png", swappedToPng.ContentType);
+        Assert.EndsWith(".png", swappedToPng.FileName, StringComparison.Ordinal);
+        Assert.Equal(pngExport.Content, swappedToPng.Content);
+
+        byte[] otherPng = CreatePngBytes(8, 8);
+        var sameAssets = new MemoryAssetProvider("same.png", otherPng, "image/png", "same.png");
+        using MemoryStream sameInput = CreateDocxWithImage("png", "image/png", "old-png");
+        using var sameOutput = new MemoryStream();
+        using var samePatch = new StringReader("docxpatch 1\n\nop replace-image\ntarget M.I0001\nasset same.png\nend\n");
+        Assert.True(new DocxEditor().Apply(sameInput, samePatch, sameOutput, new DocxEditOptions { AssetProvider = sameAssets }).Success);
+        sameOutput.Position = 0;
+        DocxMediaExtractResult same = new DocxEditor().ExtractMedia(sameOutput, new DocxMediaOptions { ImageId = "M.I0001" });
+        Assert.True(same.Success);
+        Assert.EndsWith(".png", Assert.Single(same.Files).FileName, StringComparison.Ordinal);
+        Assert.Equal(otherPng, Assert.Single(same.Files).Content);
+
+        var headerAssets = new MemoryAssetProvider(pngExport.FileName, pngExport.Content, pngExport.ContentType, pngExport.FileName);
+        using MemoryStream headerInput = CreateDocxWithSharedHeaderMedia();
+        using var headerOutput = new MemoryStream();
+        using var headerPatch = new StringReader("docxpatch 1\n\nop replace-image\ntarget H001.I0001\nasset " + pngExport.FileName + "\nend\n");
+        DocxApplyResult headerApply = new DocxEditor().Apply(headerInput, headerPatch, headerOutput, new DocxEditOptions { AssetProvider = headerAssets });
+        Assert.True(headerApply.Success, string.Join("|", headerApply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        headerOutput.Position = 0;
+        DocxMediaExtractResult header = new DocxEditor().ExtractMedia(headerOutput, new DocxMediaOptions { IncludeHeadersFooters = true, ImageId = "H001.I0001" });
+        Assert.True(header.Success);
+        Assert.Equal("image/png", Assert.Single(header.Files).ContentType);
+        Assert.Equal(pngExport.Content, Assert.Single(header.Files).Content);
+    }
+
+    private static DocxMediaFile InsertAndExtractImage(byte[] bytes)
+    {
+        var assets = new MemoryAssetProvider("seed-img", bytes, null, "seed-img");
         using MemoryStream seed = CreateDocx("Seed paragraph.");
         using var seeded = new MemoryStream();
-        using var seedPatch = new StringReader("""
-            docxpatch 1
-
-            op insert-image-after
-            target M.P0001
-            asset seed.png
-            end
-            """);
-        Assert.True(new DocxEditor().Apply(seed, seedPatch, seeded, new DocxEditOptions { AssetProvider = seedAssets }).Success);
+        using var seedPatch = new StringReader("docxpatch 1\n\nop insert-image-after\ntarget M.P0001\nasset seed-img\nend\n");
+        Assert.True(new DocxEditor().Apply(seed, seedPatch, seeded, new DocxEditOptions { AssetProvider = assets }).Success);
         seeded.Position = 0;
         DocxMediaExtractResult extracted = new DocxEditor().ExtractMedia(seeded);
         Assert.True(extracted.Success);
-        Assert.Equal(published, Assert.Single(extracted.Files).Content);
+        return Assert.Single(extracted.Files);
+    }
 
-        var roundTripAssets = new MemoryAssetProvider("roundtrip.png", published, null, "roundtrip.png");
-        using MemoryStream target = CreateDocx("Target paragraph.");
+    private static DocxMediaFile ReplaceAndExtractImage(string extension, string contentType, DocxMediaFile replacement)
+    {
+        var assets = new MemoryAssetProvider(replacement.FileName, replacement.Content, replacement.ContentType, replacement.FileName);
+        using MemoryStream input = CreateDocxWithImage(extension, contentType, "old-bytes");
         using var output = new MemoryStream();
-        using var patch = new StringReader("""
+        using var patch = new StringReader("docxpatch 1\n\nop replace-image\ntarget M.I0001\nasset " + replacement.FileName + "\nend\n");
+        DocxApplyResult apply = new DocxEditor().Apply(input, patch, output, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        output.Position = 0;
+        DocxMediaExtractResult extracted = new DocxEditor().ExtractMedia(output, new DocxMediaOptions { ImageId = "M.I0001" });
+        Assert.True(extracted.Success);
+        return Assert.Single(extracted.Files);
+    }
+
+    [Fact]
+    public static void SplitRelationshipReplaceIsolatesSelectedPlacement()
+    {
+        using MemoryStream baselineInput = CreateDocxWithSplitRelationshipMedia();
+        DocxMediaExtractResult baseline = new DocxEditor().ExtractMedia(baselineInput, new DocxMediaOptions { IncludeHeadersFooters = true });
+        Assert.True(baseline.Success, string.Join("|", baseline.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(3, baseline.Files.Count);
+        Assert.Equal("duo-bytes", Encoding.UTF8.GetString(baseline.Files[0].Content));
+
+        const string patchText = """
             docxpatch 1
 
-            op insert-image-after
-            target M.P0001
-            asset roundtrip.png
+            op replace-image
+            target M.I0001
+            asset new.png
             end
-            """);
-        DocxApplyResult apply = new DocxEditor().Apply(target, patch, output, new DocxEditOptions { AssetProvider = roundTripAssets });
+            """;
+        var assets = new MemoryAssetProvider("new.png", CreatePngBytes(4, 3), null, "new.png");
+        using MemoryStream checkInput = CreateDocxWithSplitRelationshipMedia();
+        using var checkPatch = new StringReader(patchText);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, checkPatch, new DocxEditOptions { AssetProvider = assets });
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+
+        using MemoryStream applyInput = CreateDocxWithSplitRelationshipMedia();
+        using var applyOutput = new MemoryStream();
+        using var applyPatch = new StringReader(patchText);
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, applyPatch, applyOutput, new DocxEditOptions { AssetProvider = assets });
         Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
 
-        output.Position = 0;
-        DocxMediaExtractResult inserted = new DocxEditor().ExtractMedia(output);
-        Assert.True(inserted.Success);
-        DocxMediaFile file = Assert.Single(inserted.Files);
-        Assert.Equal(published, file.Content);
+        applyOutput.Position = 0;
+        DocxMediaExtractResult after = new DocxEditor().ExtractMedia(applyOutput, new DocxMediaOptions { IncludeHeadersFooters = true });
+        Assert.True(after.Success);
+        Assert.Equal(3, after.Files.Count);
+        Assert.Equal(CreatePngBytes(4, 3), after.Files[0].Content);
+        Assert.Equal("duo-bytes", Encoding.UTF8.GetString(after.Files[1].Content));
+        Assert.Equal("duo-bytes", Encoding.UTF8.GetString(after.Files[2].Content));
+
+        applyOutput.Position = 0;
+        string documentXml = ReadDocumentXml(applyOutput);
+        Assert.Contains("descr=\"First\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("descr=\"Second\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("r:embed=\"rB\"", documentXml, StringComparison.Ordinal);
+        Assert.Contains("r:embed=\"rId1\"", documentXml, StringComparison.Ordinal);
+        string documentRels = ReadEntry(applyOutput, "word/_rels/document.xml.rels");
+        Assert.Contains("Target=\"media/duo.png\"", documentRels, StringComparison.Ordinal);
+        Assert.Contains("Target=\"media/image1.png\"", documentRels, StringComparison.Ordinal);
+        Assert.Contains("r:embed=\"rC\"", ReadEntry(applyOutput, "word/header1.xml"), StringComparison.Ordinal);
+
+        applyOutput.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(applyOutput, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.Equal("First", read.Images[0].Description);
+        Assert.Equal("Second", read.Images[1].Description);
+        Assert.Equal("Header", read.Images[2].Description);
     }
+
+    private static MemoryStream CreateDocxWithSplitRelationshipMedia()
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                ZipArchiveEntry entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+
+            Add("[Content_Types].xml", """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+                </Types>
+                """);
+            Add("_rels/.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/document.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/duo.png"/>
+                  <Relationship Id="rB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/duo.png"/>
+                  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+                </Relationships>
+                """);
+            Add("word/_rels/header1.xml.rels", """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rC" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/duo.png"/>
+                </Relationships>
+                """);
+            Add("word/document.xml", """
+                <w:document
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="1" name="Picture 1" descr="First"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rA"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:extent cx="914400" cy="457200"/>
+                            <wp:docPr id="2" name="Picture 2" descr="Second"/>
+                            <a:graphic>
+                              <a:graphicData>
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rB"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                    <w:sectPr><w:headerReference w:type="default" r:id="rHeader"/></w:sectPr>
+                  </w:body>
+                </w:document>
+                """);
+            Add("word/header1.xml", """
+                <w:hdr
+                    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:p>
+                    <w:r>
+                      <w:drawing>
+                        <wp:inline>
+                          <wp:extent cx="914400" cy="457200"/>
+                          <wp:docPr id="3" name="Picture 3" descr="Header"/>
+                          <a:graphic>
+                            <a:graphicData>
+                              <pic:pic>
+                                <pic:blipFill>
+                                  <a:blip r:embed="rC"/>
+                                </pic:blipFill>
+                              </pic:pic>
+                            </a:graphicData>
+                          </a:graphic>
+                        
+                          </wp:inline></w:drawing>
+                      </w:r>
+                    </w:p>
+                </w:hdr>
+                """);
+            Add("word/media/duo.png", "duo-bytes");
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+
 
 
 

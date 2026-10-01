@@ -1767,6 +1767,108 @@ public static class OfficeGateTests
 
     [OfficeFact]
     [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationImageFormatSwapRoundTripIsOptIn()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new InvalidOperationException("Office integration tests require Windows.");
+        }
+
+        Type? wordApplicationType = Type.GetTypeFromProgID("Word.Application");
+        if (wordApplicationType is null)
+        {
+            throw new InvalidOperationException("Microsoft Word is not installed or is not available through COM.");
+        }
+
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        string inputPath = Path.Combine(directory, "input.docx");
+        string insertedPath = Path.Combine(directory, "inserted.docx");
+        string outputPath = Path.Combine(directory, "output.docx");
+
+        try
+        {
+            CreateDocx(inputPath, "Anchor");
+
+            using (FileStream input = File.OpenRead(inputPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op insert-image-after
+                target M.P0001
+                asset chart.png
+                end
+                """))
+            using (FileStream inserted = File.Create(insertedPath))
+            {
+                DocxApplyResult insert = new DocxEditor().Apply(input, patch, inserted, new DocxEditOptions
+                {
+                    AssetProvider = new MemoryAssetProvider("chart.png", MinimalPng(), "chart.png")
+                });
+                Assert.True(insert.Success, string.Join(Environment.NewLine, insert.Diagnostics.Select(FormatDiagnostic)));
+            }
+
+            using (FileStream middle = File.OpenRead(insertedPath))
+            using (var patch = new StringReader("""
+                docxpatch 1
+
+                op replace-image
+                target M.I0001
+                asset photo.jpeg
+                end
+                """))
+            using (FileStream output = File.Create(outputPath))
+            {
+                DocxApplyResult replace = new DocxEditor().Apply(middle, patch, output, new DocxEditOptions
+                {
+                    AssetProvider = new MemoryAssetProvider("photo.jpeg", MinimalJpeg(), "photo.jpeg")
+                });
+                Assert.True(replace.Success, string.Join(Environment.NewLine, replace.Diagnostics.Select(FormatDiagnostic)));
+                Assert.DoesNotContain(replace.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
+            }
+
+            OpenSaveWithWord(wordApplicationType, outputPath);
+
+            using FileStream saved = File.OpenRead(outputPath);
+            DocxReadResult read = new DocxEditor().Read(saved);
+            Assert.True(read.Success, string.Join(Environment.NewLine, read.Diagnostics.Select(FormatDiagnostic)));
+            DocxImageInfo image = Assert.Single(read.Images);
+            Assert.Equal("image/jpeg", image.ContentType);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static byte[] MinimalJpeg()
+    {
+        return new byte[]
+        {
+            0xFF, 0xD8,
+            0xFF, 0xC0,
+            0x00, 0x11,
+            0x08,
+            0x00, 0x03,
+            0x00, 0x04,
+            0x03,
+            0x01, 0x11, 0x00,
+            0x02, 0x11, 0x00,
+            0x03, 0x11, 0x00,
+            0xFF, 0xD9
+        };
+    }
+
+
+    [OfficeFact]
+    [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationTableMetadataRoundTripIsOptIn()
     {
 

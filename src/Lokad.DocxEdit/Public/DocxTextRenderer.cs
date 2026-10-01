@@ -296,6 +296,8 @@ public static class DocxTextRenderer
                 .Append(file.FileName)
                 .Append(" bytes=")
                 .Append(file.Content.Length)
+                .Append(" type=")
+                .Append(file.ContentType ?? "unknown")
                 .AppendLine();
         }
 

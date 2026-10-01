@@ -713,7 +713,7 @@ public sealed class DocxEditor
                 throw new InvalidDataException($"Inventoried image part '{image.PartName}' does not exist.");
             }
 
-            files.Add(new DocxMediaFile(image.Id, image.PartName, $"{image.Id.ToWireValue()}-{Path.GetFileName(image.PartName)}", part.Bytes.ToArray()));
+            files.Add(new DocxMediaFile(image.Id, image.PartName, BuildExportFileName(image, part), part.Bytes.ToArray()) { ContentType = part.ContentType ?? image.ContentType });
         }
 
         if (!TryUnsupportedScan(package, includeHeadersFooters: options.IncludeHeadersFooters, cancellationToken, out IReadOnlyList<DocxDiagnostic>? extractUnsupported, out IReadOnlyList<DocxDiagnostic> extractUnsupportedFailure))
@@ -752,6 +752,25 @@ public sealed class DocxEditor
 
         selectionDiagnostic = new DocxDiagnostic(DocxSeverity.Error, "E1201", $"Selector matched 0 image targets: {imageId}.") { TargetId = imageId };
         return [];
+    }
+
+    private static string BuildExportFileName(DocxImageInfo image, OoxmlPart part)
+    {
+        string extension = (part.ContentType ?? image.ContentType) switch
+        {
+            "image/png" => "png",
+            "image/jpeg" => "jpeg",
+            _ => Path.GetExtension(part.Name).TrimStart(".".ToCharArray()),
+        };
+        string stem = Path.GetFileNameWithoutExtension(part.Name);
+        if (string.IsNullOrEmpty(stem))
+        {
+            stem = "image";
+        }
+
+        return string.IsNullOrEmpty(extension)
+            ? $"{image.Id.ToWireValue()}-{stem}"
+            : $"{image.Id.ToWireValue()}-{stem}.{extension}";
     }
 
     /// <summary>Validates a document. Uses default options and no cancellation.</summary>

@@ -402,6 +402,53 @@ public static class CliTests
     }
 
     [Fact]
+    public static void CliExtractedFileFeedsLaterInsertion()
+    {
+        using TempDirectory temp = TempDirectory.Create();
+        string input = Path.Combine(temp.Path, "input.docx");
+        string seeded = Path.Combine(temp.Path, "seeded.docx");
+        string seedPatch = Path.Combine(temp.Path, "seed.docxpatch");
+        string asset = Path.Combine(temp.Path, "chart.png");
+        CreateDocx(input);
+        File.WriteAllBytes(asset, TestPngBytes());
+        File.WriteAllText(seedPatch, """
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset chart.png
+            end
+            """);
+
+        CliResult seed = RunCli("apply", input, seedPatch, "-o", seeded);
+
+        Assert.Equal(0, seed.ExitCode);
+        string extract = Path.Combine(temp.Path, "media");
+        CliResult media = RunCli("media", seeded, "--extract", extract);
+
+        Assert.Equal(0, media.ExitCode);
+        string exported = Path.Combine(extract, "M.I0002-image2.png");
+        Assert.True(File.Exists(exported));
+        Assert.Equal(TestPngBytes(), File.ReadAllBytes(exported));
+
+        string follow = Path.Combine(temp.Path, "follow.docx");
+        string followPatch = Path.Combine(temp.Path, "follow.docxpatch");
+        File.WriteAllText(followPatch, """
+            docxpatch 1
+
+            op insert-image-after
+            target M.P0001
+            asset media/M.I0002-image2.png
+            end
+            """);
+
+        CliResult result = RunCli("apply", input, followPatch, "-o", follow);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(TestPngBytes(), ReadEntryBytes(follow, "word/media/image2.png"));
+    }
+
+    [Fact]
     public static void CliApplyCanResolveImageAssetFiles()
     {
         using TempDirectory temp = TempDirectory.Create();

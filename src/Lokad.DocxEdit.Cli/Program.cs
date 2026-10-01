@@ -571,6 +571,7 @@ public static class ProgramMain
                         file.ImageId,
                         file.PartName,
                         file.FileName,
+                        file.ContentType,
                         ByteLength = file.Content.Length
                     }).ToArray()
                 },

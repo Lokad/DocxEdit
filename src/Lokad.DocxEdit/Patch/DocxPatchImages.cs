@@ -82,6 +82,11 @@ internal static partial class DocxPatchEngine
         return [];
     }
 
+    // One package-wide media ownership rule shared with deletion cleanup: the
+    // selected placement reuses its media part in place only when no other
+    // relationship in the package targets that part and no second drawing uses
+    // the selected relationship. Any other reference, modeled or not, clones
+    // fresh media so unselected content never observes changed bytes.
     private static bool IsImageRelationshipShared(
         OoxmlPackage package,
         string storyPartName,
@@ -104,28 +109,35 @@ internal static partial class DocxPatchEngine
             return uses > 1;
         }
 
-        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
+        foreach (OoxmlPart relationshipPart in package.Parts.Values)
         {
-            if (string.Equals(story.PartName, storyPartName, StringComparison.OrdinalIgnoreCase))
+            if (!relationshipPart.Name.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            XDocument other = LoadDocumentPart(package, story.PartName, cancellationToken, out _);
-            foreach (OoxmlRelationship relationship in package.GetRelationships(story.PartName, cancellationToken))
+            string sourcePartName = OoxmlPath.GetSourcePartNameFromRelationshipPartName(relationshipPart.Name);
+            if (sourcePartName == "/" || package.GetPart(sourcePartName) is null)
             {
-                if (!string.Equals(relationship.ResolvedTarget, resolvedTarget, StringComparison.OrdinalIgnoreCase))
+                continue;
+            }
+
+            foreach (OoxmlRelationship relationship in package.GetRelationships(sourcePartName, cancellationToken))
+            {
+                if (relationship.IsExternal ||
+                    relationship.ResolvedTarget is null ||
+                    !string.Equals(relationship.ResolvedTarget, resolvedTarget, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                foreach (XElement blip in other.Descendants(OoxmlNs.A + "blip"))
+                if (string.Equals(sourcePartName, storyPartName, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(relationship.Id, relationshipId, StringComparison.Ordinal))
                 {
-                    if (string.Equals((string?)blip.Attribute(OoxmlNs.R + "embed"), relationship.Id, StringComparison.Ordinal))
-                    {
-                        return true;
-                    }
+                    continue;
                 }
+
+                return true;
             }
         }
 
