@@ -541,11 +541,11 @@ internal static partial class DocxPatchEngine
 
         if (entry.Kind == "row")
         {
-            return entry with { Id = rowId, FinalId = rowId };
+            return entry with { Id = rowId, ParentId = rowId.TableId, RowIndex = rowId.Secondary, FinalId = rowId };
         }
 
         DocxTargetId cellId = rowId with { Kind = DocxTargetKind.Cell, Tertiary = entry.Id.Tertiary };
-        return entry with { Id = cellId, FinalId = cellId };
+        return entry with { Id = cellId, ParentId = rowId, RowIndex = rowId.Secondary, FinalId = cellId };
     }
 
     private static Dictionary<string, byte[]> RecordStoryPartBytes(OoxmlPackage package, CancellationToken cancellationToken)
