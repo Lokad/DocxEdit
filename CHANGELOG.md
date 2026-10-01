@@ -53,7 +53,7 @@
 - Fixed explicit merge-group IDs resolving live: the patch resolver reuses the canonical merge-group walk and binds the discovered root cell, so row insertions no longer shift later group IDs.
 - Fixed explicit comment body IDs resolving live: deleting one comment no longer shifts later body IDs, and deleted comments fail instead of editing neighbours. Threaded reply ordinals keep live resolution.
 - Fixed created-target reporting identifying the wrong objects: inserted paragraphs now resolve through physical document order instead of sibling counting, and new bookmarks resolve by allocated ID instead of total count. A test asserting the old count-based bookmark ID was updated to the read-model contract.
-- Fixed operation reports naming stale objects: affected and created identifiers are rebased to final-output coordinates before publication, so live reported identifiers match a fresh read. Created identifiers whose object no longer exists are absent. Deleted affected entries keep input ordinals with delete actions.
+- Fixed operation reports naming stale objects: affected targets carry input or operation-time coordinates plus a live final ID that stays absent for deleted objects, so a historical ordinal that coincides with a survivor never reads as live. Created identifiers whose object no longer exists are absent, including comments with reused numbers. XML snapshot and creation marks stay internal with no public mark scaffolding.
 - Fixed opt-in previews dropping both sides when a semantic selector stopped matching: previews now bind to the resolved object, so changed text still reports before/after; deletions report the before value with a null after.
 - Fixed the canonical patch writer emitting a bare `<<<` literal that the parser reads as a heredoc opener: reserved literals now render quoted, and generated templates fall back to the canonical writer instead of raw heredocs for delimiter-hostile text.
 - Synchronized agent guidance with the implemented contracts: target-lifetime help and docs now cover every bound ID kind, the patch reference shows a positional multi-style insertion example, the CLI workflow leads with lint, and reports are documented per kind.
@@ -62,7 +62,9 @@
 - Fixed creation reporting and alias binding to register once at execution.
 - Fixed affected reporting to preserve kinds and rebase related identities together.
 - Fixed previews for new and aliased targets to capture before and after values.
-- Fixed affected targets missing for semantic selectors matching newly created paragraphs: the resolved paragraph now reports with its creation mark, so affected IDs rebase to final-output coordinates instead of coming back empty.
+- Fixed affected targets missing for semantic selectors matching newly created paragraphs: the resolved paragraph now reports with operation-time coordinates, so affected IDs rebase to final-output coordinates instead of coming back empty.
 - Excluded revision-hidden drawings from image placement enumeration: drawings inside del/moveFrom-wrapped blocks own no public ID, so discovery and patch binding agree and a visible drawing keeps its published identity.
 - Extended hidden-placement exclusion to drawings in trPr-deleted table rows and block-level structured-document-tag content, whose paragraphs are not enumerated: their IDs now agree across discovery and patch binding as well.
+- Unified image placement enumeration across discovery, snapshot marking, resolution, and reporting: custom-XML wrapped drawings own no placement ID and image identity no longer shifts across text views.
+- Extended image inventory and extraction across header and footer stories with single-placement selection, and made replace-image affect only the selected placement with PNG and JPEG interchange updating the media content type.
 - Improved empty-patch check cost and merge-group enumeration to single passes.

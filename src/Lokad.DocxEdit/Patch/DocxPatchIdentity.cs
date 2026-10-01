@@ -4,28 +4,12 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
-// C02 and C03 shared identity contract. Work in progress. Placement
-// enumeration is the single owner for discovery, snapshot, mutation,
-// and reporting. Public ordinal IDs are views, not identity.
-// A patch local handle names one object for the duration of a patch.
-// Input handles bind pre patch objects. Created handles bind objects
-// made by the patch. Deleted objects are historical and must not
-// resolve to survivors. Do not infer identity twice from neighbors.
+// Shared patch-local identity: XML snapshot marks bind pre-existing objects
+// and creation marks bind objects made by the patch. Image placement order comes
+// from the single shared placement enumeration. Deleted objects keep historical
+// identity in reports and must not resolve to survivors.
 
-internal sealed record PatchObjectHandle(
-    DocxTargetKind Kind,
-    char Story,
-    int StoryPart,
-    int Ordinal,
-    bool IsCreated,
-    Guid InstanceId);
-
-internal sealed record OperationTargetResolution(
-    PatchObjectHandle Handle,
-    XElement Element,
-    string? SnapshotId);
-
-// C04: one mark sweep shared by alias resolution, creation reporting, and
+// One mark sweep shared by alias resolution, creation reporting, and
 // preview binding. Story parts iterate in canonical order and the first
 // match in document order wins. Callers keep their element filter and the
 // meaning of the match; the helper only removes the duplicated loops.

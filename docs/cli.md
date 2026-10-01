@@ -281,7 +281,7 @@ and structural paragraph operations report the resolved paragraph ID (or the tab
 anchor for table targets) with update, insert, or delete actions. Other explicit-ID mutations
 report the resolved hyperlink, bookmark, content-control, field, image, section, row, cell,
 or merge-group ID the same way. Creations additionally report created IDs per operation. Use
-`--report path` for the full JSON report.
+`--report path` for the full JSON report. Affected targets carry lifetime explicitly: Coordinate names input or operation-time identity and FinalId carries the live final ID, staying absent for deleted objects, so a historical ordinal that coincides with a survivor never reads as live.
 Generated revision IDs from the report can be correlated with
 `changes --operation-report`.
 

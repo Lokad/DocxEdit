@@ -10,15 +10,19 @@ Image cases keep both layers for validation and round trips.
 Bookmark cases keep both layers for ranges and bindings.
 Table cases keep both layers for grids and merges.
 
-No cases were removed for looking similar.
+Cases stay unless a new assertion shows one layer adds no distinct evidence; none were removed for looking similar.
 New layered cases need new assertions to justify them.
 
-Overlap audit 2026-10-01: sampled JSON cases (basic-replace, alias-compose,
-ambiguous-selector-refusal, tracked-replace) against unit coverage across the
-205-case corpus plus the tracked-change matrix. Overlap is topical, not
-evidential: JSON cases assert harness boundaries (diagnostic codes/counts and
-message fragments, applySuccess, public readback lists such as paragraphs and
-changeSummary counts); unit tests assert library precision (preserved bytes,
-XML fragments, neighbor objects, typed IDs, per-operation report shapes). No
-JSON case asserts wire bytes or XML internals, so none duplicates a unit
-test's oracle. Retained without deletions per the rule above.
+Overlap note 2026-10-01, rechecked after the report-lifetime and image
+follow-ups: four JSON cases (basic-replace, alias-compose,
+ambiguous-selector-refusal, tracked-replace) were sampled against unit
+coverage plus the tracked-change matrix, not the whole corpus. The sampled
+overlap is topical rather than evidential: the sampled JSON cases assert
+harness boundaries (diagnostic codes and counts, message fragments,
+applySuccess, public readback lists such as paragraphs and changeSummary
+counts), while unit tests assert library precision (preserved bytes, XML
+fragments, neighbor objects, typed IDs, per-operation report shapes). The
+sample does not prove the absence of duplication elsewhere, so it is kept
+as a sampling method with worked examples rather than a blanket claim.
+Overlapping cases stay unless a new assertion shows one layer adds no
+distinct evidence.
