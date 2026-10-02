@@ -210,7 +210,139 @@ public static class PackagingTests
         Assert.Contains("CONSUMER-OK", consumerResult.Output, StringComparison.Ordinal);
     }
 
-    private const string ConsumerProgram = "using Lokad.DocxEdit;\nusing System;\nusing System.IO;\nsealed class FileAsset : IDocxAssetProvider\n{\n    public bool TryOpen(string reference, out Stream stream, out string? contentTypeHint, out string? fileNameHint)\n    {\n        contentTypeHint = null;\n        fileNameHint = null;\n        try\n        {\n            stream = File.OpenRead(reference);\n            return true;\n        }\n        catch\n        {\n            stream = Stream.Null;\n            return false;\n        }\n    }\n}\nstatic class Consumer\n{\n    static int Main()\n    {\n        try\n        {\n            using var textInput = File.OpenRead(\"seed-text.docx\");\n            using var textPatch = File.OpenText(\"text.patch\");\n            using var textStaged = new MemoryStream();\n            DocxApplyResult textResult = new DocxEditor().Apply(textInput, textPatch, textStaged);\n            if (!textResult.Success)\n            {\n                Console.Error.WriteLine(\"text apply failed\");\n                return 1;\n            }\n            textStaged.Position = 0;\n            DocxReadResult textRead = new DocxEditor().Read(textStaged);\n            if (!textRead.Success || textRead.Paragraphs.Count != 1 || textRead.Paragraphs[0].Text != \"Omega\")\n            {\n                Console.Error.WriteLine(\"text readback mismatch\");\n                return 1;\n            }\n            using var imageInput = File.OpenRead(\"seed-image.docx\");\n            DocxMediaExtractResult before = new DocxEditor().ExtractMedia(imageInput);\n            if (!before.Success || before.Files.Count != 1)\n            {\n                Console.Error.WriteLine(\"extract failed\");\n                return 1;\n            }\n            using var patchInput = File.OpenRead(\"seed-image.docx\");\n            using var imagePatch = File.OpenText(\"image.patch\");\n            using var imageStaged = new MemoryStream();\n            var options = new DocxEditOptions { AssetProvider = new FileAsset() };\n            DocxApplyResult imageResult = new DocxEditor().Apply(patchInput, imagePatch, imageStaged, options);\n            if (!imageResult.Success)\n            {\n                Console.Error.WriteLine(\"image apply failed\");\n                return 1;\n            }\n            imageStaged.Position = 0;\n            DocxMediaExtractResult after = new DocxEditor().ExtractMedia(imageStaged);\n            if (!after.Success || after.Files.Count != 1)\n            {\n                Console.Error.WriteLine(\"re-extract failed\");\n                return 1;\n            }\n            byte[] expected = File.ReadAllBytes(\"new.png\");\n            if (!after.Files[0].Content.AsSpan().SequenceEqual(expected))\n            {\n                Console.Error.WriteLine(\"image bytes mismatch\");\n                return 1;\n            }\n            Console.WriteLine(\"CONSUMER-OK\");\n            return 0;\n        }\n        catch (Exception ex)\n        {\n            Console.Error.WriteLine(ex.Message);\n            return 1;\n        }\n    }\n}\n";
+    private const string ConsumerProgram = """
+        using Lokad.DocxEdit;
+        using System;
+        using System.IO;
+        using System.Threading;
+        using System.Threading.Tasks;
+        using System.Text.Json;
+        sealed class FileAsset : IDocxAssetProvider, IDocxAsyncAssetProvider
+        {
+            public ValueTask<DocxAsset?> OpenAsync(string reference, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return ValueTask.FromResult(TryOpen(reference, out Stream stream, out string? type, out string? file)
+                    ? new DocxAsset(stream, type, file) : null);
+            }
+            public bool TryOpen(string reference, out Stream stream, out string? contentTypeHint, out string? fileNameHint)
+            {
+                contentTypeHint = null;
+                fileNameHint = null;
+                try
+                {
+                    stream = File.OpenRead(reference);
+                    return true;
+                }
+                catch
+                {
+                    stream = Stream.Null;
+                    return false;
+                }
+            }
+        }
+        sealed class CommandHost : IDocxCommandHost
+        {
+            public StringWriter Output { get; } = new();
+            public TextWriter StandardOutput => Output;
+            public TextWriter StandardError { get; } = new StringWriter();
+            public bool PathsEqual(string first, string second) => Path.GetFullPath(first) == Path.GetFullPath(second);
+            public string CombinePath(string directory, string name) => Path.Combine(directory, name);
+            public IDocxAsyncAssetProvider GetAssetProvider(string patchPath) => new FileAsset();
+            public ValueTask<Stream> OpenReadAsync(string path, CancellationToken token) => ValueTask.FromResult<Stream>(File.OpenRead(path));
+            public ValueTask<TextReader> OpenTextAsync(string path, CancellationToken token) => ValueTask.FromResult<TextReader>(File.OpenText(path));
+            public ValueTask WriteStandardOutputAsync(Stream contents, CancellationToken token) => throw new NotSupportedException();
+            public async ValueTask PublishFileAsync(string path, Stream contents, CancellationToken token)
+            {
+                string temporary = path + ".staged";
+                try
+                {
+                    await using (var output = File.Create(temporary))
+                        await contents.CopyToAsync(output, token);
+                    token.ThrowIfCancellationRequested();
+                    File.Move(temporary, path, overwrite: true);
+                }
+                finally { File.Delete(temporary); }
+            }
+        }
+        static class Consumer
+        {
+            static int Main()
+            {
+                try
+                {
+                    using var textInput = File.OpenRead("seed-text.docx");
+                    using var textPatch = File.OpenText("text.patch");
+                    using var textStaged = new MemoryStream();
+                    DocxApplyResult textResult = new DocxEditor().Apply(textInput, textPatch, textStaged);
+                    if (!textResult.Success)
+                    {
+                        Console.Error.WriteLine("text apply failed");
+                        return 1;
+                    }
+                    textStaged.Position = 0;
+                    DocxReadResult textRead = new DocxEditor().Read(textStaged);
+                    if (!textRead.Success || textRead.Paragraphs.Count != 1 || textRead.Paragraphs[0].Text != "Omega")
+                    {
+                        Console.Error.WriteLine("text readback mismatch");
+                        return 1;
+                    }
+                    using var imageInput = File.OpenRead("seed-image.docx");
+                    DocxMediaExtractResult before = new DocxEditor().ExtractMedia(imageInput);
+                    if (!before.Success || before.Files.Count != 1)
+                    {
+                        Console.Error.WriteLine("extract failed");
+                        return 1;
+                    }
+                    using var patchInput = File.OpenRead("seed-image.docx");
+                    using var imagePatch = File.OpenText("image.patch");
+                    using var imageStaged = new MemoryStream();
+                    var options = new DocxEditOptions { AssetProvider = new FileAsset() };
+                    DocxApplyResult imageResult = new DocxEditor().Apply(patchInput, imagePatch, imageStaged, options);
+                    if (!imageResult.Success)
+                    {
+                        Console.Error.WriteLine("image apply failed");
+                        return 1;
+                    }
+                    imageStaged.Position = 0;
+                    DocxMediaExtractResult after = new DocxEditor().ExtractMedia(imageStaged);
+                    if (!after.Success || after.Files.Count != 1)
+                    {
+                        Console.Error.WriteLine("re-extract failed");
+                        return 1;
+                    }
+                    byte[] expected = File.ReadAllBytes("new.png");
+                    if (!after.Files[0].Content.AsSpan().SequenceEqual(expected))
+                    {
+                        Console.Error.WriteLine("image bytes mismatch");
+                        return 1;
+                    }
+                    var host = new CommandHost();
+                    int commandExit = DocxCommand.RunAsync(
+                        new[] { "apply", "seed-image.docx", "image.patch", "-o", "hosted.docx", "--json" },
+                        host, CancellationToken.None).GetAwaiter().GetResult();
+                    if (commandExit != 0) throw new Exception("hosted command failed: " + host.StandardError.ToString());
+                    using var commandJson = JsonDocument.Parse(host.Output.ToString());
+                    if (commandJson.RootElement.GetProperty("TrackChanges").GetString() != "off")
+                        throw new Exception("hosted JSON wire format mismatch");
+                    using var hostedInput = File.OpenRead("hosted.docx");
+                    var hostedImages = new DocxEditor().ExtractMedia(hostedInput);
+                    if (!hostedImages.Success || hostedImages.Files.Count != 1 || !hostedImages.Files[0].Content.AsSpan().SequenceEqual(expected))
+                        throw new Exception("hosted asset round trip mismatch");
+                    var jsonOptions = DocxJson.CreateOptions(false);
+                    if (JsonSerializer.Serialize(TrackChangesMode.Preserve, jsonOptions) != "\"preserve\"")
+                        throw new Exception("public JSON options mismatch");
+                    Console.WriteLine("CONSUMER-OK");
+                    return 0;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine(ex.Message);
+                    return 1;
+                }
+            }
+        }
+        """;
 
     private static void WriteConsumerSdkPin(string consumerDirectory, string sdkVersion)
     {

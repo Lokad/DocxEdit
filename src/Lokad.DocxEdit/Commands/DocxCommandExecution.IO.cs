@@ -10,15 +10,7 @@ internal sealed partial class DocxCommandExecution
         var buffered = new MemoryStream();
         try
         {
-            var buffer = new byte[81920];
-            while (true)
-            {
-                int read = await source.ReadAsync(buffer.AsMemory(), _cancellationToken).ConfigureAwait(false);
-                if (read == 0) break;
-                if (buffered.Length + read > _options.Quotas.MaxUncompressedBytes)
-                    throw new InvalidDataException("Command input exceeds the package byte quota.");
-                buffered.Write(buffer, 0, read);
-            }
+            await CopyToBoundedAsync(source, buffered, _options.Quotas.MaxUncompressedBytes, _cancellationToken).ConfigureAwait(false);
             buffered.Position = 0;
             return buffered;
         }
@@ -26,6 +18,20 @@ internal sealed partial class DocxCommandExecution
         {
             buffered.Dispose();
             throw;
+        }
+    }
+
+    internal static async Task CopyToBoundedAsync(Stream source, MemoryStream output, long maximum, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[81920];
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int read = await source.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+            if (read == 0) break;
+            if (output.Length + read > maximum)
+                throw new InvalidDataException("Command input exceeds the byte quota.");
+            output.Write(buffer, 0, read);
         }
     }
 

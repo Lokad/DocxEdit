@@ -7,6 +7,7 @@ Prepared as a net10.0 library with no runtime package dependencies, plus source 
 Library and patch behavior prepared:
 
 - `DocxCommand.RunAsync` and a host I/O contract let embedded callers and the development CLI share command parsing, execution, rendering, and exit codes. `DocxJson.CreateOptions` exposes the canonical JSON wire format. Document and patch input, file publication, and command output support asynchronous hosts.
+- Hosted image assets use `IDocxAsyncAssetProvider` with cancellation and owned streams. Each decoded reference is read once per command; the existing image validation and diagnostic behavior is shared with direct library edits.
 - Stream-first DocxEditor for read, outline, find, dump, styles, media extraction, tracked-change summaries, check, and apply, with caller-owned streams.
 - Docxpatch DSL for paragraph text, blocks, styles, main header footer tables with visual grid coordinates, inline images with PNG JPEG interchange, bookmarks, hyperlinks, comments, fields, content controls, sections, and rows with guarded templates.
 - Positional target IDs from fresh read output, with explicit input binding, live semantic resolution, and patch-local aliases. Reports carry Id with Coordinate input or operation-time and FinalId live, absent when deleted. Deleted objects never acquire survivor identity.

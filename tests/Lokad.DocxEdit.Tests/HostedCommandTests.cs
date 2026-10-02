@@ -131,6 +131,18 @@ public static class HostedCommandTests
     }
 
     [Fact]
+    public static async Task HostTextOutputUsesAsyncWriteAndFlushWithoutTakingOwnership()
+    {
+        var host = CreateHost();
+        var writer = new AsyncWriter();
+        host.OutputOverride = writer;
+        Assert.Equal(0, await DocxCommand.RunAsync(["read", "/input.docx"], host, CancellationToken.None));
+        Assert.Contains("Alpha", writer.Text.ToString());
+        Assert.True(writer.Flushed);
+        Assert.False(writer.Disposed);
+    }
+
+    [Fact]
     public static async Task HostPackageQuotaAppliesBeforeUnboundedInputBuffering()
     {
         var host = CreateHost();
@@ -161,21 +173,26 @@ public static class HostedCommandTests
         return host;
     }
 
-    internal sealed class MemoryHost : IDocxCommandHost, IDocxAssetProvider
+    internal sealed class MemoryHost : IDocxCommandHost, IDocxAsyncAssetProvider
     {
         public Dictionary<string, byte[]> Files { get; } = new(StringComparer.Ordinal);
         public List<string> Published { get; } = [];
         public List<AsyncInput> Inputs { get; } = [];
+        public List<string> AssetRequests { get; } = [];
         public StringWriter Output { get; } = new();
         public StringWriter Error { get; } = new();
         public MemoryStream BinaryOutput { get; } = new();
         public Action? OnRead { get; set; }
         public Action? OnPublish { get; set; }
-        public TextWriter StandardOutput => Output;
+        public Action? OnAssetOpen { get; set; }
+        public Action? OnAssetRead { get; set; }
+        public IOException? AssetReadError { get; set; }
+        public TextWriter? OutputOverride { get; set; }
+        public TextWriter StandardOutput => OutputOverride ?? Output;
         public TextWriter StandardError => Error;
         public bool PathsEqual(string first, string second) => first.Replace("/./", "/") == second.Replace("/./", "/");
         public string CombinePath(string directory, string fileName) => directory.TrimEnd('/') + "/" + fileName;
-        public IDocxAssetProvider GetAssetProvider(string patchPath) => this;
+        public IDocxAsyncAssetProvider GetAssetProvider(string patchPath) => this;
 
         public async ValueTask<Stream> OpenReadAsync(string path, CancellationToken cancellationToken)
         {
@@ -202,18 +219,47 @@ public static class HostedCommandTests
         public async ValueTask WriteStandardOutputAsync(Stream contents, CancellationToken cancellationToken) =>
             await contents.CopyToAsync(BinaryOutput, cancellationToken);
 
-        public bool TryOpen(string reference, out Stream stream, out string? contentTypeHint, out string? fileNameHint)
+        public async ValueTask<DocxAsset?> OpenAsync(string reference, CancellationToken cancellationToken)
         {
-            contentTypeHint = null;
-            fileNameHint = reference;
+            AssetRequests.Add(reference);
+            await Task.Yield();
+            OnAssetOpen?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
             if (Files.TryGetValue(reference, out byte[]? bytes))
             {
-                stream = new MemoryStream(bytes, writable: false);
-                return true;
+                var stream = new AsyncInput(bytes, () =>
+                {
+                    OnAssetRead?.Invoke();
+                    if (AssetReadError is { } error) throw error;
+                });
+                Inputs.Add(stream);
+                return new DocxAsset(stream, null, reference);
             }
-            stream = Stream.Null;
-            return false;
+            return null;
         }
+    }
+
+    private sealed class AsyncWriter : TextWriter
+    {
+        public StringBuilder Text { get; } = new();
+        public bool Flushed { get; private set; }
+        public bool Disposed { get; private set; }
+        public override Encoding Encoding => Encoding.UTF8;
+        public override void Write(char value) => throw new InvalidOperationException("Synchronous host write.");
+        public override void Write(string? value) => throw new InvalidOperationException("Synchronous host write.");
+        public override async Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            Text.Append(buffer.Span);
+        }
+        public override async Task FlushAsync(CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            Flushed = true;
+        }
+        protected override void Dispose(bool disposing) => Disposed = true;
     }
 
     internal sealed class AsyncInput(byte[] bytes, Action? onRead) : MemoryStream(bytes, writable: false)

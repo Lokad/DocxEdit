@@ -1042,7 +1042,14 @@ public sealed class DocxEditor
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(patchReader);
+        return CheckCore(input, () => ParsePatch(patchReader, options.MaxPatchChars, cancellationToken), options, cancellationToken);
+    }
 
+    internal DocxCheckResult CheckParsed(Stream input, DocxPatch patch, DocxEditOptions options, CancellationToken cancellationToken)
+        => CheckCore(input, () => patch, options, cancellationToken);
+
+    private static DocxCheckResult CheckCore(Stream input, Func<DocxPatch> parse, DocxEditOptions options, CancellationToken cancellationToken)
+    {
         // The patch reader stays caller-owned. The input is disposed on every
         // exit below if and only if LeaveInputOpen is false (the loader also
         // disposes it on its own paths; disposal is idempotent).
@@ -1050,7 +1057,8 @@ public sealed class DocxEditor
         {
             // Revision metadata is normalized once here; the engine and every result below share the effective values.
             DocxEditOptions effectiveOptions = options.WithNormalizedRevisionMetadata();
-            DocxPatch patch = ParsePatch(patchReader, options.MaxPatchChars, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            DocxPatch patch = parse();
             if (!patch.Success)
             {
                 return new DocxCheckResult
@@ -1131,6 +1139,14 @@ public sealed class DocxEditor
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(patchReader);
+        return ApplyCore(input, () => ParsePatch(patchReader, options.MaxPatchChars, cancellationToken), output, options, cancellationToken);
+    }
+
+    internal DocxApplyResult ApplyParsed(Stream input, DocxPatch patch, Stream output, DocxEditOptions options, CancellationToken cancellationToken)
+        => ApplyCore(input, () => patch, output, options, cancellationToken);
+
+    private static DocxApplyResult ApplyCore(Stream input, Func<DocxPatch> parse, Stream output, DocxEditOptions options, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(output);
         if (!output.CanWrite)
         {
@@ -1145,7 +1161,8 @@ public sealed class DocxEditor
         {
             // Revision metadata is normalized once here; the engine and every result below share the effective values.
             DocxEditOptions effectiveOptions = options.WithNormalizedRevisionMetadata();
-            DocxPatch patch = ParsePatch(patchReader, options.MaxPatchChars, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            DocxPatch patch = parse();
             if (!patch.Success)
             {
                 return new DocxApplyResult

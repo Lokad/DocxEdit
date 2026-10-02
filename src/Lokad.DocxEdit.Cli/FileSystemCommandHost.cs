@@ -58,7 +58,7 @@ internal sealed class FileSystemCommandHost : IDocxCommandHost
         await contents.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
     }
 
-    public IDocxAssetProvider GetAssetProvider(string patchPath) =>
+    public IDocxAsyncAssetProvider GetAssetProvider(string patchPath) =>
         new FileSystemAssetProvider(patchPath == "-" ? Directory.GetCurrentDirectory() : Path.GetDirectoryName(Path.GetFullPath(patchPath)));
 
     private sealed class BorrowedTextReader(TextReader inner) : TextReader
@@ -67,7 +67,7 @@ internal sealed class FileSystemCommandHost : IDocxCommandHost
             inner.ReadAsync(buffer, cancellationToken);
     }
 
-    private sealed class FileSystemAssetProvider : IDocxAssetProvider
+    private sealed class FileSystemAssetProvider : IDocxAsyncAssetProvider
     {
         private readonly string? _baseDirectory;
 
@@ -76,45 +76,27 @@ internal sealed class FileSystemCommandHost : IDocxCommandHost
             _baseDirectory = baseDirectory;
         }
 
-        public bool TryOpen(
-            string reference,
-            out Stream stream,
-            out string? contentTypeHint,
-            out string? fileNameHint)
+        public ValueTask<DocxAsset?> OpenAsync(string reference, CancellationToken cancellationToken)
         {
-            stream = Stream.Null;
-            contentTypeHint = null;
-            fileNameHint = null;
-
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 if (_baseDirectory is not null && !Path.IsPathRooted(reference))
                 {
                     string sibling = Path.GetFullPath(Path.Combine(_baseDirectory, reference));
                     if (File.Exists(sibling))
-                    {
-                        stream = File.OpenRead(sibling);
-                        fileNameHint = Path.GetFileName(sibling);
-                        return true;
-                    }
+                        return ValueTask.FromResult<DocxAsset?>(new DocxAsset(OpenFile(sibling), null, Path.GetFileName(sibling)));
                 }
 
                 string path = Path.GetFullPath(reference);
-                if (!File.Exists(path))
-                {
-                    return false;
-                }
-
-                stream = File.OpenRead(path);
-                fileNameHint = Path.GetFileName(path);
-                return true;
+                return ValueTask.FromResult<DocxAsset?>(File.Exists(path)
+                    ? new DocxAsset(OpenFile(path), null, Path.GetFileName(path))
+                    : null);
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or UnauthorizedAccessException)
             {
-                return false;
+                return ValueTask.FromResult<DocxAsset?>(null);
             }
         }
     }
-
-
 }

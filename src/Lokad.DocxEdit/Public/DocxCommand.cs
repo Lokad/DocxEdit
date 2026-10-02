@@ -44,6 +44,6 @@ public interface IDocxCommandHost
     ValueTask PublishFileAsync(string path, Stream contents, CancellationToken cancellationToken);
     /// <summary>Copies document bytes to binary stdout. Contents are borrowed until completion; stdout is never closed by the command. Output failures can leave a partial binary stream.</summary>
     ValueTask WriteStandardOutputAsync(Stream contents, CancellationToken cancellationToken);
-    /// <summary>Resolves image references relative to the patch's host location; '-' denotes a stdin patch.</summary>
-    IDocxAssetProvider GetAssetProvider(string patchPath);
+    /// <summary>Returns a borrowed asynchronous provider bound to the patch's host location, or null if assets are unsupported. '-' denotes a stdin patch. This method creates no I/O; opens and reads happen through the provider with cancellation.</summary>
+    IDocxAsyncAssetProvider? GetAssetProvider(string patchPath);
 }

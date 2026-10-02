@@ -1,5 +1,18 @@
 namespace Lokad.DocxEdit;
 
+/// <summary>Asynchronously opens patch-referenced assets for hosted command execution.</summary>
+public interface IDocxAsyncAssetProvider
+{
+    /// <summary>Opens an asset, or returns null when it cannot be resolved. The caller owns and disposes the returned content stream. Cancellation must propagate.</summary>
+    ValueTask<DocxAsset?> OpenAsync(string reference, CancellationToken cancellationToken);
+}
+
+/// <summary>An opened asset and optional media hints. Ownership of Content transfers to the caller of the asset provider.</summary>
+/// <param name="Content">Owned readable stream; asynchronous-only reads are supported by hosted commands.</param>
+/// <param name="ContentTypeHint">Optional media type; actual PNG/JPEG bytes remain authoritative.</param>
+/// <param name="FileNameHint">Optional filename used for media validation and diagnostics.</param>
+public sealed record DocxAsset(Stream Content, string? ContentTypeHint, string? FileNameHint);
+
 /// <summary>Provides patch-referenced binary assets (for example images for <c>replace-image</c>) to the patch engine.</summary>
 /// <remarks>The CLI resolves references against the file system; library consumers supply their own source (archives, stores, tests). The patch reader passed to check/apply stays caller-owned and is never disposed by the library.</remarks>
 public interface IDocxAssetProvider

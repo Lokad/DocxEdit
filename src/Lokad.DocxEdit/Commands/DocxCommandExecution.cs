@@ -21,6 +21,8 @@ internal sealed partial class DocxCommandExecution(
         _cancellationToken.ThrowIfCancellationRequested();
         await _host.StandardOutput.WriteAsync(_stdout.ToString().AsMemory(), _cancellationToken).ConfigureAwait(false);
         await _host.StandardError.WriteAsync(_stderr.ToString().AsMemory(), _cancellationToken).ConfigureAwait(false);
+        await _host.StandardOutput.FlushAsync(_cancellationToken).ConfigureAwait(false);
+        await _host.StandardError.FlushAsync(_cancellationToken).ConfigureAwait(false);
         return exitCode;
     }
 
@@ -198,7 +200,7 @@ internal sealed partial class DocxCommandExecution(
     private async Task<int> RunPatchCommand<T>(
         ParsedOptions options,
         string usage,
-        Func<Stream, TextReader, T> execute,
+        Func<Stream, DocxPatch, DocxEditOptions, T> execute,
         Func<T, IReadOnlyList<DocxDiagnostic>> getDiagnostics,
         Func<T, bool> getSuccess,
         Action<T> writeText,
@@ -212,7 +214,9 @@ internal sealed partial class DocxCommandExecution(
 
         using Stream input = await OpenInputFileAsync(options.Positionals[0]).ConfigureAwait(false);
         using TextReader patch = await OpenPatchFileAsync(options.Positionals[1]).ConfigureAwait(false);
-        T result = execute(input, patch);
+        DocxPatch parsed = new DocxEditor().ParsePatch(patch, _cancellationToken);
+        DocxEditOptions editOptions = await ToEditOptionsAsync(options, parsed).ConfigureAwait(false);
+        T result = execute(input, parsed, editOptions);
         await writeReport(result).ConfigureAwait(false);
         return await FinishCommand(options, result, getDiagnostics, getSuccess, writeText).ConfigureAwait(false);
     }
@@ -641,7 +645,7 @@ internal sealed partial class DocxCommandExecution(
         return await RunPatchCommand(
             options,
             CommandUsageError("check"),
-            (input, patch) => new DocxEditor().Check(input, patch, ToEditOptions(options), _cancellationToken),
+            (input, patch, editOptions) => new DocxEditor().CheckParsed(input, patch, editOptions, _cancellationToken),
             static result => result.Diagnostics,
             static result => result.Success,
             result =>
@@ -679,8 +683,10 @@ internal sealed partial class DocxCommandExecution(
 
         using Stream input = await OpenInputFileAsync(inputPath).ConfigureAwait(false);
         using TextReader patch = await OpenPatchFileAsync(patchPath).ConfigureAwait(false);
+        DocxPatch parsed = new DocxEditor().ParsePatch(patch, _cancellationToken);
+        DocxEditOptions editOptions = await ToEditOptionsAsync(options, parsed).ConfigureAwait(false);
         using var staged = new MemoryStream();
-        DocxApplyResult result = new DocxEditor().Apply(input, patch, staged, ToEditOptions(options), _cancellationToken);
+        DocxApplyResult result = new DocxEditor().ApplyParsed(input, parsed, staged, editOptions, _cancellationToken);
         await WriteReportAsync(options.ReportPath, result, JsonOptionsFor(options)).ConfigureAwait(false);
         if (result.Success)
         {
@@ -795,14 +801,20 @@ internal sealed partial class DocxCommandExecution(
         _stdout.WriteLine(JsonSerializer.Serialize(value, jsonOptions));
     }
 
-    private DocxEditOptions ToEditOptions(ParsedOptions options)
+    private async Task<DocxEditOptions> ToEditOptionsAsync(ParsedOptions options, DocxPatch patch)
     {
+        IDocxAssetProvider? assets = null;
+        if (patch.Success && patch.Operations.Any(operation => operation.Fields.ContainsKey("asset")) &&
+            _host.GetAssetProvider(options.Positionals[1]) is { } provider)
+        {
+            assets = await BufferedDocxAssets.LoadAsync(patch, provider, _options.Quotas.MaxSinglePartBytes, _cancellationToken).ConfigureAwait(false);
+        }
         return new DocxEditOptions
         {
             TrackChanges = options.TrackChanges,
             Author = options.Author ?? "docxedit",
             TimestampUtc = options.TimestampUtc ?? DateTimeOffset.UtcNow,
-            AssetProvider = _host.GetAssetProvider(options.Positionals[1]),
+            AssetProvider = assets,
             Quotas = _options.Quotas,
             MaxPreviewChars = options.MaxPreviewChars ?? 0
         };
