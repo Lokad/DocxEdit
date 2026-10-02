@@ -18,10 +18,12 @@ in memory, and results or a new package leave.
    (DocxPackageValidator*.cs) check structural rules and report diagnostics without throwing for
    content.
 4. Renderers (src/Lokad.DocxEdit/Rendering/TextRenderers.cs, Public/DocxTextRenderer.cs) format
-   result records as agent-readable text; JSON consumers use the records directly.
-5. The CLI (src/Lokad.DocxEdit.Cli/Program.cs) maps flags to options, publishes file outputs
-   atomically, and owns stdout and stderr discipline. DocxHelp and CommandCatalog own command and
-   patch metadata; the docs directory mirrors it for readers.
+   result records as agent-readable text; DocxJson supplies the shared JSON wire-value converters.
+5. DocxCommand (Public/DocxCommand.cs, Commands/) maps flags to options and owns command
+   execution, stdout/stderr discipline, and exit codes. IDocxCommandHost mediates all I/O and path
+   semantics. The CLI supplies a local filesystem host with atomic file publication; embedded
+   callers supply their own host. DocxHelp and CommandCatalog own command and patch metadata;
+   the docs directory mirrors it for readers.
 Ownership rule: each package invariant and each accepted command or patch field has exactly one
 owner above. The operation registry (DocxPatchOperationRegistry.cs) is the single table that the
 parser, catalog, and engine dispatch all project from.

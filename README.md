@@ -56,6 +56,8 @@ https://github.com/Lokad/DocxEdit/blob/master/docs/status.md
 
 For product integrations, the same guidance is available from the library through DocxHelp Catalog, and CLI text output is reusable through DocxTextRenderer.
 
+Embedded shells can call `DocxCommand.RunAsync` with an `IDocxCommandHost` to reuse the CLI's commands over their own storage and standard streams. See [hosting guidance](https://github.com/Lokad/DocxEdit/blob/master/docs/hosting.md) for I/O ownership, cancellation, publication, and exit codes. `DocxJson.CreateOptions` exposes the shared JSON wire format.
+
 ## Source build and CLI
 
 The package itself contains only the net10.0 library with XML docs, README, changelog, license, and icon. For source development:
