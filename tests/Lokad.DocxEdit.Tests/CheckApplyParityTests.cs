@@ -101,6 +101,7 @@ public static class CheckApplyParityTests
                 + "</Relationships>");
             string documentXml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
                 + "<w:p><w:r><w:t>Alpha.</w:t></w:r></w:p>"
+                + "<w:p><w:fldSimple w:instr=\" DATE \" ><w:r><w:t>June 12</w:t></w:r></w:fldSimple></w:p>"
                 + "</w:body></w:document>";
             AddEntry(archive, "word/document.xml", documentXml);
         }

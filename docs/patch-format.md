@@ -355,7 +355,9 @@ it fails with `E4314` when the reply has child replies.
 
 Complex field code edits and unsafe complex-field result topologies fail with
 `E4313`. General field recalculation is Word's responsibility. Apply emits
-`W5103` when edits mark fields for Word-side refresh. Refresh diagnostics
+`W5103` when edits mark fields for Word-side refresh. Documents without fields
+keep their refresh settings unchanged, including when no settings part exists.
+Refresh diagnostics
 classify unsupported field types that require layout, document properties,
 formulas, mail merge data, date/time state, conditionals, or external state.
 

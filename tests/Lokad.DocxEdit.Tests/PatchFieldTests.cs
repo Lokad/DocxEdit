@@ -13,7 +13,7 @@ public static class PatchFieldTests
     [Fact]
     public static void ApplyMarksFieldsDirtyByDefault()
     {
-        using MemoryStream input = CreateDocx("Revenue increased.");
+        using MemoryStream input = CreateDocumentWithField();
         using var output = new MemoryStream();
         using var patch = new StringReader("""
             docxpatch 1
@@ -74,7 +74,7 @@ public static class PatchFieldTests
     [Fact]
     public static void ApplyCanSkipMarkingFieldsDirty()
     {
-        using MemoryStream input = CreateDocx("Revenue increased.");
+        using MemoryStream input = CreateDocumentWithField();
         using var output = new MemoryStream();
         using var patch = new StringReader("""
             docxpatch 1
@@ -92,6 +92,56 @@ public static class PatchFieldTests
         output.Position = 0;
         Assert.False(EntryExists(output, "word/settings.xml"));
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("false")]
+    [InlineData("true")]
+    public static void FieldFreeEditPreservesRefreshSettings(string? refresh)
+    {
+        const string body = "<w:p><w:r><w:t>Alpha</w:t></w:r></w:p>";
+        string? relationships = refresh is null ? null : """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+            </Relationships>
+            """;
+        string settings = "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:updateFields w:val=\"" + refresh + "\"/></w:settings>";
+        using MemoryStream input = CreateDocxWithBody(body, relationships,
+            refresh is null ? null : archive => AddEntry(archive, "word/settings.xml", settings));
+        byte[] original = input.ToArray();
+        string originalRelationships = ReadEntry(input, "word/_rels/document.xml.rels");
+        input.Position = 0;
+        string originalTypes = ReadEntry(input, "[Content_Types].xml");
+        input.Position = 0;
+        const string patch = "docxpatch 1\nop replace-text\ntarget M.P0001\nfind Alpha\nwith Beta\nend\n";
+        DocxCheckResult check = new DocxEditor().Check(input, new StringReader(patch));
+        using var applyInput = new MemoryStream(original);
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patch), output);
+
+        Assert.True(check.Success);
+        Assert.True(apply.Success);
+        Assert.Equal(check.Diagnostics, apply.Diagnostics);
+        Assert.DoesNotContain(apply.Diagnostics, diagnostic => diagnostic.Code == "W5103");
+        output.Position = 0;
+        Assert.Equal("Beta", Assert.Single(new DocxEditor().Read(output).Paragraphs).Text);
+        output.Position = 0;
+        Assert.Equal(refresh is not null, EntryExists(output, "word/settings.xml"));
+        if (refresh is not null)
+        {
+            output.Position = 0;
+            Assert.Equal(settings, ReadEntry(output, "word/settings.xml"));
+        }
+        output.Position = 0;
+        Assert.Equal(originalRelationships, ReadEntry(output, "word/_rels/document.xml.rels"));
+        output.Position = 0;
+        Assert.Equal(originalTypes, ReadEntry(output, "[Content_Types].xml"));
+    }
+
+    private static MemoryStream CreateDocumentWithField() => CreateDocxWithBody("""
+        <w:p><w:r><w:t>Revenue increased.</w:t></w:r></w:p>
+        <w:p><w:fldSimple w:instr=" DATE "><w:r><w:t>June 12</w:t></w:r></w:fldSimple></w:p>
+        """);
 
     [Fact]
     public static void ApplySetFieldFlagsUpdatesSimpleAndComplexFields()

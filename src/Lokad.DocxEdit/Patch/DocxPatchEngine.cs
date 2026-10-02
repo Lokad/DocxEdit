@@ -255,12 +255,12 @@ internal static partial class DocxPatchEngine
             anyMutation &&
             patch.Operations.Count != 0 &&
             patch.Operations.Any(operation => MarksFieldsDirtyAfterEdit(operation.OperationName)) &&
-            diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error);
-        bool containsFieldsBeforeRefresh = shouldMarkFieldsDirty && PackageContainsFieldMarkup(package, cancellationToken);
+            diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error) &&
+            PackageContainsFieldMarkup(package, cancellationToken);
         if (shouldMarkFieldsDirty)
         {
             diagnostics.AddRange(MarkFieldsDirty(package, cancellationToken));
-            if (containsFieldsBeforeRefresh && diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
+            if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
             {
                 diagnostics.Add(new DocxDiagnostic(DocxSeverity.Warning, "W5103", "Document contains fields and was marked for Word-side field refresh; DocxEdit does not recalculate field results.") with
                 {

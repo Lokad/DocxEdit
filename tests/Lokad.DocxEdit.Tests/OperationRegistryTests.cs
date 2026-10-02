@@ -116,6 +116,7 @@ public static class OperationRegistryTests
                     <w:tbl>
                       <w:tr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc></w:tr>
                     </w:tbl>
+                    <w:p><w:fldSimple w:instr=" DATE "><w:r><w:t>June 12</w:t></w:r></w:fldSimple></w:p>
                   </w:body>
                 </w:document>
                 """);

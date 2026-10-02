@@ -188,7 +188,7 @@ public sealed class DocxEditOptions
 
     /// <summary>Whether macro-enabled documents load instead of failing.</summary>
     public bool AllowMacroEnabledDocuments { get; init; }
-    /// <summary>Whether successful edits mark fields dirty.</summary>
+    /// <summary>Whether successful edits to documents containing fields enable Word-side field refresh. Field-free documents keep their existing refresh settings unchanged.</summary>
     public bool MarkFieldsDirtyWhenEditing { get; init; } = true;
 
     /// <summary>Maximum before/after preview characters per side in operation reports; 0 disables previews and keeps reports metadata-only. Raising it exposes document text in reports.</summary>

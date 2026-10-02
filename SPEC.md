@@ -3169,6 +3169,8 @@ When a document contains fields and edits are applied:
 * Do not attempt to evaluate fields.
 * If `MarkFieldsDirtyWhenEditing` is true, set the document settings `w:updateFields`
   flag so Word can refresh field results on open.
+  Edits to documents without fields neither create settings nor change an existing
+  refresh flag.
 * Return warning:
 
 ```text

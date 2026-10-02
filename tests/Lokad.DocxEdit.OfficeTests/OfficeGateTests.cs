@@ -1860,10 +1860,8 @@ public static class OfficeGateTests
         // media fixture is accepted by Word. Package root thumbnail fixtures
         // stay byte level only: a valid JPEG root thumbnail round-trips through
         // Word while the PNG control is rejected, so PNG rejection proves no
-        // universal limitation. Legacy VML outputs stay byte level only as well:
-        // VML input opens, but VML packages carrying updateFields stall Word
-        // Open past bounded attempts, with or without the cloned media, while
-        // the same outputs open normally with field-dirty marking off.
+        // universal limitation. The shared VML test below separately covers
+        // preservation with default edit options on a field-free document.
         if (!OperatingSystem.IsWindows())
         {
             throw new InvalidOperationException("Office integration tests require Windows.");
@@ -1967,18 +1965,13 @@ public static class OfficeGateTests
 
     [OfficeFact]
     [Trait("Category", "RequiresWord")]
-    public static void OfficeAutomationSharedVmlNoDirtyMarkingRoundTripIsOptIn()
+    public static void OfficeAutomationSharedVmlDefaultOptionsRoundTripIsOptIn()
     {
         // VML preservation boundary: the DrawingML placement and the legacy VML
         // reference share one relationship, and replacing the drawing must leave
-        // the VML bytes and relationship untouched. That preservation is proven
-        // by byte and reference checks with and without Word. Word itself hangs
-        // opening VML packages whose settings carry updateFields enabled: the
-        // VML input opens, while the edited output, a metadata-only edit, and a
-        // hand-built equivalent all stall past bounded attempts with only owned
-        // processes cleaned up. With field-dirty marking off, the edited VML
-        // package round-trips normally, so this test pins that boundary instead
-        // of asserting a Word pass that cannot complete.
+        // the VML bytes and relationship untouched. Default options must not
+        // introduce field refresh into this field-free document: enabling it
+        // previously stalled Word Open even though the package validated.
         if (!OperatingSystem.IsWindows())
         {
             throw new InvalidOperationException("Office integration tests require Windows.");
@@ -2007,13 +2000,16 @@ public static class OfficeGateTests
             {
                 DocxApplyResult result = new DocxEditor().Apply(input, patch, output, new DocxEditOptions
                 {
-                    AssetProvider = new MemoryAssetProvider("photo.jpeg", MinimalJpeg(), "photo.jpeg"),
-                    MarkFieldsDirtyWhenEditing = false
+                    AssetProvider = new MemoryAssetProvider("photo.jpeg", MinimalJpeg(), "photo.jpeg")
                 });
                 Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(FormatDiagnostic)));
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
+            using (var archive = ZipFile.OpenRead(outputPath))
+            {
+                Assert.Null(archive.GetEntry("word/settings.xml"));
+            }
             Assert.Equal(sharedBefore, ReadEntryBytes(outputPath, "word/media/shared.png"));
             string documentRels = Encoding.UTF8.GetString(ReadEntryBytes(outputPath, "word/_rels/document.xml.rels"));
             Assert.Contains("rShared", documentRels, StringComparison.Ordinal);
@@ -4185,4 +4181,3 @@ public static class OfficeGateTests
 
     private static string FormatDiagnostic(DocxDiagnostic diagnostic) => $"{diagnostic.Code}: {diagnostic.Message}";
 }
-
