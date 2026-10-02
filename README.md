@@ -6,7 +6,7 @@ Install the library with:
 
     dotnet add package Lokad.DocxEdit --version 0.1.0
 
-Requires net10.0. Installing this package does not install the docxedit command. For the development CLI, clone the source and run via dotnet run, see source CLI guidance at https://github.com/Lokad/DocxEdit/blob/master/docs/cli.md
+Requires net10.0. Installing this package does not install the docxedit command. For the development CLI, clone the source and run via dotnet run, see [source CLI guidance](docs/cli.md)
 
 ## Library example
 
@@ -40,7 +40,7 @@ Assets: image edits use external assets through AssetProvider. The library never
 
 IDs: target IDs enumerate physical document order at inspection time from read output. They are stable for the same document bytes and scanner version, but not across modifications. Within one patch, explicit IDs bind to the input snapshot, semantic selectors resolve live against current content, and created objects are addressed through patch-local aliases with whole target @name. Reports carry Id with Coordinate input or operation-time and FinalId live matching a fresh read, staying absent for deleted objects. A deleted image or link never acquires its surviving containing paragraph identity. Check and apply agree on Success, diagnostics, and per-operation reports under the same input and options, including affected targets, created IDs, and previews. GeneratedRevisionIds remain empty in check by design and are populated only by apply. Re-read output for final coordinates.
 
-Tracking: track-changes modes are off, suggest, and require. Only some operations generate revision markup with author, timestamp, and revision IDs in reports. Annotation operations such as comments stay permitted under Require. Complex shapes warn or fail with explicit diagnostics. See patch guidance at https://github.com/Lokad/DocxEdit/blob/master/docs/patch-format.md
+Tracking: track-changes modes are off, suggest, and require. Only some operations generate revision markup with author, timestamp, and revision IDs in reports. Annotation operations such as comments stay permitted under Require. Complex shapes warn or fail with explicit diagnostics. See [patch guidance](docs/patch-format.md)
 
 Limits: there are no layout, rendering, pagination, or Word fidelity guarantees. Word open and save checks are bounded compatibility only, not proof for arbitrary documents. macOS execution, deployed storage behavior, live agent usability, and NuGet publishing rights are not established by local tests.
 
@@ -48,15 +48,15 @@ Limits: there are no layout, rendering, pagination, or Word fidelity guarantees.
 
 Source guidance lives at:
 
-https://github.com/Lokad/DocxEdit/blob/master/docs/cli.md
-https://github.com/Lokad/DocxEdit/blob/master/docs/patch-format.md
-https://github.com/Lokad/DocxEdit/blob/master/docs/diagnostics.md
-https://github.com/Lokad/DocxEdit/blob/master/docs/validation.md
-https://github.com/Lokad/DocxEdit/blob/master/docs/status.md
+[docs/cli.md](docs/cli.md)
+[docs/patch-format.md](docs/patch-format.md)
+[docs/diagnostics.md](docs/diagnostics.md)
+[docs/validation.md](docs/validation.md)
+[docs/status.md](docs/status.md)
 
 For product integrations, the same guidance is available from the library through DocxHelp Catalog, and CLI text output is reusable through DocxTextRenderer.
 
-Embedded shells can call `DocxCommand.RunAsync` with an `IDocxCommandHost` to reuse the CLI's commands over their own storage and standard streams. See [hosting guidance](https://github.com/Lokad/DocxEdit/blob/master/docs/hosting.md) for I/O ownership, cancellation, publication, and exit codes. `DocxJson.CreateOptions` exposes the shared JSON wire format.
+Embedded shells can call `DocxCommand.RunAsync` with an `IDocxCommandHost` to reuse the CLI's commands over their own storage and standard streams. See [hosting guidance](docs/hosting.md) for I/O ownership, cancellation, publication, and exit codes. `DocxJson.CreateOptions` exposes the shared JSON wire format.
 
 ## Source build and CLI
 
