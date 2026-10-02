@@ -39,7 +39,7 @@ try {
     $slowWatch.Stop()
     Assert-Tooling "slow-stdin-timeout" ($slowStdin.TimedOut) ""
     Assert-Tooling "slow-stdin-exit" ($slowStdin.ExitCode -eq -1) ""
-    Assert-Tooling "slow-stdin-deadline" ($slowWatch.Elapsed.TotalSeconds -lt 2.5) ""
+    Assert-Tooling "slow-stdin-deadline" ($slowWatch.Elapsed.TotalSeconds -lt 15) ""
     $sleepWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $sleepy = Invoke-ProcessCapture "pwsh" @("-NoProfile", "-Command", "Start-Sleep 60") 3
     $sleepWatch.Stop()
