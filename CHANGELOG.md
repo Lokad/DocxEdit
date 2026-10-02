@@ -1,10 +1,10 @@
 # Changelog
 
-## 0.1.0 - Prepared first NuGet release (unpublished)
+## 0.1.0 - 2026-10-02
 
-Prepared as a net10.0 library with no runtime package dependencies, plus source CLI for development. The CLI is not installed by the package.
+First release as a net10.0 library with no runtime package dependencies, plus source CLI for development. The CLI is not installed by the package.
 
-Library and patch behavior prepared:
+Library and patch behavior:
 
 - `DocxCommand.RunAsync` and a host I/O contract let embedded callers and the development CLI share command parsing, execution, rendering, and exit codes. `DocxJson.CreateOptions` exposes the canonical JSON wire format. Document and patch input, file publication, and command output support asynchronous hosts.
 - Hosted image assets use `IDocxAsyncAssetProvider` with cancellation and owned streams. Each decoded reference is read once per command; the existing image validation and diagnostic behavior is shared with direct library edits.
@@ -18,5 +18,5 @@ Library and patch behavior prepared:
 
 Notes:
 
-- This is the prepared first release. It has not been published yet. There is no migration from a prior NuGet release.
+- This is the first package version. There is no migration from a prior NuGet release.
 - Source documentation lives in docs in the repository. Package consumers use the library API and the guidance in this README.

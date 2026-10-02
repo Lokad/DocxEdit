@@ -15,7 +15,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>0.1.0 introduces the stream-first DocxEditor library, the docxedit CLI workflow, deterministic patch operations, package validation, and private-text-safe document inspection surfaces.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.1.0 introduces the stream-first DocxEditor library, deterministic docxpatch editing, document inspection and validation, image extraction and replacement, and shared hosted command execution with asynchronous I/O, cancellation, and canonical JSON output. The development CLI is available from source.</PackageReleaseNotes>
     <PackageTags>docx;word;openxml;documents;editing;agents</PackageTags>
     <PackageProjectUrl>https://github.com/Lokad/DocxEdit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Lokad/DocxEdit.git</RepositoryUrl>
