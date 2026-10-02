@@ -42,7 +42,7 @@ IDs: target IDs enumerate physical document order at inspection time from read o
 
 Tracking: track-changes modes are off, suggest, and require. Only some operations generate revision markup with author, timestamp, and revision IDs in reports. Annotation operations such as comments stay permitted under Require. Complex shapes warn or fail with explicit diagnostics. See patch guidance at https://github.com/Lokad/DocxEdit/blob/master/docs/patch-format.md
 
-Limits: there are no layout, rendering, pagination, or Word fidelity guarantees. Word open and save checks are bounded compatibility only, not proof for arbitrary documents. Linux and macOS execution, deployed storage behavior, live agent usability, and NuGet publishing rights are not established by local tests.
+Limits: there are no layout, rendering, pagination, or Word fidelity guarantees. Word open and save checks are bounded compatibility only, not proof for arbitrary documents. macOS execution, deployed storage behavior, live agent usability, and NuGet publishing rights are not established by local tests.
 
 ## Documentation
 
@@ -65,3 +65,5 @@ The package itself contains only the net10.0 library with XML docs, README, chan
     dotnet pack src/Lokad.DocxEdit/Lokad.DocxEdit.csproj -c Release
 
 Release packs generate both nupkg and snupkg files under ignored artifacts/nuget. Non-Release packs are rejected unless AllowNonReleasePackage true is supplied for troubleshooting. Run the CLI from source with dotnet run, as shown in source CLI guidance. No tool package is published.
+
+CI runs the Release library and package-consumer tests on Windows and Ubuntu, treats warnings as errors, and retains a test log for each platform. Word open and save tests require an explicit opt-in on Windows with Word installed.

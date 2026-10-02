@@ -70,10 +70,15 @@ agent transcript.
 
 ## Continuous Integration
 
-Every push and pull request runs `.github/workflows/agent-tooling.yml`: it builds
+Every push and pull request runs `.github/workflows/ci.yml`. The Release library
+and package-consumer tests run on Windows and Ubuntu with warnings treated as
+errors and a test log retained for each platform. A separate Windows job builds
 the solution and exercises the runner without launching Codex (`-List`, per-challenge
 `-DryRun`, plus one fixture-stand-in `-PrepareOnly` with run-containment, path-guard,
-and summary-sanitizer assertions). Live `codex exec` probes stay manual and local-only.
+and summary-sanitizer assertions), and runs `tools/Test-Tooling.ps1`. Word round
+trips remain an explicit opt-in requiring Windows and an installed copy of Word;
+the hosted CI does not establish Word compatibility. Live `codex exec` probes stay
+manual and local-only.
 
 ## Reusable local input variants
 

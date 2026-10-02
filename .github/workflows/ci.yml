@@ -1,13 +1,25 @@
-name: agent-tooling
+name: ci
 
 on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: pwsh
+
 jobs:
   challenge-runner:
     name: Challenge runner dry-run
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -15,6 +27,10 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - name: Build solution
         run: dotnet build Lokad.DocxEdit.slnx -c Release --nologo -v q
       # pwsh (not powershell): the runner hashes inputs with Get-FileHash, which is absent
@@ -141,10 +157,21 @@ jobs:
           }
           Write-Host "Sanitized summaries hold no document text or private names."
 
+      # Keep the process harness on Windows alongside the runner and path guards.
+      # The portable library and package-consumer tests run on both platforms below.
+      - name: Unit-test tooling (capture and verdicts)
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Tooling.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Tooling tests failed." }
 
-  behavioral-tests:
-    name: Release tests with zero-warning gate
-    runs-on: windows-latest
+  tests:
+    name: tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -159,12 +186,16 @@ jobs:
       # The main suite runs here. The Word COM round trip lives in its own
       # opt-in project below and never counts toward this green run.
       - name: Release tests (warnings are errors)
-        run: dotnet test tests/Lokad.DocxEdit.Tests/Lokad.DocxEdit.Tests.csproj -c Release --nologo -p:TreatWarningsAsErrors=true
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          try { dotnet test tests/Lokad.DocxEdit.Tests/Lokad.DocxEdit.Tests.csproj -c Release --nologo -p:TreatWarningsAsErrors=true 2>&1 | Tee-Object -FilePath artifacts/test.log } catch { exit 1 }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       # Explicitly separate opt-in invocation with a visible result: without
       # DOCXEDIT_ENABLE_OFFICE_TESTS=1 (and Word on Windows) this step
       # reports that the Word open/save check did not execute, so a green
       # run can never be mistaken for a Word compatibility pass.
       - name: Office Word round trip (opt-in)
+        if: runner.os == 'Windows'
         run: |
           if ($env:DOCXEDIT_ENABLE_OFFICE_TESTS -eq '1') {
             dotnet test tests/Lokad.DocxEdit.OfficeTests/Lokad.DocxEdit.OfficeTests.csproj -c Release --nologo -p:TreatWarningsAsErrors=true
@@ -173,12 +204,9 @@ jobs:
             Write-Host "SKIP: Word open/save round trip did not execute (DOCXEDIT_ENABLE_OFFICE_TESTS is not set to 1)."
           }
 
-      # Shared capture and verdict checks live in tracked tools/Test-Tooling.ps1
-      # (concurrent dual-stream drain, quoting round trip, stdin delivery,
-      # slow-stdin and pipe-holding-descendant deadlines, and the challenge
-      # verdict matrix), invoked once here and runnable locally as-is.
-      - name: Unit-test tooling (capture and verdicts)
-        run: |
-          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Tooling.ps1
-          if ($LASTEXITCODE -ne 0) { throw "Tooling tests failed." }
-
+      - name: Publish test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-${{ matrix.os }}
+          path: artifacts/test.log

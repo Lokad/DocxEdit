@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text;
@@ -1222,6 +1223,8 @@ public static class CliTests
         };
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--no-build");
+        startInfo.ArgumentList.Add("--configuration");
+        startInfo.ArgumentList.Add(typeof(CliTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration);
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
         startInfo.ArgumentList.Add("--");
@@ -1271,6 +1274,8 @@ public static class CliTests
         };
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--no-build");
+        startInfo.ArgumentList.Add("--configuration");
+        startInfo.ArgumentList.Add(typeof(CliTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration);
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
         startInfo.ArgumentList.Add("--");
