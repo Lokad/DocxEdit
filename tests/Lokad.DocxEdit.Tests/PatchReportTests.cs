@@ -2231,4 +2231,172 @@ public static class PatchReportTests
     }
 
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public static void MergeReportsKeepInputIdentityAfterEarlierRowChanges(bool insert, bool targetMerge)
+    {
+        using MemoryStream seed = CreateDocxWithBody(MergeReportBody);
+        byte[] bytes = seed.ToArray();
+        DocxTableCellInfo original = Assert.Single(new DocxEditor().Read(seed).Tables).Cells.Single(cell => cell.Text == "Second");
+        string earlier = insert
+            ? "op insert-row-before\ntarget M.T0001.R01\ncell Earlier\nend\n"
+            : "op delete-row\ntarget M.T0001.R01\nend\n";
+        DocxTargetId target = targetMerge ? original.MergeGroupId!.Value : original.Id;
+        var (apply, read) = ApplyMergeReportPatch(bytes,
+            earlier + $"op set-cell\ntarget {target.ToWireValue()}\ntext Changed\nend\n");
+
+        DocxPatchAffectedTarget affected = Assert.Single(apply.Operations[1].AffectedTargets);
+        DocxTableCellInfo final = Assert.Single(read.Tables).Cells.Single(cell => cell.Text == "Changed");
+        Assert.Equal("input", affected.Coordinate);
+        Assert.Equal(target, affected.Id);
+        Assert.Equal(original.MergeGroupId, affected.MergeGroupId);
+        Assert.Equal(original.RowIndex, affected.RowIndex);
+        Assert.Equal(original.ColumnIndex, affected.ColumnIndex);
+        Assert.Equal(original.VisualColumnEndIndex, affected.VisualColumnEndIndex);
+        Assert.Equal(targetMerge ? final.MergeGroupId : final.Id, affected.FinalId);
+        Assert.NotEqual(original.MergeGroupId, final.MergeGroupId);
+    }
+
+    [Fact]
+    public static void DeletedMergedRowKeepsInputGroupAfterEarlierDeletion()
+    {
+        using MemoryStream seed = CreateDocxWithBody(MergeReportBody);
+        byte[] bytes = seed.ToArray();
+        DocxTableCellInfo original = Assert.Single(new DocxEditor().Read(seed).Tables).Cells.Single(cell => cell.Text == "Second");
+        var (apply, read) = ApplyMergeReportPatch(bytes,
+            "op delete-row\ntarget M.T0001.R01\nend\nop delete-row\ntarget M.T0001.R02\nend\n");
+
+        DocxPatchAffectedTarget cell = Assert.Single(apply.Operations[1].AffectedTargets, affected => affected.Kind == "cell");
+        Assert.Equal("input", cell.Coordinate);
+        Assert.Equal(original.Id, cell.Id);
+        Assert.Equal(original.MergeGroupId, cell.MergeGroupId);
+        Assert.Null(cell.FinalId);
+        Assert.Equal("Third", Assert.Single(Assert.Single(read.Tables).Cells).Text);
+    }
+
+    [Theory]
+    [InlineData("insert-row-before", false)]
+    [InlineData("insert-row-after", false)]
+    [InlineData("append-row", false)]
+    [InlineData("insert-row-before", true)]
+    [InlineData("insert-row-after", true)]
+    [InlineData("append-row", true)]
+    public static void CreatedMergeReportsKeepOperationTimeIdentity(string operation, bool deleteCreated)
+    {
+        using MemoryStream seed = CreateDocxWithBody(MergeReportBody);
+        byte[] bytes = seed.ToArray();
+        string target = operation == "append-row" ? "M.T0001" : "M.T0001.R02";
+        string creation = $"op {operation}\ntarget {target}\ncell Added\nas added\nend\n";
+        var (_, intermediateRead) = ApplyMergeReportPatch(bytes, creation);
+        DocxTableCellInfo created = Assert.Single(intermediateRead.Tables).Cells.Single(cell => cell.Text == "Added");
+        string shift = "op insert-row-before\ntarget M.T0001.R01\ncell Earlier\nend\n";
+        var (shiftedApply, shiftedRead) = ApplyMergeReportPatch(bytes, creation + shift);
+        DocxTableCellInfo shifted = Assert.Single(shiftedRead.Tables).Cells.Single(cell => cell.Text == "Added");
+        var (apply, finalRead) = deleteCreated
+            ? ApplyMergeReportPatch(bytes, creation + shift + "op delete-row\ntarget @added\nend\n")
+            : (shiftedApply, shiftedRead);
+
+        DocxPatchAffectedTarget insertion = Assert.Single(apply.Operations[0].AffectedTargets, affected => affected.Kind == "cell");
+        Assert.Equal("operation-time", insertion.Coordinate);
+        Assert.Equal(created.Id, insertion.Id);
+        Assert.Equal(created.MergeGroupId, insertion.MergeGroupId);
+        Assert.Equal(created.RowIndex, insertion.RowIndex);
+        Assert.Equal(created.ColumnIndex, insertion.ColumnIndex);
+        Assert.Equal(created.VisualColumnEndIndex, insertion.VisualColumnEndIndex);
+        Assert.NotEqual(created.MergeGroupId, shifted.MergeGroupId);
+        if (deleteCreated)
+        {
+            Assert.Null(insertion.FinalId);
+            DocxPatchAffectedTarget removed = Assert.Single(apply.Operations[2].AffectedTargets, affected => affected.Kind == "cell");
+            Assert.Equal("operation-time", removed.Coordinate);
+            Assert.Equal(shifted.Id, removed.Id);
+            Assert.Equal(shifted.MergeGroupId, removed.MergeGroupId);
+            Assert.Null(removed.FinalId);
+            Assert.DoesNotContain(Assert.Single(finalRead.Tables).Cells, cell => cell.Text == "Added");
+        }
+        else
+        {
+            DocxTableCellInfo final = Assert.Single(finalRead.Tables).Cells.Single(cell => cell.Text == "Added");
+            Assert.Equal(final.Id, insertion.FinalId);
+        }
+    }
+
+    [Fact]
+    public static void CreatedMergeGroupUsesLiveTableIdentityAfterEarlierTableDeletion()
+    {
+        using MemoryStream seed = CreateDocxWithBody(MergeReportBody + MergeReportBody);
+        var (apply, read) = ApplyMergeReportPatch(seed.ToArray(),
+            "op delete-block\ntarget M.T0001\nend\nop append-row\ntarget M.T0002\ncell Added\nend\n");
+        DocxPatchAffectedTarget insertion = Assert.Single(apply.Operations[1].AffectedTargets, affected => affected.Kind == "cell");
+        DocxTableCellInfo final = Assert.Single(read.Tables).Cells.Single(cell => cell.Text == "Added");
+        Assert.Equal("operation-time", insertion.Coordinate);
+        Assert.Equal(final.Id, insertion.Id);
+        Assert.Equal(final.MergeGroupId, insertion.MergeGroupId);
+        Assert.Equal(final.Id, insertion.FinalId);
+        Assert.Equal("M.T0001.MG0004", insertion.MergeGroupId?.ToWireValue());
+    }
+
+    [Fact]
+    public static void PromotedVerticalMergeContinuationRetainsInputMembership()
+    {
+        const string body = """
+            <w:tbl><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+              <w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>First</w:t></w:r></w:p></w:tc></w:tr>
+              <w:tr>
+                <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>Root</w:t></w:r></w:p></w:tc>
+                <w:tc><w:p><w:r><w:t>Side</w:t></w:r></w:p></w:tc>
+              </w:tr>
+              <w:tr>
+                <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>
+                <w:tc><w:p><w:r><w:t>Next</w:t></w:r></w:p></w:tc>
+              </w:tr>
+              <w:tr><w:tc><w:p><w:r><w:t>Last</w:t></w:r></w:p></w:tc><w:tc><w:p/></w:tc></w:tr>
+            </w:tbl>
+            """;
+        using MemoryStream seed = CreateDocxWithBody(body);
+        byte[] bytes = seed.ToArray();
+        DocxTableCellInfo original = Assert.Single(new DocxEditor().Read(seed).Tables).Cells.Single(cell => cell.RowIndex == 3 && cell.ColumnIndex == 1);
+        var (apply, _) = ApplyMergeReportPatch(bytes,
+            "op delete-row\ntarget M.T0001.R01\nend\nop delete-row\ntarget M.T0001.R02\nend\nop delete-row\ntarget M.T0001.R03\nend\n");
+        DocxPatchAffectedTarget removed = Assert.Single(apply.Operations[2].AffectedTargets, affected => affected.Kind == "cell" && affected.ColumnIndex == 1);
+        Assert.Equal("M.T0001.MG0002", original.MergeGroupId?.ToWireValue());
+        Assert.Equal("input", removed.Coordinate);
+        Assert.Equal(original.Id, removed.Id);
+        Assert.Equal(original.MergeGroupId, removed.MergeGroupId);
+        Assert.Null(removed.FinalId);
+    }
+
+    private const string MergeReportBody = """
+        <w:tbl><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+          <w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>First</w:t></w:r></w:p></w:tc></w:tr>
+          <w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Second</w:t></w:r></w:p></w:tc></w:tr>
+          <w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Third</w:t></w:r></w:p></w:tc></w:tr>
+        </w:tbl>
+        """;
+
+    private static (DocxApplyResult Apply, DocxReadResult Read) ApplyMergeReportPatch(byte[] original, string operations)
+    {
+        string patch = "docxpatch 1\n" + operations;
+        using var checkInput = new MemoryStream(original);
+        DocxCheckResult check = new DocxEditor().Check(checkInput, new StringReader(patch));
+        Assert.True(check.Success, string.Join("|", check.Diagnostics.Select(diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        using var applyInput = new MemoryStream(original);
+        using var output = new MemoryStream();
+        DocxApplyResult apply = new DocxEditor().Apply(applyInput, new StringReader(patch), output);
+        Assert.True(apply.Success, string.Join("|", apply.Diagnostics.Select(diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(check.Operations.Count, apply.Operations.Count);
+        for (int i = 0; i < check.Operations.Count; i++)
+        {
+            Assert.Equal(check.Operations[i].AffectedTargets, apply.Operations[i].AffectedTargets);
+        }
+        output.Position = 0;
+        Assert.DoesNotContain("http://schemas.lokad.com/docxedit/snapshot", ReadDocumentXml(output), StringComparison.Ordinal);
+        output.Position = 0;
+        DocxReadResult read = new DocxEditor().Read(output);
+        Assert.True(read.Success);
+        return (apply, read);
+    }
 }

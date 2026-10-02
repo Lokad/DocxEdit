@@ -1825,9 +1825,20 @@ internal static partial class DocxPatchEngine
     // instead of rescanned per ordinal.
     internal static List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)> EnumerateMergeGroupRoots(XElement table)
     {
-        var roots = new List<(XElement Row, XElement Cell, int VisualColumn, int RowOrdinal)>();
+        return EnumerateTableMergeCells(table)
+            .Where(entry => ReferenceEquals(entry.Group?.Cell, entry.Cell))
+            .Select(entry => (entry.Row, entry.Cell, entry.VisualColumn, entry.RowOrdinal))
+            .ToList();
+    }
+
+    // One patch-side walk owns merge membership and live ordinals. Snapshot
+    // capture retains input membership; reports choose input or operation-time
+    // identity without maintaining a second active-merge map.
+    private static IEnumerable<TableMergeCell> EnumerateTableMergeCells(XElement table)
+    {
         var activeVerticalMerges = new Dictionary<int, MergeGroupRootState>();
         int currentRowOrdinal = 0;
+        int mergeOrdinal = 0;
         foreach (XElement currentRow in table.Elements(OoxmlNs.W + "tr"))
         {
             currentRowOrdinal++;
@@ -1838,32 +1849,31 @@ internal static partial class DocxPatchEngine
             {
                 int columnSpan = DocxTableGrid.ReadColumnSpan(currentCell);
                 DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(currentCell);
+                MergeGroupRootState? group = null;
                 if (verticalMerge == DocxVerticalMerge.Restart)
                 {
-                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
-                    roots.Add((currentRow, currentCell, columnIndex, currentRowOrdinal));
+                    group = new MergeGroupRootState(currentCell, ++mergeOrdinal);
+                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, group);
                 }
                 else if (verticalMerge is not null)
                 {
-                    MergeGroupRootState? root = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan);
-                    if (root is null)
-                    {
-                        roots.Add((currentRow, currentCell, columnIndex, currentRowOrdinal));
-                        SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, new MergeGroupRootState(currentRow, currentCell, columnIndex));
-                    }
+                    group = FindActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan)
+                        ?? new MergeGroupRootState(currentCell, ++mergeOrdinal);
+                    SetActiveMergeGroup(activeVerticalMerges, columnIndex, columnSpan, group);
                 }
                 else
                 {
                     RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, columnSpan);
                     if (columnSpan > 1)
                     {
-                        roots.Add((currentRow, currentCell, columnIndex, currentRowOrdinal));
+                        group = new MergeGroupRootState(currentCell, ++mergeOrdinal);
                     }
                 }
+                yield return new TableMergeCell(currentRow, currentCell, columnIndex, currentRowOrdinal, group);
                 columnIndex += columnSpan;
             }
+            RemoveActiveMergeGroups(activeVerticalMerges, columnIndex, DocxTableGrid.ReadGridOffset(currentRow, "gridAfter"));
         }
-        return roots;
     }
 
     // Finds the vertical-merge root cell above a continuation cell in the same

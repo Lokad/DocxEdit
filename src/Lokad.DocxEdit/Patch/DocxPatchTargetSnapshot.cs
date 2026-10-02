@@ -18,6 +18,7 @@ internal static partial class DocxPatchEngine
     private static readonly XName SnapshotIdName = SnapshotNs + "sid";
     private static readonly XName SnapshotAliasName = SnapshotNs + "alias";
     private static readonly XName SnapshotMergeGroupName = SnapshotNs + "mgid";
+    private static readonly XName SnapshotMergeReferenceName = SnapshotNs + "mgref";
     private static readonly XName SnapshotCreatedName = SnapshotNs + "created";
 
     private static void CaptureTargetSnapshot(OoxmlPackage package, CancellationToken cancellationToken)
@@ -191,12 +192,16 @@ internal static partial class DocxPatchEngine
                 columnIndex += columnSpan;
             }
         }
-        int mergeGroupOrdinal = 0;
-        foreach (var merge in EnumerateMergeGroupRoots(table))
+        foreach (TableMergeCell entry in EnumerateTableMergeCells(table))
         {
-            mergeGroupOrdinal++;
-            var mergeGroupId = tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = mergeGroupOrdinal };
-            merge.Cell.SetAttributeValue(SnapshotMergeGroupName, mergeGroupId.ToWireValue());
+            if (entry.Group is { } group)
+            {
+                var mergeGroupId = tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = group.Ordinal };
+                // Only roots resolve explicit MG targets. Continuations retain
+                // input membership separately, even if the root is later deleted.
+                XName mark = ReferenceEquals(group.Cell, entry.Cell) ? SnapshotMergeGroupName : SnapshotMergeReferenceName;
+                entry.Cell.SetAttributeValue(mark, mergeGroupId.ToWireValue());
+            }
         }
     }
 
@@ -589,7 +594,7 @@ internal static partial class DocxPatchEngine
             bool dirty = false;
             foreach (XElement element in document.Descendants())
             {
-                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName, SnapshotCreatedName })
+                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName, SnapshotMergeReferenceName, SnapshotCreatedName })
                 {
                     XAttribute? attribute = element.Attribute(markName);
                     if (attribute is not null)

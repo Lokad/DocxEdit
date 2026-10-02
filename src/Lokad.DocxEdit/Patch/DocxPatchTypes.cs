@@ -76,7 +76,10 @@ internal sealed record TableCellGridSlot(XElement Cell, int ColumnIndex, int Col
 
 internal sealed record SectionTarget(XDocument Document, XElement SectionProperties);
 
-internal sealed record MergeGroupRootState(XElement Row, XElement Cell, int VisualColumnIndex);
+internal sealed record MergeGroupRootState(XElement Cell, int Ordinal);
+
+internal readonly record struct TableMergeCell(
+    XElement Row, XElement Cell, int VisualColumn, int RowOrdinal, MergeGroupRootState? Group);
 
 internal readonly record struct TextRange(int Start, int Length);
 

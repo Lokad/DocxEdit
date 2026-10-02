@@ -447,7 +447,7 @@ public sealed record DocxPatchAffectedTarget(DocxTargetId Id, string Kind, strin
     public int? GridBefore { get; init; }
     /// <summary>Trailing grid columns.</summary>
     public int? GridAfter { get; init; }
-    /// <summary>Merge-group ID, when merged.</summary>
+    /// <summary>Merge-group ID in the historical Coordinate space, when merged. Later edits do not renumber this metadata.</summary>
     public DocxTargetId? MergeGroupId { get; init; }
     /// <summary>Nested-table path, when nested.</summary>
     public string? NestedTablePath { get; init; }

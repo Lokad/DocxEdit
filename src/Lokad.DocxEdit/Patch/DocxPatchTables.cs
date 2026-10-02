@@ -77,11 +77,37 @@ internal static partial class DocxPatchEngine
     private static TableOperationSnapshot? CaptureInsertAnchorSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
     {
         RowTarget? rowTarget = ResolveRowTarget(package, target, cancellationToken);
+        return rowTarget is null ? null : CaptureLiveRowSnapshot(package, rowTarget, cancellationToken);
+    }
+
+    // Alias rows carry their own provenance. Created rows report in
+    // operation-time space with their creation mark; snapshot-only rows fall
+    // back to their historical identity.
+    private static TableOperationSnapshot? CreateAliasRowSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
+    {
+        RowTarget? rowTarget = ResolveAliasRowTarget(package, target, cancellationToken);
         if (rowTarget is null)
         {
             return null;
         }
 
+        if (rowTarget.Row.Attribute(SnapshotCreatedName) is null)
+        {
+            string? snapshotId = (string?)rowTarget.Row.Attribute(SnapshotIdName);
+            if (snapshotId is null || !DocxTargetId.TryParse(snapshotId, out DocxTargetId historical) || historical.Kind != DocxTargetKind.Row)
+            {
+                return null;
+            }
+
+            int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
+            return CreateTableOperationSnapshot(historical, rowTarget.Table, historical.Secondary, columnIndex: null, cellCount, rowTarget.Row);
+        }
+
+        return CaptureLiveRowSnapshot(package, rowTarget, cancellationToken);
+    }
+
+    private static TableOperationSnapshot? CaptureLiveRowSnapshot(OoxmlPackage package, RowTarget rowTarget, CancellationToken cancellationToken)
+    {
         DocxTargetId? liveTable = LiveTableId(package, rowTarget.PartName, rowTarget.Document, rowTarget.Table, cancellationToken);
         if (liveTable is null)
         {
@@ -102,60 +128,11 @@ internal static partial class DocxPatchEngine
             liveRowIndex,
             columnIndex: null,
             cellCount,
-            rowTarget.Row);
-    }
-
-    // Alias rows carry their own provenance. Created rows report in
-    // operation-time space with their creation mark; snapshot-only rows fall
-    // back to their historical identity.
-    private static TableOperationSnapshot? CreateAliasRowSnapshot(OoxmlPackage package, string target, CancellationToken cancellationToken)
-    {
-        RowTarget? rowTarget = ResolveAliasRowTarget(package, target, cancellationToken);
-        if (rowTarget is null)
+            rowTarget.Row,
+            inputCoordinates: false) with
         {
-            return null;
-        }
-
-        string? creationMark = (string?)rowTarget.Row.Attribute(SnapshotCreatedName);
-        int cellCount = rowTarget.Row.Elements(OoxmlNs.W + "tc").Count();
-
-        if (creationMark is null)
-        {
-            string? snapshotId = (string?)rowTarget.Row.Attribute(SnapshotIdName);
-            if (snapshotId is null || !DocxTargetId.TryParse(snapshotId, out DocxTargetId historical) || historical.Kind != DocxTargetKind.Row)
-            {
-                return null;
-            }
-
-            return CreateTableOperationSnapshot(historical, rowTarget.Table, historical.Secondary, columnIndex: null, cellCount, rowTarget.Row);
-        }
-
-        DocxTargetId? liveTable = LiveTableId(package, rowTarget.PartName, rowTarget.Document, rowTarget.Table, cancellationToken);
-        if (liveTable is null)
-        {
-            return null;
-        }
-
-        XElement[] rows = rowTarget.Table.Elements(OoxmlNs.W + "tr").ToArray();
-        int liveRowIndex = Array.IndexOf(rows, rowTarget.Row) + 1;
-        if (liveRowIndex < 1)
-        {
-            return null;
-        }
-
-        TableOperationSnapshot? maybeSnapshot = CreateTableOperationSnapshot(
-            liveTable.Value with { Kind = DocxTargetKind.Row, Secondary = liveRowIndex },
-            rowTarget.Table,
-            liveRowIndex,
-            columnIndex: null,
-            cellCount,
-            rowTarget.Row);
-        if (maybeSnapshot is null)
-        {
-            return null;
-        }
-
-        return maybeSnapshot with { CreationMark = creationMark };
+            CreationMark = (string?)rowTarget.Row.Attribute(SnapshotCreatedName)
+        };
     }
 
     private static DocxTargetId? LiveTableId(OoxmlPackage package, string partName, XDocument document, XElement table, CancellationToken cancellationToken)
@@ -240,16 +217,17 @@ internal static partial class DocxPatchEngine
         DocxTargetId liveTable = LiveTableId(package, tableTarget.PartName, tableTarget.Document, tableTarget.Table, cancellationToken) ?? tableId;
 
         XElement? templateRow = tableTarget.Table.Elements(OoxmlNs.W + "tr").LastOrDefault();
-        return CreateTableOperationSnapshot(liveTable, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null, templateRow);
+        return CreateTableOperationSnapshot(liveTable, tableTarget.Table, rowIndex: null, columnIndex: null, cellCount: null, templateRow, inputCoordinates: false);
     }
 
-    private static TableOperationSnapshot? CreateTableOperationSnapshot(
+    private static TableOperationSnapshot CreateTableOperationSnapshot(
         DocxTargetId resolvedId,
         XElement table,
         int? rowIndex,
         int? columnIndex,
         int? cellCount,
-        XElement? row)
+        XElement? row,
+        bool inputCoordinates = true)
     {
         // Counts and grid offsets always describe live execution state. Identity
         // and row/column indexes arrive in report-space provenance from the
@@ -262,7 +240,7 @@ internal static partial class DocxPatchEngine
         int? gridAfter = row is null ? null : DocxTableGrid.ReadGridOffset(row, "gridAfter");
         IReadOnlyList<TableCellSnapshot> cells = row is null
             ? []
-            : CreateTableCellSnapshots(resolvedId.TableId, table, row, rowIndex);
+            : CreateTableCellSnapshots(resolvedId.TableId, table, row, rowIndex, inputCoordinates);
         return new TableOperationSnapshot(resolvedId, rowIndex, columnIndex, rowCount, columnCount, cellCount, gridBefore, gridAfter, cells);
     }
 
@@ -270,59 +248,38 @@ internal static partial class DocxPatchEngine
         DocxTargetId tableId,
         XElement table,
         XElement targetRow,
-        int? targetRowIndex)
+        int? targetRowIndex,
+        bool inputCoordinates)
     {
         var snapshots = new List<TableCellSnapshot>();
-        int mergeGroupIndex = 1;
-        int rowIndex = 0;
-        var activeVerticalMerges = new Dictionary<int, DocxTargetId>(capacity: 4);
-        foreach (XElement row in table.Elements(OoxmlNs.W + "tr"))
+        foreach (TableMergeCell entry in EnumerateTableMergeCells(table))
         {
-            rowIndex++;
-            int gridBefore = DocxTableGrid.ReadGridOffset(row, "gridBefore");
-            RemoveActiveMergeGroupIds(activeVerticalMerges, 1, gridBefore);
-            int columnIndex = 1 + gridBefore;
-            foreach (XElement cell in row.Elements(OoxmlNs.W + "tc"))
+            if (!ReferenceEquals(entry.Row, targetRow))
             {
-                int columnSpan = DocxTableGrid.ReadColumnSpan(cell);
-                DocxVerticalMerge? verticalMerge = ReadTableCellVerticalMerge(cell);
-                DocxTargetId? mergeGroupId = null;
-                if (verticalMerge == DocxVerticalMerge.Restart)
-                {
-                    DocxTargetId allocated = DocxTargetId.AllocateMergeGroupId(tableId, ref mergeGroupIndex);
-                    mergeGroupId = allocated;
-                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, allocated);
-                }
-                else if (verticalMerge is not null)
-                {
-                    DocxTargetId active = FindActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan) ?? DocxTargetId.AllocateMergeGroupId(tableId, ref mergeGroupIndex);
-                    mergeGroupId = active;
-                    SetActiveMergeGroupId(activeVerticalMerges, columnIndex, columnSpan, active);
-                }
-                else
-                {
-                    RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, columnSpan);
-                    if (columnSpan > 1)
-                    {
-                        mergeGroupId = DocxTargetId.AllocateMergeGroupId(tableId, ref mergeGroupIndex);
-                    }
-                }
-
-                if (ReferenceEquals(row, targetRow))
-                {
-                    DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = targetRowIndex ?? rowIndex, Tertiary = columnIndex };
-                    snapshots.Add(new TableCellSnapshot(
-                        columnIndex,
-                        columnIndex + columnSpan - 1,
-                        mergeGroupId,
-                        CreateNestedTablePath(cellId.ToWireValue(), cell)));
-                }
-
-                columnIndex += columnSpan;
+                continue;
             }
 
-            int gridAfter = DocxTableGrid.ReadGridOffset(row, "gridAfter");
-            RemoveActiveMergeGroupIds(activeVerticalMerges, columnIndex, gridAfter);
+            DocxTargetId? mergeGroupId = null;
+            if (inputCoordinates)
+            {
+                string? historical = (string?)entry.Cell.Attribute(SnapshotMergeGroupName)
+                    ?? (string?)entry.Cell.Attribute(SnapshotMergeReferenceName);
+                if (DocxTargetId.TryParse(historical, out DocxTargetId inputMerge))
+                {
+                    mergeGroupId = inputMerge;
+                }
+            }
+            else if (entry.Group is { } group)
+            {
+                mergeGroupId = tableId with { Kind = DocxTargetKind.MergeGroup, Secondary = group.Ordinal };
+            }
+
+            DocxTargetId cellId = tableId with { Kind = DocxTargetKind.Cell, Secondary = targetRowIndex ?? entry.RowOrdinal, Tertiary = entry.VisualColumn };
+            snapshots.Add(new TableCellSnapshot(
+                entry.VisualColumn,
+                entry.VisualColumn + DocxTableGrid.ReadColumnSpan(entry.Cell) - 1,
+                mergeGroupId,
+                CreateNestedTablePath(cellId.ToWireValue(), entry.Cell)));
         }
 
         return snapshots;
@@ -337,42 +294,6 @@ internal static partial class DocxPatchEngine
         }
 
         return snapshots;
-    }
-
-    private static DocxTargetId? FindActiveMergeGroupId(IReadOnlyDictionary<int, DocxTargetId> activeVerticalMerges, int columnIndex, int columnSpan)
-    {
-        DocxTargetId? mergeGroupId = null;
-        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
-        {
-            if (!activeVerticalMerges.TryGetValue(column, out DocxTargetId current))
-            {
-                return null;
-            }
-
-            mergeGroupId ??= current;
-            if (!mergeGroupId.Equals(current))
-            {
-                return null;
-            }
-        }
-
-        return mergeGroupId;
-    }
-
-    private static void SetActiveMergeGroupId(Dictionary<int, DocxTargetId> activeVerticalMerges, int columnIndex, int columnSpan, DocxTargetId mergeGroupId)
-    {
-        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
-        {
-            activeVerticalMerges[column] = mergeGroupId;
-        }
-    }
-
-    private static void RemoveActiveMergeGroupIds(Dictionary<int, DocxTargetId> activeVerticalMerges, int columnIndex, int columnSpan)
-    {
-        for (int column = columnIndex; column < columnIndex + columnSpan; column++)
-        {
-            activeVerticalMerges.Remove(column);
-        }
     }
 
    private static string? CreateNestedTablePath(string cellId, XElement cell)
@@ -394,9 +315,8 @@ internal static partial class DocxPatchEngine
             {
                 "set-cell" or "set-cell-shading" => BuildSetCellAffectedTargets(before),
                 "replace-text" => BuildSetCellAffectedTargets(before),
-                "append-row" => BuildInsertedRowAffectedTargets(operation, before, before.RowCountBefore + 1, operation.FieldValues.Count(field => field.Name == "cell"), "append"),
-                "insert-row-before" => BuildInsertedRowAffectedTargets(operation, before, before.RowIndex ?? 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
-                "insert-row-after" => BuildInsertedRowAffectedTargets(operation, before, (before.RowIndex ?? before.RowCountBefore) + 1, operation.FieldValues.Count(field => field.Name == "cell"), "insert"),
+                "append-row" => BuildInsertedRowAffectedTargets(operation, package, before, "append", cancellationToken),
+                "insert-row-before" or "insert-row-after" => BuildInsertedRowAffectedTargets(operation, package, before, "insert", cancellationToken),
                 "delete-row" => BuildDeletedRowAffectedTargets(before),
                 "set-row-header" => BuildRowUpdateAffectedTargets(before),
                 _ => []
@@ -457,47 +377,50 @@ internal static partial class DocxPatchEngine
 
     private static IReadOnlyList<DocxPatchAffectedTarget> BuildInsertedRowAffectedTargets(
         DocxPatchOperation operation,
+        OoxmlPackage package,
         TableOperationSnapshot before,
-        int insertedRowIndex,
-        int requestedCellCount,
-        string action)
+        string action,
+        CancellationToken cancellationToken)
     {
-        DocxTargetId tableId = before.ResolvedTarget.TableId;
-        IReadOnlyList<TableCellSnapshot> cells = before.Cells.Count == 0
-            ? CreateFallbackCellSnapshots(requestedCellCount == 0 ? before.ColumnCount : requestedCellCount)
-            : before.Cells;
-        int cellCount = requestedCellCount == 0 ? cells.Count : requestedCellCount;
-        DocxTargetId rowId = tableId with { Kind = DocxTargetKind.Row, Secondary = insertedRowIndex };
+        var found = FindMarkedStoryElement(package, SnapshotCreatedName, CreatedMarkValue(operation, 0), OoxmlNs.W + "tr", cancellationToken)
+            ?? throw new InvalidDataException("Inserted row is missing its creation mark.");
+        XElement table = found.Element.Parent
+            ?? throw new InvalidDataException("Inserted row is missing its table.");
+        var rowTarget = new RowTarget(found.Story.PartName, found.Document, table, found.Element);
+        TableOperationSnapshot created = CaptureLiveRowSnapshot(package, rowTarget, cancellationToken)
+            ?? throw new InvalidDataException("Inserted row has no live coordinate.");
+        DocxTargetId rowId = created.ResolvedTarget;
         var affected = new List<DocxPatchAffectedTarget>
         {
             new(rowId, "row", action)
             {
                 Coordinate = "operation-time",
-                CreationMark = CreatedMarkValue(operation, 0),
-                ParentId = tableId,
-                RowIndex = insertedRowIndex,
+                CreationMark = created.CreationMark,
+                ParentId = rowId.TableId,
+                RowIndex = created.RowIndex,
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore + 1,
-                ColumnCount = before.ColumnCount,
-                CellCount = cellCount,
-                GridBefore = before.GridBefore,
-                GridAfter = before.GridAfter
+                ColumnCount = created.ColumnCount,
+                CellCount = created.CellCount,
+                GridBefore = created.GridBefore,
+                GridAfter = created.GridAfter
             }
         };
-        foreach (TableCellSnapshot cell in cells.Take(cellCount))
+        foreach (TableCellSnapshot cell in created.Cells)
         {
             affected.Add(new DocxPatchAffectedTarget(rowId with { Kind = DocxTargetKind.Cell, Tertiary = cell.ColumnIndex }, "cell", action)
             {
                 Coordinate = "operation-time",
-                CreationMark = CreatedMarkValue(operation, 0),
+                CreationMark = created.CreationMark,
                 ParentId = rowId,
-                RowIndex = insertedRowIndex,
+                RowIndex = created.RowIndex,
                 ColumnIndex = cell.ColumnIndex,
                 VisualColumnEndIndex = cell.VisualColumnEndIndex,
-                NestedTablePath = cell.NestedTablePath is null ? null : rowId.ToWireValue() + $".C{cell.ColumnIndex:00}.T0001",
+                MergeGroupId = cell.MergeGroupId,
+                NestedTablePath = cell.NestedTablePath,
                 RowCountBefore = before.RowCountBefore,
                 RowCountAfter = before.RowCountBefore + 1,
-                ColumnCount = before.ColumnCount
+                ColumnCount = created.ColumnCount
             });
         }
 
