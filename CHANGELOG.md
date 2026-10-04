@@ -8,6 +8,7 @@
   binary stdout, and JSON reports.
 - Section reads now expose stored page dimensions, margins, header/footer distances,
   and gutter in twips, with nullable values when unspecified or non-integer.
+  XML integer measurements use invariant number syntax regardless of host culture.
 
 ## 0.1.0 - 2026-10-02
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using static Lokad.DocxEdit.Tests.DocxTestFixtures;
 
@@ -5,6 +6,40 @@ namespace Lokad.DocxEdit.Tests;
 
 public static class SectionLayoutReadTests
 {
+    [Fact]
+    public static void MeasurementsUseXmlSignsRegardlessOfHostCulture()
+    {
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        var customCulture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        customCulture.NumberFormat.NegativeSign = "~";
+        customCulture.NumberFormat.PositiveSign = "!";
+        try
+        {
+            CultureInfo.CurrentCulture = customCulture;
+            using var input = CreateDocxWithBody("""
+                <w:p/>
+                <w:sectPr>
+                  <w:pgSz w:w="+11906" w:h="16838"/>
+                  <w:pgMar w:top="-120" w:bottom="~120" w:left="!1440"/>
+                </w:sectPr>
+                """);
+            DocxReadResult read = new DocxEditor().Read(input);
+            Assert.True(read.Success);
+            DocxSectionInfo section = Assert.Single(read.Sections);
+            Assert.Equal(-120, section.MarginTopTwips);
+            Assert.Equal(11906, section.PageWidthTwips);
+            Assert.Null(section.MarginBottomTwips);
+            Assert.Null(section.MarginLeftTwips);
+            Assert.Contains("margin-top-twips=-120", read.Text);
+            input.Position = 0;
+            Assert.Contains("margin-top-twips=-120", new DocxEditor().Dump(input, "M.S0001").Text);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+    }
+
     [Fact]
     public static void ReadsEachSectionsStoredLayoutInTextAndJson()
     {

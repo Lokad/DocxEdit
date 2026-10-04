@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Lokad.DocxEdit.Ooxml;
 
 /// <summary>
@@ -26,11 +28,11 @@ internal static class XmlValues
     /// <summary>
     /// Reads an optional integer attribute value. Returns null for missing,
     /// empty, or non-integer values; otherwise the parsed value (leading and
-    /// trailing whitespace is accepted, matching `int.TryParse`).
+    /// trailing whitespace is accepted). XML number signs are culture-invariant.
     /// </summary>
     public static int? TryReadInt(string? value)
     {
-        return int.TryParse(value, out int parsed) ? parsed : null;
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed) ? parsed : null;
     }
 
 
