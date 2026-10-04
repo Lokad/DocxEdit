@@ -483,7 +483,20 @@ internal static partial class DocxDocumentScanner
         DocxOrientation orientation = DocxOrientationExtensions.TryParseWireValue(orientationText, out DocxOrientation parsedOrientation)
             ? parsedOrientation
             : DocxOrientation.Portrait;
-        return new DocxSectionInfo(id, story, columns, orientation);
+        XElement? pageSize = sectionProperties.Element(OoxmlNs.W + "pgSz");
+        XElement? margins = sectionProperties.Element(OoxmlNs.W + "pgMar");
+        return new DocxSectionInfo(id, story, columns, orientation)
+        {
+            PageWidthTwips = XmlValues.TryReadInt((string?)pageSize?.Attribute(OoxmlNs.W + "w")),
+            PageHeightTwips = XmlValues.TryReadInt((string?)pageSize?.Attribute(OoxmlNs.W + "h")),
+            MarginTopTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "top")),
+            MarginBottomTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "bottom")),
+            MarginLeftTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "left")),
+            MarginRightTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "right")),
+            HeaderDistanceTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "header")),
+            FooterDistanceTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "footer")),
+            GutterTwips = XmlValues.TryReadInt((string?)margins?.Attribute(OoxmlNs.W + "gutter"))
+        };
     }
     // C02: image identity is placement based. Each Final-view-visible drawing
     // placement in a story gets its own public ID in document order. The media

@@ -1194,4 +1194,24 @@ public sealed record DocxSectionInfo(
     DocxTargetId Id,
     string Story,
     int Columns,
-    DocxOrientation Orientation);
+    DocxOrientation Orientation)
+{
+    /// <summary>Stored page width in twips (1/1440 inch); null when missing or not an integer. No layout defaults are inferred.</summary>
+    public int? PageWidthTwips { get; init; }
+    /// <summary>Stored page height in twips; null when missing or not an integer.</summary>
+    public int? PageHeightTwips { get; init; }
+    /// <summary>Stored top margin in twips, including signed values; null when missing or not an integer.</summary>
+    public int? MarginTopTwips { get; init; }
+    /// <summary>Stored bottom margin in twips, including signed values; null when missing or not an integer.</summary>
+    public int? MarginBottomTwips { get; init; }
+    /// <summary>Stored left margin in twips; null when missing or not an integer.</summary>
+    public int? MarginLeftTwips { get; init; }
+    /// <summary>Stored right margin in twips; null when missing or not an integer.</summary>
+    public int? MarginRightTwips { get; init; }
+    /// <summary>Stored distance from the top edge to the header in twips; null when missing or not an integer.</summary>
+    public int? HeaderDistanceTwips { get; init; }
+    /// <summary>Stored distance from the bottom edge to the footer in twips; null when missing or not an integer.</summary>
+    public int? FooterDistanceTwips { get; init; }
+    /// <summary>Stored gutter margin in twips; null when missing or not an integer.</summary>
+    public int? GutterTwips { get; init; }
+}

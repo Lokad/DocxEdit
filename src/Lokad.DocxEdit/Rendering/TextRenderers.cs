@@ -351,7 +351,24 @@ internal static class TextRenderers
     {
         var builder = new StringBuilder();
         builder.Append(section.Id.ToWireValue()).Append(" section columns=").Append(section.Columns).Append(" orientation=").Append(section.Orientation.ToWireValue());
+        AppendTwips("page-width-twips", section.PageWidthTwips);
+        AppendTwips("page-height-twips", section.PageHeightTwips);
+        AppendTwips("margin-top-twips", section.MarginTopTwips);
+        AppendTwips("margin-bottom-twips", section.MarginBottomTwips);
+        AppendTwips("margin-left-twips", section.MarginLeftTwips);
+        AppendTwips("margin-right-twips", section.MarginRightTwips);
+        AppendTwips("header-distance-twips", section.HeaderDistanceTwips);
+        AppendTwips("footer-distance-twips", section.FooterDistanceTwips);
+        AppendTwips("gutter-twips", section.GutterTwips);
         return builder.ToString();
+
+        void AppendTwips(string name, int? value)
+        {
+            if (value is not null)
+            {
+                builder.Append(' ').Append(name).Append('=').Append(value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
     }
 
     private static string RenderBookmarkLine(DocxBookmarkInfo bookmark)

@@ -47,6 +47,16 @@ standard output. `--output`/`--report`/`--diagnostics` must differ from the
 input document, the patch file, and each other, failing with exit code `2`
 before any writer opens.
 
+## Section Layout
+
+`read` exposes section `PageWidthTwips`, `PageHeightTwips`, `MarginTopTwips`,
+`MarginBottomTwips`, `MarginLeftTwips`, `MarginRightTwips`, `HeaderDistanceTwips`,
+`FooterDistanceTwips`, and `GutterTwips` in JSON. One twip is 1/1440 inch. Text output
+uses corresponding names such as `page-width-twips` and `margin-top-twips`.
+Missing or non-integer values are null in JSON and omitted in text. Signed top and
+bottom margins are preserved. These are stored section properties, with no inferred
+layout defaults or paper preset for existing documents.
+
 ## Recommended Workflow
 
 Start with low-text inspection. This gives counts, IDs, diagnostics, and markup

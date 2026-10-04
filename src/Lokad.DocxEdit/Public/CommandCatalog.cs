@@ -656,6 +656,7 @@ public static class DocxHelp
                     ],
                     OutputFields =
                     [
+                        new("Sections", "Section orientation, columns, and stored PageWidthTwips, PageHeightTwips, MarginTopTwips, MarginBottomTwips, MarginLeftTwips, MarginRightTwips, HeaderDistanceTwips, FooterDistanceTwips, and GutterTwips. One twip is 1/1440 inch. Missing or non-integer measurements are null; no layout defaults are inferred."),
                         new("Bookmarks", "Structured bookmark ranges with name, OOXML ID, story, part, start/end targets, completeness, and duplicate-name candidate IDs"),
                         new("ContentControls", "Structured content controls with kind, tag, alias, placeholder/data-binding metadata, hierarchy IDs, safe-edit status, duplicate tag/alias candidate IDs, lock, story, part, containing target, text length, checkbox state, dropdown/combo item metadata, repeating-section metadata, and date settings"),
                         new("Fields", "Structured fields with kind, parsed type, code, containing target, result length, nesting depth, bookmark/hyperlink dependencies, safe-edit status, dirty/lock flags, and completeness"),

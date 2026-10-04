@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Section reads now expose stored page dimensions, margins, header/footer distances,
+  and gutter in twips, with nullable values when unspecified or non-integer.
+
 ## 0.1.0 - 2026-10-02
 
 First release as a net10.0 library with no runtime package dependencies, plus source CLI for development. The CLI is not installed by the package.

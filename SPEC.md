@@ -268,6 +268,12 @@ Read and explore results must expose structured data (IDs, match and outline rec
 
 The records in `src/Lokad.DocxEdit/Public/` are the definition of every shape above; this section states the rules they must satisfy, not a second copy of their members.
 
+`DocxSectionInfo` exposes stored page width/height, four margins, header/footer
+distances, and gutter as nullable integer twips (1/1440 inch). Missing or non-integer
+measurements remain null; no layout defaults are inferred. Signed top/bottom margins
+are retained. Full read text and section dump text include available measurements;
+JSON retains nulls for unavailable measurements.
+
 `Changes` must be private-text-free by default. It may report revision/comment
 metadata, text lengths, child counts, IDs, targets, stories, and parts. It must not
 copy revision text into the result. Comment body snippets may appear only when

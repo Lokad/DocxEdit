@@ -36,6 +36,9 @@ Input and output streams are left open by default. Set LeaveInputOpen or LeaveOu
 
 ## Essential guidance
 
+Section read results expose stored page dimensions and margins in twips (1/1440 inch).
+Missing or non-integer values remain null; these are document properties, not computed layout.
+
 Assets: image edits use external assets through AssetProvider. The library never reads asset files directly. Extract bytes with ExtractMedia, edit bytes with external tools, and reinsert with replace-image or insert-image-after using a provider that returns the new bytes. PNG and JPEG interchange updates the media content type. An unshared media part keeps its existing part path, which may retain the old extension, while the exported file name follows the actual content type. Treat part paths as opaque and do not rename package parts to match this prose.
 
 IDs: target IDs enumerate physical document order at inspection time from read output. They are stable for the same document bytes and scanner version, but not across modifications. Within one patch, explicit IDs bind to the input snapshot, semantic selectors resolve live against current content, and created objects are addressed through patch-local aliases with whole target @name. Reports carry Id with Coordinate input or operation-time and FinalId live matching a fresh read, staying absent for deleted objects. A deleted image or link never acquires its surviving containing paragraph identity. Check and apply agree on Success, diagnostics, and per-operation reports under the same input and options, including affected targets, created IDs, and previews. GeneratedRevisionIds remain empty in check by design and are populated only by apply. Re-read output for final coordinates.
