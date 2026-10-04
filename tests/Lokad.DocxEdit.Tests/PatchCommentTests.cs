@@ -272,9 +272,9 @@ public static class PatchCommentTests
             """
                 <w:comments
                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
                 """,
@@ -358,7 +358,7 @@ public static class PatchCommentTests
 
         output.Position = 0;
         string commentsXml = ReadEntry(output, "word/comments.xml");
-        Assert.Contains("w15:paraId=\"00000001\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w14:paraId=\"00000001\"", commentsXml, StringComparison.Ordinal);
 
         output.Position = 0;
         string commentsExtendedXml = ReadEntry(output, "word/commentsExtended.xml");
@@ -423,9 +423,9 @@ public static class PatchCommentTests
             """
                 <w:comments
                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
                 """,
@@ -469,9 +469,9 @@ public static class PatchCommentTests
             """
                 <w:comments
                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
                 """,
@@ -588,9 +588,9 @@ public static class PatchCommentTests
             """
                 <w:comments
                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
                 """,
@@ -624,12 +624,12 @@ public static class PatchCommentTests
         Assert.Equal("00ABCDEF", reply.RootParaId);
         Assert.Equal("Reply", reply.TextSnippet);
         Assert.True(reply.IsReply);
-        Assert.Equal("00000001", reply.DurableId);
+        Assert.Equal("00000002", reply.DurableId);
 
         output.Position = 0;
         string commentsXml = ReadEntry(output, "word/comments.xml");
         Assert.Contains("w:comment w:id=\"4\"", commentsXml, StringComparison.Ordinal);
-        Assert.Contains("w15:paraId=\"00000001\"", commentsXml, StringComparison.Ordinal);
+        Assert.Contains("w14:paraId=\"00000001\"", commentsXml, StringComparison.Ordinal);
         Assert.Contains("w:author=\"Second Reviewer\"", commentsXml, StringComparison.Ordinal);
         Assert.Contains("w:initials=\"SR\"", commentsXml, StringComparison.Ordinal);
 
@@ -639,7 +639,7 @@ public static class PatchCommentTests
 
         output.Position = 0;
         string commentsIdsXml = ReadEntry(output, "word/commentsIds.xml");
-        Assert.Contains("w16cid:commentId w16cid:paraId=\"00000001\" w16cid:durableId=\"00000001\"", commentsIdsXml, StringComparison.Ordinal);
+        Assert.Contains("w16cid:commentId w16cid:paraId=\"00000001\" w16cid:durableId=\"00000002\"", commentsIdsXml, StringComparison.Ordinal);
 
         output.Position = 0;
         Assert.True(new DocxEditor().Validate(output).Success);
@@ -660,12 +660,12 @@ public static class PatchCommentTests
             """
                 <w:comments
                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p w15:paraId="00PARENT"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                    <w:p w14:paraId="00PARENT"><w:r><w:t>Comment body</w:t></w:r></w:p>
                   </w:comment>
                   <w:comment w:id="4" w:author="Second Reviewer">
-                    <w:p w15:paraId="00REPLY1"><w:r><w:t>Reply body</w:t></w:r></w:p>
+                    <w:p w14:paraId="00REPLY1"><w:r><w:t>Reply body</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
                 """,

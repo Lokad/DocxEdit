@@ -696,9 +696,9 @@ internal static partial class DocxPatchEngine
                 new("occurrence", FieldValueKind.Integer, Repeatable: false, Required: false),
             ],
             [],
-            "Comments are already review markup, so adding a comment does not create an additional tracked edit. Optional anchor-text selects one normalized text span inside the target paragraph; use occurrence when the span is repeated.",
+            "Comments are review markup and remain permitted under Require. Omit anchor-text to annotate the whole paragraph or cell. Otherwise select one direct text span within a paragraph; occurrence counts matches across the cell's paragraphs in document order. expect-text guards the entire paragraph or cell. Protected markup outside the selected span is preserved; overlaps are refused.",
             "Comments",
-            "Anchors a new comment to a modeled paragraph, or to one selected text span inside it",
+            "Anchors a new comment to a paragraph, table cell, or selected text span within either",
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddComment(package, operation, options, apply, cancellationToken), isAnnotation: true) with
         {
             Examples =
@@ -728,8 +728,19 @@ internal static partial class DocxPatchEngine
                 >>>
                 end
                 """,
+                """
+                # Select text within a table cell; occurrence is one-based.
+                docxpatch 1
+                op add-comment
+                target M.T0001.R01.C01
+                anchor-text estimate
+                occurrence 2
+                text Please explain this estimate.
+                author Reviewer
+                end
+                """,
             ],
-            AcceptedKinds = [DocxTargetKind.Paragraph],
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Cell, DocxTargetKind.MergeGroup],
         },
         Tracked(
             "set-comment-text",
@@ -822,7 +833,7 @@ internal static partial class DocxPatchEngine
                 new("expect-text", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
-            "Comment deletion removes review markup, not a separate generated tracked edit.",
+            "Comment deletion removes review markup. A comment with replies cannot be deleted (E4314); delete its leaf replies first.",
             "Comments",
             "Removes body, range/reference markers, and matching extension records",
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteDeleteComment(package, operation, apply, cancellationToken), isAnnotation: true) with
@@ -859,7 +870,7 @@ internal static partial class DocxPatchEngine
             [],
             "Threaded comment replies are review metadata, so adding a reply does not create an additional tracked edit.",
             "Comments",
-            "Adds a modern threaded reply under a comment",
+            "Adds a modern threaded reply under an anchored root comment; replies to replies are refused",
             (package, operation, options, apply, revisions, cancellationToken) => ExecuteAddCommentReply(package, operation, options, apply, cancellationToken), isAnnotation: true) with
         {
             Examples =

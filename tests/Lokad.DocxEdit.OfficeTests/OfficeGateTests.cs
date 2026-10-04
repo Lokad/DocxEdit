@@ -204,7 +204,7 @@ public static class OfficeGateTests
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
-            OpenSaveWithWord(wordApplicationType, outputPath);
+            OpenSaveWithWord(wordApplicationType, outputPath, forceSave: true);
 
             using FileStream saved = File.OpenRead(outputPath);
             DocxReadResult read = new DocxEditor().Read(saved, new DocxReadOptions { IncludeHeadersFooters = true });
@@ -585,13 +585,13 @@ public static class OfficeGateTests
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
-            OpenSaveWithWord(wordApplicationType, outputPath);
+            OpenSaveWithWord(wordApplicationType, outputPath, forceSave: true);
 
             using FileStream savedChanges = File.OpenRead(outputPath);
             DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
             Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
             DocxCommentThreadSummary summary = Assert.Single(changes.CommentSummary);
-            Assert.Equal("3", summary.CommentId);
+            Assert.Equal("Reviewer", summary.Author);
             Assert.True(summary.Resolved);
         }
         finally
@@ -652,12 +652,12 @@ public static class OfficeGateTests
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
-            OpenSaveWithWord(wordApplicationType, outputPath);
+            OpenSaveWithWord(wordApplicationType, outputPath, forceSave: true);
 
             using FileStream savedChanges = File.OpenRead(outputPath);
             DocxChangesResult changes = new DocxEditor().Changes(savedChanges, new DocxChangesOptions { IncludeCommentText = true });
             Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
-            Assert.Contains(changes.CommentSummary, thread => thread.CommentId == "3");
+            Assert.Contains(changes.CommentSummary, thread => thread.IsReply != true && thread.TextSnippet == "Comment body");
             DocxCommentThreadSummary reply = Assert.Single(changes.CommentSummary, thread => thread.IsReply == true);
             Assert.Contains("Reply body", reply.TextSnippet, StringComparison.Ordinal);
         }
@@ -1382,7 +1382,7 @@ public static class OfficeGateTests
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
-            OpenSaveWithWord(wordApplicationType, outputPath);
+            OpenSaveWithWord(wordApplicationType, outputPath, forceSave: true);
 
             using FileStream saved = File.OpenRead(outputPath);
             DocxReadResult read = new DocxEditor().Read(saved);
@@ -1716,13 +1716,13 @@ public static class OfficeGateTests
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
-            OpenSaveWithWord(wordApplicationType, outputPath);
+            OpenSaveWithWord(wordApplicationType, outputPath, forceSave: true);
 
             using FileStream savedChanges = File.OpenRead(outputPath);
             DocxChangesResult changes = new DocxEditor().Changes(savedChanges);
             Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
             DocxCommentThreadSummary summary = Assert.Single(changes.CommentSummary);
-            Assert.Equal("3", summary.CommentId);
+            Assert.Equal("Reviewer", summary.Author);
             Assert.False(summary.Resolved);
         }
         finally
@@ -3212,13 +3212,13 @@ public static class OfficeGateTests
                 Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Severity == DocxSeverity.Error);
             }
 
-            OpenSaveWithWord(wordApplicationType, outputPath);
+            OpenSaveWithWord(wordApplicationType, outputPath, forceSave: true);
 
             using FileStream savedChanges = File.OpenRead(outputPath);
             DocxChangesResult changes = new DocxEditor().Changes(savedChanges, new DocxChangesOptions { IncludeCommentText = true });
             Assert.True(changes.Success, string.Join(Environment.NewLine, changes.Diagnostics.Select(FormatDiagnostic)));
             DocxCommentThreadSummary summary = Assert.Single(changes.CommentSummary);
-            Assert.Equal("3", summary.CommentId);
+            Assert.Equal("Reviewer", summary.Author);
             Assert.Contains("Updated body", summary.TextSnippet, StringComparison.Ordinal);
         }
         finally
@@ -3325,10 +3325,9 @@ public static class OfficeGateTests
             dynamic doc = document;
             if (forceSave) doc.Saved = false;
             doc.Save();
-            doc.Close(SaveChanges: false);
+            doc.Close(0);
+            ReleaseComObject(document);
             document = null;
-
-            word.Quit(SaveChanges: false);
         }
         finally
         {
@@ -3336,7 +3335,7 @@ public static class OfficeGateTests
             {
                 try
                 {
-                    ((dynamic)document).Close(SaveChanges: false);
+                    ((dynamic)document).Close(0);
                 }
                 catch
                 {
@@ -3354,7 +3353,7 @@ public static class OfficeGateTests
             {
                 try
                 {
-                    ((dynamic)application).Quit(SaveChanges: false);
+                    ((dynamic)application).Quit(0);
                 }
                 catch
                 {
@@ -3531,9 +3530,9 @@ public static class OfficeGateTests
         AddEntry(archive, "word/comments.xml", """
             <w:comments
                 xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
               <w:comment w:id="3" w:author="Reviewer">
-                <w:p w15:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
+                <w:p w14:paraId="00ABCDEF"><w:r><w:t>Comment body</w:t></w:r></w:p>
               </w:comment>
             </w:comments>
             """);

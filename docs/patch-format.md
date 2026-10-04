@@ -358,22 +358,54 @@ Bookmark operations accept an explicit bookmark ID or a semantic name selector, 
 
 | Operation | Required fields | Optional fields | Notes |
 | --- | --- | --- | --- |
-| `add-comment` | `target`, `text` | `expect-text`, `anchor-text`, `occurrence`, `author`, `initials`, `date`, `as` | Anchors a new comment to a modeled paragraph, or to one selected text span inside it |
+| `add-comment` | `target`, `text` | `expect-text`, `anchor-text`, `occurrence`, `author`, `initials`, `date`, `as` | Anchors a comment to a paragraph, cell, or selected text within either |
 | `set-comment-text` | `target`, `text` | `expect-text` | Replaces one comment body |
 | `resolve-comment` | `target` | | Creates or updates modern resolution metadata for basic comments |
 | `reopen-comment` | `target` | | Clears modern resolution metadata for basic comments |
-| `delete-comment` | `target` | `expect-text` | Removes body, range/reference markers, and matching extension records |
+| `delete-comment` | `target` | `expect-text` | Removes body, range/reference markers, and matching extension records; refuses parents with replies |
 | `add-comment-reply` | `target`, `text` | `author`, `initials`, `date`, `as` | Adds a modern threaded reply under a comment |
 | `delete-comment-reply` | `target` | | Removes a leaf threaded reply |
 
 Existing comment operations target `comment:<id>` from `changes` or a comment body
-ID such as `C001.C0001`. For `add-comment`, `anchor-text` selects one normalized
-text span inside the target paragraph; specify `occurrence` when that text is
-repeated. Selected ranges are intentionally limited to direct paragraph text runs
-and fail on protected markup boundaries. `add-comment-reply` creates modern
-`commentsExtended.xml` and `commentsIds.xml` records. `delete-comment-reply`
+ID such as `C001.C0001`. `add-comment` also accepts cell IDs such as
+`M.T0001.R01.C01` and merge-group IDs (the root cell); vertical-merge continuation
+cells are refused. Cells must contain direct paragraphs only, without nested
+tables or block wrappers. Omit `anchor-text` to cover the whole paragraph or all
+paragraphs in the cell. Otherwise it selects one normalized text span within one
+paragraph; `occurrence` is one-based across the cell's paragraphs in document
+order. An ambiguous match requires `occurrence`. A span cannot cross paragraph
+boundaries, tabs, line breaks, or protected markup. Protected content elsewhere
+in the paragraph is preserved and does not prevent commenting on adjacent plain
+text. `expect-text` guards the entire target (cell paragraph text is concatenated
+without separators, as exposed by `read`). Comment bodies are plain text.
+
+`add-comment-reply` creates modern `commentsExtended.xml` and `commentsIds.xml`
+records and a document anchor matching the parent. The target must be an anchored
+root comment; replies to replies are refused with `E4314`. Thread metadata uses
+the last comment paragraph's `w14:paraId`, following
+[MS-DOCX CT_CommentEx](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/9660dacc-2ceb-4352-87d2-42ba1184f522).
+Replacing comment text preserves this identity, resolution state, and reply
+linkage. `delete-comment-reply`
 accepts `comment:<parent-id>.reply:<ordinal>` or an explicit reply comment target;
-it fails with `E4314` when the reply has child replies.
+it fails with `E4314` when the reply has child replies. `delete-comment` likewise
+refuses a comment with replies: remove leaf replies first, then the parent.
+
+```text
+docxpatch 1
+op add-comment
+target M.T0001.R01.C01
+anchor-text estimate
+occurrence 2
+text Please explain this estimate.
+author Reviewer
+as review
+end
+op add-comment-reply
+target @review
+text I will add the calculation.
+author Author
+end
+```
 
 ### Fields
 

@@ -325,9 +325,9 @@ internal static partial class DocxChangeScanner
     private static string? ReadCommentParaId(XElement comment)
     {
         return (string?)comment
-            .Elements(OoxmlNs.W + "p")
-            .FirstOrDefault()
-            ?.Attribute(OoxmlNs.W15 + "paraId");
+            .Descendants(OoxmlNs.W + "p")
+            .LastOrDefault()
+            ?.Attribute(OoxmlNs.W14 + "paraId");
     }
 
     private static bool? ParseBoolean(string? value)

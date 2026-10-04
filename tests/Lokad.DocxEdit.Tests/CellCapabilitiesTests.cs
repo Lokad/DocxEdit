@@ -56,7 +56,7 @@ public static class CellCapabilitiesTests
         Assert.Equal("M.T0001.R01.C01", capabilities.TargetId);
         Assert.Equal("cell", capabilities.Kind);
         Assert.Equal("main", capabilities.Story);
-        string[] expectedOrder = ["set-cell", "set-cell-shading", "replace-text"];
+        string[] expectedOrder = ["set-cell", "set-cell-shading", "replace-text", "add-comment"];
         Assert.Equal(expectedOrder, capabilities.Operations.Select(static operation => operation.Operation).ToArray());
         Assert.Equal("supported", FindOperation(capabilities, "set-cell").Support);
         Assert.Equal("supported", FindOperation(capabilities, "set-cell-shading").Support);

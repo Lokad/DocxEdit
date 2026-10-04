@@ -161,8 +161,7 @@ internal static partial class DocxPackageValidator
             XDocument comments = SafeXml.Load(stream, cancellationToken);
             foreach (string paraId in comments
                 .Descendants(OoxmlNs.W + "comment")
-                .Descendants(OoxmlNs.W + "p")
-                .Select(paragraph => (string?)paragraph.Attribute(OoxmlNs.W15 + "paraId"))
+                .Select(comment => (string?)comment.Descendants(OoxmlNs.W + "p").LastOrDefault()?.Attribute(OoxmlNs.W14 + "paraId"))
                 .Where(paraId => !string.IsNullOrWhiteSpace(paraId))
                 .OfType<string>())
             {

@@ -496,9 +496,9 @@ public static class DocxHelp
         builder.AppendLine();
         builder.AppendLine("Selectors may use explicit IDs, heading:\"Text\", heading:2:\"Text\", text:\"contained text\", bookmark:\"Name\", or content-control:\"TagOrAlias\" for main-story paragraph targets; header/footer text needs explicit H/F IDs.");
         builder.AppendLine("Semantic text selectors match with whitespace normalized while expect-text guards compare exact visible text; matching stays case-sensitive.");
-        builder.AppendLine("add-comment targets a modeled paragraph; optional anchor-text selects one direct text span inside it, and occurrence disambiguates repeated anchor text.");
+        builder.AppendLine("add-comment targets a paragraph or table cell; optional anchor-text selects one direct text span within a paragraph, and occurrence counts repeated matches across the target. Protected markup outside the selected span is preserved.");
         builder.AppendLine("delete-row expect-contains checks that the target row's final visible text contains the supplied value.");
-        builder.AppendLine("add-comment-reply creates modern commentsExtended/commentsIds metadata; delete-comment-reply removes leaf replies and fails with E4314 when deletion would change child thread topology.");
+        builder.AppendLine("add-comment-reply creates modern thread metadata and matching document anchors under a root comment. Delete leaf replies before their parent; deleting comments with replies or replying to replies fails with E4314.");
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
         builder.AppendLine("append-column, insert-column-before, insert-column-after, and delete-column are recognized but fail with E4316 until table-column transforms are safely modeled.");
         builder.AppendLine("set-table-style, set-table-metadata, set-row-header, and set-cell-shading update table properties with explicit guards.");

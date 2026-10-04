@@ -3369,9 +3369,9 @@ public static class PatchTrackedChangesTests
             """
                 <w:comments
                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+                    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
                   <w:comment w:id="3" w:author="Reviewer">
-                    <w:p w15:paraId="00ABCDEF"><w:r><w:t>Old comment</w:t></w:r></w:p>
+                    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Old comment</w:t></w:r></w:p>
                   </w:comment>
                 </w:comments>
                 """,

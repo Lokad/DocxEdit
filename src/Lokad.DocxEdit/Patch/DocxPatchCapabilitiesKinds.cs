@@ -1816,6 +1816,10 @@ internal static partial class DocxPatchEngine
             SetCellCapability(facts, parsed.ToWireValue(), isTracked, isRequire),
             SetCellShadingCapability(facts, parsed.ToWireValue()),
             ReplaceTextCellCapability(facts, parsed.ToWireValue(), isTracked),
+            new("add-comment", isContinuation ? "unsupported" : "conditional",
+                isContinuation ? "Target the vertical-merge root cell instead (E4301)." :
+                "Annotate the whole cell or one direct text span with anchor-text. The cell must contain direct paragraphs only; occurrence counts matches across those paragraphs. Protected spans are refused. Check remains authoritative.",
+                "add-comment", null),
         };
         ProtectEquationCapabilities(cell, operations);
 

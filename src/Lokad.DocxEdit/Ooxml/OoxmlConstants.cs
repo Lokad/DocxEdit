@@ -10,6 +10,7 @@ internal static class OoxmlNs
     public static readonly XNamespace Rel = "http://schemas.openxmlformats.org/package/2006/relationships";
     public static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     public static readonly XNamespace Wp = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+    public static readonly XNamespace W14 = "http://schemas.microsoft.com/office/word/2010/wordml";
     public static readonly XNamespace W15 = "http://schemas.microsoft.com/office/word/2012/wordml";
     public static readonly XNamespace W16Cid = "http://schemas.microsoft.com/office/word/2016/wordml/cid";
     public static readonly XNamespace Pic = "http://schemas.openxmlformats.org/drawingml/2006/picture";

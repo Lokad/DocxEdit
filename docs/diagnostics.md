@@ -89,8 +89,8 @@ Common code ranges:
   diagnostics distinguish layout/pagination, document-property, formula,
   mail-merge, date/time, conditional, and external-state requirements.
 - `E4314`: a threaded comment reply operation would require unsafe thread metadata
-  changes, such as missing parent metadata, a non-reply target, or deleting a reply
-  that still has child replies.
+  changes, such as a missing or ambiguous document anchor, a non-reply deletion
+  target, replying to a reply, or deleting any comment that still has replies.
 - `E4315`: repeating-section item operations are recognized but not supported because
   DocxEdit does not safely model repeating-section subtree insertion/deletion yet.
 - `E4316`: table column operations are recognized but not supported because DocxEdit
@@ -98,7 +98,8 @@ Common code ranges:
   vertical merges yet.
 - `E4317`: selected-range comment creation was requested for a paragraph shape that
   cannot safely host direct comment range markers, such as non-direct text runs or
-  tabs/line breaks inside the selected span.
+  tabs/line breaks inside the selected span. Also covers cell comment targets
+  containing nested tables or block wrappers instead of direct paragraphs only.
 - `E5201`: no asset provider is configured for image operation assets.
 - `E5202`: image asset could not be resolved.
 - `E5203`: image asset is not a supported PNG or JPEG image (missing signature, hint/content disagreement, or structural defect such as truncation).
