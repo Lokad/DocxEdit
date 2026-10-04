@@ -4,6 +4,13 @@ JSON edit cases prove harness shape and diagnostic codes.
 Unit tests prove preserved bytes and neighboring content.
 Word tests prove open and save round trips.
 
+Equation unit tests cover native structure, snapshot identity, content guards,
+aliases, text-edit protection, privacy bounds, and bounded syntax failures.
+`tools/Test-EquationsWithWord.ps1` is an optional local Word/PDF smoke test: it
+exports synthetic generated/edited formula sheets, saves Word copies, validates
+those copies, and checks equation counts. Visual PDF inspection checks rendering;
+it does not replace structural tests. See [equations.md](equations.md).
+
 Creation tests cover package validity, all paper/orientation combinations, subsequent
 patch editing, section layout readback, stream ownership, and command publication.
 The opt-in creation Word test checks that empty documents retain their section layout
