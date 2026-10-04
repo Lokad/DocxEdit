@@ -28,7 +28,9 @@ public static class OfficeGateTests
                 }
                 DocxSectionInfo before;
                 using (FileStream input = File.OpenRead(path)) before = Assert.Single(editor.Read(input).Sections);
-                OpenSaveWithWord(wordApplicationType, path);
+                byte[] createdBytes = File.ReadAllBytes(path);
+                OpenSaveWithWord(wordApplicationType, path, forceSave: true);
+                Assert.False(createdBytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Word must rewrite the package for this round-trip check.");
                 using FileStream saved = File.OpenRead(path);
                 DocxReadResult read = editor.Read(saved);
                 Assert.True(read.Success);
@@ -3302,7 +3304,7 @@ public static class OfficeGateTests
     }
 
 
-    private static void OpenSaveWithWord(Type wordApplicationType, string path)
+    private static void OpenSaveWithWord(Type wordApplicationType, string path, bool forceSave = false)
     {
         object? application = null;
         object? documents = null;
@@ -3321,6 +3323,7 @@ public static class OfficeGateTests
             document = ((dynamic)documents).Open(path, ReadOnly: false, AddToRecentFiles: false, Visible: false);
 
             dynamic doc = document;
+            if (forceSave) doc.Saved = false;
             doc.Save();
             doc.Close(SaveChanges: false);
             document = null;

@@ -7,7 +7,8 @@ Word tests prove open and save round trips.
 Creation tests cover package validity, all paper/orientation combinations, subsequent
 patch editing, section layout readback, stream ownership, and command publication.
 The opt-in creation Word test checks that empty documents retain their section layout
-after Word opens and saves each combination.
+after Word opens and saves each combination. It forces a save and verifies the package
+bytes changed so an unchanged document cannot pass through a no-op save.
 
 Protected spans keep both layers for endpoints and interiors.
 Alias cases keep both layers for composition and refusals.
