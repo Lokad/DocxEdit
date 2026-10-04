@@ -48,7 +48,7 @@ Rules:
 - A field that is not documented as repeatable must appear at most once per
   operation; repeating it fails parsing with `E2015`. Repeated `cell` fields
   in row operations are preserved in file order.
-- `expect-hash` and `preserve-size` are not supported.
+- `expect-hash` is restricted to equation replacement/deletion; `preserve-size` is not supported.
 - Validate shape without a document: `docxedit lint edits.docxpatch` checks syntax, required fields, alternative groups, and exclusive fields. Lint failures always predict `check` failures; lint success leaves targets, guards, assets, and shapes to `check`.
 - Machine-generated patches can use the DocxPatchWriter API, which renders canonical field values with the same rules.
 
@@ -164,6 +164,7 @@ Explicit IDs are the safest selectors:
 - `M.CC0001`: content control.
 - `M.F0001`: field.
 - `M.L0001`: hyperlink.
+- `M.E0001`: native equation (also `H001.E0001` and `F001.E0001`).
 - `C001.C0001` or `comment:3`: comment body.
 
 Paragraph operations also support semantic selectors:
@@ -200,7 +201,7 @@ guards (expect-text, counts) on every patch. Each insert lands immediately after
 
 ## Result aliases
 
-Creation operations (insert-before, insert-after, insert-image-after, insert-hyperlink-after, add-comment, add-comment-reply, add-bookmark, append-row, insert-row-before, insert-row-after) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document.
+Creation operations (insert-before, insert-after, insert-image-after, insert-hyperlink-after, insert-equation, add-comment, add-comment-reply, add-bookmark, append-row, insert-row-before, insert-row-after) accept an optional as field that binds the created object to a name. Later operations in the same patch address it with @name as their whole target, without guessing a positional ID or rediscovering the document. For equation insertion, the alias names the equation itself.
 
 - Names start with a letter and contain only letters, digits, underscore, or hyphen.
 - Bindings resolve sequentially within one patch: using a name before its operation fails, rebinding a bound name fails, and using a deleted target fails.
@@ -294,6 +295,36 @@ For list-like insertions, use `copy-paragraph-properties true` with a paragraph
 target. The new paragraph copies the target paragraph properties, including list
 numbering, while dropping copied `w:pPrChange` and `w:sectPr`. An explicit
 `style` overrides only the copied paragraph style.
+
+### Equations
+
+| Operation | Required fields | Optional fields | Notes |
+| --- | --- | --- | --- |
+| `insert-equation` | `target`, `latex` | `placement`, `as` | `placement after` (default) inserts a display equation in a new paragraph after a paragraph/table; `placement inline` appends to a paragraph |
+| `replace-equation` | `target`, `latex` | `expect-hash` | Replaces one `E` target, preserving inline/display placement |
+| `delete-equation` | `target` | `expect-hash` | Removes the equation; retains the Word paragraph and its properties |
+
+These operations create editable native Office Math, using the bounded syntax
+documented in [equations.md](equations.md). `expect-hash` must equal the equation's
+`ContentHash` from `read --json` or `dump --json`. IDs bind to the input snapshot;
+`as` names the newly inserted equation. Off edits directly, Suggest warns with
+`W4001`, and Require fails with `E6001` because equation revisions are not generated.
+Protected revisions/anchors inside an equation and unsupported containing wrappers
+fail with `E4305`. Ordinary text rewrites cannot erase equations, including forced
+cell rewrites; run-preserving replacement outside an equation remains available.
+
+```text
+docxpatch 1
+op insert-equation
+target M.P0001
+latex x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}
+as quadratic
+end
+op replace-equation
+target @quadratic
+latex E=mc^2
+end
+```
 
 ### Content Controls
 
@@ -443,7 +474,7 @@ ratio when it can infer one. Crop fields are percentages:
 side sums must remain below 100.
 
 Linked images are not fetched or listed as editable image records. VML, grouped
-drawings, charts, SmartArt, OLE objects, equations, and generic shapes are
+drawings, charts, SmartArt, OLE objects, and generic shapes are
 preserved but not edited.
 
 ### Sections
@@ -494,6 +525,9 @@ insert-before | paragraph-block | tracked-paragraph-insert | Suggest/Require emi
 insert-after | paragraph-block | tracked-paragraph-insert | Suggest/Require emit inserted paragraph text as w:ins when the inserted text has no tabs or line breaks; unsupported shapes warn with W4002 or fail with E6002.
 delete-block | paragraph-block | tracked-paragraph-delete | Suggest/Require emit deleted paragraph text as w:del for simple paragraph targets; table/block or complex shapes warn with W4002 or fail with E6002.
 set-style | paragraph-property | tracked-style | Suggest/Require emit paragraph property revisions with w:pPrChange.
+insert-equation | preserve-only | preserve-only | Native equation insertion has no tracked revision representation; Suggest applies directly with W4001 and Require fails with E6001.
+replace-equation | preserve-only | preserve-only | Whole-equation replacement has no tracked revision representation; Suggest applies directly with W4001 and Require fails with E6001.
+delete-equation | preserve-only | preserve-only | Whole-equation deletion has no tracked revision representation; Suggest applies directly with W4001 and Require fails with E6001.
 set-content-control-text | text-run | tracked-content-control-text | Suggest/Require emit w:del/w:ins inside simple plain-text and guarded paragraph-only rich-text content controls while preserving wrappers, bindings, locks, and paragraph containers; complex content controls warn with W4002 or fail with E6002.
 set-content-control-checkbox | preserve-only | preserve-only | Checkbox content controls update state metadata, not a simple Word revision range. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.
 set-content-control-choice | preserve-only | preserve-only | Dropdown and combo-box content controls update list value metadata and display text together; generated revision markup is not modeled yet. Existing tracked-change markup is preserved, but this operation does not create new revision markup; Suggest applies directly with W4001 and Require fails with E6001.

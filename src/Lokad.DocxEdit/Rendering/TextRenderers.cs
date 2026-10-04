@@ -5,7 +5,7 @@ using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit.Rendering;
 
-internal static class TextRenderers
+internal static partial class TextRenderers
 {
     public static string RenderRead(DocxDocumentModel model, int maxText)
     {
@@ -45,6 +45,10 @@ internal static class TextRenderers
         foreach (DocxHyperlinkInfo hyperlink in model.Hyperlinks)
         {
             builder.AppendLine(RenderHyperlinkLine(hyperlink));
+        }
+        foreach (DocxEquationInfo equation in model.Equations)
+        {
+            builder.AppendLine(RenderEquationLine(equation, maxText));
         }
 
         foreach (DocxTableInfo table in model.Tables)
@@ -221,11 +225,17 @@ internal static class TextRenderers
             });
         }
 
+        foreach (DocxEquationInfo equation in model.Equations)
+        {
+            items.Add(new DocxOutlineItem { TargetId = equation.Id.ToWireValue(), Kind = "equation",
+                Text = Truncate(equation.Text, maxText), ContainingTargetId = equation.TargetId?.ToWireValue(), LayoutKind = equation.IsDisplay ? "display" : "inline" });
+        }
         return items;
     }
 
     public static string FormatOutlineItem(DocxOutlineItem item)
     {
+        if (item.Kind == "equation") return $"{item.TargetId} equation {item.LayoutKind} target={item.ContainingTargetId} text=\"{XmlValues.EscapeText(item.Text)}\"";
         if (item.Kind == "heading")
         {
             string list = item.List is null ? string.Empty : RenderList(item.List);
@@ -699,6 +709,9 @@ internal static class TextRenderers
             return builder.ToString();
         }
 
+        DocxEquationInfo? equation = model.Equations.FirstOrDefault(e => e.Id.ToWireValue() == targetId);
+        if (equation is not null) return RenderEquationLine(equation, maxText) + Environment.NewLine;
+
         DocxChangeInfo? comment = FindCommentChange(changes, targetId);
         if (comment is not null)
         {
@@ -887,6 +900,13 @@ internal static class TextRenderers
         {
             return HyperlinkContext(hyperlink, model, radius, maxText, annotations);
         }
+        DocxEquationInfo? equation = model.Equations.FirstOrDefault(e => e.Id.ToWireValue() == targetId);
+        if (equation is not null)
+        {
+            var items = new List<DocxContextItem> { new() { Id = targetId, Kind = "equation", Relation = "target", Story = equation.Story, Text = Truncate(equation.Text, maxText) } };
+            if (equation.TargetId is { } containing) items.AddRange(AnchorParagraphWindow(model, equation.Story, containing, radius, maxText, annotations));
+            return items;
+        }
 
         DocxChangeInfo? comment = FindCommentChange(changes, targetId);
         return comment is null
@@ -934,7 +954,7 @@ internal static class TextRenderers
         string verticalMerge = item.VerticalMerge is { } itemMerge ? $" vertical-merge={itemMerge.ToWireValue()}" : string.Empty;
             string verticalMergeRoot = item.VerticalMergeRootCellId is null ? string.Empty : $" vertical-merge-root={XmlValues.EscapeText(item.VerticalMergeRootCellId)}";
             string nestedTable = item.HasNestedTable ? " nested-table=true" : string.Empty;
-            string text = item.Kind is "paragraph" or "cell"
+            string text = item.Kind is "paragraph" or "cell" or "equation"
                 ? $" text=\"{XmlValues.EscapeText(item.Text)}\""
                 : string.Empty;
             builder.Append(item.Relation)
@@ -1659,6 +1679,7 @@ internal static class TextRenderers
         {
             candidates.Add(hyperlink.Id.ToWireValue());
         }
+        foreach (DocxEquationInfo equation in model.Equations) candidates.Add(equation.Id.ToWireValue());
 
         foreach (DocxChangeInfo change in changes)
         {

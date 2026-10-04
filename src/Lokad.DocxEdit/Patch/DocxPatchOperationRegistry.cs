@@ -1186,6 +1186,80 @@ internal static partial class DocxPatchEngine
                 """,
             ],
         },
+        PreserveOnly(
+            "insert-equation",
+            [
+                new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("latex", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("placement", FieldValueKind.Text, Repeatable: false, Required: false, DefaultValue: "after", AllowedValues: ["after", "inline"]),
+                new("as", FieldValueKind.Text, Repeatable: false, Required: false),
+            ], [],
+            "Native equation insertion has no tracked revision representation.",
+            "Equations", "Inserts a display equation after a block, or appends an inline equation to a paragraph", ExecuteEquation) with
+        {
+            AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
+            Examples = ["""
+                # Minimal insert-equation.
+                docxpatch 1
+                op insert-equation
+                target M.P0001
+                latex \frac{a}{b}
+                end
+                """],
+        },
+        PreserveOnly(
+            "replace-equation",
+            [
+                new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("latex", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-hash", FieldValueKind.Text, Repeatable: false, Required: false),
+            ], [],
+            "Native equation replacement has no tracked revision representation.",
+            "Equations", "Replaces one native equation while preserving its placement", ExecuteEquation) with
+        {
+            AcceptedKinds = [DocxTargetKind.Equation],
+            Examples = ["""
+                # Minimal replace-equation.
+                docxpatch 1
+                op replace-equation
+                target M.E0001
+                latex x^2
+                end
+                """, """
+                # Guarded replace-equation: copy contentHash from read or dump.
+                docxpatch 1
+                op replace-equation
+                target M.E0001
+                expect-hash COPY_CONTENT_HASH
+                latex x^2
+                end
+                """],
+        },
+        PreserveOnly(
+            "delete-equation",
+            [
+                new("target", FieldValueKind.Text, Repeatable: false, Required: true),
+                new("expect-hash", FieldValueKind.Text, Repeatable: false, Required: false),
+            ], [],
+            "Native equation deletion has no tracked revision representation.",
+            "Equations", "Deletes one native equation and retains its containing Word paragraph", ExecuteEquation) with
+        {
+            AcceptedKinds = [DocxTargetKind.Equation],
+            Examples = ["""
+                # Minimal delete-equation.
+                docxpatch 1
+                op delete-equation
+                target M.E0001
+                end
+                """, """
+                # Guarded delete-equation: copy contentHash from read or dump.
+                docxpatch 1
+                op delete-equation
+                target M.E0001
+                expect-hash COPY_CONTENT_HASH
+                end
+                """],
+        },
         Tracked(
             "set-cell",
             [
@@ -2088,6 +2162,7 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.MergeGroup => "merge-group",
             DocxTargetKind.Image => "image",
             DocxTargetKind.Hyperlink => "hyperlink",
+            DocxTargetKind.Equation => "equation",
             DocxTargetKind.Field => "field",
             DocxTargetKind.Bookmark => "bookmark",
             DocxTargetKind.ContentControl => "content-control",
@@ -2128,6 +2203,8 @@ internal static partial class DocxPatchEngine
         List<string> generatedRevisionIds,
         CancellationToken cancellationToken)
     {
+        DocxDiagnostic? equationProtection = EquationRewriteProtection(package, operation, cancellationToken);
+        if (equationProtection is not null) return [equationProtection];
         return OperationsByName.TryGetValue(operation.OperationName, out OperationRegistration? registration)
             ? registration.Handler(package, operation, options, apply, generatedRevisionIds, cancellationToken)
             : null;

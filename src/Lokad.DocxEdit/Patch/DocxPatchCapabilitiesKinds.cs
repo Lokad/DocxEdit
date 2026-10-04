@@ -67,6 +67,10 @@ internal static partial class DocxPatchEngine
         {
             return GetHyperlinkCapabilities(package, parsed, requestedTargetId, mode, cancellationToken);
         }
+        if (parsed.Kind == DocxTargetKind.Equation)
+        {
+            return GetEquationCapabilities(package, requestedTargetId, mode, cancellationToken);
+        }
 
         if (parsed.Kind == DocxTargetKind.Section)
         {
@@ -200,6 +204,7 @@ internal static partial class DocxPatchEngine
             ContentControlChoiceCapability(facts, mode),
             ContentControlDateCapability(facts, mode),
         };
+        ProtectEquationCapabilities(control, operations);
 
         return new ParagraphCapabilitiesOutcome
         {
@@ -682,6 +687,7 @@ internal static partial class DocxPatchEngine
             HyperlinkTextCapability(facts, isTracked, isRequire),
             HyperlinkRemoveCapability(isRequire),
         };
+        ProtectEquationCapabilities(hyperlinkTarget.Hyperlink, operations);
         return new ParagraphCapabilitiesOutcome
         {
             Capabilities = new DocxTargetCapabilities(
@@ -861,6 +867,7 @@ internal static partial class DocxPatchEngine
             FieldResultCapability(facts, isTracked, isRequire),
             FieldRefreshCapability(facts, isRequire),
         };
+        ProtectEquationCapabilities(fieldTarget.Element, operations);
         return new ParagraphCapabilitiesOutcome
         {
             Capabilities = new DocxTargetCapabilities(
@@ -1810,6 +1817,7 @@ internal static partial class DocxPatchEngine
             SetCellShadingCapability(facts, parsed.ToWireValue()),
             ReplaceTextCellCapability(facts, parsed.ToWireValue(), isTracked),
         };
+        ProtectEquationCapabilities(cell, operations);
 
         return new ParagraphCapabilitiesOutcome
         {

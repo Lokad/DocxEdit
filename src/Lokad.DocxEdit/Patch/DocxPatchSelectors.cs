@@ -236,6 +236,16 @@ internal static partial class DocxPatchEngine
                 return new DocxTargetId(linkStory, linkPart, DocxTargetKind.Hyperlink, linkOrdinal, 0, 0);
             }
 
+            if (operation.OperationName is "replace-equation" or "delete-equation")
+            {
+                EquationTarget? equation = ResolveEquationTarget(package, target, cancellationToken);
+                if (equation is null) return null;
+                createdMark = (string?)equation.Math.Attribute(SnapshotCreatedName);
+                int ordinal = equation.Document.Descendants(OoxmlNs.M + "oMath").TakeWhile(e => !ReferenceEquals(e, equation.Math)).Count() + 1;
+                (char story, int part) = DocxTargetId.ParseStoryPrefix(DocxPartRoles.GetStoryPrefixes(package, cancellationToken)[equation.PartName]);
+                return new DocxTargetId(story, part, DocxTargetKind.Equation, ordinal, 0, 0);
+            }
+
             if (operation.OperationName is "replace-bookmark-text" or "rename-bookmark" or "delete-bookmark")
             {
                 BookmarkTarget? bookmarkAlias = ResolveAliasBookmarkTarget(package, operation, target, cancellationToken, out _);
@@ -272,7 +282,7 @@ internal static partial class DocxPatchEngine
                 return new DocxTargetId(bookmarkStory, bookmarkPart, DocxTargetKind.Bookmark, bookmarkOrdinal, 0, 0);
             }
 
-            if (operation.OperationName is "replace-text" or "replace-paragraph" or "set-style" or "delete-block" or "insert-before" or "insert-after")
+            if (operation.OperationName is "replace-text" or "replace-paragraph" or "set-style" or "delete-block" or "insert-before" or "insert-after" or "insert-equation")
             {
                 ParagraphTarget? aliasCapture = ResolveAliasParagraphTarget(package, operation, target, cancellationToken, out _);
                 if (aliasCapture is null)
@@ -305,7 +315,7 @@ internal static partial class DocxPatchEngine
 
             if (explicitId.Kind is DocxTargetKind.Paragraph)
             {
-                if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block"))
+                if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block" or "insert-equation"))
                 {
                     return null;
                 }
@@ -325,7 +335,7 @@ internal static partial class DocxPatchEngine
             return CaptureExplicitTargetSnapshotId(package, operation, explicitId, cancellationToken);
         }
 
-        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block"))
+        if (operation.OperationName is not ("replace-text" or "replace-paragraph" or "set-style" or "insert-before" or "insert-after" or "delete-block" or "insert-equation"))
         {
             return null;
         }
@@ -366,6 +376,7 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.Row => ResolveRowTarget(package, target, cancellationToken)?.Row,
             DocxTargetKind.Cell or DocxTargetKind.MergeGroup => ResolveCellTarget(package, target, cancellationToken)?.Cell,
             DocxTargetKind.Hyperlink => ResolveHyperlinkTarget(package, target, cancellationToken)?.Hyperlink,
+            DocxTargetKind.Equation => ResolveEquationTarget(package, target, cancellationToken)?.Math,
             DocxTargetKind.Bookmark => ResolveBookmarkTarget(package, operation, target, cancellationToken, out _)?.Start,
             DocxTargetKind.ContentControl => ResolveContentControlTarget(package, operation, target, cancellationToken, out _)?.ContentControl,
             DocxTargetKind.Field => ResolveFieldTarget(package, target, cancellationToken)?.Element,

@@ -10,5 +10,6 @@ internal sealed record DocxDocumentModel(
     IReadOnlyList<DocxFieldInfo> Fields,
     IReadOnlyList<DocxHyperlinkInfo> Hyperlinks)
 {
+    public IReadOnlyList<DocxEquationInfo> Equations { get; init; } = [];
     public static DocxDocumentModel Empty { get; } = new([], [], [], [], [], [], [], []);
 }

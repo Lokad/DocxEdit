@@ -59,6 +59,29 @@ public sealed record DocxReadResult : DocxOperationResult
     public IReadOnlyList<DocxFieldInfo> Fields { get; init; } = [];
     /// <summary>Hyperlinks.</summary>
     public IReadOnlyList<DocxHyperlinkInfo> Hyperlinks { get; init; } = [];
+    /// <summary>Native Office Math equations in physical story order.</summary>
+    public IReadOnlyList<DocxEquationInfo> Equations { get; init; } = [];
+}
+
+/// <summary>A whole native equation; text is a preview, not a lossless LaTeX serialization.</summary>
+public sealed record DocxEquationInfo
+{
+    /// <summary>Snapshot equation ID.</summary>
+    public required DocxTargetId Id { get; init; }
+    /// <summary>Story label.</summary>
+    public string Story { get; init; } = string.Empty;
+    /// <summary>Package part path.</summary>
+    public string PartName { get; init; } = string.Empty;
+    /// <summary>Containing paragraph or cell, when modeled.</summary>
+    public DocxTargetId? TargetId { get; init; }
+    /// <summary>Whether the equation is inside an Office Math display paragraph.</summary>
+    public bool IsDisplay { get; init; }
+    /// <summary>Concatenated math text, bounded by MaxText; structure is available through Omml.</summary>
+    public string Text { get; init; } = string.Empty;
+    /// <summary>Standalone oMath XML. Null when its complete serialization exceeds MaxText; never truncated into invalid XML.</summary>
+    public string? Omml { get; init; }
+    /// <summary>SHA-256 of canonical equation content for expect-hash guards; excludes namespace declarations and patch bookkeeping.</summary>
+    public string ContentHash { get; init; } = string.Empty;
 }
 
 /// <summary>
@@ -69,7 +92,7 @@ public sealed record DocxOutlineItem
 {
     /// <summary>Entry target wire ID.</summary>
     public string TargetId { get; init; } = string.Empty;
-    /// <summary>Entry kind: heading, table, section, image, bookmark, content-control, field, or hyperlink.</summary>
+    /// <summary>Entry kind: heading, table, section, image, bookmark, content-control, field, hyperlink, or equation.</summary>
     public string Kind { get; init; } = string.Empty;
     /// <summary>Entry text, bounded by the request maximum text; headings carry their text, other kinds leave this empty.</summary>
     public string Text { get; init; } = string.Empty;
@@ -204,6 +227,8 @@ public sealed record DocxFindResult : DocxOperationResult
 /// <summary>Target-scoped dump. <see cref="DocxOperationResult.Success"/> is equivalent to "target found": an unknown target or a target with the wrong shape for dumping fails with <c>E1201</c> and leaves <c>Text</c> null.</summary>
 public sealed record DocxDumpResult : DocxOperationResult
 {
+    /// <summary>Native equation detail when dumping an equation target; subject to MaxText.</summary>
+    public DocxEquationInfo? Equation { get; init; }
     /// <summary>Requested target, echoed byte-identical (explicit ID, comment-body ID, or comment reference); never parsed here.</summary>
     public string TargetId { get; init; } = string.Empty;
     /// <summary>Dumped target text; null when the target was not found (the result then carries the failure).</summary>

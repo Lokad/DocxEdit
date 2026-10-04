@@ -4,6 +4,7 @@ namespace Lokad.DocxEdit.Ooxml;
 
 internal static class OoxmlNs
 {
+    public static readonly XNamespace M = "http://schemas.openxmlformats.org/officeDocument/2006/math";
     public static readonly XNamespace W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     public static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     public static readonly XNamespace Rel = "http://schemas.openxmlformats.org/package/2006/relationships";

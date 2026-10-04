@@ -10,6 +10,10 @@ Requires net10.0. Installing this package does not install the docxedit command.
 
 ## Library example
 
+Native Word equations can be discovered, extracted as OMML, and inserted/replaced/
+deleted as whole objects using a bounded LaTeX-like syntax. See
+[equation support and Word/PDF smoke testing](docs/equations.md).
+
 The example stages output in memory, checks Success with diagnostics, and publishes only on success. Caller-owned streams stay open by default. Wrap file creation in try catch for publication and input output errors. The CLI preserves any pre-existing destination file byte for byte on failed apply. Library callers get similar staging safety as below: staging keeps a failed Apply from reaching the destination, but File.Create followed by CopyToAsync is not atomic and an input output failure during publication can leave a partial file. For CLI equivalent file safety, publish through a temporary file in the same directory and move it over the destination only after the copy succeeds.
 
     using Lokad.DocxEdit;

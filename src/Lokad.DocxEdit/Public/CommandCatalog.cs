@@ -503,9 +503,9 @@ public static class DocxHelp
         builder.AppendLine("Linked images and unsupported drawing shapes are reported as diagnostics and preserved.");
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Tracked edits preserve unrelated existing markup, allow adjacent revisions, and reject overlaps with tracked insert/delete, move, custom XML revision, comment, bookmark, content-control, field, or hyperlink boundaries.");
-        builder.AppendLine("Unsupported fields are rejected. expect-hash and preserve-size are not supported.");
+        builder.AppendLine("Unsupported fields are rejected. expect-hash is available for whole-equation replacement and deletion; preserve-size is not supported.");
         builder.AppendLine("Result aliases: creation operations accept an optional as field that binds the new object to a name; later operations in the same patch address it as @name without guessing a positional ID. Names start with a letter; using a name before its operation, rebinding a bound name, or using a deleted target fails. Reports list created IDs per operation.");
-        builder.AppendLine("Target lifetime: explicit IDs for paragraphs, tables, rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, merge groups, and comment bodies bind to the input snapshot for one patch, so an earlier insert or delete never renumbers a later explicit ID; a deleted target fails instead of editing a neighbour, and newly inserted blocks are not addressable by pre-discovered IDs in the same patch (bind them with as and address them as @name). Semantic selectors resolve live; guards evaluate sequentially.");
+        builder.AppendLine("Target lifetime: explicit IDs for paragraphs, tables, rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, equations, merge groups, and comment bodies bind to the input snapshot for one patch, so an earlier insert or delete never renumbers a later explicit ID; a deleted target fails instead of editing a neighbour, and newly inserted blocks are not addressable by pre-discovered IDs in the same patch (bind them with as and address them as @name). Semantic selectors resolve live; guards evaluate sequentially.");
         return builder.ToString();
     }
 
@@ -718,7 +718,11 @@ public static class DocxHelp
                         ]),
                         new("Images",
                         [
-                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, set-image-metadata updates docPr name/description/title, set-image-size updates extents, set-image-wrap updates anchored wrap mode/distances, set-image-position updates anchored positioning, and set-image-crop updates a:srcRect percentages. Linked images are not fetched or listed as editable images; VML, grouped drawings, charts, SmartArt, OLE objects, equations, and generic shapes are diagnostics-only preserve-only content."
+                            "Read and media output surface inline and anchored image layout metadata, including DrawingML extent, docPr name/description/title, wrap mode, wrap distances, anchor relative positioning, relative height, overlap/aspect-lock flags, crop percentages from a:srcRect, and containing paragraph or cell target. Image byte replacement preserves existing drawing layout where supported, set-image-metadata updates docPr name/description/title, set-image-size updates extents, set-image-wrap updates anchored wrap mode/distances, set-image-position updates anchored positioning, and set-image-crop updates a:srcRect percentages. Linked images are not fetched or listed as editable images; VML, grouped drawings, charts, SmartArt, OLE objects, and generic shapes are diagnostics-only preserve-only content."
+                        ]),
+                        new("Equations",
+                        [
+                            "Native Office Math equations have E target IDs, inline/display metadata, a content hash, bounded preview text, and standalone OMML in JSON read/dump output. OMML is omitted when its complete serialization exceeds max-text. insert-equation, replace-equation, and delete-equation edit whole objects using a bounded LaTeX-like syntax; replacement/deletion accept expect-hash. Off edits directly, Suggest warns W4001, Require fails E6001. Text rewrites protect equations. See docs/equations.md for syntax and the local Word/PDF smoke test."
                         ]),
                         new("Tables",
                         [

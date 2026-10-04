@@ -195,6 +195,7 @@ Common IDs:
 - `M.CC0001`: content control.
 - `M.F0001`: field.
 - `M.L0001`: hyperlink.
+- `M.E0001`: native equation; see [equation discovery, syntax, and Word smoke testing](equations.md).
 - `C001.C0001` or `comment:3`: comment body target.
 
 Semantic selectors such as `heading:"Exact heading"`,

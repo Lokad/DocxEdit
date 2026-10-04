@@ -64,12 +64,12 @@ The library must document and enforce these non-goals:
 * No VML, grouped drawing, or OLE object editing.
 * No SmartArt editing.
 * No chart data editing.
-* No equation editing beyond preserving existing XML.
+* Equation editing operates on whole native Office Math objects using a bounded LaTeX-like syntax; no partial equation-run editing or tracked equation revisions. See `docs/equations.md`.
 * No VBA or macro editing.
 * No guaranteed TOC, field, cross-reference, or page-number rendering updates.
 * No arbitrary XML mutation as the default workflow.
 * No full Open XML schema validator.
-* No `expect-hash` feature. Do not implement it.
+* `expect-hash` is restricted to whole-equation replacement/deletion. Other operations use their existing text and property guards.
 
 The library may preserve unsupported structures, report them, and avoid modifying them.
 
@@ -1260,7 +1260,7 @@ M.I0001 image layout=inline part=/word/media/image1.png content-type=image/png b
 ```
 
 Linked images are never fetched and are omitted from editable image records. VML,
-grouped drawings, charts, SmartArt, OLE objects, equations, and generic shapes are
+grouped drawings, charts, SmartArt, OLE objects, and generic shapes are
 reported as diagnostics and preserved.
 
 ### 9.7 `changes`
@@ -1488,7 +1488,7 @@ Rules:
 
 ### 10.7 Guards
 
-The DSL must not support `expect-hash`.
+The DSL supports `expect-hash` only for `replace-equation` and `delete-equation`, using the discovered equation `ContentHash`. Other operations reject this field with `E2004`.
 
 Supported guards:
 

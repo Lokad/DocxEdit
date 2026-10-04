@@ -40,7 +40,10 @@ public enum DocxTargetKind
     ContentControl,
 
     /// <summary>Section (<c>S</c>).</summary>
-    Section
+    Section,
+
+    /// <summary>Native Office Math equation (<c>E</c>).</summary>
+    Equation
 }
 
 /// <summary>
@@ -172,6 +175,9 @@ public readonly record struct DocxTargetId(
             {
                 case 'P':
                     kind = DocxTargetKind.Paragraph;
+                    break;
+                case 'E':
+                    kind = DocxTargetKind.Equation;
                     break;
                 case 'I':
                     kind = DocxTargetKind.Image;
@@ -361,6 +367,7 @@ public readonly record struct DocxTargetId(
             DocxTargetKind.Bookmark => $"{head}.B{Primary:D4}",
             DocxTargetKind.ContentControl => $"{head}.CC{Primary:D4}",
             DocxTargetKind.Section => $"{head}.S{Primary:D4}",
+            DocxTargetKind.Equation => $"{head}.E{Primary:D4}",
             _ => throw new ArgumentOutOfRangeException(nameof(Kind), $"Unsupported target kind '{Kind}'.")
         };
     }

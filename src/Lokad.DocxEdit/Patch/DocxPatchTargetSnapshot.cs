@@ -116,6 +116,12 @@ internal static partial class DocxPatchEngine
             }
 
             int hyperlinkIndex = 1;
+            int equationIndex = 1;
+            foreach (XElement equation in document.Descendants(OoxmlNs.M + "oMath"))
+            {
+                equation.SetAttributeValue(SnapshotIdName, new DocxTargetId(storyLetter, storyPart, DocxTargetKind.Equation, equationIndex++, 0, 0).ToWireValue());
+                annotated = true;
+            }
             foreach (XElement hyperlink in document.Descendants(OoxmlNs.W + "hyperlink"))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -406,6 +412,7 @@ internal static partial class DocxPatchEngine
         }
 
         CollectFinalDescendantIds(document, OoxmlNs.W + "hyperlink", DocxTargetKind.Hyperlink, storyLetter, storyPart, finals, static _ => true);
+        CollectFinalDescendantIds(document, OoxmlNs.M + "oMath", DocxTargetKind.Equation, storyLetter, storyPart, finals, static _ => true);
         CollectFinalDescendantIds(document, OoxmlNs.W + "sdt", DocxTargetKind.ContentControl, storyLetter, storyPart, finals, static _ => true);
         CollectFinalDescendantIds(document, OoxmlNs.W + "bookmarkStart", DocxTargetKind.Bookmark, storyLetter, storyPart, finals, static element => !string.IsNullOrWhiteSpace((string?)element.Attribute(OoxmlNs.W + "name")));
         int fieldOrdinal = 0;

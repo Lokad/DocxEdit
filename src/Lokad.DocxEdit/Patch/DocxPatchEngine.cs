@@ -16,6 +16,8 @@ internal static partial class DocxPatchEngine
 
     private static readonly IReadOnlyDictionary<XName, string> ProtectedTextEditElements = new Dictionary<XName, string>
     {
+        [OoxmlNs.M + "oMath"] = "equation",
+        [OoxmlNs.M + "oMathPara"] = "equation",
         [OoxmlNs.W + "hyperlink"] = "hyperlink",
         [OoxmlNs.W + "fldSimple"] = "field",
         [OoxmlNs.W + "fldChar"] = "field",

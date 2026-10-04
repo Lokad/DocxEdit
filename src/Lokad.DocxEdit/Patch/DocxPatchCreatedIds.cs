@@ -21,6 +21,7 @@ internal static partial class DocxPatchEngine
         IReadOnlyDictionary<string, HashSet<string>>? bookmarkIdsAfter,
         CancellationToken cancellationToken)
     {
+        if (operation.OperationName == "insert-equation") return CreatedEquationIds(operation, package, cancellationToken);
         if (operation.OperationName is "insert-before" or "insert-after" or "insert-image-after" or "insert-hyperlink-after")
         {
             return CreatedInsertParagraphId(operation, package, cancellationToken);

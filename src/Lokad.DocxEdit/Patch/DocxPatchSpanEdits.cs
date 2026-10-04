@@ -287,6 +287,9 @@ internal static partial class DocxPatchEngine
 
         foreach (SpanMarkerEvent marker in markers)
         {
+            if (marker.Element.Name == OoxmlNs.M + "oMath" &&
+                matches.Any(match => match.Start < marker.Position && marker.Position < match.Start + match.Length))
+                return "equation";
             int row = -1;
             for (int r = 0; r < SpanRangeMarkers.Length; r++)
             {
@@ -481,7 +484,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            if (element.Name == OoxmlNs.W + "fldChar" || IsSpanRangeMarker(element.Name))
+            if (element.Name == OoxmlNs.W + "fldChar" || element.Name == OoxmlNs.M + "oMath" || IsSpanRangeMarker(element.Name))
             {
                 markers?.Add(new SpanMarkerEvent(element, map.Count));
             }

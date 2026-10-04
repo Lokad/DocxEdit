@@ -330,8 +330,8 @@ internal static partial class DocxPatchEngine
 
         string action = operation.OperationName switch
         {
-            "insert-before" or "insert-after" => "insert",
-            "delete-block" or "delete-image" or "delete-bookmark" or "delete-comment" or "delete-comment-reply" or "remove-hyperlink" or "delete-row" => "delete",
+            "insert-before" or "insert-after" or "insert-equation" => "insert",
+            "delete-block" or "delete-image" or "delete-bookmark" or "delete-comment" or "delete-comment-reply" or "remove-hyperlink" or "delete-row" or "delete-equation" => "delete",
             _ => "update"
         };
         string kind = TargetKindWord(resolvedId.Kind);

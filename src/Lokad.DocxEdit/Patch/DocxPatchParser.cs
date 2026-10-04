@@ -91,7 +91,7 @@ internal static class DocxPatchParser
                 string rawValue = fieldLine[(separator + 1)..].Trim();
                 int keyColumn = leadingWhitespace + 1;
                 int fieldLineNumber = i + 1;
-                if (key == "expect-hash")
+                if (key == "expect-hash" && operationName is not ("replace-equation" or "delete-equation"))
                 {
                     return Error("E2004", "The expect-hash feature is not supported.", fieldLineNumber, keyColumn, operationName);
                 }

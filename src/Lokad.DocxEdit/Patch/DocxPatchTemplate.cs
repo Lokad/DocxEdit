@@ -55,6 +55,7 @@ internal static partial class DocxPatchEngine
             DocxTargetKind.Field => BuildFieldTemplate(storyDocument, parsed, capabilities, mode),
             DocxTargetKind.Image => BuildImageTemplate(storyDocument, parsed, capabilities, mode, package, cancellationToken),
             DocxTargetKind.Bookmark => BuildBookmarkTemplate(storyDocument, parsed, capabilities, mode),
+            DocxTargetKind.Equation => BuildEquationTemplate(storyDocument, parsed, capabilities, mode),
             _ => null,
         };
 

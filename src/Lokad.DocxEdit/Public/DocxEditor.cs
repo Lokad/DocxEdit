@@ -82,7 +82,8 @@ public sealed partial class DocxEditor
             Bookmarks = redacted.Bookmarks,
             ContentControls = redacted.ContentControls,
             Fields = redacted.Fields,
-            Hyperlinks = redacted.Hyperlinks
+            Hyperlinks = redacted.Hyperlinks,
+            Equations = redacted.Equations
         };
     }
 
@@ -125,8 +126,17 @@ public sealed partial class DocxEditor
                 Title = image.Title is null ? null : TextRenderers.Truncate(image.Title, maxText)
             })
             .ToArray();
-        return new DocxDocumentModel(paragraphs, tables, images, model.Sections, model.Bookmarks, model.ContentControls, fields, model.Hyperlinks);
+        return new DocxDocumentModel(paragraphs, tables, images, model.Sections, model.Bookmarks, model.ContentControls, fields, model.Hyperlinks)
+        {
+            Equations = model.Equations.Select(e => BoundEquation(e, maxText)).ToArray()
+        };
     }
+
+    private static DocxEquationInfo BoundEquation(DocxEquationInfo equation, int maxText) => equation with
+    {
+        Text = TextRenderers.Truncate(equation.Text, maxText),
+        Omml = maxText > 0 && equation.Omml?.Length <= maxText ? equation.Omml : null
+    };
 
     /// <summary>Outlines a document. Uses default options and no cancellation.</summary>
     public DocxOutlineResult Outline(
@@ -315,6 +325,7 @@ public sealed partial class DocxEditor
         }
 
         string? text = TextRenderers.Dump(model, changes, targetId, options.IncludeRuns, options.MaxText);
+        DocxEquationInfo? equation = model.Equations.FirstOrDefault(e => e.Id.ToWireValue() == targetId);
         IReadOnlyList<DocxDumpRunInfo> runs = options.IncludeRuns ? TextRenderers.DumpRuns(model, targetId, options.MaxText) : [];
         if (text is null)
         {
@@ -337,7 +348,8 @@ public sealed partial class DocxEditor
                 .ToArray(),
             TargetId = targetId,
             Text = text,
-            Runs = runs
+            Runs = runs,
+            Equation = equation is null ? null : BoundEquation(equation, options.MaxText)
         };
     }
 

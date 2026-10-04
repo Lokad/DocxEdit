@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added native equation discovery and guarded whole-equation insertion, replacement,
+  and deletion with a bounded LaTeX-like syntax. Text rewrites now protect equations.
+  Includes inline/display placement, snapshot IDs, aliases, OMML extraction,
+  capability/template guidance, and a local Word-to-PDF smoke-test script.
 - Added `DocxEditor.Create` and the shared `create` command for empty A4 or US Letter
   documents in portrait or landscape, with fixed margins and Normal/Heading1–Heading9
   styles. Includes quotas, stream ownership, cancellation, staged command publication,

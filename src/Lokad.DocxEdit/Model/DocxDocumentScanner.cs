@@ -40,7 +40,8 @@ internal static partial class DocxDocumentScanner
         var contentControls = new List<DocxContentControlInfo>();
         var fields = new List<DocxFieldInfo>();
         var hyperlinks = new List<DocxHyperlinkInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
+        var equations = new List<DocxEquationInfo>();
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, equations, cancellationToken);
 
         if (includeHeadersFooters)
         {
@@ -51,11 +52,11 @@ internal static partial class DocxDocumentScanner
                     continue;
                 }
 
-                ScanStory(package, story.PartName, story.Prefix, story.StoryLabel, textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, cancellationToken);
+                ScanStory(package, story.PartName, story.Prefix, story.StoryLabel, textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, equations, cancellationToken);
             }
         }
 
-        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks);
+        return new DocxDocumentModel(paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks) { Equations = equations };
     }
 
     private static void ScanStory(
@@ -74,6 +75,7 @@ internal static partial class DocxDocumentScanner
         List<DocxContentControlInfo> contentControls,
         List<DocxFieldInfo> fields,
         List<DocxHyperlinkInfo> hyperlinks,
+        List<DocxEquationInfo> equations,
         CancellationToken cancellationToken)
     {
         OoxmlPart part = package.GetPart(partName)
@@ -157,6 +159,19 @@ internal static partial class DocxDocumentScanner
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
         fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
         hyperlinks.AddRange(ReadHyperlinks(document, partName, story, idPrefix, textView, targets, relationships));
+        int equationIndex = 1;
+        foreach (XElement math in document.Descendants(OoxmlNs.M + "oMath"))
+        {
+            var id = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Equation, equationIndex++, 0, 0);
+            if (!EquationXml.IsVisible(math, textView)) continue;
+            equations.Add(new DocxEquationInfo
+            {
+                Id = id, Story = story, PartName = partName, TargetId = FindTargetId(math, targets),
+                IsDisplay = math.Parent?.Name == OoxmlNs.M + "oMathPara",
+                Text = string.Concat(math.Descendants(OoxmlNs.M + "t").Where(t => EquationXml.IsVisible(t, textView)).Select(t => t.Value)),
+                Omml = EquationXml.Export(math), ContentHash = EquationXml.Hash(math)
+            });
+        }
     }
 
     private static DocxParagraphInfo ReadParagraph(

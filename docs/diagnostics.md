@@ -53,7 +53,7 @@ Common code ranges:
 - `E2001`: patch text is empty.
 - `E2002`: patch is missing the required `docxpatch 1` preamble.
 - `E2003`: unsupported docxpatch major version.
-- `E2004`: an `expect-hash` patch field was supplied; the feature is not supported (the same words inside a heredoc value stay literal).
+- `E2004`: an `expect-hash` patch field was supplied outside `replace-equation`/`delete-equation` (the same words inside a heredoc value stay literal).
 - `E2005`: unexpected patch line.
 - `E2007`: invalid field line, including a single-line value with an unmatched double quote.
 - `E2008`: unterminated heredoc for a field.
@@ -129,12 +129,13 @@ Fallback values describe the behavior used by the reader, such as `selected-text
 `changes-metadata`, `preserve-only`, `omit-from-editable-images`, `invalid-uri`,
 `missing-anchor`, `duplicate-anchor`, `unsupported-internal-part-link`, or
 `basic-section-model`, `unsupported-picture-bullet`, `unsupported-numbering-format`,
-or `tracked-numbering-property-revision`.
+or `tracked-numbering-property-revision`, `whole-equation`.
 
 Unsupported drawing warnings distinguish editable image records from preserve-only
 OOXML shapes. Linked images (`W1019`) are not fetched or listed as editable images.
 VML (`W1020`), grouped drawings (`W1021`), OLE objects (`W1022`), charts, SmartArt,
-equations, and generic shapes are preserved but not modeled.
+and generic shapes are preserved but not modeled. Native equations are modeled
+as whole objects; `W1011` describes their limited editing surface.
 
 Content-control edit diagnostics use `E4310` when the target control kind does
 not match the requested operation. The message reports the actual kind and gives
@@ -164,7 +165,7 @@ Read-model unsupported-feature warnings by code:
 - `W1008`: external images are not fetched or listed.
 - `W1009`: charts are preserved but not modeled.
 - `W1010`: SmartArt is preserved but not modeled.
-- `W1011`: equations are preserved but not modeled.
+- `W1011`: native equations are modeled as whole objects; internal-run editing and tracked equation revisions are unavailable. The match count is the number of `m:oMath` elements, with fallback `whole-equation`.
 - `W1012`: shapes are preserved but not modeled.
 - `W1013`: `altChunk` content is preserved but not imported.
 - `W1014`: complex section flow with a basic section model.
