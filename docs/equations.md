@@ -4,6 +4,10 @@ DocxEdit discovers and edits whole Office Math equations (OMML). The output is
 editable with Word's equation editor. Conversion and editing run without Word or
 external packages; Word is used only by the optional rendering smoke test.
 
+For a self-contained CLI reference, run `docxedit help equations`. The shorter
+syntax primer is also embedded in `help insert-equation`, `help replace-equation`,
+and their `Notes` in `catalog --json`. No repository files are needed to read it.
+
 ## Discovery and extraction
 
 `read`, `outline`, `dump`, and `context` expose equation IDs such as `M.E0001`.

@@ -22,6 +22,13 @@ run the CLI from source (integrations embed the library instead):
 dotnet run --project src/Lokad.DocxEdit.Cli/Lokad.DocxEdit.Cli.csproj -- read report.docx --summary
 ```
 
+## Equation Help
+
+Equation authoring is documented inside the CLI: `docxedit help equations` gives
+the supported syntax, symbol vocabulary, limits, and workflow. `help insert-equation`
+and `help replace-equation` include a compact syntax primer, also present in the
+operation `Notes` in `catalog --json`.
+
 ## Standard Input And Output
 
 The input `.docx`, the patch file, and `--output` accept `-` for stdin/stdout

@@ -7,6 +7,10 @@ namespace Lokad.DocxEdit.Ooxml;
 // native Office Math; unsupported commands fail rather than becoming plain text.
 internal sealed class LatexMath(string source)
 {
+    internal const int MaxSourceLength = 32_768;
+    internal const int MaxNestingDepth = 64;
+    internal const int MaxMatrixCells = 1024;
+    internal static IEnumerable<string> SymbolCommands => Symbols.Keys;
     private int position;
     private int depth;
     private static readonly XNamespace M = OoxmlNs.M;
@@ -29,7 +33,7 @@ internal sealed class LatexMath(string source)
 
     internal static XElement Parse(string source)
     {
-        if (source.Length > 32_768) throw new FormatException("Equation source exceeds 32768 characters.");
+        if (source.Length > MaxSourceLength) throw new FormatException($"Equation source exceeds {MaxSourceLength} characters.");
         try { XmlConvert.VerifyXmlChars(source); }
         catch (XmlException) { throw new FormatException("Equation source contains an invalid XML character."); }
         var parser = new LatexMath(source);
@@ -45,7 +49,7 @@ internal sealed class LatexMath(string source)
 
     private List<XElement> Expression(char stop = '\0', bool matrix = false, bool delimiter = false)
     {
-        if (++depth > 64) throw Error("Equation nesting exceeds 64 levels");
+        if (++depth > MaxNestingDepth) throw Error($"Equation nesting exceeds {MaxNestingDepth} levels");
         var result = new List<XElement>();
         while (true)
         {
@@ -96,7 +100,7 @@ internal sealed class LatexMath(string source)
 
     private List<XElement> Atom()
     {
-        if (++depth > 64) throw Error("Equation nesting exceeds 64 levels");
+        if (++depth > MaxNestingDepth) throw Error($"Equation nesting exceeds {MaxNestingDepth} levels");
         try { return AtomCore(); }
         finally { depth--; }
     }
@@ -222,7 +226,7 @@ internal sealed class LatexMath(string source)
             var row = new XElement(M + "mr");
             while (true)
             {
-                if (++cells > 1024) throw Error("Matrix exceeds 1024 cells");
+                if (++cells > MaxMatrixCells) throw Error($"Matrix exceeds {MaxMatrixCells} cells");
                 row.Add(new XElement(M + "e", Expression(matrix: true)));
                 if (position == source.Length) throw Error("Unclosed matrix");
                 if (source[position] != '&') break;

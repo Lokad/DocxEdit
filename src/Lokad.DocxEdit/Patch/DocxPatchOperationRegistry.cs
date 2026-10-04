@@ -72,6 +72,8 @@ internal sealed record OperationRegistration(
     public DocxTargetKind[] AcceptedKinds { get; init; } = [];
     /// <summary>Executable example patches, minimal first and guarded second; empty when the operation has no curated example.</summary>
     public string[] Examples { get; init; } = [];
+    /// <summary>Focused notes shared by text help and the JSON catalog.</summary>
+    public IReadOnlyList<DocxHelpSection> Notes { get; init; } = [];
 }
 
 /// <summary>Engine implementation of one patch operation.</summary>
@@ -1197,6 +1199,7 @@ internal static partial class DocxPatchEngine
             "Native equation insertion has no tracked revision representation.",
             "Equations", "Inserts a display equation after a block, or appends an inline equation to a paragraph", ExecuteEquation) with
         {
+            Notes = EquationHelp.InputNotes,
             AcceptedKinds = [DocxTargetKind.Paragraph, DocxTargetKind.Table],
             Examples = ["""
                 # Minimal insert-equation.
@@ -1217,6 +1220,7 @@ internal static partial class DocxPatchEngine
             "Native equation replacement has no tracked revision representation.",
             "Equations", "Replaces one native equation while preserving its placement", ExecuteEquation) with
         {
+            Notes = EquationHelp.TargetNotes.Concat(EquationHelp.InputNotes).ToArray(),
             AcceptedKinds = [DocxTargetKind.Equation],
             Examples = ["""
                 # Minimal replace-equation.
@@ -1244,6 +1248,7 @@ internal static partial class DocxPatchEngine
             "Native equation deletion has no tracked revision representation.",
             "Equations", "Deletes one native equation and retains its containing Word paragraph", ExecuteEquation) with
         {
+            Notes = EquationHelp.TargetNotes,
             AcceptedKinds = [DocxTargetKind.Equation],
             Examples = ["""
                 # Minimal delete-equation.
@@ -2134,6 +2139,7 @@ internal static partial class DocxPatchEngine
             RequiredAlternatives = registration.RequireOneOf.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             ExclusiveAlternatives = registration.ExclusiveGroups.Select(static group => (IReadOnlyList<string>)group.ToArray()).ToArray(),
             Examples = registration.Examples.ToArray(),
+            Notes = registration.Notes.ToArray(),
             FieldDefaults = registration.Fields.Where(static field => field.DefaultValue is not null).Select(static field => field.Name + "=" + field.DefaultValue).ToArray(),
             AcceptedTargets = registration.AcceptedKinds.Select(static kind => TargetKindWord(kind)).ToArray(),
             AllowedValues = registration.Fields.Where(static field => field.AllowedValues is not null).Select(static field => field.Name + "=" + string.Join("|", field.AllowedValues!)).ToArray(),

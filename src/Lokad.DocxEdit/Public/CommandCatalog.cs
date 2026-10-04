@@ -116,6 +116,8 @@ public sealed record DocxPatchOperationInfo
     public IReadOnlyList<string> BooleanFields { get; init; } = [];
     /// <summary>Executable example patches, minimal first and guarded second.</summary>
     public IReadOnlyList<string> Examples { get; init; } = [];
+    /// <summary>Focused usage notes, included in operation help and the JSON catalog.</summary>
+    public IReadOnlyList<DocxHelpSection> Notes { get; init; } = [];
     /// <summary>Accepted explicit target ID kinds as lowercase words; empty skips document-independent kind validation.</summary>
     public IReadOnlyList<string> AcceptedTargets { get; init; } = [];
     /// <summary>Unit contracts as field=hint tokens; the hint kind precedes the colon and the accepted range or set follows it.</summary>
@@ -265,7 +267,7 @@ public static class DocxHelp
         AppendCommandGroup(builder, "Patch", "patch");
         builder.AppendLine();
         builder.AppendLine("Help:");
-        builder.Append("  help ").AppendLine(string.Join("|", Catalog.Commands.Select(command => command.Name).Concat(["patch"])));
+        builder.Append("  help ").AppendLine(string.Join("|", Catalog.Commands.Select(command => command.Name).Concat(["patch", "equations"])));
         builder.AppendLine();
         builder.AppendLine("Examples:");
         foreach (string example in Catalog.Examples)
@@ -294,6 +296,12 @@ public static class DocxHelp
         if (string.Equals(topic, "patch", StringComparison.Ordinal))
         {
             text = RenderPatchHelp();
+            return true;
+        }
+
+        if (string.Equals(topic, "equations", StringComparison.Ordinal))
+        {
+            text = EquationHelp.Render();
             return true;
         }
 
@@ -504,6 +512,7 @@ public static class DocxHelp
         builder.AppendLine("Track changes are controlled by check/apply --track-changes off|preserve|suggest|require.");
         builder.AppendLine("Tracked edits preserve unrelated existing markup, allow adjacent revisions, and reject overlaps with tracked insert/delete, move, custom XML revision, comment, bookmark, content-control, field, or hyperlink boundaries.");
         builder.AppendLine("Unsupported fields are rejected. expect-hash is available for whole-equation replacement and deletion; preserve-size is not supported.");
+        builder.AppendLine("Equation syntax and supported commands: docxedit help equations. The latex field accepts a bounded expression language, with mandatory braced bodies for sums, products, and integrals.");
         builder.AppendLine("Result aliases: creation operations accept an optional as field that binds the new object to a name; later operations in the same patch address it as @name without guessing a positional ID. Names start with a letter; using a name before its operation, rebinding a bound name, or using a deleted target fails. Reports list created IDs per operation.");
         builder.AppendLine("Target lifetime: explicit IDs for paragraphs, tables, rows, cells, sections, hyperlinks, bookmarks, content controls, fields, images, equations, merge groups, and comment bodies bind to the input snapshot for one patch, so an earlier insert or delete never renumbers a later explicit ID; a deleted target fails instead of editing a neighbour, and newly inserted blocks are not addressable by pre-discovered IDs in the same patch (bind them with as and address them as @name). Semantic selectors resolve live; guards evaluate sequentially.");
         return builder.ToString();
@@ -539,6 +548,10 @@ public static class DocxHelp
         }
         }
         builder.Append("Track-change support: ").Append(operation.TrackChangesSupportClass).Append(" / ").Append(operation.TrackChangesSupport).Append(" - ").AppendLine(operation.TrackChangesNote);
+        foreach (DocxHelpSection section in operation.Notes)
+        {
+            AppendLines(builder, section.Heading + ":", section.Lines, indent: "  ");
+        }
         foreach (string example in operation.Examples)
         {
             builder.AppendLine();
@@ -696,6 +709,7 @@ public static class DocxHelp
                         new("Fields", "Structured fields with kind, parsed type, code, containing target, result length, nesting depth, bookmark/hyperlink dependencies, safe-edit status, dirty/lock flags, and completeness"),
                         new("Hyperlinks", "Structured hyperlinks with relationship ID, relationship part, target mode, URI, URI scheme validation, anchor resolution flags, target part, containing target, and broken relationship flag"),
                         new("Images", "Structured image instances with layout kind, relationship ID, containing target, size, alt text, wrap mode, wrap distances, anchor positioning, crop percentages, and media part"),
+                        new("Equations", "Native equation IDs, containing targets, inline/display placement, ContentHash guards, bounded Text, and complete Omml when it fits max-text; see docxedit help equations"),
                         new("Tables", "Structured table, row, and cell metadata including style, grid columns, header rows, omitted columns, spans, merge groups, vertical merge roots, and nested tables")
                     ],
                     Notes =
