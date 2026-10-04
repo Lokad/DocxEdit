@@ -4,6 +4,21 @@ JSON edit cases prove harness shape and diagnostic codes.
 Unit tests prove preserved bytes and neighboring content.
 Word tests prove open and save round trips.
 
+Comment lifecycle tests validate generated OOXML with the Open XML SDK as a
+test-only dependency, alongside DocxEdit's structural validator. They cover
+thread identity, editing resolved comments and replies, parent deletion refusal,
+cell anchors, and selected spans beside protected markup.
+
+`powershell -NoProfile -File tools/Test-CommentsWithWord.ps1` runs an optional
+local Word/PDF smoke test. It creates synthetic review documents, checks Word's
+own comment scopes, reply lists, and resolution states, forces SaveAs, reopens
+each copy, and exports PDFs with review markup. It then edits and deletes comments
+in the Word-saved copies and repeats the checks. Outputs stay under ignored
+`artifacts/comment-smoke/`. Inspect the PDFs for balloon placement; resolved
+threads may be hidden by Word's print view, so their state is checked through COM.
+Each Word worker has a 60-second deadline. Existing opt-in comment integration
+tests also force a document save.
+
 Equation unit tests cover native structure, snapshot identity, content guards,
 aliases, text-edit protection, privacy bounds, and bounded syntax failures.
 `tools/Test-EquationsWithWord.ps1` is an optional local Word/PDF smoke test: it
