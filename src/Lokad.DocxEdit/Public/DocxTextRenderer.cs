@@ -9,6 +9,13 @@ namespace Lokad.DocxEdit;
 /// </summary>
 public static class DocxTextRenderer
 {
+    /// <summary>Renders document creation status and the requested paper preset and orientation.</summary>
+    public static string RenderCreate(DocxCreateResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return $"docxedit create: {(result.Success ? "OK" : "FAILED")} (paper={result.PaperSize.ToWireValue()} orientation={result.Orientation.ToWireValue()}){Environment.NewLine}";
+    }
+
     /// <summary>
     /// Renders full read output including text.
     /// </summary>

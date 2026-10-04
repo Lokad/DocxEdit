@@ -65,6 +65,7 @@ internal sealed partial class DocxCommandExecution(
 
             return options.Command switch
             {
+                "create" => await RunCreate(options).ConfigureAwait(false),
                 "read" => await RunRead(options).ConfigureAwait(false),
                 "outline" => await RunOutline(options).ConfigureAwait(false),
                 "find" => await RunFind(options).ConfigureAwait(false),
@@ -100,14 +101,14 @@ internal sealed partial class DocxCommandExecution(
     private bool SameCliPath(string first, string second) => _host.PathsEqual(first, second);
 
     // Validates writer/reader path collisions before any writer is opened.
-    // Returns an InvalidUsage message, or null when the patch file set is safe.
+    // Returns an InvalidUsage message, or null when the output paths are safe.
     // Writers are --output/--report/--diagnostics; readers are the input
     // document, the patch file, and (for changes) the operation report.
-    private string? ValidatePatchCollisions(
+    private string? ValidateOutputCollisions(
         ParsedOptions options,
-        string inputPath,
-        string patchPath,
-        string? operationReportPath)
+        string inputPath = "",
+        string patchPath = "",
+        string? operationReportPath = null)
     {
         var readers = new List<(string Label, string Path)>();
         if (!IsStandardStreamPath(inputPath))
@@ -606,7 +607,7 @@ internal sealed partial class DocxCommandExecution(
     private async Task<int> RunChanges(ParsedOptions options)
     {
         if (options.Positionals.Count == 1 &&
-            ValidatePatchCollisions(options, options.Positionals[0], string.Empty, options.OperationReportPath) is { } changesCollision)
+            ValidateOutputCollisions(options, options.Positionals[0], string.Empty, options.OperationReportPath) is { } changesCollision)
         {
             return InvalidUsage(changesCollision);
         }
@@ -631,7 +632,7 @@ internal sealed partial class DocxCommandExecution(
     {
         if (options.Positionals.Count == 2)
         {
-            if (ValidatePatchCollisions(options, options.Positionals[0], options.Positionals[1], null) is { } checkCollision)
+            if (ValidateOutputCollisions(options, options.Positionals[0], options.Positionals[1], null) is { } checkCollision)
             {
                 return InvalidUsage(checkCollision);
             }
@@ -666,7 +667,7 @@ internal sealed partial class DocxCommandExecution(
         string outputPath = options.OutputPath;
         string inputPath = options.Positionals[0];
         string patchPath = options.Positionals[1];
-        if (ValidatePatchCollisions(options, inputPath, patchPath, null) is { } applyCollision)
+        if (ValidateOutputCollisions(options, inputPath, patchPath, null) is { } applyCollision)
         {
             return InvalidUsage(applyCollision);
         }

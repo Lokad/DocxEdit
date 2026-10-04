@@ -4,6 +4,11 @@ JSON edit cases prove harness shape and diagnostic codes.
 Unit tests prove preserved bytes and neighboring content.
 Word tests prove open and save round trips.
 
+Creation tests cover package validity, all paper/orientation combinations, subsequent
+patch editing, section layout readback, stream ownership, and command publication.
+The opt-in creation Word test checks that empty documents retain their section layout
+after Word opens and saves each combination.
+
 Protected spans keep both layers for endpoints and interiors.
 Alias cases keep both layers for composition and refusals.
 Image cases keep both layers for validation and round trips.

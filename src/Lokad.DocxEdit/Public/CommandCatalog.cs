@@ -11,7 +11,7 @@ public sealed record DocxCommandCatalog
     public string ToolName { get; init; } = "docxedit";
 
     /// <summary>One-line tool summary.</summary>
-    public string Summary { get; init; } = "read and patch .docx documents";
+    public string Summary { get; init; } = "create, read, and patch .docx documents";
 
     /// <summary>Inspect commands (read, find, check, apply, …).</summary>
     public IReadOnlyList<DocxCommandInfo> Commands { get; init; } = [];
@@ -260,6 +260,7 @@ public static class DocxHelp
         builder.AppendLine();
         builder.AppendLine("Usage:");
         builder.Append("  ").Append(Catalog.ToolName).AppendLine(" <command> [options]");
+        AppendCommandGroup(builder, "Create", "edit");
         AppendCommandGroup(builder, "Read / explore", "read");
         AppendCommandGroup(builder, "Patch", "patch");
         builder.AppendLine();
@@ -630,6 +631,39 @@ public static class DocxHelp
         {
             Commands =
             [
+                new()
+                {
+                    Name = "create",
+                    MinPositionals = 0,
+                    MaxPositionals = 0,
+                    Category = "edit",
+                    Summary = "Create an empty .docx with a specified paper size and orientation",
+                    Usage = "docxedit create --output output.docx [--paper a4|letter] [--orientation portrait|landscape] [--json] [--compact] [--report <path>] [--diagnostics <path>] [--strict]",
+                    Description = "Create one empty paragraph and one section. Defaults are A4, portrait, one-inch margins, half-inch header/footer distances, and zero gutter, independent of locale. Includes Normal and Heading1–Heading9 styles. Output is staged before publication, replacing an existing destination on success. Use --output - for document bytes on stdout; status goes to stderr and --json is rejected.",
+                    Options =
+                    [
+                        new("--output path, -o path", "Required output .docx path, or - for binary stdout") { Flags = ["--output", "-o"] },
+                        new("--paper a4|letter", "Paper preset; default a4") { Flags = ["--paper"] },
+                        new("--orientation portrait|landscape", "Page orientation; default portrait") { Flags = ["--orientation"] },
+                        new("--json", "Print the result object as JSON") { Flags = ["--json"] },
+                        new("--compact", "Print JSON without indentation") { Flags = ["--compact"] },
+                        new("--report path", "Write creation report JSON") { Flags = ["--report"] },
+                        new("--diagnostics path", "Write diagnostics JSON") { Flags = ["--diagnostics"] },
+                        new("--strict", "Return 3 when warnings are present") { Flags = ["--strict"] }
+                    ],
+                    OutputFields =
+                    [
+                        new("Success", "Whether the document was created"),
+                        new("Diagnostics", "Validation or quota diagnostics"),
+                        new("PaperSize", "Requested preset: a4 or letter"),
+                        new("Orientation", "Requested orientation: portrait or landscape")
+                    ],
+                    Examples =
+                    [
+                        "docxedit create --output report.docx",
+                        "docxedit create --output report.docx --paper letter --orientation landscape"
+                    ]
+                },
                 new()
                 {
                     Name = "read",
@@ -1143,6 +1177,7 @@ public static class DocxHelp
             ],
             Examples =
             [
+                "docxedit create --output report.docx --paper a4 --orientation portrait",
                 "docxedit read report.docx [--view final|original|markup]",
                 "docxedit read report.docx --summary",
                 "docxedit outline report.docx --view markup",

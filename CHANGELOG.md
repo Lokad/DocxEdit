@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added `DocxEditor.Create` and the shared `create` command for empty A4 or US Letter
+  documents in portrait or landscape, with fixed margins and Normal/Heading1–Heading9
+  styles. Includes quotas, stream ownership, cancellation, staged command publication,
+  binary stdout, and JSON reports.
 - Section reads now expose stored page dimensions, margins, header/footer distances,
   and gutter in twips, with nullable values when unspecified or non-integer.
 

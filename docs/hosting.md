@@ -20,6 +20,12 @@ exclude the executable name. Path comparison and path joining use the host's
 namespace, working directory, and case rules. All command file operations go
 through this host, including reports, diagnostics, and extracted images.
 
+`create --output /documents/new.docx [--paper a4|letter] [--orientation portrait|landscape]`
+uses the same host without opening an input. It honors host quotas and stages the
+validated document before publication. `--output -` uses binary stdout; status stays
+on stderr. File output replaces an existing destination on successful publication,
+as with `apply`. Direct integrations can use `DocxEditor.Create` with `DocxCreateOptions`.
+
 `OpenReadAsync` and `OpenTextAsync` return owned handles; the command disposes
 them after reading, including cancellation and failure. A `-` input denotes
 standard input, so return a borrowed-stream wrapper when the underlying input

@@ -1,6 +1,6 @@
 # CLI
 
-`docxedit` is the command-line surface for inspecting a `.docx`, locating stable
+`docxedit` is the command-line surface for creating and inspecting a `.docx`, locating stable
 targets, validating a `.docxpatch`, and writing a new edited `.docx`.
 
 The normal loop is:
@@ -38,14 +38,42 @@ against the invoking working directory only (see [patch-format.md](patch-format.
 `--report`, `--diagnostics`, and `--operation-report` stay file-only; `-` is not
 accepted there because it would collide with `--json` or binary stdout.
 
-Binary-stdout ownership: with `apply --output -`, standard output carries
-exactly the edited package and nothing else. Status lines and the operation
+Binary-stdout ownership: with `create --output -` or `apply --output -`, standard output carries
+exactly the generated package and nothing else. Status lines and the operation
 summary go to standard error (use `--report <path>` for the machine-readable
 report); `--json` is rejected with `--output -`. The input document and the
 patch file cannot both use `-`. A failed binary run writes no bytes to
 standard output. `--output`/`--report`/`--diagnostics` must differ from the
 input document, the patch file, and each other, failing with exit code `2`
 before any writer opens.
+
+## Creating A Document
+
+```text
+docxedit create --output report.docx
+docxedit create --output report.docx --paper a4 --orientation landscape
+docxedit create --output report.docx --paper letter --orientation portrait
+```
+
+`create` takes no input document or positional arguments. `--output` (alias `-o`) is
+required. Paper values are `a4` and `letter`; orientation values are `portrait` and
+`landscape`. Defaults are A4 portrait, independent of locale. Margins are one inch
+(1440 twips), header/footer distances are half an inch (720 twips), and the gutter
+is zero. Landscape swaps page width and height and sets the orientation attribute.
+
+The generated document has one empty paragraph (`M.P0001`) and one section
+(`M.S0001`). Use `replace-paragraph` to fill that paragraph and `insert-after` to
+add more content through the usual patch workflow. Styles include Normal and
+Heading1–Heading9. Body defaults use Arial 11pt, single line spacing, and 8pt after
+paragraphs. Headings are bold with explicit outline levels, 12pt before and 6pt
+after; sizes are 16pt, 14pt, 12pt, then 11pt for levels 4–9.
+
+The complete package is staged and validated before publication. Successful creation
+replaces an existing destination; failed creation preserves it. `--json`, `--compact`,
+`--report`, `--diagnostics`, and `--strict` follow the existing command conventions.
+Report and diagnostics paths must differ from the document and each other.
+`--output -` writes binary stdout, with status on stderr; use a file report instead of
+`--json` in that mode.
 
 ## Section Layout
 
@@ -94,6 +122,7 @@ agent or human needs compact context. Keep token cost down with `read --summary`
 
 | Command | Purpose | Common use |
 | --- | --- | --- |
+| `create` | Empty document creation | A4 or US Letter, portrait or landscape; one paragraph and one section |
 | `read` | Structural document view | Broad inventory of paragraphs, tables, images, fields, links, bookmarks, content controls, sections |
 | `outline` | Compact navigational view | Headings, tables, images, sections, headers, footers |
 | `find` | Text search | Locate stable paragraph or cell targets from visible text |

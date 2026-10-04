@@ -12,8 +12,20 @@ public static class DocxJson
         return new JsonSerializerOptions
         {
             WriteIndented = writeIndented,
-            Converters = { new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter(), new TrackChangesModeJsonConverter() }
+            Converters = { new DocxPaperSizeJsonConverter(), new DocxOrientationJsonConverter(), new DocxTargetStatusJsonConverter(), new DocxTargetSourceJsonConverter(), new DocxTargetReasonJsonConverter(), new DocxRefreshPolicyJsonConverter(), new DocxLabelStatusJsonConverter(), new DocxLabelSourceJsonConverter(), new DocxVerticalMergeJsonConverter(), new TrackChangesModeJsonConverter() }
         };
+    }
+
+    private sealed class DocxPaperSizeJsonConverter : JsonConverter<DocxPaperSize>
+    {
+        public override DocxPaperSize Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            string? value = reader.GetString();
+            if (DocxPaperSizeExtensions.TryParseWireValue(value, out DocxPaperSize paperSize)) return paperSize;
+            throw new JsonException($"Unsupported paper size '{value}'. Expected a4 or letter.");
+        }
+
+        public override void Write(Utf8JsonWriter writer, DocxPaperSize value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToWireValue());
     }
 
     private sealed class DocxOrientationJsonConverter : JsonConverter<DocxOrientation>

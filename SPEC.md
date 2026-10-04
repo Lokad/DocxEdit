@@ -120,6 +120,11 @@ namespace Lokad.DocxEdit;
 
 public sealed class DocxEditor
 {
+    public DocxCreateResult Create(
+        Stream output,
+        DocxCreateOptions options,
+        CancellationToken cancellationToken);
+
     public DocxReadResult Read(
         Stream input,
         DocxReadOptions options,
@@ -255,6 +260,18 @@ public sealed class DocxChangesOptions
 ```
 
 ### 5.3 Result model
+
+`Create(Stream output, DocxCreateOptions options, CancellationToken cancellationToken)`
+and its default-options/no-cancellation overloads create a document without input.
+Defaults are A4 portrait, one-inch margins, half-inch header/footer distances, zero
+gutter, one column, one empty paragraph, and Normal plus Heading1–Heading9 styles.
+`DocxPaperSize` supports A4 (11906 by 16838 twips) and Letter (12240 by 15840 twips);
+landscape swaps dimensions. Defaults do not depend on machine locale. Creation
+enforces package quotas and structural validation before saving. Output ownership
+follows `LeaveOutputOpen`, default true, on success, failure, and cancellation.
+Invalid enum values are programmer errors; quota failures return diagnostics without
+writing output. Output I/O failures and cancellation propagate. The shared `create`
+command stages output before host publication and supports binary stdout.
 
 Every public method must return diagnostics instead of throwing for expected document/patch problems.
 

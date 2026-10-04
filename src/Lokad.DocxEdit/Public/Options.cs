@@ -1,7 +1,7 @@
 namespace Lokad.DocxEdit;
 
 /// <summary>
-/// Shared package-load quotas. Every per-operation options class composes this
+/// Shared package quotas for loading, creation, and editing. Every per-operation options class composes this
 /// value as <c>Quotas</c> so the limits stay single-sourced; stream ownership
 /// stays an explicit boolean on each options class.
 /// </summary>

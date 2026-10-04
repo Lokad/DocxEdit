@@ -8,9 +8,9 @@ using System.Text;
 namespace Lokad.DocxEdit;
 
 /// <summary>
-/// Stream-first entry point for inspecting and editing .docx packages.
+/// Stream-first entry point for creating, inspecting, and editing .docx packages.
 /// </summary>
-public sealed class DocxEditor
+public sealed partial class DocxEditor
 {
     /// <summary>Reads a document. Uses default options and no cancellation.</summary>
     public DocxReadResult Read(

@@ -20,7 +20,7 @@ public static class DocxCommand
 /// <summary>Host-selected policy for an embedded command; command flags cannot raise these quotas.</summary>
 public sealed class DocxCommandOptions
 {
-    /// <summary>Limits document loading and individual image assets.</summary>
+    /// <summary>Limits document loading, creation, and individual image assets.</summary>
     public DocxPackageLimits Quotas { get; init; } = DocxPackageLimits.Default;
 }
 

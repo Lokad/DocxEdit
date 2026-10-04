@@ -1,6 +1,6 @@
 # DocxEdit
 
-DocxEdit is a stream-first net10.0 library for inspecting and editing docx files with deterministic patch files. It has no runtime package dependencies beyond the .NET platform libraries.
+DocxEdit is a stream-first net10.0 library for creating, inspecting, and editing docx files with deterministic patch files. It has no runtime package dependencies beyond the .NET platform libraries.
 
 Install the library with:
 
@@ -35,6 +35,15 @@ The example stages output in memory, checks Success with diagnostics, and publis
 Input and output streams are left open by default. Set LeaveInputOpen or LeaveOutputOpen to false on the relevant options when the editor should dispose them.
 
 ## Essential guidance
+
+Create an empty document with `new DocxEditor().Create(output)`, or pass
+`new DocxCreateOptions { PaperSize = DocxPaperSize.Letter, Orientation = DocxOrientation.Landscape }`.
+The default is A4 portrait with one-inch margins, independent of locale. The document contains
+one empty paragraph, one section, and Normal plus Heading1–Heading9 styles. Creation returns
+`DocxCreateResult` with `Success` and `Diagnostics`; use the same staging/publication pattern
+as the editing example. Output stays open unless `LeaveOutputOpen` is false. Quotas and
+cancellation are supported. The source CLI exposes
+`docxedit create --output report.docx --paper a4 --orientation landscape`.
 
 Section read results expose stored page dimensions and margins in twips (1/1440 inch).
 Missing or non-integer values remain null; these are document properties, not computed layout.

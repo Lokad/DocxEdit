@@ -8,6 +8,50 @@ public static class OfficeGateTests
 {
     [OfficeFact]
     [Trait("Category", "RequiresWord")]
+    public static void OfficeAutomationCreatedDocumentsRoundTripIsOptIn()
+    {
+        if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Office integration tests require Windows.");
+        Type wordApplicationType = Type.GetTypeFromProgID("Word.Application")
+            ?? throw new InvalidOperationException("Microsoft Word is not available through COM.");
+        string directory = Path.Combine(Path.GetTempPath(), "docxedit-office-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            foreach (DocxPaperSize paper in new[] { DocxPaperSize.A4, DocxPaperSize.Letter })
+            foreach (DocxOrientation orientation in new[] { DocxOrientation.Portrait, DocxOrientation.Landscape })
+            {
+                string path = Path.Combine(directory, $"{paper}-{orientation}.docx");
+                var editor = new DocxEditor();
+                using (FileStream output = File.Create(path))
+                {
+                    Assert.True(editor.Create(output, new DocxCreateOptions { PaperSize = paper, Orientation = orientation }).Success);
+                }
+                DocxSectionInfo before;
+                using (FileStream input = File.OpenRead(path)) before = Assert.Single(editor.Read(input).Sections);
+                OpenSaveWithWord(wordApplicationType, path);
+                using FileStream saved = File.OpenRead(path);
+                DocxReadResult read = editor.Read(saved);
+                Assert.True(read.Success);
+                Assert.Empty(Assert.Single(read.Paragraphs).Text);
+                Assert.Equal(before, Assert.Single(read.Sections));
+                saved.Position = 0;
+                Assert.True(editor.Validate(saved).Success);
+            }
+        }
+        finally
+        {
+            // Only delete the generated, immediate child of the OS temporary directory.
+            string fullDirectory = Path.GetFullPath(directory);
+            if (Path.GetDirectoryName(fullDirectory) == Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())) &&
+                Path.GetFileName(fullDirectory).StartsWith("docxedit-office-", StringComparison.Ordinal))
+            {
+                Directory.Delete(fullDirectory, recursive: true);
+            }
+        }
+    }
+
+    [OfficeFact]
+    [Trait("Category", "RequiresWord")]
     public static void OfficeAutomationOpenSaveRoundTripIsOptIn()
     {
 

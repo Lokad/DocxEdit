@@ -16,6 +16,8 @@ internal sealed partial class DocxCommandExecution
         public required string? ReportPath { get; init; }
         public required string? OperationReportPath { get; init; }
         public required string? OutputPath { get; init; }
+        public required DocxPaperSize PaperSize { get; init; }
+        public required DocxOrientation Orientation { get; init; }
         public required string? Id { get; init; }
         public required string? ExtractPath { get; init; }
         public required int? MaxText { get; init; }
@@ -41,6 +43,8 @@ internal sealed partial class DocxCommandExecution
             string? reportPath = null;
             string? operationReportPath = null;
             string? outputPath = null;
+            DocxPaperSize paperSize = DocxPaperSize.A4;
+            DocxOrientation orientation = DocxOrientation.Portrait;
             string? id = null;
             string? extractPath = null;
             int? maxText = null;
@@ -73,6 +77,28 @@ internal sealed partial class DocxCommandExecution
                 string arg = args[i];
                 switch (arg)
                 {
+                    case "--paper":
+                        seenFlags.Add(arg);
+                        if (!TryReadValue(args, ref i, out string? paperValue))
+                        {
+                            return WithError(command, "Missing value for --paper.");
+                        }
+                        if (!DocxPaperSizeExtensions.TryParseWireValue(paperValue, out paperSize))
+                        {
+                            return WithError(command, "Invalid value for --paper. Expected a4 or letter.");
+                        }
+                        break;
+                    case "--orientation":
+                        seenFlags.Add(arg);
+                        if (!TryReadValue(args, ref i, out string? orientationValue))
+                        {
+                            return WithError(command, "Missing value for --orientation.");
+                        }
+                        if (!DocxOrientationExtensions.TryParseWireValue(orientationValue, out orientation))
+                        {
+                            return WithError(command, "Invalid value for --orientation. Expected portrait or landscape.");
+                        }
+                        break;
                     case "--json":
                         seenFlags.Add("--json");
                         json = true;
@@ -338,6 +364,8 @@ internal sealed partial class DocxCommandExecution
                 ReportPath = reportPath,
                 OperationReportPath = operationReportPath,
                 OutputPath = outputPath,
+                PaperSize = paperSize,
+                Orientation = orientation,
                 Id = id,
                 ExtractPath = extractPath,
                 MaxText = maxText,
@@ -380,6 +408,8 @@ internal sealed partial class DocxCommandExecution
                 ReportPath = null,
                 OperationReportPath = null,
                 OutputPath = null,
+                PaperSize = DocxPaperSize.A4,
+                Orientation = DocxOrientation.Portrait,
                 Id = null,
                 ExtractPath = null,
                 MaxText = null,

@@ -3,7 +3,7 @@ using System.Xml.Linq;
 
 namespace Lokad.DocxEdit.Ooxml;
 
-internal sealed class OoxmlPackage
+internal sealed partial class OoxmlPackage
 {
     private readonly Dictionary<string, OoxmlPart> parts;
     private readonly HashSet<string> touchedPartNames = new(StringComparer.OrdinalIgnoreCase);

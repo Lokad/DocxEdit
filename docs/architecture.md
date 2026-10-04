@@ -10,6 +10,9 @@ in memory, and results or a new package leave.
    and returns result records; it never exposes the package. The patch path adds a patch reader:
    parse (DocxPatchParser) produces DocxPatch, and DocxPatchEngine executes it against a disposable
    in-memory package.
+   `Create` accepts only output and creation options. The package factory builds a
+   minimal document with explicit layout and styles, enforces creation quotas, and
+   the editor validates it before saving through the same ZIP writer.
 2. OoxmlPackage (src/Lokad.DocxEdit/Ooxml/OoxmlPackage.cs) owns ZIP IO and part bytes: load
    validates paths, relationships, content types, and quotas; mutations mark touched parts; save
    writes parts back.
