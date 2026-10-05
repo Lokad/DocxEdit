@@ -1,6 +1,6 @@
 # Status
 
-This is a pre-release editor. It supports useful structural reads and a focused set of edits, but it is not a complete WordprocessingML implementation.
+DocxEdit is an early-stage editor. It supports useful structural reads and a focused set of edits, but it is not a complete WordprocessingML implementation.
 
 ## Where To Look
 
@@ -23,7 +23,13 @@ copies of generator output — refresh them by hand after registry changes:
 
 ## Current Guarantees
 
-DocxEdit has not been published yet; 0.1.0 is the prepared first release. These hold today:
+[Lokad.DocxEdit 0.1.0](https://www.nuget.org/packages/Lokad.DocxEdit/0.1.0)
+is published on NuGet. The package targets `net10.0` and contains the library;
+the development CLI is available from source.
+
+Repository documentation describes current source, including unreleased changes.
+See [CHANGELOG.md](../CHANGELOG.md) for the published and unreleased changes.
+These guarantees hold for current source:
 
 - Stream-first library with no NuGet dependencies beyond the .NET platform libraries.
 - Repeatable `.docxpatch` edits against discovered target IDs (`read`, `outline`, `find`, `dump`, or `context`): same bytes scan to the same IDs,
