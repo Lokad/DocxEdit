@@ -63,17 +63,16 @@ internal static partial class DocxPatchEngine
             root = root.Parent;
         }
 
+        var startCounts = new Dictionary<(int Row, string Id), int>();
+        var endCounts = new Dictionary<(int Row, string Id), int>();
+        int totalBegins = 0;
+        int totalEnds = 0;
+        bool beforeTarget = true;
         foreach (XElement element in root.Descendants())
         {
             if (ReferenceEquals(element, target))
             {
-                break;
-            }
-
-            if (element.Ancestors(OoxmlNs.W + "del").Any() ||
-                element.Ancestors(OoxmlNs.W + "moveFrom").Any())
-            {
-                continue;
+                beforeTarget = false;
             }
 
             int row = -1;
@@ -93,30 +92,32 @@ internal static partial class DocxPatchEngine
                 {
                     continue;
                 }
+
                 var key = (row, id);
                 bool isStart = element.Name == SpanRangeMarkers[row].Start;
+                // Story health includes invisible markers, as before. Only
+                // visible markers preceding the target affect membership.
+                Dictionary<(int Row, string Id), int> totals = isStart ? startCounts : endCounts;
+                totals.TryGetValue(key, out int total);
+                totals[key] = total + 1;
+                if (!beforeTarget || element.Ancestors(OoxmlNs.W + "del").Any() ||
+                    element.Ancestors(OoxmlNs.W + "moveFrom").Any())
+                {
+                    continue;
+                }
+
+                entering.TryGetValue(key, out int count);
                 if (isStart)
                 {
-                    if (!entering.TryGetValue(key, out int count))
-                    {
-                        count = 0;
-                    }
-
                     entering[key] = count + 1;
                 }
-                else
+                else if (count == 1)
                 {
-                    if (entering.TryGetValue(key, out int count) && count > 0)
-                    {
-                        if (count == 1)
-                        {
-                            entering.Remove(key);
-                        }
-                        else
-                        {
-                            entering[key] = count - 1;
-                        }
-                    }
+                    entering.Remove(key);
+                }
+                else if (count > 1)
+                {
+                    entering[key] = count - 1;
                 }
 
                 continue;
@@ -125,65 +126,30 @@ internal static partial class DocxPatchEngine
             if (element.Name == OoxmlNs.W + "fldChar")
             {
                 string? kind = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
-                if (string.Equals(kind, "begin", StringComparison.Ordinal))
-                {
-                    enteringFieldDepth++;
-                }
-                else if (string.Equals(kind, "end", StringComparison.Ordinal) && enteringFieldDepth > 0)
-                {
-                    enteringFieldDepth--;
-                }
-            }
-        }
-
-        var startCounts = new Dictionary<(int Row, string Id), int>();
-        var endCounts = new Dictionary<(int Row, string Id), int>();
-        int totalBegins = 0;
-        int totalEnds = 0;
-        foreach (XElement element in root.Descendants())
-        {
-            int hrow = -1;
-            for (int h = 0; h < SpanRangeMarkers.Length; h++)
-            {
-                if (element.Name == SpanRangeMarkers[h].Start || element.Name == SpanRangeMarkers[h].End)
-                {
-                    hrow = h;
-                    break;
-                }
-            }
-            if (hrow >= 0)
-            {
-                string? hid = (string?)element.Attribute(OoxmlNs.W + "id");
-                if (hid is null)
-                {
-                    continue;
-                }
-                var hkey = (hrow, hid);
-                bool hisStart = element.Name == SpanRangeMarkers[hrow].Start;
-                if (hisStart)
-                {
-                    int hc = 0;
-                    startCounts.TryGetValue(hkey, out hc);
-                    startCounts[hkey] = hc + 1;
-                }
-                else
-                {
-                    int hc2 = 0;
-                    endCounts.TryGetValue(hkey, out hc2);
-                    endCounts[hkey] = hc2 + 1;
-                }
-                continue;
-            }
-            if (element.Name == OoxmlNs.W + "fldChar")
-            {
-                string? hkind = (string?)element.Attribute(OoxmlNs.W + "fldCharType");
-                if (string.Equals(hkind, "begin", StringComparison.Ordinal))
+                bool isBegin = string.Equals(kind, "begin", StringComparison.Ordinal);
+                bool isEnd = string.Equals(kind, "end", StringComparison.Ordinal);
+                if (isBegin)
                 {
                     totalBegins++;
                 }
-                else if (string.Equals(hkind, "end", StringComparison.Ordinal))
+                else if (isEnd)
                 {
                     totalEnds++;
+                }
+
+                if (!beforeTarget || element.Ancestors(OoxmlNs.W + "del").Any() ||
+                    element.Ancestors(OoxmlNs.W + "moveFrom").Any())
+                {
+                    continue;
+                }
+
+                if (isBegin)
+                {
+                    enteringFieldDepth++;
+                }
+                else if (isEnd && enteringFieldDepth > 0)
+                {
+                    enteringFieldDepth--;
                 }
             }
         }
