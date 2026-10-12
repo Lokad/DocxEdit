@@ -150,17 +150,45 @@ internal static partial class DocxDocumentScanner
     {
         IReadOnlyDictionary<XElement, DocxTargetId> idsByElement = entries.ToDictionary(entry => entry.Element, entry => entry.Info.Id);
         IReadOnlyDictionary<DocxTargetId, DocxContentControlInfo> controlsById = contentControls.ToDictionary(control => control.Id);
+        var parentIds = new Dictionary<DocxTargetId, DocxTargetId?>(entries.Count);
+        var childrenByElement = new Dictionary<XElement, List<string>>();
+        // Entries already follow document order. Assign each child once rather
+        // than scanning every control's descendants to rediscover it.
+        foreach (ContentControlScanEntry entry in entries)
+        {
+            XElement? immediateParent = null;
+            XElement? scannedParent = null;
+            foreach (XElement ancestor in entry.Element.Ancestors(OoxmlNs.W + "sdt"))
+            {
+                immediateParent ??= ancestor;
+                if (idsByElement.ContainsKey(ancestor))
+                {
+                    scannedParent = ancestor;
+                    break;
+                }
+            }
+
+            parentIds[entry.Info.Id] = scannedParent is null ? null : idsByElement[scannedParent];
+            // Child inventory uses the immediate XML parent; parent metadata
+            // can fall back to a scanned ancestor if that immediate parent is absent.
+            if (immediateParent is not null && idsByElement.ContainsKey(immediateParent))
+            {
+                if (!childrenByElement.TryGetValue(immediateParent, out List<string>? children))
+                {
+                    children = [];
+                    childrenByElement.Add(immediateParent, children);
+                }
+                children.Add(entry.Info.Id.ToWireValue());
+            }
+        }
+
         return entries.Select(entry =>
         {
             DocxContentControlInfo info = controlsById[entry.Info.Id];
-            XElement? parent = entry.Element.Ancestors(OoxmlNs.W + "sdt").FirstOrDefault(idsByElement.ContainsKey);
-            DocxTargetId? parentId = parent is null ? null : idsByElement[parent];
-            string[] childIds = entry.Element
-                .Descendants(OoxmlNs.W + "sdt")
-                .Where(child => child.Ancestors(OoxmlNs.W + "sdt").FirstOrDefault() == entry.Element)
-                .Where(idsByElement.ContainsKey)
-                .Select(child => idsByElement[child].ToWireValue())
-                .ToArray();
+            DocxTargetId? parentId = parentIds[entry.Info.Id];
+            string[] childIds = childrenByElement.TryGetValue(entry.Element, out List<string>? children)
+                ? children.ToArray()
+                : [];
             return info with
             {
                 ParentContentControlId = parentId,
