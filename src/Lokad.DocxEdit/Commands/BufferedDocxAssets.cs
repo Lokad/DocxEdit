@@ -4,8 +4,13 @@ namespace Lokad.DocxEdit;
 // external I/O finishes asynchronously before the synchronous engine consumes it.
 internal sealed class BufferedDocxAssets : IDocxAssetProvider
 {
-    private sealed record Entry(byte[] Bytes, string? ContentType, string? FileName, Exception? ReadError);
+    internal sealed record Entry(byte[] Bytes, string? ContentType, string? FileName, Exception? ReadError)
+    {
+        internal string? ValidatedContentType { get; set; }
+    }
     private readonly Dictionary<string, Entry?> entries = new(StringComparer.Ordinal);
+
+    internal bool TryGetSnapshot(string reference, out Entry? entry) => entries.TryGetValue(reference, out entry);
 
     public static async Task<BufferedDocxAssets> LoadAsync(
         DocxPatch patch, IDocxAsyncAssetProvider provider, long maximum, CancellationToken cancellationToken)

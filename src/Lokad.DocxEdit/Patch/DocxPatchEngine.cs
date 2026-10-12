@@ -505,34 +505,55 @@ internal static partial class DocxPatchEngine
         bytes = [];
         contentType = null;
         diagnostic = null;
+        cancellationToken.ThrowIfCancellationRequested();
         if (assetProvider is null)
         {
             diagnostic = Diagnostic(DocxSeverity.Error, "E5201", "No asset provider is configured for image operation assets.", operation, target);
             return false;
         }
 
-        if (!assetProvider.TryOpen(asset, out Stream stream, out string? contentTypeHint, out string? fileNameHint))
+        BufferedDocxAssets.Entry? snapshot = null;
+        string? contentTypeHint, fileNameHint;
+        if (assetProvider is BufferedDocxAssets buffered && buffered.TryGetSnapshot(asset, out snapshot) &&
+            snapshot is not null && snapshot.ReadError is null)
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5202", $"Asset '{asset}' could not be resolved.", operation, target);
-            return false;
-        }
-
-        using (stream)
-        using (var memory = new MemoryStream())
-        {
-            try
+            // Only this command-owned immutable provider may reuse its bytes
+            // and successful inspection. Arbitrary providers still open afresh.
+            if (snapshot.Bytes.LongLength > maxAssetBytes)
             {
-                CopyTo(stream, memory, maxAssetBytes, cancellationToken);
-            }
-            catch (InvalidDataException)
-            {
-                bytes = [];
-                contentType = null;
                 diagnostic = Diagnostic(DocxSeverity.Error, "E5207", $"Image asset '{asset}' exceeds the maximum supported size of {maxAssetBytes} bytes.", operation, target);
                 return false;
             }
-
-            bytes = memory.ToArray();
+            bytes = snapshot.Bytes;
+            contentTypeHint = snapshot.ContentType;
+            fileNameHint = snapshot.FileName;
+            if (snapshot.ValidatedContentType is string validated)
+            {
+                contentType = validated;
+                return true;
+            }
+        }
+        else
+        {
+            if (!assetProvider.TryOpen(asset, out Stream stream, out contentTypeHint, out fileNameHint))
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E5202", $"Asset '{asset}' could not be resolved.", operation, target);
+                return false;
+            }
+            using (stream)
+            using (var memory = new MemoryStream())
+            {
+                try
+                {
+                    CopyTo(stream, memory, maxAssetBytes, cancellationToken);
+                }
+                catch (InvalidDataException)
+                {
+                    diagnostic = Diagnostic(DocxSeverity.Error, "E5207", $"Image asset '{asset}' exceeds the maximum supported size of {maxAssetBytes} bytes.", operation, target);
+                    return false;
+                }
+                bytes = memory.ToArray();
+            }
         }
 
         // Content is authoritative: magic bytes decide the type, provider hints
@@ -566,6 +587,7 @@ internal static partial class DocxPatchEngine
         }
 
         contentType = magicType;
+        if (snapshot is not null) snapshot.ValidatedContentType = magicType;
         return true;
     }
 

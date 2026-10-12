@@ -9,7 +9,7 @@ public interface IDocxAsyncAssetProvider
 
 /// <summary>An opened asset and optional media hints. Ownership of Content transfers to the caller of the asset provider.</summary>
 /// <param name="Content">Owned readable stream; asynchronous-only reads are supported by hosted commands.</param>
-/// <param name="ContentTypeHint">Optional media type; actual PNG/JPEG bytes remain authoritative.</param>
+/// <param name="ContentTypeHint">Optional media type; actual image content remains authoritative.</param>
 /// <param name="FileNameHint">Optional filename used for media validation and diagnostics.</param>
 public sealed record DocxAsset(Stream Content, string? ContentTypeHint, string? FileNameHint);
 
