@@ -1717,7 +1717,7 @@ internal static partial class DocxPatchEngine
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("asset", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("alt", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
             [],
@@ -1754,7 +1754,7 @@ internal static partial class DocxPatchEngine
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("as", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("asset", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("width", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "dimension:emu|in|cm|pt|px"),
                 new("height", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "dimension:emu|in|cm|pt|px"),
                 new("alt", FieldValueKind.Text, Repeatable: false, Required: false),
@@ -1791,7 +1791,7 @@ internal static partial class DocxPatchEngine
             "set-image-alt",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("alt", FieldValueKind.Text, Repeatable: false, Required: true),
                 new("expect-alt", FieldValueKind.Text, Repeatable: false, Required: false),
             ],
@@ -1827,7 +1827,7 @@ internal static partial class DocxPatchEngine
             "set-image-metadata",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("alt", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("title", FieldValueKind.Text, Repeatable: false, Required: false),
                 new("name", FieldValueKind.Text, Repeatable: false, Required: false),
@@ -1867,7 +1867,7 @@ internal static partial class DocxPatchEngine
             "set-image-size",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("width", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "positive-dimension:emu|in|cm|pt|px"),
                 new("height", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "positive-dimension:emu|in|cm|pt|px"),
             ],
@@ -1903,7 +1903,7 @@ internal static partial class DocxPatchEngine
             "set-image-wrap",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("mode", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["none", "wrapNone", "square", "wrapSquare", "tight", "wrapTight", "through", "wrapThrough", "top-bottom", "topAndBottom", "wrapTopAndBottom"]),
                 new("dist-top", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "dimension:emu|in|cm|pt|px"),
                 new("dist-bottom", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "dimension:emu|in|cm|pt|px"),
@@ -1942,7 +1942,7 @@ internal static partial class DocxPatchEngine
             "set-image-position",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("horizontal-relative", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["page", "margin", "column", "character", "leftMargin", "rightMargin", "insideMargin", "outsideMargin"]),
                 new("horizontal-offset", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "signed-dimension:emu|in|cm|pt|px"),
                 new("horizontal-align", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["left", "center", "right", "inside", "outside"]),
@@ -1982,7 +1982,7 @@ internal static partial class DocxPatchEngine
             "set-image-crop",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
                 new("left-percent", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "percent:0-100"),
                 new("top-percent", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "percent:0-100"),
                 new("right-percent", FieldValueKind.Text, Repeatable: false, Required: false, UnitHint: "percent:0-100"),
@@ -2020,7 +2020,7 @@ internal static partial class DocxPatchEngine
             "delete-image",
             [
                 new("target", FieldValueKind.Text, Repeatable: false, Required: true),
-                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg"]),
+                new("expect-content-type", FieldValueKind.Text, Repeatable: false, Required: false, AllowedValues: ["image/png", "image/jpeg", "image/svg+xml"]),
             ],
             [],
             "Image deletion removes DrawingML and package media; generated drawing-level revision markup is not modeled yet.",

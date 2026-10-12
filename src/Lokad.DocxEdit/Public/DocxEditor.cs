@@ -772,6 +772,7 @@ public sealed partial class DocxEditor
         {
             "image/png" => "png",
             "image/jpeg" => "jpeg",
+            "image/svg+xml" => "svg",
             _ => Path.GetExtension(part.Name).TrimStart(".".ToCharArray()),
         };
         string stem = Path.GetFileNameWithoutExtension(part.Name);

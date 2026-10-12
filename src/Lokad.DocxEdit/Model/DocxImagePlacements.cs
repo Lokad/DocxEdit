@@ -14,6 +14,12 @@ namespace Lokad.DocxEdit.Model;
 // Drawings inside revision runs within visible content still count.
 internal static class DocxImagePlacements
 {
+    // The enclosing blip remains the placement identity; its SVG extension,
+    // when present, owns the displayed vector asset rather than the preview.
+    public static string? GetEmbeddedRelationshipId(XElement blip) =>
+        (string?)blip.Descendants(OoxmlNs.Asvg + "svgBlip").FirstOrDefault()?.Attribute(OoxmlNs.R + "embed") ??
+        (string?)blip.Attribute(OoxmlNs.R + "embed");
+
     internal readonly record struct Placement(
         XElement Drawing,
         int PhysicalBlockIndex,

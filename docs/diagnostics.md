@@ -102,9 +102,9 @@ Common code ranges:
   containing nested tables or block wrappers instead of direct paragraphs only.
 - `E5201`: no asset provider is configured for image operation assets.
 - `E5202`: image asset could not be resolved.
-- `E5203`: image asset is not a supported PNG or JPEG image (missing signature, hint/content disagreement, or structural defect such as truncation).
+- `E5203`: image asset is not a supported PNG, JPEG, or SVG image (missing signature, hint/content disagreement, or structural defect such as truncation).
 - `E5205`: image lacks editable DrawingML (properties, crop, or anchored-only metadata).
-- `E5206`: invalid image width or height.
+- `E5206`: invalid image width or height, or an SVG size/aspect ratio cannot be determined.
 - `E5207`: image asset exceeds the configured maximum single-part size.
 - `E5208`: image crop percentages are invalid.
 - `E5209`: image wrap mode or wrap distance is invalid.

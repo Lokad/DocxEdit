@@ -56,14 +56,18 @@ internal static partial class DocxPatchEngine
         }
 
 
-        if (IsImageRelationshipShared(package, imageTarget.PartName, imageTarget.Document, imageTarget.RelationshipId, imageTarget.Part.Name, cancellationToken))
+        string[] oldReferences = GetImageAssetRelationships(imageTarget.Blip);
+        string selectedRelationshipId = imageTarget.RelationshipId;
+        int selectedUses = imageTarget.Blip.DescendantsAndSelf().Attributes()
+            .Count(attribute => attribute.Name.Namespace == OoxmlNs.R && attribute.Value == selectedRelationshipId);
+        if (CountRelationshipReferences(imageTarget.Document, selectedRelationshipId) > selectedUses ||
+            IsMediaPartTargetedElsewhere(package, imageTarget.PartName, selectedRelationshipId, imageTarget.Part.Name, cancellationToken))
         {
             string imagePartName = OoxmlMediaParts.AllocateImagePartName(package.Parts.Keys, contentType);
             string relationshipId = OoxmlIds.AllocateRelationshipId(package.GetRelationships(imageTarget.PartName, cancellationToken).Select(relationship => relationship.Id));
             package.AddPart(imagePartName, contentType, bytes, cancellationToken);
             package.AddRelationship(imageTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(imageTarget.PartName, imagePartName), targetMode: null, cancellationToken);
-            imageTarget.Blip.SetAttributeValue(OoxmlNs.R + "embed", relationshipId);
-            SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
+            selectedRelationshipId = relationshipId;
         }
         else if (!string.Equals(imageTarget.Part.ContentType, contentType, StringComparison.OrdinalIgnoreCase))
         {
@@ -73,11 +77,13 @@ internal static partial class DocxPatchEngine
         {
             package.ReplacePartBytes(imageTarget.Part.Name, bytes);
         }
+        SetImageAssetReference(imageTarget.Blip, selectedRelationshipId, contentType);
+        RemoveUnusedImageAssets(package, imageTarget.PartName, imageTarget.Document, oldReferences, cancellationToken);
         if (hasAlt && imageContainer is not null)
         {
             SetImageAlt(imageContainer, alt, target);
-            SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         }
+        SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
 
         return [];
     }
@@ -90,20 +96,25 @@ internal static partial class DocxPatchEngine
     // inventory such as legacy VML imagedata count as owners even though the
     // feature is not editable. Uncertain media is cloned or retained, never
     // overwritten or removed from under unselected content.
-    private static bool IsImageRelationshipShared(
-        OoxmlPackage package,
-        string storyPartName,
-        XDocument document,
-        string relationshipId,
-        string? resolvedTarget,
-        CancellationToken cancellationToken)
-    {
-        if (CountRelationshipReferences(document, relationshipId) > 1)
-        {
-            return true;
-        }
+    private static string[] GetImageAssetRelationships(XElement element) =>
+        element.DescendantsAndSelf().Attributes()
+            .Where(attribute => attribute.Name == OoxmlNs.R + "embed" || attribute.Name == OoxmlNs.R + "link")
+            .Select(attribute => attribute.Value).Distinct(StringComparer.Ordinal).ToArray();
 
-        return IsMediaPartTargetedElsewhere(package, storyPartName, relationshipId, resolvedTarget, cancellationToken);
+    private static void RemoveUnusedImageAssets(OoxmlPackage package, string storyPartName,
+        XDocument document, IEnumerable<string> relationshipIds, CancellationToken cancellationToken)
+    {
+        foreach (string relationshipId in relationshipIds)
+        {
+            if (CountRelationshipReferences(document, relationshipId) != 0) continue;
+            OoxmlRelationship? relationship = package.GetRelationships(storyPartName, cancellationToken)
+                .FirstOrDefault(candidate => candidate.Id == relationshipId);
+            if (relationship is null || relationship.Type != OoxmlRelTypes.Image) continue;
+            bool shared = IsMediaPartTargetedElsewhere(package, storyPartName, relationshipId, relationship.ResolvedTarget, cancellationToken);
+            package.RemoveRelationship(storyPartName, relationshipId, cancellationToken);
+            if (!shared && !relationship.IsExternal && relationship.ResolvedTarget is not null)
+                package.RemovePart(relationship.ResolvedTarget, cancellationToken);
+        }
     }
 
     private static int CountRelationshipReferences(XDocument document, string relationshipId)
@@ -215,6 +226,7 @@ internal static partial class DocxPatchEngine
         package.AddRelationship(paragraphTarget.PartName, relationshipId, OoxmlRelTypes.Image, GetRelativeRelationshipTarget(paragraphTarget.PartName, imagePartName), targetMode: null, cancellationToken);
         int docPrId = AllocateDrawingDocPrId(paragraphTarget.Document);
         XElement imageParagraph = CreateInlineImageParagraph(relationshipId, docPrId, widthEmus, heightEmus, operation.Fields.GetValueOrDefault("alt") ?? string.Empty);
+        SetImageAssetReference(imageParagraph.Descendants(OoxmlNs.A + "blip").Single(), relationshipId, contentType);
         paragraphTarget.Paragraph.AddAfterSelf(imageParagraph);
         imageParagraph.SetAttributeValue(SnapshotCreatedName, CreatedMarkValue(operation, 0));
         if (operation.Fields.TryGetValue("as", out string? imageAlias) && imageAlias is not null)
@@ -260,6 +272,16 @@ internal static partial class DocxPatchEngine
         bool hasWidth = operation.Fields.TryGetValue("width", out string? width);
         bool hasHeight = operation.Fields.TryGetValue("height", out string? height);
         bool hasPixelSize = TryReadImagePixelSize(bytes, contentType, out int pixelWidth, out int pixelHeight);
+        double sourceWidth = pixelWidth, sourceHeight = pixelHeight;
+        if (contentType == "image/svg+xml")
+        {
+            hasPixelSize = TryReadSvgSize(bytes, out sourceWidth, out sourceHeight);
+            if (!hasPixelSize && !(hasWidth && hasHeight))
+            {
+                diagnostic = Diagnostic(DocxSeverity.Error, "E5206", "SVG size cannot be determined. Supply both width and height, or use absolute root dimensions or a positive viewBox.", operation, operation.Fields.GetValueOrDefault("target"));
+                return false;
+            }
+        }
         if (width is not null && !TryParseImageDimension(operation, "width", width, requirePositive: false, out widthEmus, out diagnostic))
         {
             return false;
@@ -270,22 +292,35 @@ internal static partial class DocxPatchEngine
             return false;
         }
 
-        if (hasWidth && !hasHeight)
+        try
         {
-            heightEmus = hasPixelSize && pixelWidth > 0
-                ? checked((long)Math.Round(widthEmus * (pixelHeight / (double)pixelWidth), MidpointRounding.AwayFromZero))
-                : widthEmus;
+            if (hasWidth && !hasHeight)
+            {
+                heightEmus = hasPixelSize && sourceWidth > 0
+                    ? checked((long)Math.Round(widthEmus * (sourceHeight / sourceWidth), MidpointRounding.AwayFromZero))
+                    : widthEmus;
+            }
+            else if (!hasWidth && hasHeight)
+            {
+                widthEmus = hasPixelSize && sourceHeight > 0
+                    ? checked((long)Math.Round(heightEmus * (sourceWidth / sourceHeight), MidpointRounding.AwayFromZero))
+                    : heightEmus;
+            }
+            else if (!hasWidth && !hasHeight && hasPixelSize)
+            {
+                widthEmus = checked((long)Math.Round(sourceWidth * 9525, MidpointRounding.AwayFromZero));
+                heightEmus = checked((long)Math.Round(sourceHeight * 9525, MidpointRounding.AwayFromZero));
+            }
         }
-        else if (!hasWidth && hasHeight)
+        catch (OverflowException)
         {
-            widthEmus = hasPixelSize && pixelHeight > 0
-                ? checked((long)Math.Round(heightEmus * (pixelWidth / (double)pixelHeight), MidpointRounding.AwayFromZero))
-                : heightEmus;
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", "Image dimensions exceed the supported range.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
         }
-        else if (!hasWidth && !hasHeight && hasPixelSize)
+        if (contentType == "image/svg+xml" && (widthEmus <= 0 || heightEmus <= 0))
         {
-            widthEmus = OoxmlUnits.PixelsToEmu(pixelWidth);
-            heightEmus = OoxmlUnits.PixelsToEmu(pixelHeight);
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5206", "SVG display dimensions must be positive.", operation, operation.Fields.GetValueOrDefault("target"));
+            return false;
         }
 
         return true;
@@ -651,7 +686,10 @@ internal static partial class DocxPatchEngine
             return [diagnostic];
         }
 
-        TryReadExistingImageSize(imageContainer, imageTarget.Part, out long currentWidthEmus, out long currentHeightEmus);
+        if (!TryReadExistingImageSize(imageContainer, imageTarget.Part, out long currentWidthEmus, out long currentHeightEmus) && !(hasWidth && hasHeight))
+        {
+            return [Diagnostic(DocxSeverity.Error, "E5206", "Image aspect ratio cannot be determined. Supply both width and height.", operation, target)];
+        }
         if (!TryReadImageSize(operation, currentWidthEmus, currentHeightEmus, out long widthEmus, out long heightEmus, out diagnostic))
         {
             return [diagnostic];
@@ -947,6 +985,14 @@ internal static partial class DocxPatchEngine
             return true;
         }
 
+        if (part.ContentType == "image/svg+xml")
+        {
+            if (!TryReadSvgSize(part.Bytes, out double svgWidth, out double svgHeight) ||
+                svgWidth * 9525 >= long.MaxValue || svgHeight * 9525 >= long.MaxValue) return false;
+            widthEmus = (long)Math.Round(svgWidth * 9525, MidpointRounding.AwayFromZero);
+            heightEmus = (long)Math.Round(svgHeight * 9525, MidpointRounding.AwayFromZero);
+            return widthEmus > 0 && heightEmus > 0;
+        }
         widthEmus = OoxmlUnits.InchesToEmu(1);
         heightEmus = widthEmus;
         return true;
@@ -1406,22 +1452,15 @@ internal static partial class DocxPatchEngine
         }
 
 
+        string[] relationships = GetImageAssetRelationships(drawing);
         drawing.Remove();
-        if (CountRelationshipReferences(imageTarget.Document, imageTarget.RelationshipId) == 0)
-        {
-            bool partSharedElsewhere = IsMediaPartTargetedElsewhere(package, imageTarget.PartName, imageTarget.RelationshipId, imageTarget.Part.Name, cancellationToken);
-            package.RemoveRelationship(imageTarget.PartName, imageTarget.RelationshipId, cancellationToken);
-            if (!partSharedElsewhere)
-            {
-                package.RemovePart(imageTarget.Part.Name, cancellationToken);
-            }
-        }
+        RemoveUnusedImageAssets(package, imageTarget.PartName, imageTarget.Document, relationships, cancellationToken);
 
         SaveDocumentPart(package, imageTarget.PartName, imageTarget.Document);
         return [];
     }
 
-    // Image ownership helpers live with IsImageRelationshipShared above.
+    // Image ownership helpers live with RemoveUnusedImageAssets above.
 
     private static bool ValidateImageContentTypeGuard(
         DocxPatchOperation operation,
@@ -1437,7 +1476,7 @@ internal static partial class DocxPatchEngine
         string? normalizedExpected = NormalizeImageContentType(expectedContentType);
         if (normalizedExpected is null)
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-content-type' must be image/png or image/jpeg.", operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-content-type' must be image/png, image/jpeg, or image/svg+xml.", operation, target));
             return false;
         }
 

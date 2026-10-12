@@ -2286,7 +2286,7 @@ Rules:
 * Target must be an image.
 * Resolve `asset` through `IDocxAssetProvider`.
 * CLI resolves asset paths relative to the patch file directory.
-* Support PNG and JPEG initially.
+* Support PNG, JPEG, and SVG (original vector asset with Office SVG extension).
 * Detect content type from magic bytes, not only extension.
 * `expect-content-type` is a supported guard.
 * Preserve existing drawing extents when replacing media bytes.
@@ -2310,7 +2310,7 @@ Rules:
 
 * Target must be a paragraph.
 * Insert an inline image in a new paragraph after target.
-* Support PNG and JPEG initially.
+* Support PNG, JPEG, and SVG (original vector asset with Office SVG extension).
 * Width and height may be specified in:
 
   * `in`
@@ -3270,6 +3270,7 @@ v0.1 must support:
 ```text
 PNG   image/png
 JPEG  image/jpeg
+SVG   image/svg+xml
 ```
 
 Optional later:
@@ -3293,7 +3294,7 @@ JPEG: FF D8 FF
 ```
 
 Do not trust file extension alone. Magic bytes are authoritative: assets
-without a recognized PNG/JPEG signature are rejected (`E5203`), provider
+without a recognized PNG/JPEG signature or SVG XML root are rejected (`E5203`), provider
 MIME/name hints must agree with the magic, and a recognized extension that
 conflicts with the magic is rejected. Beyond signatures, structural validation
 is bounded and decoder-free: PNG requires a leading IHDR (sane dimensions and
@@ -3303,7 +3304,7 @@ marker. Touched image parts are re-validated post-edit.
 
 ### 19.3 Dimensions
 
-Implement small PNG and JPEG dimension readers with system APIs only.
+Use bounded PNG/JPEG dimension readers and safe SVG XML parsing with platform APIs only. SVG absolute root lengths or viewBox supply size and ratio; unresolved sizes require both display dimensions. No CSS layout or raster fallback is generated. Word SVG extensions take precedence over previews in inspection and editing.
 
 Conversion constants:
 
@@ -3738,7 +3739,7 @@ The implementation is acceptable when all of the following are true:
 8. Package loader rejects unsafe paths, duplicate normalized names, excessive entry count, excessive part size, excessive total uncompressed size, unsafe relationship targets, and XML DTD/external entity input.
 9. Paragraph text replacement works across simple run splits.
 10. Table cell edits and simple row appends work.
-11. Inline image replacement and insertion work for PNG and JPEG.
+11. Inline image replacement and insertion work for PNG, JPEG, and SVG.
 12. Header/footer paragraphs can be read and edited.
 13. Section column count can be read and changed.
 14. `check` validates selectors and guards without writing output.

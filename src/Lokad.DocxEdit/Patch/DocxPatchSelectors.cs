@@ -2014,7 +2014,7 @@ internal static partial class DocxPatchEngine
             cancellationToken.ThrowIfCancellationRequested();
             foreach (XElement blip in placement.Drawing.Descendants(OoxmlNs.A + "blip"))
             {
-            string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed");
+            string? relationshipId = DocxImagePlacements.GetEmbeddedRelationshipId(blip);
             if (relationshipId is null ||
                 !relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship) ||
                 relationship.IsExternal ||

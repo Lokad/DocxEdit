@@ -243,7 +243,7 @@ public static class HelpTopicTests
         Assert.True(DocxHelp.TryGetPatchOperation("set-image-wrap", out DocxPatchOperationInfo wrap));
         Assert.Contains("mode=none|wrapNone|square|wrapSquare|tight|wrapTight|through|wrapThrough|top-bottom|topAndBottom|wrapTopAndBottom", wrap.AllowedValues);
         Assert.True(DocxHelp.TryGetPatchOperation("replace-image", out DocxPatchOperationInfo replaceImage));
-        Assert.Contains("expect-content-type=image/png|image/jpeg", replaceImage.AllowedValues);
+        Assert.Contains("expect-content-type=image/png|image/jpeg|image/svg+xml", replaceImage.AllowedValues);
     }
 
     [Fact]

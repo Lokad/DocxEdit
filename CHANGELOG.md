@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added original-byte SVG insertion, raster/vector replacement, sizing, metadata,
+  and extraction through library and commands. Word SVG previews share one image
+  identity; replacement/deletion preserve shared assets. No raster preview is generated.
+
 - Added native equation discovery and guarded whole-equation insertion, replacement,
   and deletion with a bounded LaTeX-like syntax. Text rewrites now protect equations.
   Includes inline/display placement, snapshot IDs, aliases, OMML extraction,

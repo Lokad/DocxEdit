@@ -31,6 +31,7 @@ Repository documentation describes current source, including unreleased changes.
 See [CHANGELOG.md](../CHANGELOG.md) for the published and unreleased changes.
 These guarantees hold for current source:
 
+- SVG insertion and raster/vector replacement preserve vector bytes, including discovery of Word SVG previews as a single image. SVG requires a reader with SVG support; no raster preview is generated.
 - Stream-first library with no NuGet dependencies beyond the .NET platform libraries.
 - Repeatable `.docxpatch` edits against discovered target IDs (`read`, `outline`, `find`, `dump`, or `context`): same bytes scan to the same IDs,
   which are positional rather than permanently stable (SPEC 8.2, SPEC 23.2).

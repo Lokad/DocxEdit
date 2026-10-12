@@ -411,7 +411,8 @@ internal static partial class DocxPackageValidator
     {
         var relationships = package.GetRelationships(partName, cancellationToken)
             .ToDictionary(relationship => relationship.Id, StringComparer.Ordinal);
-        foreach (XElement blip in document.Descendants(OoxmlNs.A + "blip"))
+        foreach (XElement blip in document.Descendants().Where(element =>
+            element.Name == OoxmlNs.A + "blip" || element.Name == OoxmlNs.Asvg + "svgBlip"))
         {
             string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed") ?? (string?)blip.Attribute(OoxmlNs.R + "link");
             if (string.IsNullOrWhiteSpace(relationshipId))

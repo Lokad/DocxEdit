@@ -544,7 +544,7 @@ internal static partial class DocxDocumentScanner
 
         foreach (XElement blip in drawing.Descendants(OoxmlNs.A + "blip"))
         {
-            string? relationshipId = (string?)blip.Attribute(OoxmlNs.R + "embed");
+            string? relationshipId = DocxImagePlacements.GetEmbeddedRelationshipId(blip);
             if (relationshipId is null ||
                 !relationships.TryGetValue(relationshipId, out OoxmlRelationship? relationship) ||
                 relationship.IsExternal ||

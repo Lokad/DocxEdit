@@ -15,7 +15,7 @@ The public API normalizes expected package, ZIP, XML, and relationship failures 
 - main document root and `w:body`;
 - touched header, footer, and comments roots;
 - touched WordprocessingML revision metadata and obvious revision nesting issues.
-- touched PNG/JPEG media parts are non-empty.
+- touched PNG/JPEG media parts are structurally checked; touched SVG is parsed safely as XML.
 
 This is structural validation, not full OOXML schema validation.
 
@@ -59,7 +59,7 @@ Current checks include:
 - tracked revision metadata and obvious revision nesting issues for `w:ins`,
   `w:del`, `w:delText`, `w:pPrChange`, `w:tblPrChange`, `w:trPrChange`,
   `w:tcPrChange`, and `w:sectPrChange`;
-- DrawingML `a:blip` relationship references, image relationship target parts, and
+- DrawingML `a:blip` and Office `asvg:svgBlip` relationship references, image relationship target parts, and
   image media content types;
 - duplicate DrawingML `wp:docPr` IDs within a Word part;
 - DrawingML extent and crop geometry;

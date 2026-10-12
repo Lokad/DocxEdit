@@ -540,7 +540,7 @@ internal static partial class DocxPatchEngine
         string? magicType = DetectImageMagicContentType(bytes);
         if (magicType is null)
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a supported PNG or JPEG image.", operation, target);
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a supported PNG, JPEG, or SVG image.", operation, target);
             return false;
         }
 
@@ -577,6 +577,8 @@ internal static partial class DocxPatchEngine
                 return TryValidatePngStructure(bytes, out reason);
             case "image/jpeg":
                 return TryValidateJpegStructure(bytes, out reason);
+            case "image/svg+xml":
+                return TryReadSvg(bytes, out _, out reason);
             default:
                 reason = "unsupported content type";
                 return false;
@@ -887,6 +889,7 @@ internal static partial class DocxPatchEngine
         {
             ".png" => "image/png",
             ".jpg" or ".jpeg" => "image/jpeg",
+            ".svg" => "image/svg+xml",
             _ => null
         };
     }
@@ -914,7 +917,7 @@ internal static partial class DocxPatchEngine
             return "image/jpeg";
         }
 
-        return null;
+        return TryReadSvg(bytes, out _, out _, validateContent: false) ? "image/svg+xml" : null;
     }
 
     private static string? NormalizeImageContentType(string? contentType)
@@ -924,6 +927,7 @@ internal static partial class DocxPatchEngine
             "image/png" => "image/png",
             "image/jpeg" => "image/jpeg",
             "image/jpg" => "image/jpeg",
+            "image/svg+xml" => "image/svg+xml",
             _ => null
         };
     }
@@ -1648,9 +1652,9 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
+            ValidateTouchedBinaryPart(part, diagnostics);
             if (!ShouldValidateTouchedPart(part))
             {
-                ValidateTouchedBinaryPart(part, diagnostics);
                 continue;
             }
 
@@ -1682,7 +1686,8 @@ internal static partial class DocxPatchEngine
     {
         string? contentType = part.ContentType;
         bool isSupportedImage = string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase);
+            string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(contentType, "image/svg+xml", StringComparison.OrdinalIgnoreCase);
         if (!isSupportedImage || contentType is null)
         {
             return;
