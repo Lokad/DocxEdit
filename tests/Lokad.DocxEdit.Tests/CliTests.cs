@@ -1252,11 +1252,6 @@ public static class CliTests
         return new RawCliResult(process.ExitCode, outputBuffer.ToArray(), error);
     }
 
-    private static CliResult RunCliOutOfProcess(params string[] args)
-    {
-        return RunCliOutOfProcessCore(null, args);
-    }
-
     private static CliResult RunCliOutOfProcessWithInput(byte[] standardInput, params string[] args)
     {
         return RunCliOutOfProcessCore(standardInput, args);

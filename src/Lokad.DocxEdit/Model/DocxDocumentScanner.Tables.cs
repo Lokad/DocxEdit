@@ -72,21 +72,14 @@ internal static partial class DocxDocumentScanner
                 }
 
                 targets[cell] = cellId.ToWireValue();
-                string cellText = ReadText(cell, textView);
-                if (textView == DocxTextView.Markup)
-                {
-                    if (rowInserted)
-                    {
-                        cellText = $"[+{cellText}+]";
-                    }
-                    else if (rowDeleted)
-                    {
-                        cellText = $"[-{cellText}-]";
-                    }
-                }
-
                 if (rowVisible)
                 {
+                    string cellText = ReadText(cell, textView);
+                    if (textView == DocxTextView.Markup)
+                    {
+                        if (rowInserted) cellText = $"[+{cellText}+]";
+                        else if (rowDeleted) cellText = $"[-{cellText}-]";
+                    }
                     cells.Add(new DocxTableCellInfo(
                         cellId,
                         currentRowIndex,

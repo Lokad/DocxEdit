@@ -20,6 +20,8 @@ internal static partial class DocxPatchEngine
     private static readonly XName SnapshotMergeGroupName = SnapshotNs + "mgid";
     private static readonly XName SnapshotMergeReferenceName = SnapshotNs + "mgref";
     private static readonly XName SnapshotCreatedName = SnapshotNs + "created";
+    private static readonly XName[] SnapshotMarkNames =
+        [SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName, SnapshotMergeReferenceName, SnapshotCreatedName];
 
     private static void CaptureTargetSnapshot(OoxmlPackage package, CancellationToken cancellationToken)
     {
@@ -601,7 +603,7 @@ internal static partial class DocxPatchEngine
             bool dirty = false;
             foreach (XElement element in document.Descendants())
             {
-                foreach (XName markName in new[] { SnapshotIdName, SnapshotAliasName, SnapshotMergeGroupName, SnapshotMergeReferenceName, SnapshotCreatedName })
+                foreach (XName markName in SnapshotMarkNames)
                 {
                     XAttribute? attribute = element.Attribute(markName);
                     if (attribute is not null)
@@ -614,13 +616,15 @@ internal static partial class DocxPatchEngine
                 // Capture materializes snapshot namespace declarations alongside
                 // the marks; drop the now-unused declarations so output bytes
                 // carry no snapshot residue.
-                foreach (XAttribute declaration in element.Attributes().Where(static a => a.IsNamespaceDeclaration).ToArray())
+                for (XAttribute? declaration = element.FirstAttribute; declaration is not null;)
                 {
-                    if (string.Equals(declaration.Value, SnapshotNs.NamespaceName, StringComparison.Ordinal))
+                    XAttribute? next = declaration.NextAttribute;
+                    if (declaration.IsNamespaceDeclaration && string.Equals(declaration.Value, SnapshotNs.NamespaceName, StringComparison.Ordinal))
                     {
                         declaration.Remove();
                         dirty = true;
                     }
+                    declaration = next;
                 }
             }
 
@@ -668,11 +672,6 @@ internal static partial class DocxPatchEngine
 
         return null;
     }
-    private static string? NormalizeSnapshotWireId(string target)
-    {
-        return DocxTargetId.TryParse(target, out DocxTargetId parsed) ? parsed.ToWireValue() : null;
-    }
-
     private static XElement? FindSnapshotElementInContainer(XElement container, XName name, string canonicalWireId)
     {
         foreach (XElement element in container.Descendants(name))

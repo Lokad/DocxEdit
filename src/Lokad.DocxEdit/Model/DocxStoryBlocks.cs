@@ -121,28 +121,4 @@ internal static class DocxStoryBlocks
         return null;
     }
 
-    public static XElement? FindBlockByPhysicalOrdinal(XElement container, XName blockName, int ordinal)
-    {
-        if (ordinal < 1)
-        {
-            return null;
-        }
-
-        int current = 0;
-        foreach (StoryBlock entry in EnumeratePhysicalBlocks(container))
-        {
-            if (entry.Block.Name != blockName)
-            {
-                continue;
-            }
-
-            current++;
-            if (current == ordinal)
-            {
-                return entry.Block;
-            }
-        }
-
-        return null;
-    }
 }

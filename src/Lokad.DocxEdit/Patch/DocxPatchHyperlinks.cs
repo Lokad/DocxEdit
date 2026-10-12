@@ -261,20 +261,6 @@ internal static partial class DocxPatchEngine
         return [];
     }
 
-    private static IReadOnlyList<DocxDiagnostic> ExecuteUnsupportedCommentThreadOperation(DocxPatchOperation operation)
-    {
-        string? target = operation.Fields.GetValueOrDefault("target");
-        return
-        [
-            Diagnostic(
-                DocxSeverity.Error,
-                "E4314",
-                $"Operation '{operation.OperationName}' is not supported because threaded comment reply edits require comment-thread metadata that DocxEdit does not safely modify yet.",
-                operation,
-                target)
-        ];
-    }
-
     private static IReadOnlyList<DocxDiagnostic> ExecuteUnsupportedRepeatingSectionOperation(DocxPatchOperation operation)
     {
         string? target = operation.Fields.GetValueOrDefault("target");
