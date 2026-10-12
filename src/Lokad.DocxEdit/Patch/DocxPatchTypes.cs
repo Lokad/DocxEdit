@@ -83,7 +83,7 @@ internal readonly record struct TableMergeCell(
 
 internal readonly record struct TextRange(int Start, int Length);
 
-internal sealed record TextPosition(XElement TextElement, int Offset);
+internal readonly record struct TextPosition(XElement TextElement, int Offset);
 
 /// <summary>
 /// Parsed form of a patch <c>target</c> field. Implementors describe <i>which</i>

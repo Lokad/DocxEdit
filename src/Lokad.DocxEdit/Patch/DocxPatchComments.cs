@@ -83,6 +83,7 @@ internal static partial class DocxPatchEngine
         }
 
         TextRange? anchorRange = null;
+        IReadOnlyList<VisibleCharEntry>? anchorPositions = null;
         XElement anchorParagraph = anchorTarget.Paragraphs[0];
         if (anchorText is not null)
         {
@@ -117,7 +118,8 @@ internal static partial class DocxPatchEngine
             }
 
             anchorRange = selected;
-            bool canAnchor = CanAddSelectedCommentAnchor(anchorParagraph, selected, out string? unsupportedReason);
+            anchorPositions = plan.Map;
+            bool canAnchor = CanAddSelectedCommentAnchor(anchorParagraph, selected, out string? unsupportedReason, anchorPositions);
             if (plan.UseLegacyGate || !canAnchor)
             {
                 return [Diagnostic(DocxSeverity.Error, "E4317", $"Selected comment range is not supported for {target}: {unsupportedReason ?? "selected ranges are limited to direct paragraph runs"}.", operation, target)];
@@ -138,7 +140,7 @@ internal static partial class DocxPatchEngine
         commentsPart.Root.Add(createdComment);
         if (anchorRange is TextRange selectedRange)
         {
-            AddSelectedCommentAnchor(anchorParagraph, commentId, selectedRange);
+            AddSelectedCommentAnchor(anchorParagraph, commentId, selectedRange, anchorPositions!);
         }
         else
         {
@@ -1242,10 +1244,10 @@ internal static partial class DocxPatchEngine
             new XElement(OoxmlNs.W + "commentReference", new XAttribute(OoxmlNs.W + "id", commentId))));
     }
 
-    private static bool CanAddSelectedCommentAnchor(XElement paragraph, TextRange range, out string? unsupportedReason)
+    private static bool CanAddSelectedCommentAnchor(XElement paragraph, TextRange range, out string? unsupportedReason, IReadOnlyList<VisibleCharEntry>? positions = null)
     {
         unsupportedReason = null;
-        List<VisibleCharEntry> positions = BuildVisibleTextMap(paragraph);
+        positions ??= BuildVisibleTextMap(paragraph);
         if (positions.Count != ReadVisibleText(paragraph).Length)
         {
             unsupportedReason = "selected ranges are limited to direct paragraph runs";
@@ -1283,24 +1285,36 @@ internal static partial class DocxPatchEngine
         return true;
     }
 
-    private static void AddSelectedCommentAnchor(XElement paragraph, string commentId, TextRange range)
+    private static void AddSelectedCommentAnchor(XElement paragraph, string commentId, TextRange range, IReadOnlyList<VisibleCharEntry> positions)
     {
         // Split at the selected characters, rather than at an adjacent visible
         // offset, so markers never swallow a neighboring field or bookmark.
-        VisibleCharEntry end = BuildVisibleTextMap(paragraph)[range.Start + range.Length - 1];
-        SplitRunAtTextPosition(new TextPosition(end.TextElement, end.OffsetInElement + 1));
-        XElement lastRun = BuildVisibleTextMap(paragraph)[range.Start + range.Length - 1].TextElement.Parent!;
+        VisibleCharEntry start = positions[range.Start];
+        VisibleCharEntry end = positions[range.Start + range.Length - 1];
+        XElement endRun = end.TextElement.Parent!;
+        bool sameRun = ReferenceEquals(start.TextElement.Parent, endRun);
+        int startTextOrdinal = sameRun
+            ? endRun.Elements(OoxmlNs.W + "t").TakeWhile(text => !ReferenceEquals(text, start.TextElement)).Count()
+            : 0;
+        SplitRunAtTextPosition(new TextPosition(end.TextElement, end.OffsetInElement + 1), out XElement? lastRun, out _);
+        // Splitting clones this run. Relocate the earlier endpoint within that
+        // clone only when both endpoints belonged to it; other runs stay live.
+        XElement startText = sameRun ? lastRun!.Elements(OoxmlNs.W + "t").ElementAt(startTextOrdinal) : start.TextElement;
         var rangeEnd = new XElement(OoxmlNs.W + "commentRangeEnd", new XAttribute(OoxmlNs.W + "id", commentId));
-        lastRun.AddAfterSelf(rangeEnd);
+        lastRun!.AddAfterSelf(rangeEnd);
         rangeEnd.AddAfterSelf(new XElement(
             OoxmlNs.W + "r",
             new XElement(OoxmlNs.W + "commentReference", new XAttribute(OoxmlNs.W + "id", commentId))));
-        VisibleCharEntry start = BuildVisibleTextMap(paragraph)[range.Start];
-        XElement firstRun = SplitRunAtTextPosition(new TextPosition(start.TextElement, start.OffsetInElement));
+        XElement firstRun = SplitRunAtTextPosition(new TextPosition(startText, start.OffsetInElement));
         firstRun.AddBeforeSelf(new XElement(OoxmlNs.W + "commentRangeStart", new XAttribute(OoxmlNs.W + "id", commentId)));
     }
 
     private static XElement SplitRunAtTextPosition(TextPosition position)
+    {
+        return SplitRunAtTextPosition(position, out _, out _);
+    }
+
+    private static XElement SplitRunAtTextPosition(TextPosition position, out XElement? before, out XElement? after)
     {
         XElement textElement = position.TextElement;
         XElement run = textElement.Parent
@@ -1360,6 +1374,8 @@ internal static partial class DocxPatchEngine
         }
 
         run.Remove();
+        before = hasBeforeContent ? beforeRun : null;
+        after = hasAfterContent ? afterRun : null;
         return hasAfterContent
             ? afterRun
             : beforeRun;

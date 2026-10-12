@@ -6,6 +6,20 @@ namespace Lokad.DocxEdit.Tests;
 
 public static class CommentAnchorTests
 {
+    [Fact]
+    public static void SelectedBoundariesAcrossTextElementsInOneRunStayExact()
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+            <w:p><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">Alpha </w:t><w:t>beta gamma</w:t></w:r></w:p>
+            """);
+        using MemoryStream output = Apply(input, "docxpatch 1\nop add-comment\ntarget M.P0001\nanchor-text pha beta\ntext Review this span.\nend\n");
+        XElement paragraph = XDocument.Parse(ReadDocumentXml(output)).Descendants(W + "p").First();
+        Assert.Equal("pha beta", AnchoredText(paragraph, "0"));
+        Assert.Equal("Alpha beta gamma", string.Concat(paragraph.Descendants(W + "t").Select(t => t.Value)));
+        Assert.All(paragraph.Elements(W + "r").Where(r => r.Elements(W + "t").Any()), r => Assert.NotNull(r.Element(W + "rPr")?.Element(W + "b")));
+        AssertValid(output);
+    }
+
     private static readonly XNamespace W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     private const string Cell = "M.T0001.R01.C01";
     private const string CellBody = """

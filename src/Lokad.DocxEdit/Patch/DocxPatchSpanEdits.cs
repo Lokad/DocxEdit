@@ -13,7 +13,7 @@ namespace Lokad.DocxEdit;
 // whole-paragraph gate because they rebuild the container.
 internal static partial class DocxPatchEngine
 {
-    internal sealed record VisibleCharEntry(XElement TextElement, int OffsetInElement, bool InDirectRun, bool IsText);
+    internal readonly record struct VisibleCharEntry(XElement TextElement, int OffsetInElement, bool InDirectRun, bool IsText);
 
     internal sealed record SpanMarkerEvent(XElement Element, int Position);
 
@@ -401,13 +401,13 @@ internal static partial class DocxPatchEngine
         IReadOnlyList<TextRange> matches)
     {
         var markers = new List<SpanMarkerEvent>();
-        List<VisibleCharEntry> map = BuildVisibleTextMap(paragraph, markers);
+        List<VisibleCharEntry> map = BuildVisibleTextMap(paragraph, markers, current.Length);
         if (map.Count != current.Length)
         {
             return SpanEditPlan.Legacy;
         }
 
-        var directPositions = new List<TextPosition?>();
+        var directPositions = new List<TextPosition?>(map.Count);
         var directIndexByVisible = new int[map.Count];
         for (int i = 0; i < map.Count; i++)
         {
@@ -464,7 +464,7 @@ internal static partial class DocxPatchEngine
             return SpanEditPlan.Legacy;
         }
 
-        var directMatches = new List<TextRange>();
+        var directMatches = new List<TextRange>(matches.Count);
         foreach (TextRange match in matches)
         {
             directMatches.Add(new TextRange(directIndexByVisible[match.Start], match.Length));
@@ -473,9 +473,9 @@ internal static partial class DocxPatchEngine
         return new SpanEditPlan { Positions = directPositions.ToArray(), DirectMatches = directMatches, Map = map };
     }
 
-    internal static List<VisibleCharEntry> BuildVisibleTextMap(XElement paragraph, List<SpanMarkerEvent>? markers = null)
+    internal static List<VisibleCharEntry> BuildVisibleTextMap(XElement paragraph, List<SpanMarkerEvent>? markers = null, int capacity = 0)
     {
-        var map = new List<VisibleCharEntry>();
+        var map = new List<VisibleCharEntry>(capacity);
         foreach (XElement element in paragraph.Descendants())
         {
             if (element.Ancestors(OoxmlNs.W + "del").Any() ||
