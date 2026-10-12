@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
@@ -44,10 +45,21 @@ internal sealed partial class DocxCommandExecution
         return new StringReader(text.ToString());
     }
 
-    private async Task PublishTextAsync(string path, string text)
+    private async Task FlushTextAsync(StringWriter buffered, TextWriter destination)
     {
-        using var bytes = new MemoryStream(Encoding.UTF8.GetBytes(text), writable: false);
+        foreach (ReadOnlyMemory<char> chunk in buffered.GetStringBuilder().GetChunks())
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            await destination.WriteAsync(chunk, _cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task PublishJsonAsync<T>(string path, T value, JsonSerializerOptions options)
+    {
+        using var bytes = new MemoryStream();
+        await JsonSerializer.SerializeAsync(bytes, value, options, _cancellationToken).ConfigureAwait(false);
+        using var readable = new MemoryStream(bytes.GetBuffer(), 0, checked((int)bytes.Length), writable: false);
         _cancellationToken.ThrowIfCancellationRequested();
-        await _host.PublishFileAsync(path, bytes, _cancellationToken).ConfigureAwait(false);
+        await _host.PublishFileAsync(path, readable, _cancellationToken).ConfigureAwait(false);
     }
 }

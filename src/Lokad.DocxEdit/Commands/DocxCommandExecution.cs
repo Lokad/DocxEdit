@@ -19,8 +19,8 @@ internal sealed partial class DocxCommandExecution(
     {
         int exitCode = await RunAsync(args).ConfigureAwait(false);
         _cancellationToken.ThrowIfCancellationRequested();
-        await _host.StandardOutput.WriteAsync(_stdout.ToString().AsMemory(), _cancellationToken).ConfigureAwait(false);
-        await _host.StandardError.WriteAsync(_stderr.ToString().AsMemory(), _cancellationToken).ConfigureAwait(false);
+        await FlushTextAsync(_stdout, _host.StandardOutput).ConfigureAwait(false);
+        await FlushTextAsync(_stderr, _host.StandardError).ConfigureAwait(false);
         await _host.StandardOutput.FlushAsync(_cancellationToken).ConfigureAwait(false);
         await _host.StandardError.FlushAsync(_cancellationToken).ConfigureAwait(false);
         return exitCode;
@@ -769,7 +769,7 @@ internal sealed partial class DocxCommandExecution(
             return;
         }
 
-        await PublishTextAsync(path, JsonSerializer.Serialize(diagnostics, jsonOptions)).ConfigureAwait(false);
+        await PublishJsonAsync(path, diagnostics, jsonOptions).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<DocxPatchOperationReport>> ReadOperationReportsAsync(string? path)
@@ -796,7 +796,7 @@ internal sealed partial class DocxCommandExecution(
             return;
         }
 
-        await PublishTextAsync(path, JsonSerializer.Serialize(report, jsonOptions)).ConfigureAwait(false);
+        await PublishJsonAsync(path, report, jsonOptions).ConfigureAwait(false);
     }
 
     private void WriteJson(object value, JsonSerializerOptions jsonOptions)
