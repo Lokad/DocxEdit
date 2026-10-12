@@ -333,6 +333,7 @@ internal static partial class DocxPatchEngine
         {
             "image/png" => TryReadPngPixelSize(bytes, out width, out height),
             "image/jpeg" => TryReadJpegPixelSize(bytes, out width, out height),
+            "image/webp" => TryReadWebp(bytes, out width, out height, out _),
             _ => false
         };
     }
@@ -1476,7 +1477,7 @@ internal static partial class DocxPatchEngine
         string? normalizedExpected = NormalizeImageContentType(expectedContentType);
         if (normalizedExpected is null)
         {
-            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-content-type' must be image/png, image/jpeg, or image/svg+xml.", operation, target));
+            diagnostics.Add(Diagnostic(DocxSeverity.Error, "E4205", "Field 'expect-content-type' must be image/png, image/jpeg, image/svg+xml, or image/webp.", operation, target));
             return false;
         }
 

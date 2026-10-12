@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added native still WebP insertion and format interchange with original-byte
+  extraction, sizing, metadata, and cropping. Bounded RIFF/VP8/VP8L/VP8X checks
+  reject malformed containers and animated input; no conversion or Word dependency.
+
 - Added original-byte SVG insertion, raster/vector replacement, sizing, metadata,
   and extraction through library and commands. Word SVG previews share one image
   identity; replacement/deletion preserve shared assets. No raster preview is generated.

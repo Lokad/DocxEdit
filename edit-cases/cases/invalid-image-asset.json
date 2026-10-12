@@ -24,7 +24,7 @@
       "E5203"
     ],
     "diagnosticMessagesContain": [
-      "not a supported PNG, JPEG, or SVG image"
+      "not a supported PNG, JPEG, SVG, or WebP image"
     ]
   }
 }

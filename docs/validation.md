@@ -15,7 +15,7 @@ The public API normalizes expected package, ZIP, XML, and relationship failures 
 - main document root and `w:body`;
 - touched header, footer, and comments roots;
 - touched WordprocessingML revision metadata and obvious revision nesting issues.
-- touched PNG/JPEG media parts are structurally checked; touched SVG is parsed safely as XML.
+- touched PNG/JPEG/WebP media parts are structurally checked; touched SVG is parsed safely as XML.
 
 This is structural validation, not full OOXML schema validation.
 

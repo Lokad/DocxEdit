@@ -502,7 +502,9 @@ public static class DocxHelp
         builder.AppendLine("add-repeating-section-item and delete-repeating-section-item are recognized but fail with E4315 until repeating-section subtree edits are safely modeled.");
         builder.AppendLine("append-column, insert-column-before, insert-column-after, and delete-column are recognized but fail with E4316 until table-column transforms are safely modeled.");
         builder.AppendLine("set-table-style, set-table-metadata, set-row-header, and set-cell-shading update table properties with explicit guards.");
-        builder.AppendLine("replace-image swaps the selected placement to supplied PNG, JPEG, or SVG bytes, isolating shared media per placement and preserving layout; replacement across formats updates the media content type. SVG uses the original vector asset and the Office SVG extension; no raster preview is generated. SVG dimensions come from absolute root lengths or viewBox; otherwise supply both width and height. Modern desktop Word is required for SVG display.");
+        builder.AppendLine("replace-image swaps the selected placement to supplied PNG, JPEG, SVG, or WebP bytes, isolating shared media per placement and preserving layout; replacement across formats updates the media content type.");
+        builder.AppendLine("SVG uses the original vector asset and the Office SVG extension; no raster preview is generated. SVG dimensions come from absolute root lengths or viewBox; otherwise supply both width and height. Modern desktop Word is required for SVG display.");
+        builder.AppendLine("Still WebP (lossy, lossless, transparent) embeds directly without conversion; animated insertion/replacement assets are rejected with E5203. WebP display requires a reader supporting it; the handoff records a still-image check with Word 16.0.20430.");
         builder.AppendLine("set-image-metadata updates image docPr alt/title/name without replacing media bytes.");
         builder.AppendLine("set-image-size updates DrawingML extents without replacing media bytes.");
         builder.AppendLine("set-image-wrap updates anchored DrawingML wrap mode and wrap distances.");

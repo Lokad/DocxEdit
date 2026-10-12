@@ -31,6 +31,7 @@ Repository documentation describes current source, including unreleased changes.
 See [CHANGELOG.md](../CHANGELOG.md) for the published and unreleased changes.
 These guarantees hold for current source:
 
+- Native still WebP insertion/replacement, metadata, cropping, sizing, and extraction preserve encoded bytes without conversion. Animated WebP is rejected; reader compatibility varies.
 - SVG insertion and raster/vector replacement preserve vector bytes, including discovery of Word SVG previews as a single image. SVG requires a reader with SVG support; no raster preview is generated.
 - Stream-first library with no NuGet dependencies beyond the .NET platform libraries.
 - Repeatable `.docxpatch` edits against discovered target IDs (`read`, `outline`, `find`, `dump`, or `context`): same bytes scan to the same IDs,

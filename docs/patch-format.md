@@ -694,4 +694,4 @@ Common diagnostics:
 
 See [diagnostics.md](diagnostics.md) for the full diagnostic map.
 
-Image assets support PNG, JPEG, and SVG through caller-supplied streams. Guards accept `image/png`, `image/jpeg`, and `image/svg+xml`. SVG is embedded as the original vector asset using the Office SVG extension; no raster preview is generated. Absolute root lengths or viewBox determine size; otherwise supply both dimensions. Inspection and extraction prefer the SVG over an existing Word preview. See the [README](../README.md) for compatibility and unsupported SVG input.
+Image assets support PNG, JPEG, SVG, and still WebP through caller-supplied streams. Guards accept `image/png`, `image/jpeg`, `image/svg+xml`, and `image/webp`. WebP is embedded directly without conversion; animated input fails with `E5203`. SVG is embedded as the original vector asset using the Office SVG extension; no raster preview is generated. Absolute root lengths or viewBox determine size; otherwise supply both dimensions. Inspection and extraction prefer the SVG over an existing Word preview. See the [README](../README.md) for compatibility and unsupported SVG input.

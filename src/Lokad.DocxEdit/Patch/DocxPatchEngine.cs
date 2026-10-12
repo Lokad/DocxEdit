@@ -540,7 +540,7 @@ internal static partial class DocxPatchEngine
         string? magicType = DetectImageMagicContentType(bytes);
         if (magicType is null)
         {
-            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a supported PNG, JPEG, or SVG image.", operation, target);
+            diagnostic = Diagnostic(DocxSeverity.Error, "E5203", $"Asset '{asset}' is not a supported PNG, JPEG, SVG, or WebP image.", operation, target);
             return false;
         }
 
@@ -579,6 +579,8 @@ internal static partial class DocxPatchEngine
                 return TryValidateJpegStructure(bytes, out reason);
             case "image/svg+xml":
                 return TryReadSvg(bytes, out _, out reason);
+            case "image/webp":
+                return TryReadWebp(bytes, out _, out _, out reason);
             default:
                 reason = "unsupported content type";
                 return false;
@@ -890,6 +892,7 @@ internal static partial class DocxPatchEngine
             ".png" => "image/png",
             ".jpg" or ".jpeg" => "image/jpeg",
             ".svg" => "image/svg+xml",
+            ".webp" => "image/webp",
             _ => null
         };
     }
@@ -917,6 +920,7 @@ internal static partial class DocxPatchEngine
             return "image/jpeg";
         }
 
+        if (IsWebpSignature(bytes)) return "image/webp";
         return TryReadSvg(bytes, out _, out _, validateContent: false) ? "image/svg+xml" : null;
     }
 
@@ -928,6 +932,7 @@ internal static partial class DocxPatchEngine
             "image/jpeg" => "image/jpeg",
             "image/jpg" => "image/jpeg",
             "image/svg+xml" => "image/svg+xml",
+            "image/webp" => "image/webp",
             _ => null
         };
     }
@@ -1687,7 +1692,8 @@ internal static partial class DocxPatchEngine
         string? contentType = part.ContentType;
         bool isSupportedImage = string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(contentType, "image/svg+xml", StringComparison.OrdinalIgnoreCase);
+            string.Equals(contentType, "image/svg+xml", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(contentType, "image/webp", StringComparison.OrdinalIgnoreCase);
         if (!isSupportedImage || contentType is null)
         {
             return;

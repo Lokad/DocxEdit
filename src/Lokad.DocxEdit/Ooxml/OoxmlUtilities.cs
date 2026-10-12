@@ -115,6 +115,7 @@ internal static class OoxmlMediaParts
             "image/png" => "png",
             "image/jpeg" => "jpeg",
             "image/svg+xml" => "svg",
+            "image/webp" => "webp",
             _ => throw new ArgumentException($"Unsupported image content type '{contentType}'.", nameof(contentType))
         };
         var existing = new HashSet<string>(existingPartNames.Select(OoxmlPath.NormalizePartName), StringComparer.OrdinalIgnoreCase);

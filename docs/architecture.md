@@ -59,7 +59,7 @@ parser, catalog, and engine dispatch all project from.
 - Malformed input: scanners tolerate missing parts and skip unrecognized entries, while malformed
   document data throws a document exception at an explicit boundary that the editor converts into a
   failed result with diagnostics. Validators report content problems as diagnostics.
-- Images: magic bytes decide the content type; hints and extensions must agree; PNG, JPEG, and SVG
+- Images: magic bytes decide the content type; hints and extensions must agree; PNG, JPEG, SVG, and WebP
   structure is validated within bounds.
 
 ## Processing model

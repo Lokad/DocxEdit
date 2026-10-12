@@ -9,6 +9,9 @@ public static class CliImageFormatTests
     [Fact]
     public static void SvgFileAssetRoundTripsThroughCli() => AssertRoundTrip(SvgImageTests.Diagram(), "svg");
 
+    [Fact]
+    public static void WebpFileAssetRoundTripsThroughCli() => AssertRoundTrip(WebpImageTests.Fixture("TransparentLossy"), "webp");
+
     internal static void AssertRoundTrip(byte[] bytes, string extension)
     {
         using TempDirectory temp = TempDirectory.Create();

@@ -45,7 +45,7 @@
       "E4205"
     ],
     "diagnosticMessagesContain": [
-      "image/png, image/jpeg, or image/svg+xml"
+      "image/png, image/jpeg, image/svg+xml, or image/webp"
     ]
   }
 }
