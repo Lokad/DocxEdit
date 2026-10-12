@@ -14,24 +14,13 @@ internal static class DocxStyleScanner
 
     public static IReadOnlyList<DocxStyleInfo> Scan(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        return package.GetStyleIndex(cancellationToken).Styles;
+    }
 
-        string? stylesPartName = DocxPartRoles.FindStylesPartName(package, cancellationToken);
-        if (stylesPartName is null)
-        {
-            return [];
-        }
-
-        OoxmlPart? stylesPart = package.GetPart(stylesPartName);
-        if (stylesPart is null)
-        {
-            return [];
-        }
-
-        using Stream stream = stylesPart.OpenRead();
-        XDocument document = SafeXml.Load(stream, cancellationToken);
+    internal static IReadOnlyList<DocxStyleInfo> ReadStyles(XElement? root, CancellationToken cancellationToken)
+    {
         var styles = new List<DocxStyleInfo>();
-        foreach (XElement style in document.Root?.Elements(OoxmlNs.W + "style") ?? [])
+        foreach (XElement style in root?.Elements(OoxmlNs.W + "style") ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();
             string? styleId = (string?)style.Attribute(OoxmlNs.W + "styleId");

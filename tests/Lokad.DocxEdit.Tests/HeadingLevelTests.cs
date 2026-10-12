@@ -6,6 +6,27 @@ namespace Lokad.DocxEdit.Tests;
 public static class HeadingLevelTests
 {
     [Fact]
+    public static void MemoizedChainsKeepLatentLevelsAndCyclesSeparate()
+    {
+        using MemoryStream input = CreateDocxWithStylesAndBody("""
+            <w:style w:type="paragraph" w:styleId="Derived"><w:basedOn w:val="Heading1"/></w:style>
+            <w:style w:type="paragraph" w:styleId="CycleA"><w:basedOn w:val="CycleB"/></w:style>
+            <w:style w:type="paragraph" w:styleId="CycleB"><w:basedOn w:val="CycleA"/></w:style>
+            <w:style w:type="paragraph" w:styleId="Body"><w:pPr><w:outlineLvl w:val="9"/></w:pPr></w:style>
+            <w:style w:type="paragraph" w:styleId="BodyChild"><w:basedOn w:val="Body"/></w:style>
+            """, """
+            <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Latent</w:t></w:r></w:p>
+            <w:p><w:pPr><w:pStyle w:val="Derived"/></w:pPr><w:r><w:t>Defined</w:t></w:r></w:p>
+            <w:p><w:pPr><w:pStyle w:val="CycleA"/></w:pPr><w:r><w:t>Cycle A</w:t></w:r></w:p>
+            <w:p><w:pPr><w:pStyle w:val="CycleB"/></w:pPr><w:r><w:t>Cycle B</w:t></w:r></w:p>
+            <w:p><w:pPr><w:pStyle w:val="BodyChild"/></w:pPr><w:r><w:t>Body</w:t></w:r></w:p>
+            """);
+        var read = new DocxEditor().Read(input);
+        Assert.True(read.Success);
+        Assert.Equal(new int?[] { 1, null, null, null, null }, read.Paragraphs.Select(p => p.HeadingLevel));
+    }
+
+    [Fact]
     public static void ReadRecognizesCustomStyleWithOutlineLevel()
     {
         using MemoryStream input = CreateDocxWithStylesAndBody("""

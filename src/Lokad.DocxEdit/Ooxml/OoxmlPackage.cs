@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Xml.Linq;
+using Lokad.DocxEdit.Model;
 
 namespace Lokad.DocxEdit.Ooxml;
 
@@ -8,6 +9,20 @@ internal sealed partial class OoxmlPackage
     private readonly Dictionary<string, OoxmlPart> parts;
     private readonly HashSet<string> touchedPartNames = new(StringComparer.OrdinalIgnoreCase);
     internal readonly Dictionary<string, XDocument> parsedDocuments = new(StringComparer.OrdinalIgnoreCase);
+    private DocxStyleIndex? styleIndex;
+
+    internal DocxStyleIndex GetStyleIndex(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string? partName = DocxPartRoles.FindStylesPartName(this, cancellationToken);
+        OoxmlPart? part = partName is null ? null : GetPart(partName);
+        if (styleIndex is null || !string.Equals(styleIndex.PartName, partName, StringComparison.OrdinalIgnoreCase) ||
+            !ReferenceEquals(styleIndex.SourceBytes, part?.Bytes))
+        {
+            styleIndex = DocxStyleIndex.Load(partName, part, cancellationToken);
+        }
+        return styleIndex;
+    }
 
     private OoxmlPackage(Dictionary<string, OoxmlPart> parts, string mainDocumentPartName)
     {

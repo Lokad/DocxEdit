@@ -28,20 +28,10 @@ internal static class DocxHeadingLevels
             return null;
         }
 
-        if (TryReadStyleChainLevel(package, styleId, cancellationToken, out int? chainLevel, out bool defined))
-        {
-            return chainLevel;
-        }
-
-        if (!defined && TryReadBuiltInLevel(styleId, out int builtInLevel))
-        {
-            return builtInLevel;
-        }
-
-        return null;
+        return package.GetStyleIndex(cancellationToken).GetHeadingLevel(styleId, cancellationToken);
     }
 
-    private static bool TryReadOutlineLevel(XElement? paragraphProperties, out int? level)
+    internal static bool TryReadOutlineLevel(XElement? paragraphProperties, out int? level)
     {
         level = null;
         string? value = (string?)paragraphProperties
@@ -56,61 +46,7 @@ internal static class DocxHeadingLevels
         return true;
     }
 
-    private static bool TryReadStyleChainLevel(
-        OoxmlPackage package,
-        string styleId,
-        CancellationToken cancellationToken,
-        out int? level,
-        out bool defined)
-    {
-        level = null;
-        defined = false;
-        XElement? stylesRoot = LoadStylesRoot(package, cancellationToken);
-        if (stylesRoot is null)
-        {
-            return false;
-        }
-
-        var visited = new HashSet<string>(StringComparer.Ordinal);
-        string? current = styleId;
-        while (!string.IsNullOrEmpty(current) && visited.Add(current))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            XElement? style = stylesRoot
-                .Elements(OoxmlNs.W + "style")
-                .FirstOrDefault(element => string.Equals((string?)element.Attribute(OoxmlNs.W + "styleId"), current, StringComparison.Ordinal));
-            if (style is null)
-            {
-                return defined;
-            }
-
-            defined = true;
-            if (TryReadOutlineLevel(style.Element(OoxmlNs.W + "pPr"), out int? styleLevel))
-            {
-                level = styleLevel;
-                return true;
-            }
-
-            current = (string?)style.Element(OoxmlNs.W + "basedOn")?.Attribute(OoxmlNs.W + "val");
-        }
-
-        return true;
-    }
-
-    private static XElement? LoadStylesRoot(OoxmlPackage package, CancellationToken cancellationToken)
-    {
-        string? stylesPartName = DocxPartRoles.FindStylesPartName(package, cancellationToken);
-        OoxmlPart? stylesPart = stylesPartName is null ? null : package.GetPart(stylesPartName);
-        if (stylesPart is null)
-        {
-            return null;
-        }
-
-        using Stream stream = stylesPart.OpenRead();
-        return SafeXml.Load(stream, cancellationToken).Root;
-    }
-
-    private static bool TryReadBuiltInLevel(string styleId, out int level)
+    internal static bool TryReadBuiltInLevel(string styleId, out int level)
     {
         level = 0;
         if (styleId.Length != 8 || !styleId.StartsWith("Heading", StringComparison.Ordinal))
