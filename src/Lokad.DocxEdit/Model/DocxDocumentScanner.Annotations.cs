@@ -108,7 +108,7 @@ internal static partial class DocxDocumentScanner
                 DateLanguage = ReadNestedSdtProperty(properties, "date", "lid"),
                 DateCalendar = ReadNestedSdtProperty(properties, "date", "calendar"),
                 DateValue = ReadNestedSdtProperty(properties, "date", "fullDate"),
-                TextLength = ReadText(content, textView).Length
+                TextLength = ReadTextLength(content, textView)
             }));
         }
 
@@ -190,7 +190,8 @@ internal static partial class DocxDocumentScanner
         string story,
         string idPrefix,
         DocxTextView textView,
-        IReadOnlyDictionary<XElement, string> targets)
+        IReadOnlyDictionary<XElement, string> targets,
+        int maxText)
     {
         var fields = new List<DocxFieldInfo>();
         var stack = new Stack<ComplexFieldBuilder>();
@@ -203,7 +204,7 @@ internal static partial class DocxDocumentScanner
                 string code = NormalizeFieldCode((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
                 FieldCodeMetadata metadata = AnalyzeFieldCode(code);
                 bool? isLocked = ReadOnOffAttribute(element, "fldLock");
-                string cachedResultText = ReadText(element, textView);
+                string cachedResultText = ReadText(element, textView, maxText, out int resultLength);
                 fields.Add(new DocxFieldInfo
                 {
                     Id = new DocxTargetId(storyLetter, storyPartNumber, DocxTargetKind.Field, fieldIndex++, 0, 0),
@@ -216,7 +217,7 @@ internal static partial class DocxDocumentScanner
                     Arguments = metadata.Arguments,
                     Switches = metadata.Switches,
                     CachedResultText = cachedResultText,
-                    ResultTextLength = cachedResultText.Length,
+                    ResultTextLength = resultLength,
                     NestingDepth = stack.Count,
                     BookmarkDependencies = metadata.BookmarkDependencies,
                     HyperlinkDependencies = metadata.HyperlinkDependencies,
@@ -353,7 +354,7 @@ internal static partial class DocxDocumentScanner
                 TargetPartName = relationship?.IsExternal == false ? relationship.ResolvedTarget : null,
                 IsExternal = relationship?.IsExternal == true,
                 IsBroken = !string.IsNullOrWhiteSpace(relationshipId) && relationship is null,
-                DisplayTextLength = ReadText(hyperlink, textView).Length
+                DisplayTextLength = ReadTextLength(hyperlink, textView)
             });
         }
 

@@ -32,6 +32,14 @@ public sealed partial class DocxEditor
         DocxReadOptions options,
         CancellationToken cancellationToken)
     {
+        return ReadCore(input, options, cancellationToken, summary: false);
+    }
+
+    internal DocxReadResult ReadSummary(Stream input, DocxReadOptions options, CancellationToken cancellationToken) =>
+        ReadCore(input, options, cancellationToken, summary: true);
+
+    private DocxReadResult ReadCore(Stream input, DocxReadOptions options, CancellationToken cancellationToken, bool summary)
+    {
         ArgumentNullException.ThrowIfNull(input);
         OoxmlPackage? package = TryLoad(input, ToPackageOptions(options.Quotas, options.LeaveInputOpen, allowMacroEnabledDocuments: false), cancellationToken, out IReadOnlyList<DocxDiagnostic> diagnostics);
         if (package is null)
@@ -43,7 +51,7 @@ public sealed partial class DocxEditor
             };
         }
 
-        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
+        if (!TryDocumentOperation(() => DocxDocumentScanner.Scan(package, options.IncludeHeadersFooters, options.TextView, cancellationToken, options.MaxText, includeRuns: !summary), out DocxDocumentModel? model, out IReadOnlyList<DocxDiagnostic> scanDiagnostics))
         {
             return new DocxReadResult
             {
@@ -74,7 +82,7 @@ public sealed partial class DocxEditor
                 .ToArray(),
             PartNames = SortedPartNames(package),
             MainDocumentPartName = package.MainDocumentPartName,
-            Text = TextRenderers.RenderRead(redacted, options.MaxText),
+            Text = summary ? string.Empty : TextRenderers.RenderRead(redacted, options.MaxText),
             Paragraphs = redacted.Paragraphs,
             Tables = redacted.Tables,
             Images = redacted.Images,
@@ -97,46 +105,68 @@ public sealed partial class DocxEditor
     /// </summary>
     private static DocxDocumentModel ApplyMaxTextToReadModel(DocxDocumentModel model, int maxText)
     {
-        IReadOnlyList<DocxParagraphInfo> paragraphs = model.Paragraphs
-            .Select(paragraph => paragraph with
+        var paragraphs = BoundRecords(model.Paragraphs, paragraph =>
+        {
+            string text = TextRenderers.Truncate(paragraph.Text, maxText);
+            var runs = BoundRecords(paragraph.Runs, run =>
             {
-                Text = TextRenderers.Truncate(paragraph.Text, maxText),
-                Runs = paragraph.Runs
-                    .Select(run => run with { Text = TextRenderers.Truncate(run.Text, maxText) })
-                    .ToArray()
-            })
-            .ToArray();
-        IReadOnlyList<DocxTableInfo> tables = model.Tables
-            .Select(table => table with
+                string value = TextRenderers.Truncate(run.Text, maxText);
+                return value == run.Text ? run : run with { Text = value };
+            });
+            return text == paragraph.Text && ReferenceEquals(runs, paragraph.Runs)
+                ? paragraph : paragraph with { Text = text, Runs = runs };
+        });
+        var tables = BoundRecords(model.Tables, table =>
+        {
+            string? caption = table.Caption is null ? null : TextRenderers.Truncate(table.Caption, maxText);
+            string? description = table.Description is null ? null : TextRenderers.Truncate(table.Description, maxText);
+            var cells = BoundRecords(table.Cells, cell =>
             {
-                Caption = table.Caption is null ? null : TextRenderers.Truncate(table.Caption, maxText),
-                Description = table.Description is null ? null : TextRenderers.Truncate(table.Description, maxText),
-                Cells = table.Cells
-                    .Select(cell => cell with { Text = TextRenderers.Truncate(cell.Text, maxText) })
-                    .ToArray()
-            })
-            .ToArray();
-        IReadOnlyList<DocxFieldInfo> fields = model.Fields
-            .Select(field => field with { CachedResultText = TextRenderers.Truncate(field.CachedResultText, maxText) })
-            .ToArray();
-        IReadOnlyList<DocxImageInfo> images = model.Images
-            .Select(image => image with
-            {
-                Description = image.Description is null ? null : TextRenderers.Truncate(image.Description, maxText),
-                Title = image.Title is null ? null : TextRenderers.Truncate(image.Title, maxText)
-            })
-            .ToArray();
+                string value = TextRenderers.Truncate(cell.Text, maxText);
+                return value == cell.Text ? cell : cell with { Text = value };
+            });
+            return caption == table.Caption && description == table.Description && ReferenceEquals(cells, table.Cells)
+                ? table : table with { Caption = caption, Description = description, Cells = cells };
+        });
+        var fields = BoundRecords(model.Fields, field =>
+        {
+            string text = TextRenderers.Truncate(field.CachedResultText, maxText);
+            return text == field.CachedResultText ? field : field with { CachedResultText = text };
+        });
+        var images = BoundRecords(model.Images, image =>
+        {
+            string? description = image.Description is null ? null : TextRenderers.Truncate(image.Description, maxText);
+            string? title = image.Title is null ? null : TextRenderers.Truncate(image.Title, maxText);
+            return description == image.Description && title == image.Title ? image : image with { Description = description, Title = title };
+        });
         return new DocxDocumentModel(paragraphs, tables, images, model.Sections, model.Bookmarks, model.ContentControls, fields, model.Hyperlinks)
         {
-            Equations = model.Equations.Select(e => BoundEquation(e, maxText)).ToArray()
+            Equations = BoundRecords(model.Equations, equation => BoundEquation(equation, maxText))
         };
     }
 
-    private static DocxEquationInfo BoundEquation(DocxEquationInfo equation, int maxText) => equation with
+    private static IReadOnlyList<T> BoundRecords<T>(IReadOnlyList<T> items, Func<T, T> bound) where T : class
     {
-        Text = TextRenderers.Truncate(equation.Text, maxText),
-        Omml = maxText > 0 && equation.Omml?.Length <= maxText ? equation.Omml : null
-    };
+        List<T>? changed = null;
+        for (int i = 0; i < items.Count; i++)
+        {
+            T item = bound(items[i]);
+            if (changed is null && !ReferenceEquals(item, items[i]))
+            {
+                changed = new List<T>(items.Count);
+                for (int previous = 0; previous < i; previous++) changed.Add(items[previous]);
+            }
+            changed?.Add(item);
+        }
+        return changed is null ? items : changed;
+    }
+
+    private static DocxEquationInfo BoundEquation(DocxEquationInfo equation, int maxText)
+    {
+        string text = TextRenderers.Truncate(equation.Text, maxText);
+        string? omml = maxText > 0 && equation.Omml?.Length <= maxText ? equation.Omml : null;
+        return text == equation.Text && omml == equation.Omml ? equation : equation with { Text = text, Omml = omml };
+    }
 
     /// <summary>Outlines a document. Uses default options and no cancellation.</summary>
     public DocxOutlineResult Outline(

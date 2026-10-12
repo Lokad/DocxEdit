@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Xml.Linq;
 using Lokad.DocxEdit.Ooxml;
 
@@ -14,7 +15,9 @@ internal static partial class DocxDocumentScanner
         OoxmlPackage package,
         bool includeHeadersFooters,
         DocxTextView textView,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? maxText = null,
+        bool includeRuns = true)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -41,7 +44,7 @@ internal static partial class DocxDocumentScanner
         var fields = new List<DocxFieldInfo>();
         var hyperlinks = new List<DocxHyperlinkInfo>();
         var equations = new List<DocxEquationInfo>();
-        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, equations, cancellationToken);
+        ScanStory(package, package.MainDocumentPartName, "M", "main", textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, equations, cancellationToken, maxText, includeRuns);
 
         if (includeHeadersFooters)
         {
@@ -52,7 +55,7 @@ internal static partial class DocxDocumentScanner
                     continue;
                 }
 
-                ScanStory(package, story.PartName, story.Prefix, story.StoryLabel, textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, equations, cancellationToken);
+                ScanStory(package, story.PartName, story.Prefix, story.StoryLabel, textView, stylesById, numbering, paragraphs, tables, images, sections, bookmarks, contentControls, fields, hyperlinks, equations, cancellationToken, maxText, includeRuns);
             }
         }
 
@@ -76,7 +79,9 @@ internal static partial class DocxDocumentScanner
         List<DocxFieldInfo> fields,
         List<DocxHyperlinkInfo> hyperlinks,
         List<DocxEquationInfo> equations,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? maxText,
+        bool includeRuns)
     {
         OoxmlPart part = package.GetPart(partName)
             ?? throw new InvalidDataException($"Story part '{partName}' does not exist.");
@@ -107,7 +112,7 @@ internal static partial class DocxDocumentScanner
                 targets[block] = paragraphId.ToWireValue();
                 if (visible)
                 {
-                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, stylesById, numbering, numberingLabeler, cancellationToken));
+                    paragraphs.Add(ReadParagraph(block, paragraphId, story, textView, package, stylesById, numbering, numberingLabeler, cancellationToken, maxText ?? -1, includeRuns));
                     sectionProperties = block.Element(OoxmlNs.W + "pPr")?.Element(OoxmlNs.W + "sectPr");
                 }
             }
@@ -117,7 +122,7 @@ internal static partial class DocxDocumentScanner
                 targets[block] = tableId.ToWireValue();
                 if (visible)
                 {
-                    tables.Add(ReadTable(block, tableId, story, textView, targets));
+                    tables.Add(ReadTable(block, tableId, story, textView, targets, maxText ?? -1));
                 }
             }
             else if (block.Name == OoxmlNs.W + "sectPr")
@@ -156,7 +161,7 @@ internal static partial class DocxDocumentScanner
 
         bookmarks.AddRange(ReadBookmarks(document, partName, story, idPrefix, targets));
         contentControls.AddRange(ReadContentControls(document, partName, story, idPrefix, textView, targets));
-        fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets));
+        fields.AddRange(ReadFields(document, partName, story, idPrefix, textView, targets, maxText ?? -1));
         hyperlinks.AddRange(ReadHyperlinks(document, partName, story, idPrefix, textView, targets, relationships));
         int equationIndex = 1;
         foreach (XElement math in document.Descendants(OoxmlNs.M + "oMath"))
@@ -167,8 +172,8 @@ internal static partial class DocxDocumentScanner
             {
                 Id = id, Story = story, PartName = partName, TargetId = FindTargetId(math, targets),
                 IsDisplay = math.Parent?.Name == OoxmlNs.M + "oMathPara",
-                Text = string.Concat(math.Descendants(OoxmlNs.M + "t").Where(t => EquationXml.IsVisible(t, textView)).Select(t => t.Value)),
-                Omml = EquationXml.Export(math), ContentHash = EquationXml.Hash(math)
+                Text = maxText == 0 ? string.Empty : string.Concat(math.Descendants(OoxmlNs.M + "t").Where(t => EquationXml.IsVisible(t, textView)).Select(t => t.Value)),
+                Omml = maxText is null or > 0 ? EquationXml.Export(math) : null, ContentHash = EquationXml.Hash(math)
             });
         }
     }
@@ -182,15 +187,17 @@ internal static partial class DocxDocumentScanner
         IReadOnlyDictionary<string, DocxStyleInfo> stylesById,
         DocxNumberingCatalog numbering,
         DocxNumberingLabeler numberingLabeler,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int maxText,
+        bool includeRuns)
     {
-        DocxRunInfo[] runs = ReadRuns(paragraph, textView);
+        DocxRunInfo[] runs = includeRuns ? ReadRuns(paragraph, textView, maxText) : [];
         string? styleId = ReadParagraphStyleId(paragraph);
         stylesById.TryGetValue(styleId ?? string.Empty, out DocxStyleInfo? style);
         return new DocxParagraphInfo(
             id,
             story,
-            ReadText(paragraph, textView),
+            ReadText(paragraph, textView, maxText, out _),
             DocxHeadingLevels.GetHeadingLevel(package, paragraph, cancellationToken),
             numberingLabeler.ApplyLabel(ReadListInfo(paragraph, styleId, stylesById, numbering)),
             runs)
@@ -200,14 +207,14 @@ internal static partial class DocxDocumentScanner
         };
     }
 
-    private static DocxRunInfo[] ReadRuns(XElement paragraph, DocxTextView textView)
+    private static DocxRunInfo[] ReadRuns(XElement paragraph, DocxTextView textView, int maxText)
     {
         var runs = new List<DocxRunInfo>();
         foreach (XElement child in paragraph.Elements())
         {
             if (child.Name == OoxmlNs.W + "r")
             {
-                AddRunIfVisible(runs, child, textView, null);
+                AddRunIfVisible(runs, child, textView, null, maxText);
             }
             else if (IsRevisionRunContainer(child))
             {
@@ -221,7 +228,7 @@ internal static partial class DocxDocumentScanner
                         ParseDate((string?)child.Attribute(OoxmlNs.W + "date")),
                         null,
                         null,
-                        null));
+                        null), maxText);
                 }
             }
             else if (child.Name == OoxmlNs.W + "hyperlink")
@@ -236,7 +243,7 @@ internal static partial class DocxDocumentScanner
                     (string?)child.Attribute(OoxmlNs.W + "anchor"));
                 foreach (XElement run in child.Elements(OoxmlNs.W + "r"))
                 {
-                    AddRunIfVisible(runs, run, textView, hyperlinkMarkup);
+                    AddRunIfVisible(runs, run, textView, hyperlinkMarkup, maxText);
                 }
             }
             else if (IsCommentMarker(child))
@@ -252,11 +259,11 @@ internal static partial class DocxDocumentScanner
         return runs.ToArray();
     }
 
-    private static void AddRunIfVisible(List<DocxRunInfo> runs, XElement run, DocxTextView textView, RunMarkup? inheritedMarkup)
+    private static void AddRunIfVisible(List<DocxRunInfo> runs, XElement run, DocxTextView textView, RunMarkup? inheritedMarkup, int maxText)
     {
         RunMarkup markup = ReadRunMarkup(run) ?? inheritedMarkup ?? RunMarkup.Empty;
-        string text = ReadText(run, textView);
-        if (text.Length == 0 && markup.IsEmpty)
+        string text = ReadText(run, textView, maxText, out int fullLength);
+        if (fullLength == 0 && markup.IsEmpty)
         {
             return;
         }
@@ -320,7 +327,21 @@ internal static partial class DocxDocumentScanner
 
     private static string ReadText(XElement container, DocxTextView textView)
     {
-        var buffer = new List<string>();
+        return ReadText(container, textView, -1, out _);
+    }
+
+    private static int ReadTextLength(XElement container, DocxTextView textView)
+    {
+        _ = ReadText(container, textView, 0, out int length);
+        return length;
+    }
+
+    private static string ReadText(XElement container, DocxTextView textView, int maxText, out int fullLength)
+    {
+        StringBuilder? buffer = null;
+        string? first = null;
+        int storedLength = 0;
+        int length = 0;
         foreach (XElement element in container.Descendants())
         {
             if (!ShouldIncludeTextElement(element, textView))
@@ -330,19 +351,49 @@ internal static partial class DocxDocumentScanner
 
             if (element.Name == OoxmlNs.W + "t" || element.Name == OoxmlNs.W + "delText")
             {
-                buffer.Add(ApplyMarkupTextView(element, element.Value, textView));
+                Append(element, element.Value);
             }
             else if (element.Name == OoxmlNs.W + "tab")
             {
-                buffer.Add(ApplyMarkupTextView(element, "\t", textView));
+                Append(element, "\t");
             }
             else if (element.Name == OoxmlNs.W + "br")
             {
-                buffer.Add(ApplyMarkupTextView(element, "\n", textView));
+                Append(element, "\n");
             }
         }
 
-        return string.Concat(buffer);
+        fullLength = length;
+        if (maxText > 3 && length > maxText && buffer is not null)
+        {
+            buffer.Length = maxText - 3;
+            buffer.Append("...");
+        }
+        string text = buffer?.ToString() ?? first ?? string.Empty;
+        return maxText > 3 && length > maxText && buffer is null ? text[..(maxText - 3)] + "..." : text;
+
+        void Append(XElement element, string value)
+        {
+            string? prefix = textView == DocxTextView.Markup
+                ? IsInsideInsertedRevision(element) ? "[+" : IsInsideDeletedRevision(element) ? "[-" : null
+                : null;
+            if (prefix is not null) Add(prefix);
+            Add(value);
+            if (prefix is not null) Add(prefix == "[+" ? "+]" : "-]");
+        }
+        void Add(string value)
+        {
+            length += value.Length;
+            int count = maxText < 0 ? value.Length : Math.Min(value.Length, maxText - storedLength);
+            if (count <= 0) return;
+            if (first is null && buffer is null) first = count == value.Length ? value : value[..count];
+            else
+            {
+                buffer ??= new StringBuilder(storedLength + count).Append(first);
+                buffer.Append(value, 0, count);
+            }
+            storedLength += count;
+        }
     }
 
     private static bool ShouldIncludeTextElement(XElement element, DocxTextView textView)

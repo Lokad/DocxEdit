@@ -10,6 +10,34 @@ namespace Lokad.DocxEdit.Tests;
 [Collection("ConsoleCli")]
 public static class PrivacySurfacesTests
 {
+    [Theory]
+    [InlineData(DocxTextView.Final, "Prefix \tone\nInsertedResult text", 3)]
+    [InlineData(DocxTextView.Original, "Prefix \tone\nDeletedResult text", 3)]
+    [InlineData(DocxTextView.Markup, "Prefix \tone\n[+Inserted+][-Deleted-]Result text", 3)]
+    public static void ReadBoundsPreserveTextViewsRunInventoryAndFullFieldLengths(DocxTextView view, string fullText, int runCount)
+    {
+        using MemoryStream input = CreateDocxWithBody("""
+            <w:p><w:r><w:t xml:space="preserve">Prefix </w:t><w:tab/><w:t>one</w:t><w:br/></w:r>
+            <w:ins w:id="5" w:author="Reviewer" w:date="2026-10-12T10:00:00Z"><w:r><w:t>Inserted</w:t></w:r></w:ins>
+            <w:del w:id="6" w:author="Reviewer" w:date="2026-10-12T10:00:00Z"><w:r><w:delText>Deleted</w:delText></w:r></w:del>
+            <w:fldSimple w:instr="DATE"><w:r><w:t>Result text</w:t></w:r></w:fldSimple></w:p>
+            """);
+        foreach (int maximum in new[] { -1, 0, 1, 3, 4, 8, 32 })
+        {
+            input.Position = 0;
+            var result = new DocxEditor().Read(input, new DocxReadOptions { TextView = view, MaxText = maximum });
+            Assert.True(result.Success);
+            DocxParagraphInfo paragraph = Assert.Single(result.Paragraphs);
+            string expected = maximum < 0 || fullText.Length <= maximum ? fullText
+                : maximum <= 3 ? fullText[..maximum] : fullText[..(maximum - 3)] + "...";
+            Assert.Equal(expected, paragraph.Text);
+            Assert.Equal(runCount, paragraph.Runs.Count);
+            DocxFieldInfo field = Assert.Single(result.Fields);
+            Assert.Equal(11, field.ResultTextLength);
+            Assert.Equal(maximum < 0 ? 11 : Math.Min(11, maximum), field.CachedResultText.Length);
+        }
+    }
+
     private const string ParaMarker = "PXPARAalpha09";
     private const string CellMarker = "PXCELLbeta09";
     private const string FieldResultMarker = "PXFIELDgamma09";

@@ -306,14 +306,16 @@ internal sealed partial class DocxCommandExecution(
         }
 
         using Stream input = await OpenInputFileAsync(options.Positionals[0]).ConfigureAwait(false);
-        DocxReadResult result = new DocxEditor().Read(input, new DocxReadOptions
+        bool summary = options.Flags.Contains("--summary");
+        var readOptions = new DocxReadOptions
         {
             Quotas = _options.Quotas,
             IncludeHeadersFooters = options.Flags.Contains("--headers-footers"),
             TextView = options.TextView,
-            MaxText = options.MaxText ?? 4_000
-        }, _cancellationToken);
-        bool summary = options.Flags.Contains("--summary");
+            MaxText = summary ? 0 : options.MaxText ?? 4_000
+        };
+        var editor = new DocxEditor();
+        DocxReadResult result = summary ? editor.ReadSummary(input, readOptions, _cancellationToken) : editor.Read(input, readOptions, _cancellationToken);
         await WriteDiagnosticsAsync(options.DiagnosticsPath, result.Diagnostics, JsonOptionsFor(options)).ConfigureAwait(false);
         if (!options.Json)
         {

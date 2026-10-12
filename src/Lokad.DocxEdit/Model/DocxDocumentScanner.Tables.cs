@@ -11,7 +11,8 @@ internal static partial class DocxDocumentScanner
         DocxTargetId tableId,
         string story,
         DocxTextView textView,
-        Dictionary<XElement, string> targets)
+        Dictionary<XElement, string> targets,
+        int maxText)
     {
         var cells = new List<DocxTableCellInfo>();
         var rows = new List<DocxTableRowInfo>();
@@ -74,7 +75,7 @@ internal static partial class DocxDocumentScanner
                 targets[cell] = cellId.ToWireValue();
                 if (rowVisible)
                 {
-                    string cellText = ReadText(cell, textView);
+                    string cellText = ReadText(cell, textView, maxText, out _);
                     if (textView == DocxTextView.Markup)
                     {
                         if (rowInserted) cellText = $"[+{cellText}+]";
