@@ -3,4 +3,5 @@ private-cases/
 bin/
 obj/
 TestResults/
+/PLAN.md
 
