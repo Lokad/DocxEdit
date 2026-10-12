@@ -1143,16 +1143,20 @@ internal static partial class DocxPatchEngine
 
     private static string ApplyTextReplacement(string text, IReadOnlyList<TextRange> matches, string replacement)
     {
-        var builder = new StringBuilder(text);
-        for (int i = matches.Count - 1; i >= 0; i--)
+        if (matches.Count == 0) return text;
+        var builder = new StringBuilder(text.Length);
+        int position = 0;
+        foreach (TextRange match in matches)
         {
-            TextRange match = matches[i];
-            builder.Remove(match.Start, match.Length);
-            builder.Insert(match.Start, replacement);
+            builder.Append(text, position, match.Start - position);
+            builder.Append(replacement);
+            position = match.Start + match.Length;
         }
-
+        builder.Append(text, position, text.Length - position);
         return builder.ToString();
     }
+
+    private readonly record struct TextElementEdit(int Start, int Length, string Replacement);
 
     private static bool TryReplaceParagraphTextPreservingRuns(
         XElement paragraph,
@@ -1197,49 +1201,43 @@ internal static partial class DocxPatchEngine
             }
         }
 
-        for (int i = matches.Count - 1; i >= 0; i--)
+        var editsByElement = new Dictionary<XElement, List<TextElementEdit>>();
+        foreach (TextRange match in matches)
         {
-            TextRange match = matches[i];
-            if (positions[match.Start] is not TextPosition start ||
-                positions[match.Start + match.Length - 1] is not TextPosition end)
+            int position = match.Start;
+            int matchEnd = match.Start + match.Length;
+            bool firstElement = true;
+            while (position < matchEnd)
             {
-                unsupportedReason = "match includes tabs, line breaks, or non-text run content";
-                return false;
-            }
-            if (ReferenceEquals(start.TextElement, end.TextElement))
-            {
-                string value = start.TextElement.Value;
-                string edited = value.Remove(start.Offset, match.Length).Insert(start.Offset, replacement);
-                SetTextElementValue(start.TextElement, edited);
-                continue;
-            }
-
-            string startValue = start.TextElement.Value;
-            string endValue = end.TextElement.Value;
-            SetTextElementValue(start.TextElement, startValue[..start.Offset] + replacement);
-            SetTextElementValue(end.TextElement, endValue[(end.Offset + 1)..]);
-
-            bool insideRange = false;
-            foreach (XElement textElement in paragraph.Elements(OoxmlNs.W + "r").Elements(OoxmlNs.W + "t"))
-            {
-                if (ReferenceEquals(textElement, start.TextElement))
+                TextPosition start = positions[position]!.Value;
+                int end = position + 1;
+                while (end < matchEnd && ReferenceEquals(positions[end]!.Value.TextElement, start.TextElement)) end++;
+                if (!editsByElement.TryGetValue(start.TextElement, out List<TextElementEdit>? edits))
                 {
-                    insideRange = true;
-                    continue;
+                    edits = new List<TextElementEdit>();
+                    editsByElement.Add(start.TextElement, edits);
                 }
-
-                if (ReferenceEquals(textElement, end.TextElement))
-                {
-                    break;
-                }
-
-                if (insideRange)
-                {
-                    SetTextElementValue(textElement, string.Empty);
-                }
+                // Matches crossing runs still place replacement text in the
+                // first text element and retain every other run/property node.
+                edits.Add(new TextElementEdit(start.Offset, end - position, firstElement ? replacement : string.Empty));
+                firstElement = false;
+                position = end;
             }
         }
-
+        foreach (var (element, edits) in editsByElement)
+        {
+            string value = element.Value;
+            var builder = new StringBuilder(value.Length);
+            int position = 0;
+            foreach (TextElementEdit edit in edits)
+            {
+                builder.Append(value, position, edit.Start - position);
+                builder.Append(edit.Replacement);
+                position = edit.Start + edit.Length;
+            }
+            builder.Append(value, position, value.Length - position);
+            SetTextElementValue(element, builder.ToString());
+        }
         return true;
     }
 
