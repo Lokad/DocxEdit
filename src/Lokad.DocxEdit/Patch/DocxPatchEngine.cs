@@ -939,25 +939,7 @@ internal static partial class DocxPatchEngine
 
     private static void CopyTo(Stream source, Stream destination, long maxBytes, CancellationToken cancellationToken)
     {
-        byte[] buffer = new byte[81920];
-        long total = 0;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            int read = source.Read(buffer, 0, buffer.Length);
-            if (read == 0)
-            {
-                return;
-            }
-
-            total += read;
-            if (total > maxBytes)
-            {
-                throw new InvalidDataException("Asset stream exceeds the maximum supported size.");
-            }
-
-            destination.Write(buffer, 0, read);
-        }
+        BoundedStreams.CopyTo(source, destination, maxBytes, "Asset stream exceeds the maximum supported size.", cancellationToken);
     }
 
     private static string ReadVisibleText(XElement container)

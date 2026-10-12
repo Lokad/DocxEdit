@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Buffers.Binary;
 
 using static Lokad.DocxEdit.Tests.DocxTestFixtures;
 
@@ -7,6 +8,34 @@ namespace Lokad.DocxEdit.Tests;
 
 public static class OoxmlPackageTests
 {
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public static void DeclaredEntrySizeMustMatchInflatedBytes(int difference)
+    {
+        using MemoryStream original = CreateMinimalDocx();
+        byte[] bytes = original.ToArray();
+        bool changed = false;
+        for (int offset = 0; offset + 46 < bytes.Length; offset++)
+        {
+            if (!bytes.AsSpan(offset, 4).SequenceEqual(new byte[] { 0x50, 0x4B, 0x01, 0x02 })) continue;
+            int nameLength = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 28, 2));
+            if (Encoding.UTF8.GetString(bytes, offset + 46, nameLength) != "word/document.xml") continue;
+            uint declared = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 24, 4));
+            uint modified = checked((uint)(declared + difference));
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset + 24, 4), modified);
+            int local = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 42, 4)));
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(local + 22, 4), modified);
+            changed = true;
+            break;
+        }
+        Assert.True(changed);
+        using var damaged = new MemoryStream(bytes);
+        DocxReadResult result = new DocxEditor().Read(damaged);
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, d => d.Code == "E0001");
+    }
+
     private const string HelloPatch = """
         docxpatch 1
 

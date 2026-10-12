@@ -1,4 +1,5 @@
 using System.Text;
+using Lokad.DocxEdit.Ooxml;
 
 namespace Lokad.DocxEdit;
 
@@ -21,18 +22,9 @@ internal sealed partial class DocxCommandExecution
         }
     }
 
-    internal static async Task CopyToBoundedAsync(Stream source, MemoryStream output, long maximum, CancellationToken cancellationToken)
+    internal static Task CopyToBoundedAsync(Stream source, MemoryStream output, long maximum, CancellationToken cancellationToken)
     {
-        var buffer = new byte[81920];
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            int read = await source.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
-            if (read == 0) break;
-            if (output.Length + read > maximum)
-                throw new InvalidDataException("Command input exceeds the byte quota.");
-            output.Write(buffer, 0, read);
-        }
+        return BoundedStreams.CopyToAsync(source, output, maximum, "Command input exceeds the byte quota.", cancellationToken);
     }
 
     private async Task<StringReader> OpenPatchFileAsync(string path)

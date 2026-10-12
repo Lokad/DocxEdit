@@ -131,12 +131,10 @@ internal sealed partial class OoxmlPackage
             ZipArchiveEntry contentTypesEntry = archive.GetEntry("[Content_Types].xml")
                 ?? throw new InvalidDataException("OOXML package is missing [Content_Types].xml.");
 
+            byte[] contentTypesBytes = ReadEntryBytes(contentTypesEntry, options.MaxSinglePartBytes, cancellationToken);
             OoxmlContentTypes contentTypes;
-            using (Stream contentTypesStream = contentTypesEntry.Open())
-            using (var contentTypesBuffer = new MemoryStream())
+            using (var contentTypesBuffer = new MemoryStream(contentTypesBytes, writable: false))
             {
-                CopyTo(contentTypesStream, contentTypesBuffer, options.MaxSinglePartBytes, cancellationToken);
-                contentTypesBuffer.Position = 0;
                 contentTypes = OoxmlContentTypes.Parse(contentTypesBuffer, cancellationToken);
             }
 
@@ -154,10 +152,9 @@ internal sealed partial class OoxmlPackage
                 }
 
                 string partName = OoxmlPath.NormalizeZipEntryName(entry.FullName);
-                using Stream entryStream = entry.Open();
-                using var memory = new MemoryStream(entry.Length > int.MaxValue ? 0 : (int)entry.Length);
-                CopyTo(entryStream, memory, options.MaxSinglePartBytes, cancellationToken);
-                byte[] partBytes = memory.ToArray();
+                byte[] partBytes = partName == "/[Content_Types].xml"
+                    ? contentTypesBytes
+                    : ReadEntryBytes(entry, options.MaxSinglePartBytes, cancellationToken);
 
                 checked
                 {
@@ -562,25 +559,30 @@ internal sealed partial class OoxmlPackage
         long maxBytes,
         CancellationToken cancellationToken)
     {
-        byte[] buffer = new byte[81920];
-        long total = 0;
-        while (true)
+        BoundedStreams.CopyTo(source, destination, maxBytes, "OOXML stream exceeds the maximum supported size.", cancellationToken);
+    }
+
+    private static byte[] ReadEntryBytes(ZipArchiveEntry entry, long maximum, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        long declared = entry.Length;
+        if (declared < 0 || declared > maximum || declared > int.MaxValue)
+            throw new InvalidDataException($"OOXML part '{OoxmlPath.NormalizeZipEntryName(entry.FullName)}' exceeds the maximum supported size.");
+        byte[] bytes = GC.AllocateUninitializedArray<byte>((int)declared);
+        using Stream stream = entry.Open();
+        int position = 0;
+        while (position < bytes.Length)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            int read = source.Read(buffer, 0, buffer.Length);
-            if (read == 0)
-            {
-                return;
-            }
-
-            total += read;
-            if (total > maxBytes)
-            {
-                throw new InvalidDataException("OOXML stream exceeds the maximum supported size.");
-            }
-
-            destination.Write(buffer, 0, read);
+            int read = stream.Read(bytes.AsSpan(position, Math.Min(81920, bytes.Length - position)));
+            if (read == 0) throw new InvalidDataException($"OOXML part '{entry.FullName}' is shorter than its declared size.");
+            position += read;
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        Span<byte> extra = stackalloc byte[1];
+        if (stream.Read(extra) != 0)
+            throw new InvalidDataException($"OOXML part '{entry.FullName}' exceeds its declared size.");
+        return bytes;
     }
 
     private static string RequiredAttribute(XElement element, string name)
