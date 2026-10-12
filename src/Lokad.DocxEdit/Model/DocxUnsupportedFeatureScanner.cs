@@ -49,26 +49,9 @@ internal static class DocxUnsupportedFeatureScanner
         cancellationToken.ThrowIfCancellationRequested();
 
         var diagnostics = new List<DocxDiagnostic>();
-        ScanStory(package, package.MainDocumentPartName, "main", diagnostics, cancellationToken);
-        if (includeHeadersFooters)
+        foreach (StoryPartRef story in DocxPartRoles.GetOrderedStories(package, includeHeadersFooters, cancellationToken))
         {
-            int headerIndex = 1;
-            foreach (ResolvedOoxmlRelationship relationship in package
-                .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
-                .Where(relationship => relationship.Type == OoxmlRelTypes.Header)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                ScanStory(package, relationship.ResolvedTarget, $"header[{headerIndex++}]", diagnostics, cancellationToken);
-            }
-
-            int footerIndex = 1;
-            foreach (ResolvedOoxmlRelationship relationship in package
-                .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
-                .Where(relationship => relationship.Type == OoxmlRelTypes.Footer)
-                .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-            {
-                ScanStory(package, relationship.ResolvedTarget, $"footer[{footerIndex++}]", diagnostics, cancellationToken);
-            }
+            ScanStory(package, story.PartName, story.StoryLabel, diagnostics, cancellationToken);
         }
 
         ScanNumbering(package, diagnostics, cancellationToken);
@@ -116,38 +99,52 @@ internal static class DocxUnsupportedFeatureScanner
             return;
         }
 
-        using Stream stream = part.OpenRead();
-        XDocument document = SafeXml.Load(stream, cancellationToken);
-        AddWarningIfAny(diagnostics, "W1001", "tracked-changes", "selected-text-view", CountAny(document, RevisionElements), partName, story, "Tracked-change markup is present; read text can use final, original, or lightweight markup views. Use the changes command for markup metadata.");
-        AddWarningIfAny(diagnostics, "W1002", "hyperlink", "modeled-metadata", Count(document, OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are surfaced as metadata and preserved; hyperlink editing is limited.");
-        AddWarningIfAny(diagnostics, "W1003", "field", "modeled-metadata", CountAny(document, [OoxmlNs.W + "fldSimple", OoxmlNs.W + "fldChar", OoxmlNs.W + "instrText"]), partName, story, "Fields are surfaced as metadata and preserved; DocxEdit does not evaluate field results.");
-        AddWarningIfAny(diagnostics, "W1004", "comment", "changes-metadata", CountAny(document, [OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", OoxmlNs.W + "commentReference"]), partName, story, "Comment anchors are surfaced by changes metadata; comment text is not exposed by the read model.");
-        AddWarningIfAny(diagnostics, "W1005", "bookmark", "modeled-metadata", CountAny(document, [OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are surfaced as metadata and preserved; bookmark range editing is limited.");
-        AddWarningIfAny(diagnostics, "W1006", "content-control", "modeled-metadata", Count(document, OoxmlNs.W + "sdt"), partName, story, "Content controls are surfaced as metadata and preserved; content-control editing is limited.");
-        AddWarningIfAny(diagnostics, "W1007", "floating-image", "modeled-metadata", Count(document, OoxmlNs.Wp + "anchor"), partName, story, "Floating images are surfaced as image metadata and preserved; full layout editing is limited.");
+        XDocument document = package.GetXmlDocument(partName, cancellationToken);
+        var names = new Dictionary<XName, int>();
+        int charts = 0, diagrams = 0, linkedImages = 0, vml = 0, groups = 0, ole = 0, shapes = 0;
+        foreach (XElement element in document.Descendants())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            names[element.Name] = names.GetValueOrDefault(element.Name) + 1;
+            if (element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)) charts++;
+            if (element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)) diagrams++;
+            if (element.Name == OoxmlNs.A + "blip" && !string.IsNullOrWhiteSpace((string?)element.Attribute(OoxmlNs.R + "link"))) linkedImages++;
+            bool isVml = IsVmlDrawing(element), isGroup = IsGroupedDrawing(element), isOle = IsOleObject(element);
+            if (isVml) vml++;
+            if (isGroup) groups++;
+            if (isOle) ole++;
+            if (!isVml && !isGroup && !isOle && (element.Name.LocalName == "shape" || element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase))) shapes++;
+        }
+        int CountNamed(XName name) => names.GetValueOrDefault(name);
+        int CountNamedAny(IReadOnlyCollection<XName> requested)
+        {
+            int count = 0;
+            foreach (XName name in requested) count += CountNamed(name);
+            return count;
+        }
+        AddWarningIfAny(diagnostics, "W1001", "tracked-changes", "selected-text-view", CountNamedAny(RevisionElements), partName, story, "Tracked-change markup is present; read text can use final, original, or lightweight markup views. Use the changes command for markup metadata.");
+        AddWarningIfAny(diagnostics, "W1002", "hyperlink", "modeled-metadata", CountNamed(OoxmlNs.W + "hyperlink"), partName, story, "Hyperlinks are surfaced as metadata and preserved; hyperlink editing is limited.");
+        AddWarningIfAny(diagnostics, "W1003", "field", "modeled-metadata", CountNamedAny([OoxmlNs.W + "fldSimple", OoxmlNs.W + "fldChar", OoxmlNs.W + "instrText"]), partName, story, "Fields are surfaced as metadata and preserved; DocxEdit does not evaluate field results.");
+        AddWarningIfAny(diagnostics, "W1004", "comment", "changes-metadata", CountNamedAny([OoxmlNs.W + "commentRangeStart", OoxmlNs.W + "commentRangeEnd", OoxmlNs.W + "commentReference"]), partName, story, "Comment anchors are surfaced by changes metadata; comment text is not exposed by the read model.");
+        AddWarningIfAny(diagnostics, "W1005", "bookmark", "modeled-metadata", CountNamedAny([OoxmlNs.W + "bookmarkStart", OoxmlNs.W + "bookmarkEnd"]), partName, story, "Bookmarks are surfaced as metadata and preserved; bookmark range editing is limited.");
+        AddWarningIfAny(diagnostics, "W1006", "content-control", "modeled-metadata", CountNamed(OoxmlNs.W + "sdt"), partName, story, "Content controls are surfaced as metadata and preserved; content-control editing is limited.");
+        AddWarningIfAny(diagnostics, "W1007", "floating-image", "modeled-metadata", CountNamed(OoxmlNs.Wp + "anchor"), partName, story, "Floating images are surfaced as image metadata and preserved; full layout editing is limited.");
         AddWarningIfAny(diagnostics, "W1026", "numbering", "tracked-numbering-property-revision", CountNumberingPropertyRevisions(document), partName, story, "Tracked paragraph property revisions include previous numbering state; final-view labels use current numbering, but original-view label reconstruction for previous numbering is not modeled.");
-        AddWarningIfAny(diagnostics, "W1009", "chart", "preserve-only", CountWhere(document, element => element.Name.LocalName == "chart" && element.Name.NamespaceName.Contains("/chart", StringComparison.OrdinalIgnoreCase)), partName, story, "Charts are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1010", "smart-art", "preserve-only", CountWhere(document, element => element.Name.NamespaceName.Contains("/diagram", StringComparison.OrdinalIgnoreCase)), partName, story, "SmartArt and diagram content are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1011", "equation", "whole-equation", Count(document, OoxmlNs.M + "oMath"), partName, story, "Equations are modeled as whole native objects; editing their internal runs and tracked equation revisions is not supported.");
-        AddWarningIfAny(diagnostics, "W1019", "linked-image", "omit-from-editable-images", CountLinkedImages(document), partName, story, "Linked images are not fetched and are not listed as editable images.");
-        AddWarningIfAny(diagnostics, "W1020", "vml", "preserve-only", CountWhere(document, IsVmlDrawing), partName, story, "VML drawings are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1021", "grouped-drawing", "preserve-only", CountWhere(document, IsGroupedDrawing), partName, story, "Grouped drawings are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1022", "ole-object", "preserve-only", CountWhere(document, IsOleObject), partName, story, "OLE objects are preserved but are not modeled or executed.");
-        AddWarningIfAny(diagnostics, "W1012", "shape", "preserve-only", CountWhere(document, element =>
-            !IsVmlDrawing(element) &&
-            !IsGroupedDrawing(element) &&
-            !IsOleObject(element) &&
-            (element.Name.LocalName == "shape" ||
-                element.Name.NamespaceName.Contains("wordprocessingShape", StringComparison.OrdinalIgnoreCase))), partName, story, "Shapes are preserved but are not modeled.");
-        AddWarningIfAny(diagnostics, "W1013", "alt-chunk", "preserve-only", Count(document, OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
+        AddWarningIfAny(diagnostics, "W1009", "chart", "preserve-only", charts, partName, story, "Charts are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1010", "smart-art", "preserve-only", diagrams, partName, story, "SmartArt and diagram content are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1011", "equation", "whole-equation", CountNamed(OoxmlNs.M + "oMath"), partName, story, "Equations are modeled as whole native objects; editing their internal runs and tracked equation revisions is not supported.");
+        AddWarningIfAny(diagnostics, "W1019", "linked-image", "omit-from-editable-images", linkedImages, partName, story, "Linked images are not fetched and are not listed as editable images.");
+        AddWarningIfAny(diagnostics, "W1020", "vml", "preserve-only", vml, partName, story, "VML drawings are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1021", "grouped-drawing", "preserve-only", groups, partName, story, "Grouped drawings are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1022", "ole-object", "preserve-only", ole, partName, story, "OLE objects are preserved but are not modeled or executed.");
+        AddWarningIfAny(diagnostics, "W1012", "shape", "preserve-only", shapes, partName, story, "Shapes are preserved but are not modeled.");
+        AddWarningIfAny(diagnostics, "W1013", "alt-chunk", "preserve-only", CountNamed(OoxmlNs.W + "altChunk"), partName, story, "altChunk content is preserved but is not imported or modeled.");
         AddWarningIfAny(diagnostics, "W1014", "section-flow", "basic-section-model", CountComplexSectionFlows(document), partName, story, "Complex section flow is present; section read/edit support does not model full section inheritance.");
 
-        int externalImages = package
-            .GetRelationships(partName, cancellationToken)
-            .Count(relationship => relationship.IsExternal && relationship.Type == OoxmlRelTypes.Image);
+        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(partName, cancellationToken);
+        int externalImages = relationships.Count(relationship => relationship.IsExternal && relationship.Type == OoxmlRelTypes.Image);
         AddWarningIfAny(diagnostics, "W1008", "external-image", "omit-from-editable-images", externalImages, partName, story, "External images are not fetched and are not listed as editable images.");
 
-        IReadOnlyList<OoxmlRelationship> relationships = package.GetRelationships(partName, cancellationToken);
         int brokenHyperlinks = CountBrokenHyperlinks(document, relationships);
         AddWarningIfAny(diagnostics, "W1015", "hyperlink", "broken-relationship", brokenHyperlinks, partName, story, "Hyperlink relationship IDs are missing from the part relationship table.");
         AddWarningIfAny(diagnostics, "W1016", "hyperlink", "invalid-uri", CountInvalidHyperlinkUris(document, relationships), partName, story, "Hyperlink targets include unsupported or malformed external URIs.");
@@ -156,27 +153,13 @@ internal static class DocxUnsupportedFeatureScanner
         AddWarningIfAny(diagnostics, "W1023", "hyperlink", "unsupported-internal-part-link", CountUnsupportedInternalPartHyperlinks(document, relationships), partName, story, "Internal part hyperlinks are preserved and modeled as target parts, but hyperlink patch edits support external URIs or anchors only.");
     }
 
-    private static int Count(XDocument document, XName name)
-    {
-        return document.Descendants(name).Count();
-    }
 
     private static int CountAny(XDocument document, IReadOnlyCollection<XName> names)
     {
         return document.Descendants().Count(element => names.Contains(element.Name));
     }
 
-    private static int CountWhere(XDocument document, Func<XElement, bool> predicate)
-    {
-        return document.Descendants().Count(predicate);
-    }
 
-    private static int CountLinkedImages(XDocument document)
-    {
-        return document
-            .Descendants(OoxmlNs.A + "blip")
-            .Count(blip => !string.IsNullOrWhiteSpace((string?)blip.Attribute(OoxmlNs.R + "link")));
-    }
 
     private static bool IsVmlDrawing(XElement element)
     {

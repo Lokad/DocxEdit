@@ -92,6 +92,17 @@ public static class PartRoleTests
     }
 
     [Fact]
+    public static void SharedHeaderWarningsUseOneReadModelStoryLabel()
+    {
+        using MemoryStream input = CreateSharedHeaderDocx(unsupported: true);
+        var result = new DocxEditor().Read(input, new DocxReadOptions { IncludeHeadersFooters = true });
+        Assert.True(result.Success);
+        DocxDiagnostic warning = Assert.Single(result.Diagnostics, d => d.Code == "W1003");
+        Assert.Equal("header[1]", warning.Story);
+        Assert.Equal(warning.Story, Assert.Single(result.Fields).Story);
+    }
+
+    [Fact]
     public static void UnsupportedFootnotePartDoesNotBreakRead()
     {
         using MemoryStream input = CreateFootnoteDocx();
@@ -206,7 +217,7 @@ public static class PartRoleTests
             + "</w:hdr>";
     }
 
-    private static MemoryStream CreateSharedHeaderDocx()
+    private static MemoryStream CreateSharedHeaderDocx(bool unsupported = false)
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -227,7 +238,9 @@ public static class PartRoleTests
             AddEntry(archive, "word/document.xml", "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
                 + "<w:p><w:r><w:t>Body</w:t></w:r></w:p>"
                 + "</w:body></w:document>");
-            AddEntry(archive, "word/header1.xml", HeaderXml());
+            AddEntry(archive, "word/header1.xml", unsupported
+                ? "<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:p><w:fldSimple w:instr=\"DATE\"><w:r><w:t>Shared header</w:t></w:r></w:fldSimple></w:p></w:hdr>"
+                : HeaderXml());
         }
         stream.Position = 0;
         return stream;

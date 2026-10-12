@@ -213,6 +213,19 @@ internal sealed partial class OoxmlPackage
         return parts.TryGetValue(OoxmlPath.NormalizePartName(partName), out OoxmlPart? part) ? part : null;
     }
 
+    internal XDocument GetXmlDocument(string partName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string key = OoxmlPath.NormalizePartName(partName);
+        if (parsedDocuments.TryGetValue(key, out XDocument? document)) return document;
+        OoxmlPart part = GetPart(partName)
+            ?? throw new InvalidDataException($"Document part '{partName}' does not exist.");
+        using Stream stream = part.OpenRead();
+        document = SafeXml.Load(stream, cancellationToken);
+        parsedDocuments.Add(key, document);
+        return document;
+    }
+
     public IReadOnlyList<OoxmlRelationship> GetRelationships(
         string sourcePartName,
         CancellationToken cancellationToken)

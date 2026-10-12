@@ -80,8 +80,7 @@ internal static partial class DocxDocumentScanner
     {
         OoxmlPart part = package.GetPart(partName)
             ?? throw new InvalidDataException($"Story part '{partName}' does not exist.");
-        using Stream stream = part.OpenRead();
-        XDocument document = SafeXml.Load(stream, cancellationToken);
+        XDocument document = package.GetXmlDocument(partName, cancellationToken);
         XElement body = document.Root?.Element(OoxmlNs.W + "body")
             ?? document.Root
             ?? throw new InvalidDataException($"Story part '{partName}' has no XML root.");

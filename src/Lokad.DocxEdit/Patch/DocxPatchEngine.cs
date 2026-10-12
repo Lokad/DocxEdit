@@ -1803,19 +1803,9 @@ internal static partial class DocxPatchEngine
         CancellationToken cancellationToken,
         out XElement root)
     {
-        string cacheKey = OoxmlPath.NormalizePartName(partName);
-        if (package.parsedDocuments.TryGetValue(cacheKey, out XDocument? cached) && cached.Root is not null)
-        {
-            root = cached.Root;
-            return cached;
-        }
-        OoxmlPart documentPart = package.GetPart(partName)
-            ?? throw new InvalidDataException($"Document part '{partName}' does not exist.");
-        using Stream stream = documentPart.OpenRead();
-        XDocument document = SafeXml.Load(stream, cancellationToken);
+        XDocument document = package.GetXmlDocument(partName, cancellationToken);
         root = document.Root
             ?? throw new InvalidDataException($"Document part '{partName}' has no XML root.");
-        package.parsedDocuments[cacheKey] = document;
         return document;
     }
 

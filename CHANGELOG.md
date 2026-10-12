@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Shared header/footer parts now emit unsupported-feature warnings once, using
+  the same story labels as the read inventory.
+
 - Added native still WebP insertion and format interchange with original-byte
   extraction, sizing, metadata, and cropping. Bounded RIFF/VP8/VP8L/VP8X checks
   reject malformed containers and animated input; no conversion or Word dependency.
