@@ -272,14 +272,17 @@ internal static partial class DocxPatchEngine
             }
         }
 
+        // These trees come from the final serialized bytes, independently of
+        // mutable package trees, and are shared only across final validators.
+        var serializedDocuments = new Dictionary<string, XDocument>(StringComparer.OrdinalIgnoreCase);
         if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
         {
-            diagnostics.AddRange(ValidateEditedPackage(package, cancellationToken));
+            diagnostics.AddRange(ValidateEditedPackage(package, serializedDocuments, cancellationToken));
         }
 
         if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
         {
-            diagnostics.AddRange(ValidateNewRangeViolations(package, rangeBaseline, cancellationToken));
+            diagnostics.AddRange(ValidateNewRangeViolations(package, rangeBaseline, serializedDocuments, cancellationToken));
         }
 
         if (diagnostics.All(diagnostic => diagnostic.Severity != DocxSeverity.Error))
@@ -325,8 +328,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            using Stream stream = part.OpenRead();
-            XDocument document = SafeXml.Load(stream, cancellationToken);
+            XDocument document = package.GetXmlDocument(part.Name, cancellationToken);
             foreach (DocxDiagnostic diagnostic in DocxPackageValidator.ValidateRangeStructure(document, partName))
             {
                 baseline.TryGetValue(RangeDiagnosticKey(diagnostic), out int count);
@@ -340,6 +342,7 @@ internal static partial class DocxPatchEngine
     private static IReadOnlyList<DocxDiagnostic> ValidateNewRangeViolations(
         OoxmlPackage package,
         Dictionary<string, int> baseline,
+        IReadOnlyDictionary<string, XDocument> serializedDocuments,
         CancellationToken cancellationToken)
     {
         var remaining = new Dictionary<string, int>(baseline, StringComparer.Ordinal);
@@ -360,8 +363,11 @@ internal static partial class DocxPatchEngine
 
             try
             {
-                using Stream stream = part.OpenRead();
-                XDocument document = SafeXml.Load(stream, cancellationToken);
+                if (!serializedDocuments.TryGetValue(partName, out XDocument? document))
+                {
+                    using Stream stream = part.OpenRead();
+                    document = SafeXml.Load(stream, cancellationToken);
+                }
                 foreach (DocxDiagnostic diagnostic in DocxPackageValidator.ValidateRangeStructure(document, partName))
                 {
                     string key = RangeDiagnosticKey(diagnostic);
@@ -443,8 +449,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            using Stream stream = fieldPart.OpenRead();
-            XDocument document = SafeXml.Load(stream, cancellationToken);
+            XDocument document = package.GetXmlDocument(fieldPart.Name, cancellationToken);
             if (document.Descendants().Any(element =>
                 element.Name == OoxmlNs.W + "fldSimple" ||
                 element.Name == OoxmlNs.W + "fldChar" ||
@@ -1534,8 +1539,7 @@ internal static partial class DocxPatchEngine
                 continue;
             }
 
-            using Stream stream = part.OpenRead();
-            XDocument document = SafeXml.Load(stream, cancellationToken);
+            XDocument document = package.GetXmlDocument(part.Name, cancellationToken);
             foreach (XAttribute idAttribute in document.Descendants().Attributes(OoxmlNs.W + "id"))
             {
                 if (int.TryParse(idAttribute.Value, out int id) && id >= nextId)
@@ -1645,7 +1649,10 @@ internal static partial class DocxPatchEngine
         return settingsPartName;
     }
 
-    private static IReadOnlyList<DocxDiagnostic> ValidateEditedPackage(OoxmlPackage package, CancellationToken cancellationToken)
+    private static IReadOnlyList<DocxDiagnostic> ValidateEditedPackage(
+        OoxmlPackage package,
+        Dictionary<string, XDocument> serializedDocuments,
+        CancellationToken cancellationToken)
     {
         var diagnostics = new List<DocxDiagnostic>();
         foreach (string partName in package.TouchedPartNames.Order(StringComparer.Ordinal))
@@ -1668,6 +1675,7 @@ internal static partial class DocxPatchEngine
             {
                 using Stream stream = part.OpenRead();
                 XDocument document = SafeXml.Load(stream, cancellationToken);
+                serializedDocuments[partName] = document;
                 ValidateTouchedPartRoot(package, part, document, diagnostics, cancellationToken);
             }
             catch (Exception ex) when (ex is InvalidDataException or IOException or XmlException)
