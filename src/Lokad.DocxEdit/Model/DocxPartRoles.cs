@@ -59,20 +59,7 @@ internal static class DocxPartRoles
 
     private static string? FindRelatedPartName(OoxmlPackage package, string relationshipType, CancellationToken cancellationToken)
     {
-        foreach (OoxmlRelationship relationship in package
-            .GetRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => !relationship.IsExternal &&
-                string.Equals(relationship.Type, relationshipType, StringComparison.Ordinal) &&
-                relationship.ResolvedTarget is not null)
-            .OrderBy(relationship => relationship.Id, StringComparer.Ordinal))
-        {
-            if (package.GetPart(relationship.ResolvedTarget!) is not null)
-            {
-                return relationship.ResolvedTarget;
-            }
-        }
-
-        return null;
+        return package.GetPartRoleIndex(cancellationToken).RelatedParts.GetValueOrDefault(relationshipType);
     }
 
     // Ordered story parts: main first, then distinct headers and footers in
@@ -82,34 +69,8 @@ internal static class DocxPartRoles
         bool includeHeadersFooters,
         CancellationToken cancellationToken)
     {
-        var stories = new List<StoryPartRef> { new("M", package.MainDocumentPartName, "main") };
-        if (!includeHeadersFooters)
-        {
-            return stories;
-        }
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { package.MainDocumentPartName };
-        AddStoryParts(OoxmlRelTypes.Header, "H", "header");
-        AddStoryParts(OoxmlRelTypes.Footer, "F", "footer");
-        return stories;
-
-        void AddStoryParts(string relationshipType, string prefixLetter, string storyLabel)
-        {
-            int index = 1;
-            foreach (ResolvedOoxmlRelationship relationship in package
-                .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
-                .Where(candidate => candidate.Type == relationshipType)
-                .OrderBy(candidate => candidate.Id, StringComparer.Ordinal))
-            {
-                if (package.GetPart(relationship.ResolvedTarget) is null || !seen.Add(relationship.ResolvedTarget))
-                {
-                    continue;
-                }
-
-                stories.Add(new StoryPartRef($"{prefixLetter}{index:000}", relationship.ResolvedTarget, $"{storyLabel}[{index}]"));
-                index++;
-            }
-        }
+        DocxPartRoleIndex index = package.GetPartRoleIndex(cancellationToken);
+        return includeHeadersFooters ? index.Stories : index.MainStory;
     }
 
     public static IReadOnlyDictionary<string, string> GetStoryPrefixes(
@@ -123,70 +84,7 @@ internal static class DocxPartRoles
     // Expected XML root by role; null when the part has no known role.
     public static XName? GetExpectedRoot(OoxmlPackage package, string partName, CancellationToken cancellationToken)
     {
-        if (string.Equals(partName, package.MainDocumentPartName, StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "document";
-        }
-
-        if (IsStoryKind(package, partName, OoxmlRelTypes.Header, cancellationToken))
-        {
-            return OoxmlNs.W + "hdr";
-        }
-
-        if (IsStoryKind(package, partName, OoxmlRelTypes.Footer, cancellationToken))
-        {
-            return OoxmlNs.W + "ftr";
-        }
-
-        if (string.Equals(partName, FindStylesPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "styles";
-        }
-
-        if (string.Equals(partName, FindNumberingPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "numbering";
-        }
-
-        if (string.Equals(partName, FindSettingsPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "settings";
-        }
-
-        if (string.Equals(partName, FindCommentsPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "comments";
-        }
-
-        if (string.Equals(partName, FindCommentsExtendedPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W15 + "commentsEx";
-        }
-
-        if (string.Equals(partName, FindCommentsIdsPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W16Cid + "commentsIds";
-        }
-
-        if (string.Equals(partName, FindFootnotesPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "footnotes";
-        }
-
-        if (string.Equals(partName, FindEndnotesPartName(package, cancellationToken), StringComparison.OrdinalIgnoreCase))
-        {
-            return OoxmlNs.W + "endnotes";
-        }
-
-        return null;
-    }
-
-    private static bool IsStoryKind(OoxmlPackage package, string partName, string relationshipType, CancellationToken cancellationToken)
-    {
-        return package
-            .GetResolvedRelationships(package.MainDocumentPartName, cancellationToken)
-            .Where(relationship => relationship.Type == relationshipType)
-            .Any(relationship => string.Equals(relationship.ResolvedTarget, partName, StringComparison.OrdinalIgnoreCase));
+        return package.GetPartRoleIndex(cancellationToken).Roots.GetValueOrDefault(partName);
     }
 
     // Distinct existing parts carrying word-processing markup for sweeps
@@ -195,35 +93,7 @@ internal static class DocxPartRoles
     // parts outside any role so orphans keep their legacy coverage.
     public static IReadOnlyList<string> GetWordProcessingParts(OoxmlPackage package, CancellationToken cancellationToken)
     {
-        var parts = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        void Add(string? partName)
-        {
-            if (partName is not null && package.GetPart(partName) is not null && seen.Add(partName))
-            {
-                parts.Add(partName);
-            }
-        }
-
-        Add(package.MainDocumentPartName);
-        foreach (StoryPartRef story in GetOrderedStories(package, includeHeadersFooters: true, cancellationToken))
-        {
-            Add(story.PartName);
-        }
-
-        Add(FindCommentsPartName(package, cancellationToken));
-        Add(FindCommentsExtendedPartName(package, cancellationToken));
-        Add(FindCommentsIdsPartName(package, cancellationToken));
-        Add(FindFootnotesPartName(package, cancellationToken));
-        Add(FindEndnotesPartName(package, cancellationToken));
-        foreach (OoxmlPart part in package.Parts.Values
-            .Where(part => IsConventionalWordXml(part.Name))
-            .OrderBy(part => part.Name, StringComparer.Ordinal))
-        {
-            Add(part.Name);
-        }
-
-        return parts;
+        return package.GetPartRoleIndex(cancellationToken).WordParts;
     }
 
     public static bool IsConventionalWordXml(string partName)
