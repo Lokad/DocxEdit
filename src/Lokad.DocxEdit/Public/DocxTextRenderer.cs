@@ -63,7 +63,7 @@ public static class DocxTextRenderer
     public static string RenderOutline(DocxOutlineResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return RenderLines(result.Items.Select(Rendering.TextRenderers.FormatOutlineItem).ToArray());
+        return RenderLines(result.Items.Select(Rendering.TextRenderers.FormatOutlineItem));
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public static class DocxTextRenderer
     public static string RenderFind(DocxFindResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return RenderLines(result.Matches.Select(Rendering.TextRenderers.FormatFindMatch).ToArray());
+        return RenderLines(result.Matches.Select(Rendering.TextRenderers.FormatFindMatch));
     }
 
     /// <summary>
@@ -217,8 +217,8 @@ public static class DocxTextRenderer
             string description = image.Description is null ? string.Empty : $" description=\"{XmlValues.EscapeText(image.Description)}\"";
             string wrap = image.WrapMode is null ? string.Empty : $" wrap={XmlValues.EscapeText(image.WrapMode)}";
             string behind = image.BehindDoc ? " behind-doc=true" : string.Empty;
-            string layoutMetadata = RenderImageLayoutMetadata(image);
-            string crop = RenderCrop(image);
+            string layoutMetadata = Rendering.TextRenderers.RenderImageLayoutMetadata(image);
+            string crop = Rendering.TextRenderers.RenderCrop(image);
             builder.Append(image.Id.ToWireValue())
                 .Append(" image layout=")
                 .Append(XmlValues.EscapeText(image.LayoutKind))
@@ -240,53 +240,6 @@ public static class DocxTextRenderer
         }
 
         return builder.ToString();
-
-        static string RenderImageLayoutMetadata(DocxImageInfo image)
-        {
-            return RenderLong("wrap-dist-top-emu", image.WrapDistanceTopEmu) +
-                RenderLong("wrap-dist-bottom-emu", image.WrapDistanceBottomEmu) +
-                RenderLong("wrap-dist-left-emu", image.WrapDistanceLeftEmu) +
-                RenderLong("wrap-dist-right-emu", image.WrapDistanceRightEmu) +
-                RenderLong("relative-height", image.RelativeHeight) +
-                RenderBool("allow-overlap", image.AllowOverlap) +
-                RenderBool("lock-aspect", image.LockAspectRatio) +
-                RenderString("position-h-relative", image.HorizontalPositionRelativeFrom) +
-                RenderLong("position-h-offset-emu", image.HorizontalPositionOffsetEmu) +
-                RenderString("position-h-align", image.HorizontalPositionAlign) +
-                RenderString("position-v-relative", image.VerticalPositionRelativeFrom) +
-                RenderLong("position-v-offset-emu", image.VerticalPositionOffsetEmu) +
-                RenderString("position-v-align", image.VerticalPositionAlign);
-        }
-
-        static string RenderCrop(DocxImageInfo image)
-        {
-            return RenderPercent("crop-left-percent", image.CropLeftPercent) +
-                RenderPercent("crop-top-percent", image.CropTopPercent) +
-                RenderPercent("crop-right-percent", image.CropRightPercent) +
-                RenderPercent("crop-bottom-percent", image.CropBottomPercent);
-        }
-
-        static string RenderPercent(string name, decimal? value)
-        {
-            return value is null
-                ? string.Empty
-                : $" {name}={value.Value.ToString("0.###", CultureInfo.InvariantCulture)}";
-        }
-
-        static string RenderLong(string name, long? value)
-        {
-            return value is null ? string.Empty : $" {name}={value}";
-        }
-
-        static string RenderBool(string name, bool? value)
-        {
-            return value is null ? string.Empty : $" {name}={value.Value.ToString().ToLowerInvariant()}";
-        }
-
-        static string RenderString(string name, string? value)
-        {
-            return value is null ? string.Empty : $" {name}={XmlValues.EscapeText(value)}";
-        }
     }
 
     /// <summary>
@@ -588,7 +541,7 @@ public static class DocxTextRenderer
         return builder.ToString();
     }
 
-    private static string RenderLines(IReadOnlyList<string> lines)
+    private static string RenderLines(IEnumerable<string> lines)
     {
         var builder = new StringBuilder();
         foreach (string line in lines)

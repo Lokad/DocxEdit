@@ -824,8 +824,8 @@ internal static partial class DocxPatchEngine
         string refreshDetail = string.Empty;
         if (simple)
         {
-            string code = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
-            string[] tokens = TokenizeFieldCodeForPatch(code);
+            string code = FieldCodeLexical.Normalize((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+            string[] tokens = FieldCodeLexical.Tokenize(code);
             fieldType = tokens.Length == 0 ? "unknown" : NormalizeFieldTypeForPatch(tokens[0]);
             if (TryReadQuoteFieldText(code, out _))
             {

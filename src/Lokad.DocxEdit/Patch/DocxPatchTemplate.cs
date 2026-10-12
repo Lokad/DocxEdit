@@ -713,7 +713,7 @@ internal static partial class DocxPatchEngine
             current = ReadVisibleText(new XElement(OoxmlNs.W + "p", resultRuns));
         }
         string code = simple
-            ? NormalizeFieldCodeForGuard((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty)
+            ? FieldCodeLexical.Normalize((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty)
             : "New code";
         string resultSupport = SupportOf(capabilities, "set-field-result");
         bool activeResult = string.Equals(resultSupport, "supported", StringComparison.Ordinal) && current.Length != 0;

@@ -76,7 +76,7 @@ internal static partial class DocxDocumentScanner
         {
             XElement? properties = control.Element(OoxmlNs.W + "sdtPr");
             XElement content = control.Element(OoxmlNs.W + "sdtContent") ?? control;
-            string kind = ReadContentControlKind(properties);
+            string kind = ContentControlKinds.Read(properties);
             string? lockValue = ReadSdtLock(properties);
             contentControls.Add(new ContentControlScanEntry(control, new DocxContentControlInfo
             {
@@ -201,7 +201,7 @@ internal static partial class DocxDocumentScanner
         {
             if (element.Name == OoxmlNs.W + "fldSimple")
             {
-                string code = NormalizeFieldCode((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+                string code = FieldCodeLexical.Normalize((string?)element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
                 FieldCodeMetadata metadata = AnalyzeFieldCode(code);
                 bool? isLocked = ReadOnOffAttribute(element, "fldLock");
                 string cachedResultText = ReadText(element, textView, maxText, out int resultLength);
@@ -437,16 +437,9 @@ internal static partial class DocxDocumentScanner
         return string.Empty;
     }
 
-    private static string NormalizeFieldCode(string code)
-    {
-        return string.Join(
-            " ",
-            code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-    }
-
     private static FieldCodeMetadata AnalyzeFieldCode(string code)
     {
-        string[] tokens = TokenizeFieldCode(code);
+        string[] tokens = FieldCodeLexical.Tokenize(code);
         if (tokens.Length == 0)
         {
             return new FieldCodeMetadata(null, [], [], [], [], DocxRefreshPolicy.Unsupported, "field code is empty", false);
@@ -476,43 +469,6 @@ internal static partial class DocxDocumentScanner
             refresh.Policy,
             refresh.Reason,
             refresh.CanRefreshDeterministically);
-    }
-
-    private static string[] TokenizeFieldCode(string code)
-    {
-        var tokens = new List<string>();
-        var current = new System.Text.StringBuilder();
-        bool inQuote = false;
-        foreach (char character in code)
-        {
-            if (character == '"')
-            {
-                inQuote = !inQuote;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(character) && !inQuote)
-            {
-                AddCurrentFieldToken(tokens, current);
-                continue;
-            }
-
-            current.Append(character);
-        }
-
-        AddCurrentFieldToken(tokens, current);
-        return tokens.ToArray();
-    }
-
-    private static void AddCurrentFieldToken(List<string> tokens, System.Text.StringBuilder current)
-    {
-        if (current.Length == 0)
-        {
-            return;
-        }
-
-        tokens.Add(current.ToString());
-        current.Clear();
     }
 
     private static string NormalizeFieldType(string token)
@@ -629,32 +585,6 @@ internal static partial class DocxDocumentScanner
         // (field/history flags are tri-state), not as false.
         string? value = (string?)element.Attribute(OoxmlNs.W + localName);
         return value is null ? null : WmlBoolean.IsTrue(value, valueWhenMissing: false);
-    }
-
-    private static string ReadContentControlKind(XElement? properties)
-    {
-        if (properties is null)
-        {
-            return "rich-text";
-        }
-
-        string? kind = properties.Elements()
-            .Select(element => element.Name.LocalName)
-            .FirstOrDefault(name => name is "text" or "richText" or "checkBox" or "dropDownList" or "comboBox" or "date" or "picture" or "group" or "repeatingSection" or "repeatingSectionItem");
-        return kind switch
-        {
-            "text" => "plain-text",
-            "richText" => "rich-text",
-            "checkBox" => "checkbox",
-            "dropDownList" => "dropdown-list",
-            "comboBox" => "combo-box",
-            "date" => "date",
-            "picture" => "picture",
-            "group" => "group",
-            "repeatingSection" => "repeating-section",
-            "repeatingSectionItem" => "repeating-section-item",
-            _ => "rich-text"
-        };
     }
 
     private static string? ReadSdtProperty(XElement? properties, string localName)

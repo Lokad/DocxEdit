@@ -754,7 +754,7 @@ internal static partial class DocxDocumentScanner
         public DocxFieldInfo ToInfo(DocxTargetId id, string story, string partName, bool complete)
         {
             _ = StartElement;
-            string code = NormalizeFieldCode(Code.ToString());
+            string code = FieldCodeLexical.Normalize(Code.ToString());
             string resultText = ResultText.ToString();
             FieldCodeMetadata metadata = AnalyzeFieldCode(code);
             return new DocxFieldInfo

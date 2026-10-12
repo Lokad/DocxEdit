@@ -1074,7 +1074,7 @@ internal static partial class TextRenderers
         return RenderTable(table, -1);
     }
 
-    private static string RenderImageLayoutMetadata(DocxImageInfo image)
+    internal static string RenderImageLayoutMetadata(DocxImageInfo image)
     {
         return RenderLong("wrap-dist-top-emu", image.WrapDistanceTopEmu) +
             RenderLong("wrap-dist-bottom-emu", image.WrapDistanceBottomEmu) +
@@ -1091,7 +1091,7 @@ internal static partial class TextRenderers
             RenderString("position-v-align", image.VerticalPositionAlign);
     }
 
-    private static string RenderCrop(DocxImageInfo image)
+    internal static string RenderCrop(DocxImageInfo image)
     {
         return RenderPercent("crop-left-percent", image.CropLeftPercent) +
             RenderPercent("crop-top-percent", image.CropTopPercent) +

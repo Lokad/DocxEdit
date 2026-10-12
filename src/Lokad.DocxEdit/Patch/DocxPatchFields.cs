@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Lokad.DocxEdit.Model;
@@ -96,8 +95,8 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4313", $"Field code replacement for {target} currently supports only simple w:fldSimple fields.", operation, target)];
         }
 
-        string current = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
-        if (expected is not null && !string.Equals(current, NormalizeFieldCodeForGuard(expected), StringComparison.Ordinal))
+        string current = FieldCodeLexical.Normalize((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+        if (expected is not null && !string.Equals(current, FieldCodeLexical.Normalize(expected), StringComparison.Ordinal))
         {
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target, fieldName: "expect-code")];
         }
@@ -238,8 +237,8 @@ internal static partial class DocxPatchEngine
             return [Diagnostic(DocxSeverity.Error, "E4313", $"Field refresh for {target} currently supports only simple w:fldSimple REF-style fields.", operation, target)];
         }
 
-        string currentCode = NormalizeFieldCodeForGuard((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
-        if (expectedCode is not null && !string.Equals(currentCode, NormalizeFieldCodeForGuard(expectedCode), StringComparison.Ordinal))
+        string currentCode = FieldCodeLexical.Normalize((string?)fieldTarget.Element.Attribute(OoxmlNs.W + "instr") ?? string.Empty);
+        if (expectedCode is not null && !string.Equals(currentCode, FieldCodeLexical.Normalize(expectedCode), StringComparison.Ordinal))
         {
             return [Diagnostic(DocxSeverity.Error, "E3201", $"Guard failed for {target}. Expected field code does not match current code.", operation, target, fieldName: "expect-code")];
         }
@@ -276,17 +275,10 @@ internal static partial class DocxPatchEngine
         return [];
     }
 
-    private static string NormalizeFieldCodeForGuard(string code)
-    {
-        return string.Join(
-            " ",
-            code.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-    }
-
     private static bool TryReadRefFieldBookmarkName(string code, [NotNullWhen(true)] out string? bookmarkName)
     {
         bookmarkName = null;
-        string[] tokens = TokenizeFieldCodeForPatch(code);
+        string[] tokens = FieldCodeLexical.Tokenize(code);
         if (tokens.Length < 2)
         {
             return false;
@@ -315,7 +307,7 @@ internal static partial class DocxPatchEngine
     private static bool TryReadQuoteFieldText(string code, [NotNullWhen(true)] out string? text)
     {
         text = null;
-        string[] tokens = TokenizeFieldCodeForPatch(code);
+        string[] tokens = FieldCodeLexical.Tokenize(code);
         if (tokens.Length < 2 || NormalizeFieldTypeForPatch(tokens[0]) != "QUOTE")
         {
             return false;
@@ -339,7 +331,7 @@ internal static partial class DocxPatchEngine
         string target,
         string code)
     {
-        string[] tokens = TokenizeFieldCodeForPatch(code);
+        string[] tokens = FieldCodeLexical.Tokenize(code);
         string fieldType = tokens.Length == 0 ? "unknown" : NormalizeFieldTypeForPatch(tokens[0]);
         string reason = fieldType switch
         {
@@ -363,43 +355,6 @@ internal static partial class DocxPatchEngine
     private static string NormalizeFieldTypeForPatch(string token)
     {
         return token.StartsWith('=') ? "FORMULA" : token.ToUpperInvariant();
-    }
-
-    private static string[] TokenizeFieldCodeForPatch(string code)
-    {
-        var tokens = new List<string>();
-        var current = new StringBuilder();
-        bool inQuote = false;
-        foreach (char character in code)
-        {
-            if (character == '"')
-            {
-                inQuote = !inQuote;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(character) && !inQuote)
-            {
-                AddFieldCodeToken(tokens, current);
-                continue;
-            }
-
-            current.Append(character);
-        }
-
-        AddFieldCodeToken(tokens, current);
-        return tokens.ToArray();
-    }
-
-    private static void AddFieldCodeToken(List<string> tokens, StringBuilder current)
-    {
-        if (current.Length == 0)
-        {
-            return;
-        }
-
-        tokens.Add(current.ToString());
-        current.Clear();
     }
 
     private static bool TryReadSimpleBookmarkText(
