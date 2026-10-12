@@ -10,6 +10,29 @@ namespace Lokad.DocxEdit.Tests;
 // failure output keeps pointing at explicit expected data.
 internal static class DocxTestFixtures
 {
+    // Shared capability setup; scenarios and their assertions stay in each test.
+    public static DocxOperationCapability FindOperation(DocxTargetCapabilities capabilities, string operation)
+    {
+        return capabilities.Operations.First(candidate => string.Equals(candidate.Operation, operation, StringComparison.Ordinal));
+    }
+
+    public static DocxTargetCapabilities GetCapabilities(MemoryStream input, string targetId, TrackChangesMode mode)
+    {
+        input.Position = 0;
+        DocxCapabilitiesResult result = new DocxEditor().GetCapabilities(input, targetId, new DocxCapabilitiesOptions { TrackChanges = mode });
+        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
+        Assert.Equal(targetId, result.TargetId);
+        Assert.NotNull(result.Capabilities);
+        return result.Capabilities!;
+    }
+
+    public static DocxCheckResult RunCheck(MemoryStream input, string patchText, TrackChangesMode mode)
+    {
+        input.Position = 0;
+        using var patch = new StringReader(patchText);
+        return new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = mode });
+    }
+
     public static void AddEntry(ZipArchive archive, string name, string text)
     {
         ZipArchiveEntry entry = archive.CreateEntry(name);

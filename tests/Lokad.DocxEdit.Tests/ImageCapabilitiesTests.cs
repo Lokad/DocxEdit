@@ -6,28 +6,6 @@ namespace Lokad.DocxEdit.Tests;
 // engine.
 public static class ImageCapabilitiesTests
 {
-    private static DocxOperationCapability FindOperation(DocxTargetCapabilities capabilities, string operation)
-    {
-        return capabilities.Operations.First(candidate => string.Equals(candidate.Operation, operation, StringComparison.Ordinal));
-    }
-
-    private static DocxTargetCapabilities GetCapabilities(MemoryStream input, string targetId, TrackChangesMode mode)
-    {
-        input.Position = 0;
-        DocxCapabilitiesResult result = new DocxEditor().GetCapabilities(input, targetId, new DocxCapabilitiesOptions { TrackChanges = mode });
-        Assert.True(result.Success, string.Join("|", result.Diagnostics.Select(static diagnostic => diagnostic.Code + ":" + diagnostic.Message)));
-        Assert.Equal(targetId, result.TargetId);
-        Assert.NotNull(result.Capabilities);
-        return result.Capabilities!;
-    }
-
-    private static DocxCheckResult RunCheck(MemoryStream input, string patchText, TrackChangesMode mode)
-    {
-        input.Position = 0;
-        using var patch = new StringReader(patchText);
-        return new DocxEditor().Check(input, patch, new DocxEditOptions { TrackChanges = mode });
-    }
-
     [Fact]
     public static void SimpleInlineImageVerdicts()
     {

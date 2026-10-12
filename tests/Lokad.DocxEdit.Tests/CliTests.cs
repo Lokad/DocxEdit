@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text;
@@ -1213,67 +1212,28 @@ public static class CliTests
 
     private static RawCliResult RunCliOutOfProcessRaw(byte[]? standardInput, params string[] args)
     {
-        string repoRoot = FindRepoRoot();
-        var startInfo = new ProcessStartInfo("dotnet")
-        {
-            WorkingDirectory = repoRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = standardInput is not null
-        };
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add("--no-build");
-        startInfo.ArgumentList.Add("--configuration");
-        startInfo.ArgumentList.Add(typeof(CliTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration);
-        startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
-        startInfo.ArgumentList.Add("--");
-        foreach (string arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using Process process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start CLI process.");
-        if (standardInput is not null)
-        {
-            process.StandardInput.BaseStream.Write(standardInput, 0, standardInput.Length);
-            process.StandardInput.Close();
-        }
-
-        using var outputBuffer = new MemoryStream();
-        // Drain both streams concurrently: sequential reads deadlock once the
-        // child fills the pipe nobody is reading.
-        Task outputTask = process.StandardOutput.BaseStream.CopyToAsync(outputBuffer);
-        Task<string> errorTask = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
-        outputTask.GetAwaiter().GetResult();
-        string error = errorTask.GetAwaiter().GetResult();
-        return new RawCliResult(process.ExitCode, outputBuffer.ToArray(), error);
+        return RunCliProcessAsync(standardInput, args).GetAwaiter().GetResult();
     }
 
     private static CliResult RunCliOutOfProcessWithInput(byte[] standardInput, params string[] args)
     {
-        return RunCliOutOfProcessCore(standardInput, args);
+        RawCliResult raw = RunCliOutOfProcessRaw(standardInput, args);
+        using var output = new StreamReader(new MemoryStream(raw.Output, writable: false), Encoding.UTF8);
+        return new CliResult(raw.ExitCode, output.ReadToEnd(), raw.Error);
     }
 
-    private static CliResult RunCliOutOfProcessCore(byte[]? standardInput, string[] args)
+    private static async Task<RawCliResult> RunCliProcessAsync(byte[]? standardInput, string[] args)
     {
-        string repoRoot = FindRepoRoot();
         var startInfo = new ProcessStartInfo("dotnet")
         {
-            WorkingDirectory = repoRoot,
+            WorkingDirectory = FindRepoRoot(),
+            UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             RedirectStandardInput = standardInput is not null
         };
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add("--no-build");
-        startInfo.ArgumentList.Add("--configuration");
-        startInfo.ArgumentList.Add(typeof(CliTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration);
-        startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add(Path.Combine(repoRoot, "src", "Lokad.DocxEdit.Cli", "Lokad.DocxEdit.Cli.csproj"));
-        startInfo.ArgumentList.Add("--");
+        startInfo.ArgumentList.Add(typeof(ProgramMain).Assembly.Location);
         foreach (string arg in args)
         {
             startInfo.ArgumentList.Add(arg);
@@ -1281,21 +1241,42 @@ public static class CliTests
 
         using Process process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start CLI process.");
-        if (standardInput is not null)
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var outputBuffer = new MemoryStream();
+        // Start both drains before writing input: any of the three pipes can
+        // fill while the child is working. Keep stdout binary until requested.
+        Task outputTask = process.StandardOutput.BaseStream.CopyToAsync(outputBuffer, timeout.Token);
+        Task<string> errorTask = process.StandardError.ReadToEndAsync(timeout.Token);
+        Task inputTask = WriteInputAsync();
+        Task exitTask = process.WaitForExitAsync(timeout.Token);
+        try
         {
-            process.StandardInput.BaseStream.Write(standardInput, 0, standardInput.Length);
-            process.StandardInput.Close();
+            await Task.WhenAll(outputTask, errorTask, inputTask, exitTask);
         }
-        // Drain both streams concurrently: sequential ReadToEnd calls deadlock
-        // once the child fills the pipe nobody is reading.
-        Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
-        Task<string> errorTask = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
-        string output = outputTask.GetAwaiter().GetResult();
-        string error = errorTask.GetAwaiter().GetResult();
-        return new CliResult(process.ExitCode, output, error);
-    }
+        catch (Exception exception)
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            if (timeout.IsCancellationRequested)
+            {
+                throw new TimeoutException("CLI process did not finish within 60 seconds.", exception);
+            }
+            throw;
+        }
 
+        return new RawCliResult(process.ExitCode, outputBuffer.ToArray(), await errorTask);
+
+        async Task WriteInputAsync()
+        {
+            if (standardInput is not null)
+            {
+                await process.StandardInput.BaseStream.WriteAsync(standardInput, timeout.Token);
+                process.StandardInput.Close();
+            }
+        }
+    }
 
     private static void CreateDocx(string path)
     {
