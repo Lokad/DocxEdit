@@ -509,6 +509,27 @@ Linked images are not fetched or listed as editable image records. VML, grouped
 drawings, charts, SmartArt, OLE objects, and generic shapes are
 preserved but not edited.
 
+Image assets support PNG, JPEG, SVG, and still WebP through caller-supplied streams.
+Guards accept `image/png`, `image/jpeg`, `image/svg+xml`, and `image/webp`.
+Insertion, replacement, and extraction preserve encoded bytes without conversion.
+
+SVG insertion uses the Office SVG extension without generating a raster preview;
+readers without SVG support may show a missing image. Existing Word SVG images
+with a preview are inspected and extracted as one vector image. Replacement removes
+stale previews while preserving assets used by other placements. Absolute root
+lengths (unitless/px, in, cm, mm, pt, pc, q) or `viewBox` determine size; CSS and
+percentage lengths are not resolved. Supply both display dimensions when no size
+can be inferred. Compressed SVG, DTDs, scripts, `foreignObject`, and external `href`
+resources are unsupported.
+
+Still WebP assets support lossy VP8, lossless VP8L, and extended VP8X with
+transparency/metadata. Animated insertion/replacement assets fail with `E5203`;
+existing embedded animations can still be inspected and extracted unchanged.
+Reserved VP8X fields and nonzero VP8L versions are unsupported. Container sizes,
+chunk boundaries, frame headers, and dimensions are checked without decoding
+pixels; this does not prove compressed payloads decode. Display requires a reader
+with WebP support. Reader compatibility and Word save behavior are not guaranteed.
+
 ### Sections
 
 | Operation | Required fields | Optional fields | Notes |
@@ -693,5 +714,3 @@ Common diagnostics:
 - `E62xx`: section edit issue.
 
 See [diagnostics.md](diagnostics.md) for the full diagnostic map.
-
-Image assets support PNG, JPEG, SVG, and still WebP through caller-supplied streams. Guards accept `image/png`, `image/jpeg`, `image/svg+xml`, and `image/webp`. WebP is embedded directly without conversion; animated input fails with `E5203`. SVG is embedded as the original vector asset using the Office SVG extension; no raster preview is generated. Absolute root lengths or viewBox determine size; otherwise supply both dimensions. Inspection and extraction prefer the SVG over an existing Word preview. See the [README](../README.md) for compatibility and unsupported SVG input.

@@ -1,6 +1,6 @@
 # Release procedure
 
-This is a manual release procedure for the first package. No automatic publishing pipeline is required.
+This is the manual release procedure for Lokad.DocxEdit. No automatic publishing pipeline is required.
 
 ## Stable SDK
 

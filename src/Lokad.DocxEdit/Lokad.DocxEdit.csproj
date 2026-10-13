@@ -6,16 +6,16 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>Lokad.DocxEdit</PackageId>
     <Title>Lokad.DocxEdit</Title>
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0</AssemblyVersion>
-    <FileVersion>0.1.0</FileVersion>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0</AssemblyVersion>
+    <FileVersion>0.2.0</FileVersion>
     <Authors>Lokad</Authors>
     <Company>Lokad</Company>
-    <Description>Stream-first .docx reader and patch editor for coding agents.</Description>
+    <Description>Stream-first .docx creator, reader, and patch editor for coding agents.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>0.1.0 introduces the stream-first DocxEditor library, deterministic docxpatch editing, document inspection and validation, image extraction and replacement, and shared hosted command execution with asynchronous I/O, cancellation, and canonical JSON output. The development CLI is available from source.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.2.0 adds empty document creation, stored section page dimensions and margins, guarded native Word equation editing, and original-byte SVG and still WebP image editing and extraction. It expands comment anchors, fixes comment threading and duplicate header/footer warnings, and parses XML measurements independently of host culture. Package inspection, text editing, and command I/O reuse parsed data and buffers to reduce repeated work and copying.</PackageReleaseNotes>
     <PackageTags>docx;word;openxml;documents;editing;agents</PackageTags>
     <PackageProjectUrl>https://github.com/Lokad/DocxEdit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Lokad/DocxEdit.git</RepositoryUrl>

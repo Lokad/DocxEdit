@@ -1,29 +1,41 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - Unreleased
 
-- Shared header/footer parts now emit unsupported-feature warnings once, using
-  the same story labels as the read inventory.
-
+- Added `DocxEditor.Create` and the shared `create` command for empty A4 or US Letter
+  documents in portrait or landscape, with one-inch margins and Normal/Heading1–Heading9
+  styles. Supports quotas, stream ownership, cancellation, staged command publication,
+  binary stdout, and JSON reports.
+- Added stored section page dimensions, margins, header/footer distances, and gutter
+  to read results and text output, in twips with nulls for unspecified or non-integer values.
+- Added comment anchors for table cells and selected text within paragraphs or cells,
+  with occurrence disambiguation and preservation of surrounding protected markup.
+- Added native Word equation discovery, OMML extraction, and guarded whole-equation
+  insertion, replacement, and deletion through a bounded LaTeX-like syntax. Supports
+  inline/display placement, snapshot IDs, aliases, and capability/template guidance.
+  Text rewrites protect equations from accidental removal.
+- Added original-byte SVG insertion, raster/vector replacement, sizing, metadata,
+  cropping, and extraction through the library and commands. Existing Word SVG previews
+  share one image identity; replacement/deletion preserve shared assets. Insertion
+  generates no raster preview and requires a reader with SVG support.
 - Added native still WebP insertion and format interchange with original-byte
   extraction, sizing, metadata, and cropping. Bounded RIFF/VP8/VP8L/VP8X checks
-  reject malformed containers and animated input; no conversion or Word dependency.
-
-- Added original-byte SVG insertion, raster/vector replacement, sizing, metadata,
-  and extraction through library and commands. Word SVG previews share one image
-  identity; replacement/deletion preserve shared assets. No raster preview is generated.
-
-- Added native equation discovery and guarded whole-equation insertion, replacement,
-  and deletion with a bounded LaTeX-like syntax. Text rewrites now protect equations.
-  Includes inline/display placement, snapshot IDs, aliases, OMML extraction,
-  capability/template guidance, and a local Word-to-PDF smoke-test script.
-- Added `DocxEditor.Create` and the shared `create` command for empty A4 or US Letter
-  documents in portrait or landscape, with fixed margins and Normal/Heading1–Heading9
-  styles. Includes quotas, stream ownership, cancellation, staged command publication,
-  binary stdout, and JSON reports.
-- Section reads now expose stored page dimensions, margins, header/footer distances,
-  and gutter in twips, with nullable values when unspecified or non-integer.
-  XML integer measurements use invariant number syntax regardless of host culture.
+  reject malformed containers and animated assets without decoding or conversion;
+  display requires a reader with WebP support.
+- Fixed comment threading to use the last comment paragraph's identity. Editing a
+  comment preserves resolution state and reply linkage; deleting a parent with replies
+  or a reply with children is refused until the leaf replies are removed.
+- Fixed XML integer measurement parsing to use invariant syntax regardless of host culture.
+- Fixed duplicate unsupported-feature warnings for shared header/footer parts;
+  diagnostics now use the same story labels as the read inventory.
+- Reduced repeated XML parsing and traversal by reusing package styles, relationships,
+  part roles, story trees, and validation trees. Text editing and content-control
+  hierarchy scanning avoid repeated rebuilding and descendant scans.
+- Reduced buffer copies during package loading, hosted asset handling, image inspection,
+  and command output. Read text is bounded during collection, summaries skip run/text
+  rendering, JSON reports serialize directly to staging, and buffered text flushes in chunks.
+- Added optional local Word/PDF smoke tests for equations and comments. Creation
+  compatibility tests now require an actual Word save rather than accepting a no-op.
 
 ## 0.1.0 - 2026-10-02
 

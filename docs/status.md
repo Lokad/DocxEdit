@@ -27,11 +27,11 @@ copies of generator output — refresh them by hand after registry changes:
 is published on NuGet. The package targets `net10.0` and contains the library;
 the development CLI is available from source.
 
-Repository documentation describes current source, including unreleased changes.
-See [CHANGELOG.md](../CHANGELOG.md) for the published and unreleased changes.
+Current source is prepared for 0.2.0. Repository documentation describes this
+source version; see [CHANGELOG.md](../CHANGELOG.md) for its changes and release history.
 These guarantees hold for current source:
 
-- Native still WebP insertion/replacement, metadata, cropping, sizing, and extraction preserve encoded bytes without conversion. Animated WebP is rejected; reader compatibility varies.
+- Native still WebP insertion/replacement, metadata, cropping, sizing, and extraction preserve encoded bytes without conversion. Animated insertion/replacement assets are rejected; existing animations remain inspectable and extractable. Reader compatibility varies.
 - SVG insertion and raster/vector replacement preserve vector bytes, including discovery of Word SVG previews as a single image. SVG requires a reader with SVG support; no raster preview is generated.
 - Stream-first library with no NuGet dependencies beyond the .NET platform libraries.
 - Repeatable `.docxpatch` edits against discovered target IDs (`read`, `outline`, `find`, `dump`, or `context`): same bytes scan to the same IDs,
